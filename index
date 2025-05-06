@@ -17,6 +17,10 @@
             padding: 10px;
             border-radius: 8px;
         }
+        #liste:empty::before {
+            content: 'Chargement...';
+            color: #666;
+        }
     </style>
 </head>
 <body>
@@ -24,26 +28,50 @@
     <div id="liste"></div>
 
     <script>
+        function escapeHTML(str) {
+            return str.replace(/[&<>"']/g, match => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[match]));
+        }
+
         fetch('https://web-production-3b9e.up.railway.app/liste_produits')
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) throw new Error('Erreur réseau');
+                return response.json();
+            })
             .then(data => {
                 const container = document.getElementById('liste');
+                container.innerHTML = ''; // Clear loading message
+                const fragment = document.createDocumentFragment();
                 data.forEach(produit => {
+                    if (!produit.numero_item || !produit.DESIGNATION || !produit.BAR || !produit.PRIX || !produit.QTE) {
+                        console.warn('Produit incomplet : ', produit);
+                        return;
+                    }
                     const div = document.createElement('div');
                     div.className = 'item';
+                    div.setAttribute('role', 'article');
+                    div.setAttribute('aria-label', `Produit ${produit.numero_item}`);
                     div.innerHTML = `
-                        <strong>${produit.numero_item}</strong><br>
-                        Désignation : ${produit.DESIGNATION}<br>
-                        Code-barres : ${produit.BAR}<br>
-                        Prix : ${produit.PRIX}<br>
-                        Quantité : ${produit.QTE}
+                        <strong>${escapeHTML(produit.numero_item)}</strong><br>
+                        Désignation : ${escapeHTML(produit.DESIGNATION)}<br>
+                        Code-barres : ${escapeHTML(produit.BAR)}<br>
+                        Prix : ${escapeHTML(produit.PRIX.toString())}<br>
+                        Quantité : ${escapeHTML(produit.QTE.toString())}
                     `;
-                    container.appendChild(div);
+                    fragment.appendChild(div);
                 });
+                container.appendChild(fragment);
             })
             .catch(error => {
-                document.getElementById('liste').innerHTML = 'Erreur lors du chargement';
-                console.error(error);
+                document.getElementById('liste').innerHTML = `
+                    <p>Erreur lors du chargement des produits. <button onclick="window.location.reload()">Réessayer</button></p>
+                `;
+                console.error('Erreur fetch :', error);
             });
     </script>
 </body>
