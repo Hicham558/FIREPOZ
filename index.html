@@ -3,199 +3,123 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion Clients & Produits</title>
+    <title>Liste des Produits</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: #f0f2f5;
             padding: 20px;
         }
-        h1, h2 {
+        h2 {
             color: #333;
+            text-align: center;
+            margin-bottom: 30px;
         }
-        form {
-            margin-bottom: 20px;
+        .item {
+            background: #fff;
+            border-left: 6px solid #007BFF;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 15px 20px;
+            margin-bottom: 15px;
+            border-radius: 6px;
+            transition: transform 0.2s ease;
         }
-        label {
+        .item:hover {
+            transform: scale(1.02);
+        }
+        .item strong {
+            color: #007BFF;
+            font-size: 1.1em;
+        }
+        #liste:empty::before {
+            content: 'Chargement...';
+            color: #888;
             display: block;
-            margin: 10px 0 5px;
-        }
-        input {
-            padding: 8px;
-            width: 100%;
-            max-width: 300px;
-        }
-        button {
-            padding: 10px 15px;
-            background-color: #28a745;
-            color: white;
-            border: none;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #218838;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-        th {
-            background-color: #f2f2f2;
+            text-align: center;
+            font-style: italic;
         }
         .error {
             color: red;
-            margin-top: 10px;
+            text-align: center;
+            margin-top: 20px;
         }
-        .success {
-            color: green;
-            margin-top: 10px;
+        button {
+            padding: 8px 16px;
+            background: #007BFF;
+            border: none;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
         }
     </style>
 </head>
 <body>
-    <h1>Gestion des Clients et Produits</h1>
-
-    <!-- Formulaire pour ajouter un client -->
-    <h2>Ajouter un client</h2>
-    <form id="clientForm">
-        <label for="nom">Nom :</you</label>
-        <input type="text" id="nom" name="nom" placeholder="Nom du client" required>
-        <label for="solde">Solde</label>
-        <input type="number" id="solde" name="solde" placeholder="Solde initial" step="0.01" required>
-        <label for="reference">Référence</label>
-        <input type="text" id="reference" name="reference" placeholder="Référence unique" required>
-        <button type="submit">Ajouter Client</button>
-    </form>
-    <div id="message"></div>
-
-    <!-- Liste des clients -->
-    <h2>Liste des Clients</h2>
-    <table id="clientsTable">
-        <thead>
-            <tr>
-                <th>Numéro</th>
-                <th>Nom</th>
-                <th>Solde</th>
-                <th>Référence</th>
-            </tr>
-        </thead>
-        <tbody></tbody>
-    </table>
-
-    <!-- Liste des produits -->
     <h2>Liste des Produits</h2>
-    <table id="produitsTable">
-        <thead>
-            <tr>
-                <th>Numéro</ girişim
-
-System: Voici la suite du code HTML pour compléter l'interface utilisateur qui interagit avec votre API Flask. Ce code inclut la fin de la table des produits et le JavaScript pour gérer les requêtes API.
-
-### Code HTML (suite de `index.html`)
-
-```html
-                <th>Code-barres</th>
-                <th>Désignation</th>
-                <th>Quantité</th>
-                <th>Prix</th>
-            </tr>
-        </thead>
-        <tbody></tbody>
-    </table>
+    <div id="liste"></div>
 
     <script>
-        const API_URL = 'http://localhost:5000'; // Remplacez par l'URL de votre API si déployée
-
-        // Fonction pour afficher un message
-        function showMessage(message, isError = false) {
-            const messageDiv = document.getElementById('message');
-            messageDiv.textContent = message;
-            messageDiv.className = isError ? 'error' : 'success';
-            setTimeout(() => messageDiv.textContent = '', 3000);
+        function escapeHTML(str) {
+            return str.replace(/[&<>"']/g, match => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[match]));
         }
 
-        // Charger la liste des clients
-        async function loadClients() {
-            try {
-                const response = await fetch(`${API_URL}/liste_clients`);
-                if (!response.ok) throw new Error('Erreur lors du chargement des clients');
-                const clients = await response.json();
-                const tbody = document.querySelector('#clientsTable tbody');
-                tbody.innerHTML = '';
-                clients.forEach(client => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${client.numero_clt}</td>
-                        <td>${client.nom}</td>
-                        <td>${client.solde}</td>
-                        <td>${client.reference}</td>
+        // Utilisation d'un proxy CORS public (à ne pas utiliser en production)
+        const proxy = 'https://cors-anywhere.herokuapp.com/';
+        const url = 'https://web-production-3b9e.up.railway.app/liste_produits';
+
+        fetch(proxy + url)
+            .then(response => {
+                if (!response.ok) throw new Error('Erreur réseau');
+                return response.json();
+            })
+            .then(data => {
+                const container = document.getElementById('liste');
+                container.innerHTML = '';
+                const fragment = document.createDocumentFragment();
+
+                data.forEach(item => {
+                    if (
+                        item.numero_item == null ||
+                        item.DESIGNATION == null ||
+                        item.BAR == null ||
+                        item.PRIX == null ||
+                        item.QTE == null
+                    ) {
+                        console.warn('Item incomplet : ', item);
+                        return;
+                    }
+
+                    const div = document.createElement('div');
+                    div.className = 'item';
+                    div.setAttribute('role', 'article');
+                    div.setAttribute('aria-label', `Produit ${item.numero_item}`);
+                    div.innerHTML = `
+                        <strong>${escapeHTML(item.numero_item)}</strong><br>
+                        Désignation : ${escapeHTML(item.DESIGNATION)}<br>
+                        Code-barres : ${escapeHTML(item.BAR)}<br>
+                        Prix : ${escapeHTML(item.PRIX.toString())} DA<br>
+                        Quantité : ${escapeHTML(item.QTE.toString())}
                     `;
-                    tbody.appendChild(row);
+                    fragment.appendChild(div);
                 });
-            } catch (error) {
-                showMessage(error.message, true);
-            }
-        }
 
-        // Charger la liste des produits
-        async function loadProduits() {
-            try {
-                const response = await fetch(`${API_URL}/liste_produits`);
-                if (!response.ok) throw new Error('Erreur lors du chargement des produits');
-                const produits = await response.json();
-                const tbody = document.querySelector('#produitsTable tbody');
-                tbody.innerHTML = '';
-                produits.forEach(produit => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${produit.NUMERO_ITEM}</td>
-                        <td>${produit.BAR}</td>
-                        <td>${produit.DESIGNATION}</td>
-                        <td>${produit.QTE}</td>
-                        <td>${produit.PRIX}</td>
-                    `;
-                    tbody.appendChild(row);
-                });
-            } catch (error) {
-                showMessage(error.message, true);
-            }
-        }
-
-        // Ajouter un client
-        document.getElementById('clientForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const nom = document.getElementById('nom').value;
-            const solde = parseFloat(document.getElementById('solde').value);
-            const refinance = document.getElementById('reference').value;
-
-            try {
-                const response = await fetch(`${API_URL}/ajouter_client`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ nom, solde, reference })
-                });
-                const result = await response.json();
-                if (!response.ok) throw new Error(result.erreur || 'Erreur lors de l\'ajout du client');
-                showMessage(result.statut);
-                document.getElementById('clientForm').reset();
-                loadClients(); // Rafraîchir la liste des clients
-            } catch (error) {
-                showMessage(error.message, true);
-            }
-        });
-
-        // Charger les données au démarrage
-        document.addEventListener('DOMContentLoaded', () => {
-            loadClients();
-            loadProduits();
-        });
+                container.appendChild(fragment);
+            })
+            .catch(error => {
+                document.getElementById('liste').innerHTML = `
+                    <div class="error">Erreur lors du chargement des produits.<br><br>
+                    <button onclick="window.location.reload()">Réessayer</button></div>
+                `;
+                console.error('Erreur fetch :', error);
+            });
     </script>
 </body>
 </html>
