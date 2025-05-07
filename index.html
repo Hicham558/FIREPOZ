@@ -1,118 +1,91 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Liste des Produits</title>
+    <title>Liste des Produits - Solution Définitive</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            padding: 20px;
-            max-width: 800px;
-            margin: 0 auto;
+        #products { margin-top: 20px; }
+        .product { 
+            padding: 15px; 
+            border-bottom: 1px solid #eee;
+            display: flex;
         }
-        .product {
-            border: 1px solid #ddd;
-            padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 5px;
-            background-color: #f9f9f9;
-        }
-        .error {
-            color: red;
+        .error { 
+            color: red; 
             padding: 10px;
+            background: #ffeeee;
             border: 1px solid red;
-            background-color: #ffeeee;
-        }
-        .loading {
-            color: #666;
-            font-style: italic;
         }
     </style>
 </head>
 <body>
-    <h1>Liste des Produits</h1>
-    <div id="product-list">
-        <div class="loading">Chargement en cours...</div>
-    </div>
+    <h1>Produits</h1>
+    <div id="status">Chargement...</div>
+    <div id="products"></div>
 
     <script>
-        // Configuration
         const API_URL = 'https://web-production-3b9e.up.railway.app/liste_produits';
-        
-        // Fonction pour formater le prix
-        function formatPrice(price) {
-            return parseFloat(price).toFixed(2) + ' €';
-        }
+        const MAX_RETRIES = 3;
+        let retryCount = 0;
 
-        // Fonction pour afficher les produits
-        function displayProducts(products) {
-            const container = document.getElementById('product-list');
-            container.innerHTML = '';
-            
-            if (products.length === 0) {
-                container.innerHTML = '<div class="error">Aucun produit trouvé</div>';
-                return;
-            }
-            
-            products.forEach(product => {
-                const div = document.createElement('div');
-                div.className = 'product';
-                div.innerHTML = `
-                    <h3>${product.DESIGNATION}</h3>
-                    <p><strong>Référence:</strong> ${product.NUMERO_ITEM}</p>
-                    <p><strong>Code barre:</strong> ${product.BAR}</p>
-                    <p><strong>Prix:</strong> ${formatPrice(product.PRIX)}</p>
-                    <p><strong>Stock:</strong> ${product.QTE}</p>
-                `;
-                container.appendChild(div);
-            });
-        }
-
-        // Fonction pour gérer les erreurs
-        function handleError(error) {
-            console.error('Erreur:', error);
-            document.getElementById('product-list').innerHTML = `
-                <div class="error">
-                    <p>Erreur lors du chargement des produits</p>
-                    <p>${error.message}</p>
-                    <button onclick="loadProducts()">Réessayer</button>
-                </div>
-            `;
-        }
-
-        // Fonction principale de chargement
-        async function loadProducts() {
+        async function fetchWithRetry(url, options = {}, retries = MAX_RETRIES) {
             try {
-                document.getElementById('product-list').innerHTML = '<div class="loading">Chargement en cours...</div>';
-                
-                const response = await fetch(API_URL, {
+                const response = await fetch(url, {
+                    ...options,
                     headers: {
                         'Accept': 'application/json',
-                        'Content-Type': 'application/json'
+                        ...(options.headers || {})
                     }
                 });
-                
-                if (!response.ok) {
-                    throw new Error(`Erreur HTTP: ${response.status}`);
-                }
-                
-                const data = await response.json();
-                displayProducts(data);
-                
+
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return await response.json();
+
             } catch (error) {
-                // Tentative avec proxy CORS si échec
-                try {
-                    const proxyResponse = await fetch(`https://cors-anywhere.herokuapp.com/${API_URL}`);
-                    const proxyData = await proxyResponse.json();
-                    displayProducts(proxyData);
-                } catch (proxyError) {
-                    handleError(error); // Affiche l'erreur originale
+                if (retries > 0) {
+                    console.warn(`Tentative ${MAX_RETRIES - retries + 1}/${MAX_RETRIES}...`);
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    return fetchWithRetry(url, options, retries - 1);
                 }
+                throw error;
             }
         }
 
-        // Chargement initial
+        async function loadProducts() {
+            try {
+                document.getElementById('status').textContent = 'Chargement...';
+                
+                // Essai direct
+                let data = await fetchWithRetry(API_URL)
+                    .catch(() => {
+                        console.log('Tentative avec proxy CORS...');
+                        return fetchWithRetry(`https://corsproxy.io/?${encodeURIComponent(API_URL)}`);
+                    });
+
+                displayProducts(data);
+                document.getElementById('status').textContent = '';
+
+            } catch (error) {
+                document.getElementById('status').innerHTML = 
+                    `<div class="error">
+                        <p>Échec du chargement : ${error.message}</p>
+                        <button onclick="loadProducts()">Réessayer</button>
+                    </div>`;
+                console.error('Erreur finale :', error);
+            }
+        }
+
+        function displayProducts(products) {
+            const container = document.getElementById('products');
+            container.innerHTML = products.map(p => `
+                <div class="product">
+                    <div style="flex:1"><strong>${p.DESIGNATION}</strong></div>
+                    <div style="flex:1">${p.PRIX} €</div>
+                    <div style="flex:1">${p.BAR}</div>
+                </div>
+            `).join('');
+        }
+
+        // Démarrer
         loadProducts();
     </script>
 </body>
