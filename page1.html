@@ -1,55 +1,42 @@
-je<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scanner de Code-Barres</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            margin: 20px;
-        }
-        #scanner-container {
-            width: 100%;
-            max-width: 640px;
-            margin: 0 auto;
-        }
-        #scanner-video {
-            width: 100%;
-            border: 2px solid #ccc;
-        }
-        #result {
-            margin-top: 20px;
-            padding: 10px;
-            border: 1px solid #ddd;
-            min-height: 100px;
-        }
-        button {
-            padding: 10px 20px;
-            font-size: 16px;
-            margin: 10px;
-            cursor: pointer;
-        }
-        .error {
-            color: red;
-        }
-    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-<body>
-    <h1>Scanner de Code-Barres</h1>
-    <nav>
-        <a href="index.html">Accueil</a>
-        <a href="page1.html">Scanner Produits</a>
-    </nav>
-    <div id="scanner-container">
-        <video id="scanner-video" autoplay muted playsinline></video>
-    </div>
-    <button onclick="startScanner()">Démarrer le Scan</button>
-    <button onclick="stopScanner()">Arrêter le Scan</button>
-    <div id="result">Résultat du scan : Aucun scan effectué.</div>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-indigo-700">Scanner de Code-Barres</h1>
+            <p class="text-gray-600">Scannez un produit pour voir ses détails</p>
+            <a href="index.html" class="inline-block mt-4 bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
+                <i class="fas fa-home mr-2"></i>Retour à l'accueil
+            </a>
+        </header>
 
-    <!-- Inclure QuaggaJS depuis un CDN -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <div class="mb-4">
+                <div id="scanner-container" class="w-full max-w-lg mx-auto">
+                    <video id="scanner-video" class="w-full border-2 border-gray-300 rounded-md" autoplay muted playsinline></video>
+                </div>
+            </div>
+            <div class="flex justify-center space-x-4 mb-4">
+                <button onclick="startScanner()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
+                    <i class="fas fa-play mr-2"></i>Démarrer le Scan
+                </button>
+                <button onclick="stopScanner()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition">
+                    <i class="fas fa-stop mr-2"></i>Arrêter le Scan
+                </button>
+            </div>
+            <div id="result" class="p-4 bg-gray-50 rounded-lg text-gray-700">
+                Résultat du scan : Aucun scan effectué.
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
     <script>
         let scannerRunning = false;
@@ -58,35 +45,29 @@ je<!DOCTYPE html>
             if (scannerRunning) return;
             scannerRunning = true;
 
-            // Initialiser QuaggaJS
             Quagga.init({
                 inputStream: {
                     name: "Live",
                     type: "LiveStream",
-                    target: document.querySelector('#scanner-video'),
-                    constraints: {
-                        facingMode: "environment" // Utiliser la caméra arrière
-                    }
+                    target: document.querySelector('#scanner-video')
                 },
                 decoder: {
-                    readers: ["ean_reader", "code_128_reader", "ean_8_reader"] // Types de codes-barres pris en charge
+                    readers: ["ean_reader", "code_128_reader", "ean_8_reader"]
                 }
             }, function(err) {
                 if (err) {
-                    document.getElementById('result').innerHTML = `<span class="error">Erreur : ${err}</span>`;
+                    document.getElementById('result').innerHTML = `<span class="text-red-500">Erreur : ${err.message}</span>`;
                     console.error(err);
+                    scannerRunning = false;
                     return;
                 }
                 Quagga.start();
             });
 
-            // Événement déclenché lorsqu'un code-barres est détecté
             Quagga.onDetected(function(data) {
                 const code = data.codeResult.code;
                 document.getElementById('result').innerHTML = `Code-barres détecté : ${code}<br>Recherche des informations...`;
                 fetchProduit(code);
-                // Arrêter le scan après détection (optionnel, commenté pour permettre plusieurs scans)
-                // stopScanner();
             });
         }
 
@@ -99,26 +80,23 @@ je<!DOCTYPE html>
 
         async function fetchProduit(barCode) {
             try {
-                // Remplacer par l'URL de ton API
                 const response = await fetch('https://web-production-3b9e.up.railway.app/liste_produits');
+                if (!response.ok) throw new Error(`Erreur ${response.status}: ${response.statusText}`);
                 const produits = await response.json();
-
-                // Chercher le produit correspondant au code-barres
                 const produit = produits.find(p => p.BAR === barCode);
-
                 if (produit) {
                     document.getElementById('result').innerHTML = `
-                        <strong>Produit trouvé :</strong><br>
+                        <strong class="text-green-600">Produit trouvé :</strong><br>
                         Désignation : ${produit.DESIGNATION}<br>
                         Quantité : ${produit.QTE}<br>
                         Prix : ${produit.PRIX} €<br>
                         Code-barres : ${produit.BAR}
                     `;
                 } else {
-                    document.getElementById('result').innerHTML = `<span class="error">Aucun produit trouvé pour le code-barres : ${barCode}</span>`;
+                    document.getElementById('result').innerHTML = `<span class="text-red-500">Aucun produit trouvé pour le code-barres : ${barCode}</span>`;
                 }
             } catch (error) {
-                document.getElementById('result').innerHTML = `<span class="error">Erreur lors de la récupération des données : ${error}</span>`;
+                document.getElementById('result').innerHTML = `<span class="text-red-500">Erreur lors de la récupération des données : ${error.message}</span>`;
             }
         }
     </script>
