@@ -1,92 +1,249 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
-    <title>Liste des Produits - Solution Définitive</title>
-    <style>
-        #products { margin-top: 20px; }
-        .product { 
-            padding: 15px; 
-            border-bottom: 1px solid #eee;
-            display: flex;
-        }
-        .error { 
-            color: red; 
-            padding: 10px;
-            background: #ffeeee;
-            border: 1px solid red;
-        }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion Commerciale</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-<body>
-    <h1>Produits</h1>
-    <div id="status">Chargement...</div>
-    <div id="products"></div>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-indigo-700">Gestion Commerciale</h1>
+            <p class="text-gray-600">Interface d'administration moderne</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Section Clients -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold text-gray-800">Gestion Clients</h2>
+                    <button onclick="toggleClientForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
+                        <i class="fas fa-plus mr-2"></i>Ajouter
+                    </button>
+                </div>
+
+                <!-- Formulaire Ajout Client (caché par défaut) -->
+                <div id="clientForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
+                    <h3 class="font-medium mb-3">Nouveau Client</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nom</label>
+                            <input type="text" id="clientNom" class="w-full px-3 py-2 border rounded-md">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Solde</label>
+                            <input type="number" id="clientSolde" class="w-full px-3 py-2 border rounded-md">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Référence</label>
+                            <input type="text" id="clientReference" class="w-full px-3 py-2 border rounded-md">
+                        </div>
+                    </div>
+                    <button onclick="ajouterClient()" class="mt-4 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition">
+                        <i class="fas fa-save mr-2"></i>Enregistrer
+                    </button>
+                </div>
+
+                <!-- Liste Clients -->
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
+                            </tr>
+                        </thead>
+                        <tbody id="clientsList" class="bg-white divide-y divide-gray-200">
+                            <!-- Les clients seront chargés ici -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Section Produits -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold text-gray-800">Liste des Produits</h2>
+                    <div class="relative">
+                        <input type="text" id="searchProduct" placeholder="Rechercher..." 
+                               class="pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Désignation</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                            </tr>
+                        </thead>
+                        <tbody id="productsList" class="bg-white divide-y divide-gray-200">
+                            <!-- Les produits seront chargés ici -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-4 right-4 hidden">
+        <div class="bg-green-500 text-white px-6 py-3 rounded-md shadow-lg">
+            <span id="toastMessage"></span>
+        </div>
+    </div>
 
     <script>
-        const API_URL = 'https://web-production-3b9e.up.railway.app/liste_produits';
-        const MAX_RETRIES = 3;
-        let retryCount = 0;
-
-        async function fetchWithRetry(url, options = {}, retries = MAX_RETRIES) {
-            try {
-                const response = await fetch(url, {
-                    ...options,
-                    headers: {
-                        'Accept': 'application/json',
-                        ...(options.headers || {})
-                    }
-                });
-
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                return await response.json();
-
-            } catch (error) {
-                if (retries > 0) {
-                    console.warn(`Tentative ${MAX_RETRIES - retries + 1}/${MAX_RETRIES}...`);
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                    return fetchWithRetry(url, options, retries - 1);
-                }
-                throw error;
-            }
+        const API_BASE_URL = window.location.origin; // Utilise l'URL actuelle comme base
+        
+        // Fonction pour afficher les notifications
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            
+            toast.className = isError 
+                ? 'fixed bottom-4 right-4 bg-red-500 text-white px-6 py-3 rounded-md shadow-lg'
+                : 'fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-md shadow-lg';
+            
+            toastMessage.textContent = message;
+            toast.classList.remove('hidden');
+            
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
         }
 
-        async function loadProducts() {
+        // Gestion des clients
+        async function chargerClients() {
             try {
-                document.getElementById('status').textContent = 'Chargement...';
+                const response = await fetch(`${API_BASE_URL}/liste_clients`);
+                if (!response.ok) throw new Error('Erreur de chargement');
                 
-                // Essai direct
-                let data = await fetchWithRetry(API_URL)
-                    .catch(() => {
-                        console.log('Tentative avec proxy CORS...');
-                        return fetchWithRetry(`https://corsproxy.io/?${encodeURIComponent(API_URL)}`);
-                    });
-
-                displayProducts(data);
-                document.getElementById('status').textContent = '';
-
+                const clients = await response.json();
+                const tbody = document.getElementById('clientsList');
+                tbody.innerHTML = '';
+                
+                clients.forEach(client => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-gray-50';
+                    tr.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.numero_clt}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${client.nom}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.solde}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.reference}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                
             } catch (error) {
-                document.getElementById('status').innerHTML = 
-                    `<div class="error">
-                        <p>Échec du chargement : ${error.message}</p>
-                        <button onclick="loadProducts()">Réessayer</button>
-                    </div>`;
-                console.error('Erreur finale :', error);
+                showToast('Erreur de chargement des clients', true);
+                console.error(error);
             }
         }
 
-        function displayProducts(products) {
-            const container = document.getElementById('products');
-            container.innerHTML = products.map(p => `
-                <div class="product">
-                    <div style="flex:1"><strong>${p.DESIGNATION}</strong></div>
-                    <div style="flex:1">${p.PRIX} €</div>
-                    <div style="flex:1">${p.BAR}</div>
-                </div>
-            `).join('');
+        async function ajouterClient() {
+            const nom = document.getElementById('clientNom').value;
+            const solde = document.getElementById('clientSolde').value;
+            const reference = document.getElementById('clientReference').value;
+            
+            if (!nom || !solde || !reference) {
+                showToast('Veuillez remplir tous les champs', true);
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/ajouter_client`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ nom, solde, reference })
+                });
+                
+                if (!response.ok) throw new Error('Erreur lors de l\'ajout');
+                
+                showToast('Client ajouté avec succès');
+                document.getElementById('clientForm').classList.add('hidden');
+                chargerClients();
+                
+                // Réinitialiser le formulaire
+                document.getElementById('clientNom').value = '';
+                document.getElementById('clientSolde').value = '';
+                document.getElementById('clientReference').value = '';
+                
+            } catch (error) {
+                showToast(error.message, true);
+                console.error(error);
+            }
         }
 
-        // Démarrer
-        loadProducts();
+        // Gestion des produits
+        async function chargerProduits() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_produits`);
+                if (!response.ok) throw new Error('Erreur de chargement');
+                
+                const produits = await response.json();
+                const tbody = document.getElementById('productsList');
+                tbody.innerHTML = '';
+                
+                produits.forEach(produit => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-gray-50';
+                    tr.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.PRIX}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                
+            } catch (error) {
+                showToast('Erreur de chargement des produits', true);
+                console.error(error);
+            }
+        }
+
+        // Fonction pour afficher/masquer le formulaire client
+        function toggleClientForm() {
+            document.getElementById('clientForm').classList.toggle('hidden');
+        }
+
+        // Recherche de produits
+        document.getElementById('searchProduct').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('#productsList tr');
+            
+            rows.forEach(row => {
+                const designation = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+                if (designation.includes(searchTerm)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+
+        // Chargement initial
+        document.addEventListener('DOMContentLoaded', () => {
+            chargerClients();
+            chargerProduits();
+            
+            // Vérification de la connexion API
+            fetch(`${API_BASE_URL}/`)
+                .then(response => response.text())
+                .then(text => console.log('Statut API:', text))
+                .catch(err => console.error('API non disponible:', err));
+        });
     </script>
 </body>
 </html>
