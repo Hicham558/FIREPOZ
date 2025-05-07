@@ -6,6 +6,7 @@
   <title>Scanner EAN-13</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/minified/html5-qrcode.min.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center">
   <div class="container mx-auto px-4 py-8 max-w-3xl">
@@ -24,21 +25,7 @@
 
     <div class="bg-white rounded-xl shadow-lg p-6">
       <div class="mb-6">
-        <div id="scanner-container" class="relative w-full aspect-video bg-gray-200 rounded-lg overflow-hidden">
-          <video id="scanner-video" class="absolute inset-0 w-full h-full object-cover" autoplay muted playsinline></video>
-          <div id="camera-loading" class="absolute inset-0 flex items-center justify-center text-gray-500">
-            Chargement de la caméra...
-          </div>
-        </div>
-      </div>
-
-      <div class="flex justify-center space-x-4 mb-6">
-        <button onclick="startScanner()" class="flex items-center bg-green-500 text-white px-6 py-3 rounded-md hover:bg-green-600 transition">
-          <i class="fas fa-play mr-2"></i>Démarrer
-        </button>
-        <button onclick="stopScanner()" class="flex items-center bg-red-500 text-white px-6 py-3 rounded-md hover:bg-red-600 transition">
-          <i class="fas fa-stop mr-2"></i>Arrêter
-        </button>
+        <div id="reader" class="w-full aspect-video bg-gray-200 rounded-lg overflow-hidden"></div>
       </div>
 
       <div id="result" class="p-4 bg-gray-50 rounded-lg text-gray-700 text-center">
@@ -70,57 +57,33 @@
     </div>
   </div>
 
-  <script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
   <script>
-    let codeReader = null;
-    let scannerRunning = false;
+    const html5QrCode = new Html5Qrcode("reader");
 
-    async function startScanner() {
-      if (scannerRunning) return;
-      scannerRunning = true;
-
-      document.getElementById('result').innerHTML = '<p class="text-blue-500">Démarrage du scan...</p>';
-      codeReader = new ZXing.BrowserBarcodeReader({ formats: ["ean_13"] });
-      const videoElement = document.getElementById('scanner-video');
-      const loadingElement = document.getElementById('camera-loading');
-
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment", width: 640, height: 480 }
-        });
-        videoElement.srcObject = stream;
-        videoElement.onloadedmetadata = () => loadingElement.style.display = 'none';
-
-        codeReader.decodeFromVideoDevice(undefined, videoElement, (result, err) => {
-          if (result) {
-            const code = result.text;
-            document.getElementById('result').innerHTML = `<p class="text-green-500">Code-barres détecté : ${code}</p><p>Recherche en cours...</p>`;
-            fetchProduit(code);
-          }
-          if (err && !(err instanceof ZXing.NotFoundException)) {
+    function startScanning() {
+      Html5Qrcode.getCameras().then(devices => {
+        if (devices && devices.length) {
+          html5QrCode.start(
+            { facingMode: "environment" },
+            {
+              fps: 10,
+              qrbox: { width: 300, height: 200 }
+            },
+            code => {
+              html5QrCode.stop();
+              document.getElementById('result').innerHTML = `<p class="text-green-500">Code-barres détecté : ${code}</p><p>Recherche en cours...</p>`;
+              fetchProduit(code);
+            },
+            error => {
+              console.warn(`Erreur de lecture : ${error}`);
+            }
+          ).catch(err => {
             document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${err.message}</p>`;
-          }
-        });
-      } catch (err) {
+          });
+        }
+      }).catch(err => {
         document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${err.message}</p>`;
-        scannerRunning = false;
-      }
-    }
-
-    function stopScanner() {
-      if (!scannerRunning) return;
-      if (codeReader) {
-        codeReader.reset();
-        codeReader = null;
-      }
-      const videoElement = document.getElementById('scanner-video');
-      if (videoElement.srcObject) {
-        videoElement.srcObject.getTracks().forEach(track => track.stop());
-        videoElement.srcObject = null;
-      }
-      scannerRunning = false;
-      document.getElementById('result').innerHTML = '<p class="text-gray-500">Scan arrêté. Cliquez sur "Démarrer" pour recommencer.</p>';
-      document.getElementById('addProductForm').classList.add('hidden');
+      });
     }
 
     async function fetchProduit(barCode) {
@@ -167,6 +130,7 @@
           document.getElementById('result').innerHTML = `<p class="text-green-500">Produit ajouté avec succès !</p>`;
           document.getElementById('addProductForm').classList.add('hidden');
           document.getElementById('productForm').reset();
+          startScanning();
         } else {
           document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${result.erreur}</p>`;
         }
@@ -180,6 +144,9 @@
       form.classList.toggle('hidden');
       document.getElementById('result').innerHTML = '<p class="text-gray-600">Ajout manuel d\'un produit.</p>';
     }
+
+    // Démarrage auto au chargement
+    window.addEventListener('load', startScanning);
   </script>
 </body>
 </html>
