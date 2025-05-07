@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body class="bg-gray-100">
+   語言
     <div class="container mx-auto px-4 py-8">
         <header class="mb-8">
             <h1 class="text-3xl font-bold text-indigo-700">Scanner de Code-Barres</h1>
@@ -37,43 +38,53 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
+    <script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
     <script>
+        let codeReader = null;
         let scannerRunning = false;
 
-        function startScanner() {
+        async function startScanner() {
             if (scannerRunning) return;
             scannerRunning = true;
 
-            Quagga.init({
-                inputStream: {
-                    name: "Live",
-                    type: "LiveStream",
-                    target: document.querySelector('#scanner-video')
-                },
-                decoder: {
-                    readers: ["ean_reader", "code_128_reader", "ean_8_reader"]
-                }
-            }, function(err) {
-                if (err) {
-                    document.getElementById('result').innerHTML = `<span class="text-red-500">Erreur : ${err.message}</span>`;
-                    console.error(err);
-                    scannerRunning = false;
-                    return;
-                }
-                Quagga.start();
-            });
+            codeReader = new ZXing.BrowserBarcodeReader();
+            const videoElement = document.getElementById('scanner-video');
+            document.getElementById('result').innerHTML = "Démarrage du scan...";
 
-            Quagga.onDetected(function(data) {
-                const code = data.codeResult.code;
-                document.getElementById('result').innerHTML = `Code-barres détecté : ${code}<br>Recherche des informations...`;
-                fetchProduit(code);
-            });
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                const deviceId = videoDevices.length > 0 ? videoDevices[0].deviceId : null;
+
+                codeReader.decodeFromVideoDevice(deviceId, videoElement, (result, err) => {
+                    if (result) {
+                        const code = result.text;
+                        document.getElementById('result').innerHTML = `Code-barres détecté : ${code}<br>Recherche des informations...`;
+                        fetchProduit(code);
+                    }
+                    if (err && !(err instanceof ZXing.NotFoundException)) {
+                        document.getElementById('result').innerHTML = `<span class="text-red-500">Erreur : ${err.message}</span>`;
+                        console.error(err);
+                    }
+                });
+            } catch (err) {
+                document.getElementById('result').innerHTML = `<span class="text-red-500">Erreur lors du démarrage : ${err.message}</span>`;
+                console.error(err);
+                scannerRunning = false;
+            }
         }
 
         function stopScanner() {
             if (!scannerRunning) return;
-            Quagga.stop();
+            if (codeReader) {
+                codeReader.reset();
+                codeReader = null;
+            }
+            const videoElement = document.getElementById('scanner-video');
+            if (videoElement.srcObject) {
+                videoElement.srcObject.getTracks().forEach(track => track.stop());
+                videoElement.srcObject = null;
+            }
             scannerRunning = false;
             document.getElementById('result').innerHTML = "Scan arrêté. Cliquez sur 'Démarrer le Scan' pour recommencer.";
         }
@@ -97,6 +108,7 @@
                 }
             } catch (error) {
                 document.getElementById('result').innerHTML = `<span class="text-red-500">Erreur lors de la récupération des données : ${error.message}</span>`;
+                console.error(error);
             }
         }
     </script>
