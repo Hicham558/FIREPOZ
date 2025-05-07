@@ -7,240 +7,112 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            background: #f9f9f9;
             padding: 20px;
-            max-width: 1200px;
+            max-width: 800px;
             margin: 0 auto;
         }
-        
-        .controls {
-            background: white;
+        .product {
+            border: 1px solid #ddd;
             padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        #search {
-            padding: 8px;
-            width: 300px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        
-        .item {
-            background: white;
-            border: 1px solid #ddd;
             margin-bottom: 10px;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border-radius: 5px;
+            background-color: #f9f9f9;
         }
-        
-        .loading {
-            text-align: center;
-            padding: 20px;
-            color: #666;
-        }
-        
         .error {
-            color: #d9534f;
-            background: #f8d7da;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
+            color: red;
+            padding: 10px;
+            border: 1px solid red;
+            background-color: #ffeeee;
         }
-        
-        #pagination {
-            display: flex;
-            justify-content: center;
-            margin-top: 20px;
-        }
-        
-        .page-btn {
-            margin: 0 5px;
-            padding: 5px 10px;
-            cursor: pointer;
+        .loading {
+            color: #666;
+            font-style: italic;
         }
     </style>
 </head>
 <body>
     <h1>Liste des Produits</h1>
-    
-    <div class="controls">
-        <input type="text" id="search" placeholder="Rechercher un produit...">
-        <span id="counter"></span>
-    </div>
-    
-    <div id="liste">
+    <div id="product-list">
         <div class="loading">Chargement en cours...</div>
     </div>
-    
-    <div id="pagination"></div>
 
     <script>
         // Configuration
-        const ITEMS_PER_PAGE = 50;
-        let allProducts = [];
-        let filteredProducts = [];
-        let currentPage = 1;
+        const API_URL = 'https://web-production-3b9e.up.railway.app/liste_produits';
         
-        // Éléments DOM
-        const searchInput = document.getElementById('search');
-        const listeEl = document.getElementById('liste');
-        const paginationEl = document.getElementById('pagination');
-        const counterEl = document.getElementById('counter');
-        
-        // Fonction d'échappement HTML
-        function escapeHTML(str) {
-            if (!str) return '';
-            return str.toString()
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#39;');
+        // Fonction pour formater le prix
+        function formatPrice(price) {
+            return parseFloat(price).toFixed(2) + ' €';
         }
-        
-        // Formatage des nombres
-        function formatNumber(num) {
-            return num ? num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") : '0';
+
+        // Fonction pour afficher les produits
+        function displayProducts(products) {
+            const container = document.getElementById('product-list');
+            container.innerHTML = '';
+            
+            if (products.length === 0) {
+                container.innerHTML = '<div class="error">Aucun produit trouvé</div>';
+                return;
+            }
+            
+            products.forEach(product => {
+                const div = document.createElement('div');
+                div.className = 'product';
+                div.innerHTML = `
+                    <h3>${product.DESIGNATION}</h3>
+                    <p><strong>Référence:</strong> ${product.NUMERO_ITEM}</p>
+                    <p><strong>Code barre:</strong> ${product.BAR}</p>
+                    <p><strong>Prix:</strong> ${formatPrice(product.PRIX)}</p>
+                    <p><strong>Stock:</strong> ${product.QTE}</p>
+                `;
+                container.appendChild(div);
+            });
         }
-        
-        // Chargement des données
+
+        // Fonction pour gérer les erreurs
+        function handleError(error) {
+            console.error('Erreur:', error);
+            document.getElementById('product-list').innerHTML = `
+                <div class="error">
+                    <p>Erreur lors du chargement des produits</p>
+                    <p>${error.message}</p>
+                    <button onclick="loadProducts()">Réessayer</button>
+                </div>
+            `;
+        }
+
+        // Fonction principale de chargement
         async function loadProducts() {
             try {
-                listeEl.innerHTML = '<div class="loading">Chargement en cours...</div>';
+                document.getElementById('product-list').innerHTML = '<div class="loading">Chargement en cours...</div>';
                 
-                const response = await fetch('https://web-production-3b9e.up.railway.app/liste_produits');
+                const response = await fetch(API_URL, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
+                });
                 
                 if (!response.ok) {
                     throw new Error(`Erreur HTTP: ${response.status}`);
                 }
                 
-                allProducts = await response.json();
-                filteredProducts = [...allProducts];
-                
-                updateCounter();
-                renderProducts();
-                setupPagination();
+                const data = await response.json();
+                displayProducts(data);
                 
             } catch (error) {
-                console.error('Erreur:', error);
-                listeEl.innerHTML = `
-                    <div class="error">
-                        <p>Erreur lors du chargement des produits: ${escapeHTML(error.message)}</p>
-                        <button onclick="loadProducts()">Réessayer</button>
-                    </div>
-                `;
+                // Tentative avec proxy CORS si échec
+                try {
+                    const proxyResponse = await fetch(`https://cors-anywhere.herokuapp.com/${API_URL}`);
+                    const proxyData = await proxyResponse.json();
+                    displayProducts(proxyData);
+                } catch (proxyError) {
+                    handleError(error); // Affiche l'erreur originale
+                }
             }
         }
-        
-        // Filtrage des produits
-        function filterProducts() {
-            const searchTerm = searchInput.value.toLowerCase();
-            
-            filteredProducts = allProducts.filter(produit => {
-                return (
-                    (produit.numero_item && produit.numero_item.toString().toLowerCase().includes(searchTerm)) ||
-                    (produit.DESIGNATION && produit.DESIGNATION.toLowerCase().includes(searchTerm)) ||
-                    (produit.BAR && produit.BAR.toString().toLowerCase().includes(searchTerm))
-                );
-            });
-            
-            currentPage = 1;
-            updateCounter();
-            renderProducts();
-            setupPagination();
-        }
-        
-        // Affichage des produits
-        function renderProducts() {
-            const startIdx = (currentPage - 1) * ITEMS_PER_PAGE;
-            const endIdx = startIdx + ITEMS_PER_PAGE;
-            const productsToShow = filteredProducts.slice(startIdx, endIdx);
-            
-            if (productsToShow.length === 0) {
-                listeEl.innerHTML = '<div class="item">Aucun produit trouvé</div>';
-                return;
-            }
-            
-            const fragment = document.createDocumentFragment();
-            
-            productsToShow.forEach(produit => {
-                const div = document.createElement('div');
-                div.className = 'item';
-                div.innerHTML = `
-                    <strong>${escapeHTML(produit.numero_item)}</strong><br>
-                    <strong>${escapeHTML(produit.DESIGNATION)}</strong><br>
-                    Code-barres: ${escapeHTML(produit.BAR)}<br>
-                    Prix: ${formatNumber(escapeHTML(produit.PRIX))} €<br>
-                    Quantité: ${formatNumber(escapeHTML(produit.QTE))}
-                `;
-                fragment.appendChild(div);
-            });
-            
-            listeEl.innerHTML = '';
-            listeEl.appendChild(fragment);
-        }
-        
-        // Mise à jour du compteur
-        function updateCounter() {
-            counterEl.textContent = ` ${filteredProducts.length} produits trouvés`;
-        }
-        
-        // Pagination
-        function setupPagination() {
-            paginationEl.innerHTML = '';
-            
-            const pageCount = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
-            
-            if (pageCount <= 1) return;
-            
-            // Bouton Précédent
-            if (currentPage > 1) {
-                const prevBtn = document.createElement('button');
-                prevBtn.className = 'page-btn';
-                prevBtn.textContent = '← Précédent';
-                prevBtn.addEventListener('click', () => {
-                    currentPage--;
-                    renderProducts();
-                    setupPagination();
-                });
-                paginationEl.appendChild(prevBtn);
-            }
-            
-            // Pages
-            for (let i = 1; i <= pageCount; i++) {
-                const pageBtn = document.createElement('button');
-                pageBtn.className = `page-btn ${i === currentPage ? 'active' : ''}`;
-                pageBtn.textContent = i;
-                pageBtn.addEventListener('click', () => {
-                    currentPage = i;
-                    renderProducts();
-                    setupPagination();
-                });
-                paginationEl.appendChild(pageBtn);
-            }
-            
-            // Bouton Suivant
-            if (currentPage < pageCount) {
-                const nextBtn = document.createElement('button');
-                nextBtn.className = 'page-btn';
-                nextBtn.textContent = 'Suivant →';
-                nextBtn.addEventListener('click', () => {
-                    currentPage++;
-                    renderProducts();
-                    setupPagination();
-                });
-                paginationEl.appendChild(nextBtn);
-            }
-        }
-        
-        // Événements
-        searchInput.addEventListener('input', filterProducts);
-        
-        // Initialisation
+
+        // Chargement initial
         loadProducts();
     </script>
 </body>
