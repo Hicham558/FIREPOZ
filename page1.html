@@ -7,32 +7,32 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-<body class="bg-gray-100">
-    <div class="container mx-auto px-4 py-8">
-        <header class="mb-8">
-            <h1 class="text-3xl font-bold text-indigo-700">Scanner de Code-Barres</h1>
-            <p class="text-gray-600">Scannez un produit pour voir ses détails</p>
-            <a href="index.html" class="inline-block mt-4 bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+    <div class="container mx-auto px-4 py-8 max-w-3xl">
+        <header class="mb-8 text-center">
+            <h1 class="text-4xl font-bold text-indigo-700 mb-2">Scanner de Code-Barres</h1>
+            <p class="text-gray-600 mb-4">Scannez un produit pour voir ses détails</p>
+            <a href="index.html" class="inline-flex items-center bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
                 <i class="fas fa-home mr-2"></i>Retour à l'accueil
             </a>
         </header>
 
-        <div class="bg-white rounded-lg shadow-md p-6">
-            <div class="mb-4">
-                <div id="scanner-container" class="w-full max-w-lg mx-auto">
-                    <video id="scanner-video" class="w-full border-2 border-gray-300 rounded-md" autoplay muted playsinline></video>
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <div class="mb-6">
+                <div id="scanner-container" class="relative w-full aspect-video bg-gray-200 rounded-lg overflow-hidden">
+                    <video id="scanner-video" class="absolute inset-0 w-full h-full object-cover" autoplay muted playsinline></video>
                 </div>
             </div>
-            <div class="flex justify-center space-x-4 mb-4">
-                <button onclick="startScanner()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
-                    <i class="fas fa-play mr-2"></i>Démarrer le Scan
+            <div class="flex justify-center space-x-4 mb-6">
+                <button onclick="startScanner()" class="flex items-center bg-green-500 text-white px-6 py-3 rounded-md hover:bg-green-600 transition">
+                    <i class="fas fa-play mr-2"></i>Démarrer
                 </button>
-                <button onclick="stopScanner()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition">
-                    <i class="fas fa-stop mr-2"></i>Arrêter le Scan
+                <button onclick="stopScanner()" class="flex items-center bg-red-500 text-white px-6 py-3 rounded-md hover:bg-red-600 transition">
+                    <i class="fas fa-stop mr-2"></i>Arrêter
                 </button>
             </div>
-            <div id="result" class="p-4 bg-gray-50 rounded-lg text-gray-700">
-                Résultat du scan : Aucun scan effectué.
+            <div id="result" class="p-4 bg-gray-50 rounded-lg text-gray-700 text-center">
+                <p class="text-lg">En attente de scan...</p>
             </div>
         </div>
     </div>
@@ -43,48 +43,36 @@
         let scannerRunning = false;
 
         async function startScanner() {
-            console.log("1. Début de startScanner");
-            if (scannerRunning) {
-                console.log("Scanner déjà en cours");
-                return;
-            }
+            if (scannerRunning) return;
             scannerRunning = true;
 
-            document.getElementById('result').innerHTML = "Démarrage du scan...";
-            console.log("2. Initialisation de ZXing");
+            document.getElementById('result').innerHTML = '<p class="text-blue-500">Démarrage du scan...</p>';
             codeReader = new ZXing.BrowserBarcodeReader();
             const videoElement = document.getElementById('scanner-video');
 
             try {
-                console.log("3. Demande d'accès à la caméra arrière");
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: "environment" }
+                    video: { facingMode: "user", width: 640, height: 480 } // Caméra avant avec résolution optimisée
                 });
                 videoElement.srcObject = stream;
-                console.log("4. Flux vidéo démarré");
 
-                console.log("5. Démarrage de la détection ZXing");
                 codeReader.decodeFromVideoDevice(undefined, videoElement, (result, err) => {
                     if (result) {
-                        console.log("6. Code-barres détecté:", result.text);
                         const code = result.text;
-                        document.getElementById('result').innerHTML = `Code-barres détecté : ${code}<br>Recherche des informations...`;
+                        document.getElementById('result').innerHTML = `<p class="text-green-500">Code-barres détecté : ${code}</p><p>Recherche des informations...</p>`;
                         fetchProduit(code);
                     }
                     if (err && !(err instanceof ZXing.NotFoundException)) {
-                        console.error("Erreur ZXing:", err);
-                        document.getElementById('result').innerHTML = `<span class="text-red-500">Erreur : ${err.message}</span>`;
+                        document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${err.message}</p>`;
                     }
                 });
             } catch (err) {
-                console.error("Erreur lors du démarrage:", err);
-                document.getElementById('result').innerHTML = `<span class="text-red-500">Erreur : ${err.message}</span>`;
+                document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${err.message}</p>`;
                 scannerRunning = false;
             }
         }
 
         function stopScanner() {
-            console.log("Arrêt du scanner");
             if (!scannerRunning) return;
             if (codeReader) {
                 codeReader.reset();
@@ -96,33 +84,30 @@
                 videoElement.srcObject = null;
             }
             scannerRunning = false;
-            document.getElementById('result').innerHTML = "Scan arrêté. Cliquez sur 'Démarrer le Scan' pour recommencer.";
+            document.getElementById('result').innerHTML = '<p class="text-gray-500">Scan arrêté. Cliquez sur "Démarrer" pour recommencer.</p>';
         }
 
         async function fetchProduit(barCode) {
-            console.log("7. Recherche produit pour code-barres:", barCode);
             try {
                 const response = await fetch('https://web-production-3b9e.up.railway.app/liste_produits');
-                if (!response.ok) throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                if (!response.ok) throw new Error(`Erreur ${response.status}`);
                 const produits = await response.json();
-                console.log("8. Produits reçus:", produits);
                 const produit = produits.find(p => p.BAR === barCode);
                 if (produit) {
-                    console.log("9. Produit trouvé:", produit);
                     document.getElementById('result').innerHTML = `
-                        <strong class="text-green-600">Produit trouvé :</strong><br>
-                        Désignation : ${produit.DESIGNATION}<br>
-                        Quantité : ${produit.QTE}<br>
-                        Prix : ${produit.PRIX} €<br>
-                        Code-barres : ${produit.BAR}
+                        <div class="bg-green-100 p-4 rounded-lg">
+                            <p class="text-green-700 font-semibold">Produit trouvé :</p>
+                            <p><span class="font-medium">Désignation :</span> ${produit.DESIGNATION}</p>
+                            <p><span class="font-medium">Quantité :</span> ${produit.QTE}</p>
+                            <p><span class="font-medium">Prix :</span> ${produit.PRIX} €</p>
+                            <p><span class="font-medium">Code-barres :</span> ${produit.BAR}</p>
+                        </div>
                     `;
                 } else {
-                    console.log("9. Aucun produit trouvé pour:", barCode);
-                    document.getElementById('result').innerHTML = `<span class="text-red-500">Aucun produit trouvé pour le code-barres : ${barCode}</span>`;
+                    document.getElementById('result').innerHTML = `<p class="text-yellow-600">Produit inconnu pour le code-barres : ${barCode}</p>`;
                 }
             } catch (error) {
-                console.error("Erreur API:", error);
-                document.getElementById('result').innerHTML = `<span class="text-red-500">Erreur lors de la récupération des données : ${error.message}</span>`;
+                document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur lors de la récupération des données : ${error.message}</p>`;
             }
         }
     </script>
