@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body class="bg-gray-100">
-   語言
     <div class="container mx-auto px-4 py-8">
         <header class="mb-8">
             <h1 class="text-3xl font-bold text-indigo-700">Scanner de Code-Barres</h1>
@@ -52,10 +51,35 @@
             document.getElementById('result').innerHTML = "Démarrage du scan...";
 
             try {
+                // Lister les périphériques vidéo
                 const devices = await navigator.mediaDevices.enumerateDevices();
                 const videoDevices = devices.filter(device => device.kind === 'videoinput');
-                const deviceId = videoDevices.length > 0 ? videoDevices[0].deviceId : null;
 
+                // Chercher une caméra arrière (facingMode: "environment")
+                let deviceId = null;
+                for (const device of videoDevices) {
+                    const constraints = { deviceId: { exact: device.deviceId } };
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: constraints });
+                    const track = stream.getVideoTracks()[0];
+                    const capabilities = track.getCapabilities();
+                    track.stop(); // Arrêter le flux temporaire
+                    if (capabilities.facingMode === 'environment') {
+                        deviceId = device.deviceId;
+                        break;
+                    }
+                }
+
+                // Si aucune caméra arrière n’est trouvée, utiliser la première caméra disponible
+                if (!deviceId && videoDevices.length > 0) {
+                    deviceId = videoDevices[0].deviceId;
+                    document.getElementById('result').innerHTML = "Caméra arrière non trouvée, utilisation de la caméra par défaut...";
+                }
+
+                if (!deviceId) {
+                    throw new Error("Aucune caméra disponible.");
+                }
+
+                // Démarrer le scan avec la caméra sélectionnée
                 codeReader.decodeFromVideoDevice(deviceId, videoElement, (result, err) => {
                     if (result) {
                         const code = result.text;
@@ -78,7 +102,7 @@
             if (!scannerRunning) return;
             if (codeReader) {
                 codeReader.reset();
-                codeReader = null;
+                code voltagesReader = null;
             }
             const videoElement = document.getElementById('scanner-video');
             if (videoElement.srcObject) {
