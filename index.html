@@ -24,26 +24,31 @@
                     </button>
                 </div>
 
-                <!-- Formulaire Ajout Client (caché par défaut) -->
+                <!-- Formulaire Ajout Client -->
                 <div id="clientForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
                     <h3 class="font-medium mb-3">Nouveau Client</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Nom</label>
-                            <input type="text" id="clientNom" class="w-full px-3 py-2 border rounded-md">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
+                            <input type="text" id="clientNom" class="w-full px-3 py-2 border rounded-md" required>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Solde</label>
-                            <input type="number" id="clientSolde" class="w-full px-3 py-2 border rounded-md">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Solde*</label>
+                            <input type="number" id="clientSolde" class="w-full px-3 py-2 border rounded-md" required>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Référence</label>
-                            <input type="text" id="clientReference" class="w-full px-3 py-2 border rounded-md">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Référence*</label>
+                            <input type="text" id="clientReference" class="w-full px-3 py-2 border rounded-md" required>
                         </div>
                     </div>
-                    <button onclick="ajouterClient()" class="mt-4 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition">
-                        <i class="fas fa-save mr-2"></i>Enregistrer
-                    </button>
+                    <div class="flex justify-end space-x-3 mt-4">
+                        <button onclick="resetClientForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition">
+                            <i class="fas fa-times mr-2"></i>Annuler
+                        </button>
+                        <button onclick="ajouterClient()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition">
+                            <i class="fas fa-save mr-2"></i>Enregistrer
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Liste Clients -->
@@ -58,7 +63,9 @@
                             </tr>
                         </thead>
                         <tbody id="clientsList" class="bg-white divide-y divide-gray-200">
-                            <!-- Les clients seront chargés ici -->
+                            <tr>
+                                <td colspan="4" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
@@ -86,7 +93,9 @@
                             </tr>
                         </thead>
                         <tbody id="productsList" class="bg-white divide-y divide-gray-200">
-                            <!-- Les produits seront chargés ici -->
+                            <tr>
+                                <td colspan="4" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
@@ -96,22 +105,29 @@
 
     <!-- Toast Notification -->
     <div id="toast" class="fixed bottom-4 right-4 hidden">
-        <div class="bg-green-500 text-white px-6 py-3 rounded-md shadow-lg">
+        <div class="flex items-center px-6 py-3 rounded-md shadow-lg">
+            <i id="toastIcon" class="mr-2"></i>
             <span id="toastMessage"></span>
         </div>
     </div>
 
     <script>
-        const API_BASE_URL = window.location.origin; // Utilise l'URL actuelle comme base
+        // Configuration de l'API
+        const API_BASE_URL = 'https://web-production-3b9e.up.railway.app'; // À adapter si nécessaire
         
         // Fonction pour afficher les notifications
         function showToast(message, isError = false) {
             const toast = document.getElementById('toast');
             const toastMessage = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
             
             toast.className = isError 
-                ? 'fixed bottom-4 right-4 bg-red-500 text-white px-6 py-3 rounded-md shadow-lg'
-                : 'fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-md shadow-lg';
+                ? 'fixed bottom-4 right-4 flex items-center bg-red-500 text-white px-6 py-3 rounded-md shadow-lg'
+                : 'fixed bottom-4 right-4 flex items-center bg-green-500 text-white px-6 py-3 rounded-md shadow-lg';
+            
+            toastIcon.className = isError 
+                ? 'fas fa-exclamation-circle mr-2' 
+                : 'fas fa-check-circle mr-2';
             
             toastMessage.textContent = message;
             toast.classList.remove('hidden');
@@ -125,37 +141,52 @@
         async function chargerClients() {
             try {
                 const response = await fetch(`${API_BASE_URL}/liste_clients`);
-                if (!response.ok) throw new Error('Erreur de chargement');
+                
+                if (!response.ok) {
+                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                }
                 
                 const clients = await response.json();
                 const tbody = document.getElementById('clientsList');
+                
+                if (clients.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun client trouvé</td></tr>';
+                    return;
+                }
+                
                 tbody.innerHTML = '';
                 
                 clients.forEach(client => {
                     const tr = document.createElement('tr');
                     tr.className = 'hover:bg-gray-50';
                     tr.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.numero_clt}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${client.nom}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.solde}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.reference}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.numero_clt || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${client.nom || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.solde || '0'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.reference || 'N/A'}</td>
                     `;
                     tbody.appendChild(tr);
                 });
                 
             } catch (error) {
-                showToast('Erreur de chargement des clients', true);
-                console.error(error);
+                document.getElementById('clientsList').innerHTML = `
+                    <tr>
+                        <td colspan="4" class="text-center py-4 text-red-500">
+                            Erreur de chargement: ${error.message}
+                        </td>
+                    </tr>
+                `;
+                console.error('Erreur clients:', error);
             }
         }
 
         async function ajouterClient() {
-            const nom = document.getElementById('clientNom').value;
-            const solde = document.getElementById('clientSolde').value;
-            const reference = document.getElementById('clientReference').value;
+            const nom = document.getElementById('clientNom').value.trim();
+            const solde = document.getElementById('clientSolde').value.trim();
+            const reference = document.getElementById('clientReference').value.trim();
             
             if (!nom || !solde || !reference) {
-                showToast('Veuillez remplir tous les champs', true);
+                showToast('Veuillez remplir tous les champs obligatoires', true);
                 return;
             }
             
@@ -165,57 +196,81 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ nom, solde, reference })
+                    body: JSON.stringify({ 
+                        nom, 
+                        solde: parseFloat(solde), 
+                        reference 
+                    })
                 });
                 
-                if (!response.ok) throw new Error('Erreur lors de l\'ajout');
+                const result = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(result.erreur || 'Erreur lors de l\'ajout');
+                }
                 
                 showToast('Client ajouté avec succès');
-                document.getElementById('clientForm').classList.add('hidden');
+                resetClientForm();
                 chargerClients();
-                
-                // Réinitialiser le formulaire
-                document.getElementById('clientNom').value = '';
-                document.getElementById('clientSolde').value = '';
-                document.getElementById('clientReference').value = '';
                 
             } catch (error) {
                 showToast(error.message, true);
-                console.error(error);
+                console.error('Erreur ajout client:', error);
             }
+        }
+
+        function resetClientForm() {
+            document.getElementById('clientNom').value = '';
+            document.getElementById('clientSolde').value = '';
+            document.getElementById('clientReference').value = '';
+            document.getElementById('clientForm').classList.add('hidden');
+        }
+
+        function toggleClientForm() {
+            document.getElementById('clientForm').classList.toggle('hidden');
         }
 
         // Gestion des produits
         async function chargerProduits() {
             try {
                 const response = await fetch(`${API_BASE_URL}/liste_produits`);
-                if (!response.ok) throw new Error('Erreur de chargement');
+                
+                if (!response.ok) {
+                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                }
                 
                 const produits = await response.json();
                 const tbody = document.getElementById('productsList');
+                
+                if (produits.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
+                    return;
+                }
+                
                 tbody.innerHTML = '';
                 
                 produits.forEach(produit => {
                     const tr = document.createElement('tr');
                     tr.className = 'hover:bg-gray-50';
                     tr.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.PRIX}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.PRIX || '0'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
                     `;
                     tbody.appendChild(tr);
                 });
                 
             } catch (error) {
-                showToast('Erreur de chargement des produits', true);
-                console.error(error);
+                document.getElementById('productsList').innerHTML = `
+                    <tr>
+                        <td colspan="4" class="text-center py-4 text-red-500">
+                            Erreur de chargement: ${error.message}
+                        </td>
+                    </tr>
+                `;
+                console.error('Erreur produits:', error);
             }
-        }
-
-        // Fonction pour afficher/masquer le formulaire client
-        function toggleClientForm() {
-            document.getElementById('clientForm').classList.toggle('hidden');
         }
 
         // Recherche de produits
@@ -242,7 +297,17 @@
             fetch(`${API_BASE_URL}/`)
                 .then(response => response.text())
                 .then(text => console.log('Statut API:', text))
-                .catch(err => console.error('API non disponible:', err));
+                .catch(err => {
+                    console.error('API non disponible:', err);
+                    showToast('Erreur de connexion à l\'API', true);
+                });
+        });
+
+        // Gestion des erreurs CORS
+        window.addEventListener('unhandledrejection', event => {
+            if (event.reason.message.includes('Failed to fetch')) {
+                showToast('Erreur de connexion au serveur', true);
+            }
         });
     </script>
 </body>
