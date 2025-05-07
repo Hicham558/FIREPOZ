@@ -43,66 +43,52 @@
         let scannerRunning = false;
 
         async function startScanner() {
-            if (scannerRunning) return;
+            console.log("1. Début de startScanner");
+            if (scannerRunning) {
+                console.log("Scanner déjà en cours");
+                return;
+            }
             scannerRunning = true;
 
+            document.getElementById('result').innerHTML = "Démarrage du scan...";
+            console.log("2. Initialisation de ZXing");
             codeReader = new ZXing.BrowserBarcodeReader();
             const videoElement = document.getElementById('scanner-video');
-            document.getElementById('result').innerHTML = "Démarrage du scan...";
 
             try {
-                // Lister les périphériques vidéo
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                console.log("3. Demande d'accès à la caméra arrière");
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "environment" }
+                });
+                videoElement.srcObject = stream;
+                console.log("4. Flux vidéo démarré");
 
-                // Chercher une caméra arrière (facingMode: "environment")
-                let deviceId = null;
-                for (const device of videoDevices) {
-                    const constraints = { deviceId: { exact: device.deviceId } };
-                    const stream = await navigator.mediaDevices.getUserMedia({ video: constraints });
-                    const track = stream.getVideoTracks()[0];
-                    const capabilities = track.getCapabilities();
-                    track.stop(); // Arrêter le flux temporaire
-                    if (capabilities.facingMode === 'environment') {
-                        deviceId = device.deviceId;
-                        break;
-                    }
-                }
-
-                // Si aucune caméra arrière n’est trouvée, utiliser la première caméra disponible
-                if (!deviceId && videoDevices.length > 0) {
-                    deviceId = videoDevices[0].deviceId;
-                    document.getElementById('result').innerHTML = "Caméra arrière non trouvée, utilisation de la caméra par défaut...";
-                }
-
-                if (!deviceId) {
-                    throw new Error("Aucune caméra disponible.");
-                }
-
-                // Démarrer le scan avec la caméra sélectionnée
-                codeReader.decodeFromVideoDevice(deviceId, videoElement, (result, err) => {
+                console.log("5. Démarrage de la détection ZXing");
+                codeReader.decodeFromVideoDevice(undefined, videoElement, (result, err) => {
                     if (result) {
+                        console.log("6. Code-barres détecté:", result.text);
                         const code = result.text;
                         document.getElementById('result').innerHTML = `Code-barres détecté : ${code}<br>Recherche des informations...`;
                         fetchProduit(code);
                     }
                     if (err && !(err instanceof ZXing.NotFoundException)) {
+                        console.error("Erreur ZXing:", err);
                         document.getElementById('result').innerHTML = `<span class="text-red-500">Erreur : ${err.message}</span>`;
-                        console.error(err);
                     }
                 });
             } catch (err) {
-                document.getElementById('result').innerHTML = `<span class="text-red-500">Erreur lors du démarrage : ${err.message}</span>`;
-                console.error(err);
+                console.error("Erreur lors du démarrage:", err);
+                document.getElementById('result').innerHTML = `<span class="text-red-500">Erreur : ${err.message}</span>`;
                 scannerRunning = false;
             }
         }
 
         function stopScanner() {
+            console.log("Arrêt du scanner");
             if (!scannerRunning) return;
             if (codeReader) {
                 codeReader.reset();
-                code voltagesReader = null;
+                codeReader = null;
             }
             const videoElement = document.getElementById('scanner-video');
             if (videoElement.srcObject) {
@@ -114,12 +100,15 @@
         }
 
         async function fetchProduit(barCode) {
+            console.log("7. Recherche produit pour code-barres:", barCode);
             try {
                 const response = await fetch('https://web-production-3b9e.up.railway.app/liste_produits');
                 if (!response.ok) throw new Error(`Erreur ${response.status}: ${response.statusText}`);
                 const produits = await response.json();
+                console.log("8. Produits reçus:", produits);
                 const produit = produits.find(p => p.BAR === barCode);
                 if (produit) {
+                    console.log("9. Produit trouvé:", produit);
                     document.getElementById('result').innerHTML = `
                         <strong class="text-green-600">Produit trouvé :</strong><br>
                         Désignation : ${produit.DESIGNATION}<br>
@@ -128,11 +117,12 @@
                         Code-barres : ${produit.BAR}
                     `;
                 } else {
+                    console.log("9. Aucun produit trouvé pour:", barCode);
                     document.getElementById('result').innerHTML = `<span class="text-red-500">Aucun produit trouvé pour le code-barres : ${barCode}</span>`;
                 }
             } catch (error) {
+                console.error("Erreur API:", error);
                 document.getElementById('result').innerHTML = `<span class="text-red-500">Erreur lors de la récupération des données : ${error.message}</span>`;
-                console.error(error);
             }
         }
     </script>
