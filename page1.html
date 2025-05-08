@@ -6,6 +6,7 @@
     <title>Scanner EAN-13</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="manifest" href="/manifest.json">
     <style>
         #scanner-overlay {
             position: absolute;
@@ -20,7 +21,7 @@
             z-index: 10;
         }
         #scanner-video {
-            transform: scale(1.5); /* Zoom sur la vidéo */
+            transform: scale(1.5);
             transform-origin: center center;
         }
     </style>
@@ -49,7 +50,6 @@
                     <div id="camera-loading" class="absolute inset-0 flex items-center justify-center text-gray-500">
                         Chargement de la caméra...
                     </div>
-                    <!-- Boutons à l'intérieur du cadre -->
                     <div class="absolute bottom-4 left-0 right-0 flex justify-center space-x-2 z-20">
                         <button onclick="startScanner()" class="flex items-center bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition">
                             <i class="fas fa-play mr-1"></i>Démarrer
@@ -108,7 +108,9 @@
         let scannerRunning = false;
         let torchOn = false;
         let lastScanTime = 0;
-        const SCAN_COOLDOWN = 2000; // 2 secondes entre les scans
+        const SCAN_COOLDOWN = 2000;
+        const DB_NAME = 'ProductDB';
+        const STORE_NAME = 'products';
 
         // Fonction pour afficher les notifications
         function showToast(message, isError = false) {
@@ -132,6 +134,48 @@
             }, 3000);
         }
 
+        // Initialisation d'IndexedDB
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, 1);
+
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains(STORE_NAME)) {
+                        db.createObjectStore(STORE_NAME, { keyPath: 'bar' });
+                    }
+                };
+
+                request.onsuccess = (event) => {
+                    resolve(event.target.result);
+                };
+
+                request.onerror = (event) => {
+                    reject(event.target.error);
+                };
+            });
+        }
+
+        // Sauvegarder un produit dans IndexedDB
+        async function saveProduct(product) {
+            const db = await initDB();
+            const transaction = db.transaction([STORE_NAME], 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+            store.put(product);
+            return new Promise((resolve) => transaction.oncomplete = resolve);
+        }
+
+        // Récupérer un produit depuis IndexedDB
+        async function getProduct(barCode) {
+            const db = await initDB();
+            const transaction = db.transaction([STORE_NAME], 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            return new Promise((resolve) => {
+                const request = store.get(barCode);
+                request.onsuccess = () => resolve(request.result);
+            });
+        }
+
         async function startScanner() {
             if (scannerRunning) return;
             scannerRunning = true;
@@ -151,7 +195,7 @@
                 codeReader.decodeFromVideoDevice(undefined, videoElement, (result, err) => {
                     if (result) {
                         const currentTime = Date.now();
-                        if (currentTime - lastScanTime < SCAN_COOLDOWN) return; // Éviter les scans trop rapides
+                        if (currentTime - lastScanTime < SCAN_COOLDOWN) return;
                         lastScanTime = currentTime;
 
                         const code = result.text.trim();
@@ -209,7 +253,24 @@
         async function fetchProduit(barCode) {
             try {
                 const response = await fetch(`${API_BASE_URL}/liste_produits`);
-                if (!response.ok) throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                if (!response.ok) {
+                    // Si l'API échoue, essayer IndexedDB
+                    const offlineProduct = await getProduct(barCode);
+                    if (offlineProduct) {
+                        document.getElementById('result').innerHTML = `
+                            <div class="bg-yellow-100 p-4 rounded-lg">
+                                <p class="text-yellow-700 font-semibold">Produit (hors ligne) :</p>
+                                <p><strong>Désignation :</strong> ${offlineProduct.DESIGNATION}</p>
+                                <p><strong>Quantité :</strong> ${offlineProduct.QTE}</p>
+                                <p><strong>Prix :</strong> ${offlineProduct.PRIX} €</p>
+                                <p><strong>Code-barres :</strong> ${offlineProduct.BAR}</p>
+                            </div>`;
+                        showToast('Produit trouvé en mode hors ligne !', false);
+                        return;
+                    } else {
+                        throw new Error('Aucun produit hors ligne trouvé');
+                    }
+                }
                 const produits = await response.json();
                 const produit = produits.find(p => p.BAR === barCode);
                 if (produit) {
@@ -221,8 +282,10 @@
                             <p><strong>Prix :</strong> ${produit.PRIX} €</p>
                             <p><strong>Code-barres :</strong> ${produit.BAR}</p>
                         </div>`;
+                    // Sauvegarder dans IndexedDB
+                    await saveProduct(produit);
                     document.getElementById('addProductForm').classList.add('hidden');
-                    showToast('Produit trouvé avec succès !');
+                    showToast('Produit trouvé avec succès !', false);
                 } else {
                     document.getElementById('result').innerHTML = `<p class="text-yellow-600">Produit inconnu pour le code-barres : ${barCode}</p>`;
                     document.getElementById('bar').value = barCode;
@@ -230,8 +293,21 @@
                     showToast('Produit non trouvé. Veuillez ajouter un nouveau produit.', true);
                 }
             } catch (error) {
-                showToast(`Erreur lors de la recherche : ${error.message}`, true);
-                document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${error.message}</p>`;
+                const offlineProduct = await getProduct(barCode);
+                if (offlineProduct) {
+                    document.getElementById('result').innerHTML = `
+                        <div class="bg-yellow-100 p-4 rounded-lg">
+                            <p class="text-yellow-700 font-semibold">Produit (hors ligne) :</p>
+                            <p><strong>Désignation :</strong> ${offlineProduct.DESIGNATION}</p>
+                            <p><strong>Quantité :</strong> ${offlineProduct.QTE}</p>
+                            <p><strong>Prix :</strong> ${offlineProduct.PRIX} €</p>
+                            <p><strong>Code-barres :</strong> ${offlineProduct.BAR}</p>
+                        </div>`;
+                    showToast('Produit trouvé en mode hors ligne !', false);
+                } else {
+                    showToast(`Erreur : ${error.message}. Aucun produit hors ligne disponible.`, true);
+                    document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${error.message}</p>`;
+                }
             }
         }
 
@@ -247,25 +323,30 @@
                 return;
             }
 
+            const product = { DESIGNATION: designation, BAR: bar, PRIX: prix, QTE: qte };
             try {
                 const response = await fetch(`${API_BASE_URL}/ajouter_item`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ designation, bar, prix, qte })
+                    body: JSON.stringify(product)
                 });
                 const result = await response.json();
                 if (response.ok) {
                     document.getElementById('result').innerHTML = `<p class="text-green-500">Produit ajouté avec succès !</p>`;
+                    await saveProduct(product);
                     document.getElementById('addProductForm').classList.add('hidden');
                     document.getElementById('productForm').reset();
-                    showToast('Produit ajouté avec succès !');
+                    showToast('Produit ajouté avec succès !', false);
                 } else {
                     showToast(`Erreur : ${result.erreur}`, true);
                     document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${result.erreur}</p>`;
                 }
             } catch (error) {
-                showToast(`Erreur réseau : ${error.message}`, true);
-                document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${error.message}</p>`;
+                await saveProduct(product); // Sauvegarde locale même en cas d'erreur réseau
+                document.getElementById('result').innerHTML = `<p class="text-yellow-500">Produit ajouté hors ligne. Synchronisation en attente.</p>`;
+                document.getElementById('addProductForm').classList.add('hidden');
+                document.getElementById('productForm').reset();
+                showToast('Produit ajouté hors ligne !', false);
             }
         });
 
@@ -281,6 +362,17 @@
                 showToast('Erreur de connexion au serveur. Vérifiez l\'URL ou les paramètres CORS.', true);
             }
         });
+
+        // Enregistrer le service worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js')
+                .then((registration) => {
+                    console.log('Service Worker enregistré avec succès');
+                })
+                .catch((error) => {
+                    console.error('Erreur d\'enregistrement du Service Worker :', error);
+                });
+        }
     </script>
 </body>
 </html>
