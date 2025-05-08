@@ -6,18 +6,11 @@
     <title>Scanner EAN-13</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="manifest" href="/manifest.json">
     <style>
-        #scanner-overlay {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 70%;
-            height: 50%;
-            border: 2px solid red;
-            border-radius: 8px;
-            pointer-events: none;
-            z-index: 10;
+        #scanner-video {
+            transform: scale(1.5);
+            transform-origin: center center;
         }
     </style>
 </head>
@@ -25,8 +18,7 @@
     <div class="container mx-auto px-4 py-8 max-w-3xl">
         <header class="mb-8 text-center">
             <h1 class="text-4xl font-bold text-indigo-700 mb-2">Scanner EAN-13</h1>
-            <p class="text-gray-600 mb-4">Scannez un code-barres EAN-13 pour voir les détails du produit</p>
-            <p class="text-sm text-gray-500 mb-4">Tenez le code-barres à 10-15 cm dans le cadre rouge.</p>
+            <p class="text-gray-600 mb-4">Pointez simplement la caméra vers le produit</p>
             <div class="flex justify-center gap-4">
                 <a href="index.html" class="inline-flex items-center bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
                     <i class="fas fa-home mr-2"></i>Accueil
@@ -41,23 +33,21 @@
             <div class="mb-6">
                 <div id="scanner-container" class="relative w-full aspect-[4/3] bg-gray-200 rounded-lg overflow-hidden">
                     <video id="scanner-video" class="absolute inset-0 w-full h-full object-cover" autoplay muted playsinline></video>
-                    <div id="scanner-overlay"></div>
                     <div id="camera-loading" class="absolute inset-0 flex items-center justify-center text-gray-500">
                         Chargement de la caméra...
                     </div>
+                    <div class="absolute bottom-4 left-0 right-0 flex justify-center space-x-2 z-20">
+                        <button onclick="startScanner()" class="flex items-center bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition">
+                            <i class="fas fa-play mr-1"></i>Démarrer
+                        </button>
+                        <button onclick="stopScanner()" class="flex items-center bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition">
+                            <i class="fas fa-stop mr-1"></i>Arrêter
+                        </button>
+                        <button onclick="toggleTorch()" class="flex items-center bg-yellow-500 text-white px-4 py-2 rounded-md hover:bg-yellow-600 transition">
+                            <i class="fas fa-lightbulb mr-1"></i>Flash
+                        </button>
+                    </div>
                 </div>
-            </div>
-
-            <div class="flex justify-center space-x-4 mb-6">
-                <button onclick="startScanner()" class="flex items-center bg-green-500 text-white px-6 py-3 rounded-md hover:bg-green-600 transition">
-                    <i class="fas fa-play mr-2"></i>Démarrer
-                </button>
-                <button onclick="stopScanner()" class="flex items-center bg-red-500 text-white px-6 py-3 rounded-md hover:bg-red-600 transition">
-                    <i class="fas fa-stop mr-2"></i>Arrêter
-                </button>
-                <button onclick="toggleTorch()" class="flex items-center bg-yellow-500 text-white px-6 py-3 rounded-md hover:bg-yellow-600 transition">
-                    <i class="fas fa-lightbulb mr-2"></i>Flash
-                </button>
             </div>
 
             <div id="result" class="p-4 bg-gray-50 rounded-lg text-gray-700 text-center">
@@ -97,14 +87,12 @@
         </div>
     </div>
 
-    <script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
     <script>
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
-        let codeReader = null;
         let scannerRunning = false;
         let torchOn = false;
         let lastScanTime = 0;
-        const SCAN_COOLDOWN = 2000; // 2 secondes entre les scans
+        const SCAN_COOLDOWN = 2000;
 
         // Fonction pour afficher les notifications
         function showToast(message, isError = false) {
@@ -133,7 +121,6 @@
             scannerRunning = true;
 
             document.getElementById('result').innerHTML = '<p class="text-blue-500">Démarrage du scan...</p>';
-            codeReader = new ZXing.BrowserBarcodeReader({ formats: ['ean_13'] });
             const videoElement = document.getElementById('scanner-video');
             const loadingElement = document.getElementById('camera-loading');
 
@@ -144,22 +131,40 @@
                 videoElement.srcObject = stream;
                 videoElement.onloadedmetadata = () => loadingElement.style.display = 'none';
 
-                codeReader.decodeFromVideoDevice(undefined, videoElement, (result, err) => {
-                    if (result) {
-                        const currentTime = Date.now();
-                        if (currentTime - lastScanTime < SCAN_COOLDOWN) return; // Éviter les scans trop rapides
-                        lastScanTime = currentTime;
+                if (!('BarcodeDetector' in window)) {
+                    throw new Error('Barcode Detection API non supportée sur ce navigateur. Essayez Chrome sur Android ou Edge.');
+                }
 
-                        const code = result.text.trim();
-                        document.getElementById('result').innerHTML = `<p class="text-green-500">Code-barres détecté : ${code}</p><p>Recherche en cours...</p>`;
-                        fetchProduit(code);
+                const barcodeDetector = new BarcodeDetector({ formats: ['ean_13'] });
+
+                const scan = async () => {
+                    if (!scannerRunning) return;
+                    const canvas = document.createElement('canvas');
+                    canvas.width = videoElement.videoWidth;
+                    canvas.height = videoElement.videoHeight;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+                    try {
+                        const barcodes = await barcodeDetector.detect(canvas);
+                        if (barcodes.length > 0) {
+                            const currentTime = Date.now();
+                            if (currentTime - lastScanTime < SCAN_COOLDOWN) return;
+                            lastScanTime = currentTime;
+
+                            const code = barcodes[0].rawValue;
+                            document.getElementById('result').innerHTML = `<p class="text-green-500">Code-barres détecté : ${code}</p><p>Recherche en cours...</p>`;
+                            fetchProduit(code);
+                        }
+                    } catch (err) {
+                        showToast(`Erreur de détection : ${err.message}`, true);
                     }
-                    if (err && !(err instanceof ZXing.NotFoundException)) {
-                        showToast(`Erreur de scan : ${err.message}. Essayez de stabiliser le téléphone ou d'améliorer l'éclairage.`, true);
-                    }
-                });
+                    setTimeout(scan, 100); // Analyse continue toutes les 100ms
+                };
+
+                scan();
             } catch (err) {
-                showToast(`Erreur d'accès à la caméra : ${err.message}. Vérifiez les autorisations ou essayez un autre appareil.`, true);
+                showToast(`Erreur : ${err.message}. Vérifiez les autorisations ou essayez un autre appareil.`, true);
                 document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${err.message}</p>`;
                 scannerRunning = false;
             }
@@ -167,10 +172,6 @@
 
         function stopScanner() {
             if (!scannerRunning) return;
-            if (codeReader) {
-                codeReader.reset();
-                codeReader = null;
-            }
             const videoElement = document.getElementById('scanner-video');
             if (videoElement.srcObject) {
                 videoElement.srcObject.getTracks().forEach(track => track.stop());
@@ -277,6 +278,17 @@
                 showToast('Erreur de connexion au serveur. Vérifiez l\'URL ou les paramètres CORS.', true);
             }
         });
+
+        // Enregistrer le service worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js')
+                .then((registration) => {
+                    console.log('Service Worker enregistré avec succès');
+                })
+                .catch((error) => {
+                    console.error('Erreur d\'enregistrement du Service Worker :', error);
+                });
+        }
     </script>
 </body>
 </html>
