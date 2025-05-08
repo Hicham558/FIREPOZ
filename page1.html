@@ -87,18 +87,12 @@
         </div>
     </div>
 
-    <!-- Intégration de Scandit SDK -->
-    <script src="https://cdn.jsdelivr.net/npm/scandit-sdk@5.x"></script>
     <script>
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
-        let scanner = null;
         let scannerRunning = false;
         let torchOn = false;
         let lastScanTime = 0;
         const SCAN_COOLDOWN = 2000;
-
-        // Remplacez ceci par votre clé de licence Scandit
-        const SCANDIT_LICENSE_KEY = 'VOTRE_CLÉ_D_ESSAI_ICI';
 
         // Fonction pour afficher les notifications
         function showToast(message, isError = false) {
@@ -137,40 +131,40 @@
                 videoElement.srcObject = stream;
                 videoElement.onloadedmetadata = () => loadingElement.style.display = 'none';
 
-                // Configuration de Scandit
-                await ScanditSDK.configure(SCANDIT_LICENSE_KEY, {
-                    libraryLocation: "https://cdn.jsdelivr.net/npm/scandit-sdk@5.x/build",
-                    moduleType: "barcode",
-                });
+                if (!('BarcodeDetector' in window)) {
+                    throw new Error('Barcode Detection API non supportée sur ce navigateur. Essayez Chrome sur Android ou Edge.');
+                }
 
-                const context = ScanditSDK.DataCaptureContext.create();
-                const camera = ScanditSDK.Camera.default;
+                const barcodeDetector = new BarcodeDetector({ formats: ['ean_13'] });
 
-                const settings = new ScanditSDK.BarcodeCaptureSettings();
-                settings.enableSymbologies([ScanditSDK.Barcode.Symbology.EAN13]);
+                const scan = async () => {
+                    if (!scannerRunning) return;
+                    const canvas = document.createElement('canvas');
+                    canvas.width = videoElement.videoWidth;
+                    canvas.height = videoElement.videoHeight;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
 
-                const barcodeCapture = ScanditSDK.BarcodeCapture.forContext(context, settings);
-                const view = ScanditSDK.DataCaptureView.forContext(context);
-                view.connectToElement(videoElement);
+                    try {
+                        const barcodes = await barcodeDetector.detect(canvas);
+                        if (barcodes.length > 0) {
+                            const currentTime = Date.now();
+                            if (currentTime - lastScanTime < SCAN_COOLDOWN) return;
+                            lastScanTime = currentTime;
 
-                barcodeCapture.addListener({
-                    didScan: (barcodeCapture, session) => {
-                        const currentTime = Date.now();
-                        if (currentTime - lastScanTime < SCAN_COOLDOWN) return;
-                        lastScanTime = currentTime;
-
-                        const code = session.newlyRecognizedBarcodes[0].data;
-                        document.getElementById('result').innerHTML = `<p class="text-green-500">Code-barres détecté : ${code}</p><p>Recherche en cours...</p>`;
-                        fetchProduit(code);
+                            const code = barcodes[0].rawValue;
+                            document.getElementById('result').innerHTML = `<p class="text-green-500">Code-barres détecté : ${code}</p><p>Recherche en cours...</p>`;
+                            fetchProduit(code);
+                        }
+                    } catch (err) {
+                        showToast(`Erreur de détection : ${err.message}`, true);
                     }
-                });
+                    setTimeout(scan, 100); // Analyse continue toutes les 100ms
+                };
 
-                context.setFrameSource(camera);
-                camera.switchToDesiredState(ScanditSDK.FrameSourceState.On);
-
-                scanner = { context, barcodeCapture, camera };
+                scan();
             } catch (err) {
-                showToast(`Erreur d'accès à la caméra ou Scandit : ${err.message}. Vérifiez les autorisations ou essayez un autre appareil.`, true);
+                showToast(`Erreur : ${err.message}. Vérifiez les autorisations ou essayez un autre appareil.`, true);
                 document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${err.message}</p>`;
                 scannerRunning = false;
             }
@@ -178,11 +172,6 @@
 
         function stopScanner() {
             if (!scannerRunning) return;
-            if (scanner) {
-                scanner.camera.switchToDesiredState(ScanditSDK.FrameSourceState.Off);
-                scanner.context.dispose();
-                scanner = null;
-            }
             const videoElement = document.getElementById('scanner-video');
             if (videoElement.srcObject) {
                 videoElement.srcObject.getTracks().forEach(track => track.stop());
@@ -196,7 +185,7 @@
         }
 
         function toggleTorch() {
-            if (!scannerRunning || !scanner) return;
+            if (!scannerRunning) return;
             const videoElement = document.getElementById('scanner-video');
             if (!videoElement.srcObject) return;
 
