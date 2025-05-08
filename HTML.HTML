@@ -3,222 +3,93 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion Commerciale</title>
+    <title>Scanner EAN-13</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        #scanner-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 70%;
+            height: 50%;
+            border: 2px solid red;
+            border-radius: 8px;
+            pointer-events: none;
+            z-index: 10;
+        }
+    </style>
 </head>
-<body class="bg-gray-100">
-    <div class="container mx-auto px-4 py-8">
-        <header class="mb-8">
-            <h1 class="text-3xl font-bold text-indigo-700">Gestion Commerciale</h1>
-            <p class="text-gray-600">Interface d'administration moderne</p>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+    <div class="container mx-auto px-4 py-8 max-w-3xl">
+        <header class="mb-8 text-center">
+            <h1 class="text-4xl font-bold text-indigo-700 mb-2">Scanner EAN-13</h1>
+            <p class="text-gray-600 mb-4">Scannez un code-barres EAN-13 pour voir les détails du produit</p>
+            <p class="text-sm text-gray-500 mb-4">Tenez le code-barres à 10-15 cm dans le cadre rouge.</p>
+            <div class="flex justify-center gap-4">
+                <a href="index.html" class="inline-flex items-center bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
+                    <i class="fas fa-home mr-2"></i>Accueil
+                </a>
+                <button onclick="toggleAddProductForm()" class="inline-flex items-center bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition">
+                    <i class="fas fa-plus mr-2"></i>Ajouter un produit
+                </button>
+            </div>
         </header>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <!-- Gestion Clients -->
-            <div class="bg-white rounded-lg shadow-md p-6">
-                <div class="mb-4">
-                    <div class="flex justify-between items-center">
-                        <h2 class="text-xl font-semibold text-gray-800">Gestion Clients</h2>
-                        <button onclick="toggleClientsList()" class="text-gray-600 hover:text-gray-800 transition">
-                            <i class="fas fa-chevron-down"></i>
-                        </button>
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <div class="mb-6">
+                <div id="scanner-container" class="relative w-full aspect-[4/3] bg-gray-200 rounded-lg overflow-hidden">
+                    <video id="scanner-video" class="absolute inset-0 w-full h-full object-cover" autoplay muted playsinline></video>
+                    <div id="scanner-overlay"></div>
+                    <div id="camera-loading" class="absolute inset-0 flex items-center justify-center text-gray-500">
+                        Chargement de la caméra...
                     </div>
-                    <div class="relative mt-2">
-                        <input type="text" id="searchClient" placeholder="Rechercher des clients..."
-                               class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                    </div>
-                    <div class="flex justify-end mt-2">
-                        <button onclick="toggleClientForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
-                            <i class="fas fa-plus mr-2"></i>Ajouter
-                        </button>
-                    </div>
-                </div>
-
-                <div id="clientForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
-                    <h3 class="font-medium mb-3">Nouveau Client</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
-                            <input type="text" id="clientNom" class="w-full px-3 py-2 border rounded-md" required>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Solde*</label>
-                            <input type="number" id="clientSolde" class="w-full px-3 py-2 border rounded-md" required>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Référence*</label>
-                            <input type="text" id="clientReference" class="w-full px-3 py-2 border rounded-md" required>
-                        </div>
-                    </div>
-                    <div class="flex justify-end space-x-3 mt-4">
-                        <button onclick="resetClientForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition">
-                            <i class="fas fa-times mr-2"></i>Annuler
-                        </button>
-                        <button onclick="ajouterClient()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition">
-                            <i class="fas fa-save mr-2"></i>Enregistrer
-                        </button>
-                    </div>
-                </div>
-
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
-                            </tr>
-                        </thead>
-                        <tbody id="clientsList" class="bg-white divide-y divide-gray-200">
-                            <tr>
-                                <td colspan="4" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                            </tr>
-                        </tbody>
-                    </table>
                 </div>
             </div>
 
-            <!-- Gestion Fournisseurs -->
-            <div class="bg-white rounded-lg shadow-md p-6">
-                <div class="mb-4">
-                    <div class="flex justify-between items-center">
-                        <h2 class="text-xl font-semibold text-gray-800">Gestion Fournisseurs</h2>
-                        <button onclick="toggleFournisseursList()" class="text-gray-600 hover:text-gray-800 transition">
-                            <i class="fas fa-chevron-down"></i>
-                        </button>
-                    </div>
-                    <div class="relative mt-2">
-                        <input type="text" id="searchFournisseur" placeholder="Rechercher des fournisseurs..."
-                               class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                    </div>
-                    <div class="flex justify-end mt-2">
-                        <button onclick="toggleFournisseurForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
-                            <i class="fas fa-plus mr-2"></i>Ajouter
-                        </button>
-                    </div>
-                </div>
-
-                <div id="fournisseurForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
-                    <h3 class="font-medium mb-3">Nouveau Fournisseur</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
-                            <input type="text" id="fournisseurNom" class="w-full px-3 py-2 border rounded-md" required>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Solde*</label>
-                            <input type="number" id="fournisseurSolde" class="w-full px-3 py-2 border rounded-md" required>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Référence*</label>
-                            <input type="text" id="fournisseurReference" class="w-full px-3 py-2 border rounded-md" required>
-                        </div>
-                    </div>
-                    <div class="flex justify-end space-x-3 mt-4">
-                        <button onclick="resetFournisseurForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition">
-                            <i class="fas fa-times mr-2"></i>Annuler
-                        </button>
-                        <button onclick="ajouterFournisseur()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition">
-                            <i class="fas fa-save mr-2"></i>Enregistrer
-                        </button>
-                    </div>
-                </div>
-
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
-                            </tr>
-                        </thead>
-                        <tbody id="fournisseursList" class="bg-white divide-y divide-gray-200">
-                            <tr>
-                                <td colspan="4" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+            <div class="flex justify-center space-x-4 mb-6">
+                <button onclick="startScanner()" class="flex items-center bg-green-500 text-white px-6 py-3 rounded-md hover:bg-green-600 transition">
+                    <i class="fas fa-play mr-2"></i>Démarrer
+                </button>
+                <button onclick="stopScanner()" class="flex items-center bg-red-500 text-white px-6 py-3 rounded-md hover:bg-red-600 transition">
+                    <i class="fas fa-stop mr-2"></i>Arrêter
+                </button>
+                <button onclick="toggleTorch()" class="flex items-center bg-yellow-500 text-white px-6 py-3 rounded-md hover:bg-yellow-600 transition">
+                    <i class="fas fa-lightbulb mr-2"></i>Flash
+                </button>
             </div>
 
-            <!-- Liste des Produits -->
-            <div class="bg-white rounded-lg shadow-md p-6">
-                <div class="mb-4">
-                    <div class="flex justify-between items-center">
-                        <h2 class="text-xl font-semibold text-gray-800">Liste des Produits</h2>
-                        <button onclick="toggleProductsList()" class="text-gray-600 hover:text-gray-800 transition">
-                            <i class="fas fa-chevron-down"></i>
-                        </button>
-                    </div>
-                    <div class="relative mt-2">
-                        <input type="text" id="searchProduct" placeholder="Rechercher des produits..."
-                               class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                    </div>
-                    <div class="flex justify-end mt-2">
-                        <button onclick="toggleProductForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
-                            <i class="fas fa-plus mr-2"></i>Ajouter
-                        </button>
-                    </div>
-                </div>
+            <div id="result" class="p-4 bg-gray-50 rounded-lg text-gray-700 text-center">
+                <p class="text-lg">En attente de scan...</p>
+            </div>
 
-                <div id="productForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
-                    <h3 class="font-medium mb-3">Nouveau Produit</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Désignation*</label>
-                            <input type="text" id="productDesignation" class="w-full px-3 py-2 border rounded-md" required>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Code Barre*</label>
-                            <input type="text" id="productBar" class="w-full px-3 py-2 border rounded-md" required>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Prix*</label>
-                            <input type="number" id="productPrix" class="w-full px-3 py-2 border rounded-md" required>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Quantité*</label>
-                            <input type="number" id="productQte" class="w-full px-3 py-2 border rounded-md" required>
-                        </div>
+            <div id="addProductForm" class="hidden mt-4 p-4 bg-gray-100 rounded-lg">
+                <h3 class="text-lg font-semibold mb-2">Ajouter un nouveau produit</h3>
+                <form id="productForm">
+                    <div class="mb-2">
+                        <label for="designation" class="block text-sm font-medium text-gray-700">Désignation</label>
+                        <input type="text" id="designation" name="designation" class="w-full p-2 border rounded" required>
                     </div>
-                    <div class="flex justify-end space-x-3 mt-4">
-                        <button onclick="resetProductForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition">
-                            <i class="fas fa-times mr-2"></i>Annuler
-                        </button>
-                        <button onclick="ajouterProduit()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition">
-                            <i class="fas fa-save mr-2"></i>Enregistrer
-                        </button>
+                    <div class="mb-2">
+                        <label for="bar" class="block text-sm font-medium text-gray-700">Code-barres</label>
+                        <input type="text" id="bar" name="bar" class="w-full p-2 border rounded" required>
                     </div>
-                </div>
-
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Désignation</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                            </tr>
-                        </thead>
-                        <tbody id="productsList" class="bg-white divide-y divide-gray-200">
-                            <tr>
-                                <td colspan="4" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+                    <div class="mb-2">
+                        <label for="prix" class="block text-sm font-medium text-gray-700">Prix</label>
+                        <input type="number" id="prix" name="prix" class="w-full p-2 border rounded" step="0.01" min="0" required>
+                    </div>
+                    <div class="mb-2">
+                        <label for="qte" class="block text-sm font-medium text-gray-700">Quantité</label>
+                        <input type="number" id="qte" name="qte" class="w-full p-2 border rounded" min="0" required>
+                    </div>
+                    <button type="submit" class="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 transition">Ajouter le produit</button>
+                </form>
             </div>
         </div>
     </div>
 
+    <!-- Toast pour notifications -->
     <div id="toast" class="fixed bottom-4 right-4 hidden">
         <div class="flex items-center px-6 py-3 rounded-md shadow-lg">
             <i id="toastIcon" class="mr-2"></i>
@@ -226,9 +97,14 @@
         </div>
     </div>
 
+    <script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
     <script>
-        // Configuration de l'API
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
+        let codeReader = null;
+        let scannerRunning = false;
+        let torchOn = false;
+        let lastScanTime = 0;
+        const SCAN_COOLDOWN = 2000; // 2 secondes entre les scans
 
         // Fonction pour afficher les notifications
         function showToast(message, isError = false) {
@@ -252,366 +128,150 @@
             }, 3000);
         }
 
-        // --- Gestion des clients ---
-        async function chargerClients() {
+        async function startScanner() {
+            if (scannerRunning) return;
+            scannerRunning = true;
+
+            document.getElementById('result').innerHTML = '<p class="text-blue-500">Démarrage du scan...</p>';
+            codeReader = new ZXing.BrowserBarcodeReader({ formats: ['ean_13'] });
+            const videoElement = document.getElementById('scanner-video');
+            const loadingElement = document.getElementById('camera-loading');
+
             try {
-                const response = await fetch(`${API_BASE_URL}/liste_clients`);
-                if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-                }
-                const clients = await response.json();
-                const tbody = document.getElementById('clientsList');
-
-                if (clients.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun client trouvé</td></tr>';
-                    return;
-                }
-
-                tbody.innerHTML = '';
-                clients.forEach(client => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.numero_clt || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${client.nom || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.solde || '0'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.reference || 'N/A'}</td>
-                    `;
-                    tbody.appendChild(tr);
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { ideal: 'environment' }, width: { ideal: 480 }, height: { ideal: 360 } }
                 });
-            } catch (error) {
-                document.getElementById('clientsList').innerHTML = `
-                    <tr>
-                        <td colspan="4" class="text-center py-4 text-red-500">
-                            Erreur de chargement: ${error.message}
-                        </td>
-                    </tr>
-                `;
-                console.error('Erreur clients:', error);
+                videoElement.srcObject = stream;
+                videoElement.onloadedmetadata = () => loadingElement.style.display = 'none';
+
+                codeReader.decodeFromVideoDevice(undefined, videoElement, (result, err) => {
+                    if (result) {
+                        const currentTime = Date.now();
+                        if (currentTime - lastScanTime < SCAN_COOLDOWN) return; // Éviter les scans trop rapides
+                        lastScanTime = currentTime;
+
+                        const code = result.text.trim();
+                        document.getElementById('result').innerHTML = `<p class="text-green-500">Code-barres détecté : ${code}</p><p>Recherche en cours...</p>`;
+                        fetchProduit(code);
+                    }
+                    if (err && !(err instanceof ZXing.NotFoundException)) {
+                        showToast(`Erreur de scan : ${err.message}. Essayez de stabiliser le téléphone ou d'améliorer l'éclairage.`, true);
+                    }
+                });
+            } catch (err) {
+                showToast(`Erreur d'accès à la caméra : ${err.message}. Vérifiez les autorisations ou essayez un autre appareil.`, true);
+                document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${err.message}</p>`;
+                scannerRunning = false;
             }
         }
 
-        async function ajouterClient() {
-            const nom = document.getElementById('clientNom').value.trim();
-            const solde = document.getElementById('clientSolde').value.trim();
-            const reference = document.getElementById('clientReference').value.trim();
+        function stopScanner() {
+            if (!scannerRunning) return;
+            if (codeReader) {
+                codeReader.reset();
+                codeReader = null;
+            }
+            const videoElement = document.getElementById('scanner-video');
+            if (videoElement.srcObject) {
+                videoElement.srcObject.getTracks().forEach(track => track.stop());
+                videoElement.srcObject = null;
+            }
+            scannerRunning = false;
+            torchOn = false;
+            document.getElementById('result').innerHTML = '<p class="text-gray-500">Scan arrêté. Cliquez sur "Démarrer" pour recommencer.</p>';
+            document.getElementById('addProductForm').classList.add('hidden');
+            document.getElementById('camera-loading').style.display = 'flex';
+        }
 
-            if (!nom || !solde || !reference) {
-                showToast('Veuillez remplir tous les champs obligatoires', true);
+        function toggleTorch() {
+            if (!scannerRunning) return;
+            const videoElement = document.getElementById('scanner-video');
+            if (!videoElement.srcObject) return;
+
+            const track = videoElement.srcObject.getVideoTracks()[0];
+            const capabilities = track.getCapabilities();
+
+            if (!capabilities.torch) {
+                showToast('Le flash n\'est pas disponible sur cet appareil.', true);
                 return;
             }
 
-            try {
-                const response = await fetch(`${API_BASE_URL}/ajouter_client`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        nom,
-                        solde: parseFloat(solde),
-                        reference
-                    })
-                });
-
-                const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de l\'ajout');
-                }
-
-                showToast('Client ajouté avec succès');
-                resetClientForm();
-                chargerClients();
-            } catch (error) {
-                showToast(error.message, true);
-                console.error('Erreur ajout client:', error);
-            }
+            torchOn = !torchOn;
+            track.applyConstraints({ advanced: [{ torch: torchOn }] })
+                .then(() => showToast(`Flash ${torchOn ? 'activé' : 'désactivé'}`, false))
+                .catch(err => showToast(`Erreur du flash : ${err.message}`, true));
         }
 
-        function resetClientForm() {
-            document.getElementById('clientNom').value = '';
-            document.getElementById('clientSolde').value = '';
-            document.getElementById('clientReference').value = '';
-            document.getElementById('clientForm').classList.add('hidden');
-        }
-
-        function toggleClientForm() {
-            document.getElementById('clientForm').classList.toggle('hidden');
-        }
-
-        function toggleClientsList() {
-            const clientsList = document.getElementById('clientsList');
-            const icon = document.querySelector('#clientsList ~ button i.fa-chevron-down, #clientsList ~ button i.fa-chevron-up');
-            clientsList.classList.toggle('hidden');
-            if (icon) {
-                icon.classList.toggle('fa-chevron-down');
-                icon.classList.toggle('fa-chevron-up');
-            }
-        }
-
-        document.getElementById('searchClient').addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const rows = document.querySelectorAll('#clientsList tr');
-
-            rows.forEach(row => {
-                const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-                const reference = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
-                if (nom?.includes(searchTerm) || reference?.includes(searchTerm)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-
-        // --- Gestion des fournisseurs ---
-        async function chargerFournisseurs() {
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_fournisseurs`);
-                if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-                }
-                const fournisseurs = await response.json();
-                const tbody = document.getElementById('fournisseursList');
-
-                if (fournisseurs.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun fournisseur trouvé</td></tr>';
-                    return;
-                }
-
-                tbody.innerHTML = '';
-                fournisseurs.forEach(fournisseur => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.numero_fou || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${fournisseur.nom || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.solde || '0'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.reference || 'N/A'}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-            } catch (error) {
-                document.getElementById('fournisseursList').innerHTML = `
-                    <tr>
-                        <td colspan="4" class="text-center py-4 text-red-500">
-                            Erreur de chargement: ${error.message}
-                        </td>
-                    </tr>
-                `;
-                console.error('Erreur fournisseurs:', error);
-            }
-        }
-
-        async function ajouterFournisseur() {
-            const nom = document.getElementById('fournisseurNom').value.trim();
-            const solde = document.getElementById('fournisseurSolde').value.trim();
-            const reference = document.getElementById('fournisseurReference').value.trim();
-
-            if (!nom || !solde || !reference) {
-                showToast('Veuillez remplir tous les champs obligatoires', true);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/ajouter_fournisseur`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        nom,
-                        solde: parseFloat(solde),
-                        reference
-                    })
-                });
-
-                const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de l\'ajout');
-                }
-
-                showToast('Fournisseur ajouté avec succès');
-                resetFournisseurForm();
-                chargerFournisseurs();
-            } catch (error) {
-                showToast(error.message, true);
-                console.error('Erreur ajout fournisseur:', error);
-            }
-        }
-
-        function resetFournisseurForm() {
-            document.getElementById('fournisseurNom').value = '';
-            document.getElementById('fournisseurSolde').value = '';
-            document.getElementById('fournisseurReference').value = '';
-            document.getElementById('fournisseurForm').classList.add('hidden');
-        }
-
-        function toggleFournisseurForm() {
-            document.getElementById('fournisseurForm').classList.toggle('hidden');
-        }
-
-        function toggleFournisseursList() {
-            const fournisseursList = document.getElementById('fournisseursList');
-            const icon = document.querySelector('#fournisseursList ~ button i.fa-chevron-down, #fournisseursList ~ button i.fa-chevron-up');
-            fournisseursList.classList.toggle('hidden');
-            if (icon) {
-                icon.classList.toggle('fa-chevron-down');
-                icon.classList.toggle('fa-chevron-up');
-            }
-        }
-
-        document.getElementById('searchFournisseur').addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const rows = document.querySelectorAll('#fournisseursList tr');
-
-            rows.forEach(row => {
-                const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-                const reference = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
-                if (nom?.includes(searchTerm) || reference?.includes(searchTerm)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-
-        // --- Gestion des produits ---
-        async function chargerProduits() {
+        async function fetchProduit(barCode) {
             try {
                 const response = await fetch(`${API_BASE_URL}/liste_produits`);
-                if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-                }
+                if (!response.ok) throw new Error(`Erreur ${response.status}: ${response.statusText}`);
                 const produits = await response.json();
-                const tbody = document.getElementById('productsList');
-
-                if (produits.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
-                    return;
+                const produit = produits.find(p => p.BAR === barCode);
+                if (produit) {
+                    document.getElementById('result').innerHTML = `
+                        <div class="bg-green-100 p-4 rounded-lg">
+                            <p class="text-green-700 font-semibold">Produit trouvé :</p>
+                            <p><strong>Désignation :</strong> ${produit.DESIGNATION}</p>
+                            <p><strong>Quantité :</strong> ${produit.QTE}</p>
+                            <p><strong>Prix :</strong> ${produit.PRIX} €</p>
+                            <p><strong>Code-barres :</strong> ${produit.BAR}</p>
+                        </div>`;
+                    document.getElementById('addProductForm').classList.add('hidden');
+                    showToast('Produit trouvé avec succès !');
+                } else {
+                    document.getElementById('result').innerHTML = `<p class="text-yellow-600">Produit inconnu pour le code-barres : ${barCode}</p>`;
+                    document.getElementById('bar').value = barCode;
+                    document.getElementById('addProductForm').classList.remove('hidden');
+                    showToast('Produit non trouvé. Veuillez ajouter un nouveau produit.', true);
                 }
-
-                tbody.innerHTML = '';
-                produits.forEach(produit => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.PRIX || '0'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
             } catch (error) {
-                document.getElementById('productsList').innerHTML = `
-                    <tr>
-                        <td colspan="4" class="text-center py-4 text-red-500">
-                            Erreur de chargement: ${error.message}
-                        </td>
-                    </tr>
-                `;
-                console.error('Erreur produits:', error);
+                showToast(`Erreur lors de la recherche : ${error.message}`, true);
+                document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${error.message}</p>`;
             }
         }
 
-        async function ajouterProduit() {
-            const designation = document.getElementById('productDesignation').value.trim();
-            const bar = document.getElementById('productBar').value.trim();
-            const prix = document.getElementById('productPrix').value.trim();
-            const qte = document.getElementById('productQte').value.trim();
+        document.getElementById('productForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const designation = document.getElementById('designation').value.trim();
+            const bar = document.getElementById('bar').value.trim();
+            const prix = parseFloat(document.getElementById('prix').value);
+            const qte = parseInt(document.getElementById('qte').value);
 
-            if (!designation || !bar || !prix || !qte) {
-                showToast('Veuillez remplir tous les champs obligatoires', true);
+            if (!designation || !bar || isNaN(prix) || isNaN(qte)) {
+                showToast('Veuillez remplir tous les champs correctement', true);
                 return;
             }
 
             try {
                 const response = await fetch(`${API_BASE_URL}/ajouter_item`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        designation,
-                        bar,
-                        prix: parseFloat(prix),
-                        qte: parseInt(qte)
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ designation, bar, prix, qte })
                 });
-
                 const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de l\'ajout');
-                }
-
-                showToast('Produit ajouté avec succès');
-                resetProductForm();
-                chargerProduits();
-            } catch (error) {
-                showToast(error.message, true);
-                console.error('Erreur ajout produit:', error);
-            }
-        }
-
-        function resetProductForm() {
-            document.getElementById('productDesignation').value = '';
-            document.getElementById('productBar').value = '';
-            document.getElementById('productPrix').value = '';
-            document.getElementById('productQte').value = '';
-            document.getElementById('productForm').classList.add('hidden');
-        }
-
-        function toggleProductForm() {
-            document.getElementById('productForm').classList.toggle('hidden');
-        }
-
-        document.getElementById('searchProduct').addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const rows = document.querySelectorAll('#productsList tr');
-
-            rows.forEach(row => {
-                const designation = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-                if (designation?.includes(searchTerm)) {
-                    row.style.display = '';
+                if (response.ok) {
+                    document.getElementById('result').innerHTML = `<p class="text-green-500">Produit ajouté avec succès !</p>`;
+                    document.getElementById('addProductForm').classList.add('hidden');
+                    document.getElementById('productForm').reset();
+                    showToast('Produit ajouté avec succès !');
                 } else {
-                    row.style.display = 'none';
+                    showToast(`Erreur : ${result.erreur}`, true);
+                    document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${result.erreur}</p>`;
                 }
-            });
+            } catch (error) {
+                showToast(`Erreur réseau : ${error.message}`, true);
+                document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${error.message}</p>`;
+            }
         });
 
-        function toggleProductsList() {
-            const productsList = document.getElementById('productsList');
-            const icon = document.querySelector('#productsList ~ button i.fa-chevron-down, #productsList ~ button i.fa-chevron-up');
-            productsList.classList.toggle('hidden');
-            if (icon) {
-                icon.classList.toggle('fa-chevron-down');
-                icon.classList.toggle('fa-chevron-up');
-            }
+        function toggleAddProductForm() {
+            const form = document.getElementById('addProductForm');
+            form.classList.toggle('hidden');
+            document.getElementById('result').innerHTML = '<p class="text-gray-600">Ajout manuel d\'un produit.</p>';
         }
 
-        // Chargement initial
-        document.addEventListener('DOMContentLoaded', () => {
-            chargerClients();
-            chargerFournisseurs();
-            chargerProduits();
-
-            // Masquer les listes au chargement
-            document.getElementById('clientsList').classList.add('hidden');
-            document.getElementById('fournisseursList').classList.add('hidden');
-            document.getElementById('productsList').classList.add('hidden');
-
-            // Vérification de la connexion API
-            fetch(`${API_BASE_URL}/`)
-                .then(response => response.text())
-                .then(text => console.log('Statut API:', text))
-                .catch(err => {
-                    console.error('API non disponible:', err);
-                    showToast('Erreur de connexion à l\'API', true);
-                });
-        });
-
-        // Gestion des erreurs CORS
+        // Gestion des erreurs CORS ou réseau
         window.addEventListener('unhandledrejection', event => {
             if (event.reason.message.includes('Failed to fetch')) {
                 showToast('Erreur de connexion au serveur. Vérifiez l\'URL ou les paramètres CORS.', true);
