@@ -6,12 +6,27 @@
     <title>Scanner EAN-13</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        #scanner-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 70%;
+            height: 50%;
+            border: 2px solid red;
+            border-radius: 8px;
+            pointer-events: none;
+            z-index: 10;
+        }
+    </style>
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center">
     <div class="container mx-auto px-4 py-8 max-w-3xl">
         <header class="mb-8 text-center">
             <h1 class="text-4xl font-bold text-indigo-700 mb-2">Scanner EAN-13</h1>
             <p class="text-gray-600 mb-4">Scannez un code-barres EAN-13 pour voir les détails du produit</p>
+            <p class="text-sm text-gray-500 mb-4">Tenez le code-barres à 10-15 cm dans le cadre rouge.</p>
             <div class="flex justify-center gap-4">
                 <a href="index.html" class="inline-flex items-center bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
                     <i class="fas fa-home mr-2"></i>Accueil
@@ -24,8 +39,9 @@
 
         <div class="bg-white rounded-xl shadow-lg p-6">
             <div class="mb-6">
-                <div id="scanner-container" class="relative w-full aspect-video bg-gray-200 rounded-lg overflow-hidden">
+                <div id="scanner-container" class="relative w-full aspect-[4/3] bg-gray-200 rounded-lg overflow-hidden">
                     <video id="scanner-video" class="absolute inset-0 w-full h-full object-cover" autoplay muted playsinline></video>
+                    <div id="scanner-overlay"></div>
                     <div id="camera-loading" class="absolute inset-0 flex items-center justify-center text-gray-500">
                         Chargement de la caméra...
                     </div>
@@ -38,6 +54,9 @@
                 </button>
                 <button onclick="stopScanner()" class="flex items-center bg-red-500 text-white px-6 py-3 rounded-md hover:bg-red-600 transition">
                     <i class="fas fa-stop mr-2"></i>Arrêter
+                </button>
+                <button onclick="toggleTorch()" class="flex items-center bg-yellow-500 text-white px-6 py-3 rounded-md hover:bg-yellow-600 transition">
+                    <i class="fas fa-lightbulb mr-2"></i>Flash
                 </button>
             </div>
 
@@ -83,6 +102,9 @@
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
         let codeReader = null;
         let scannerRunning = false;
+        let torchOn = false;
+        let lastScanTime = 0;
+        const SCAN_COOLDOWN = 2000; // 2 secondes entre les scans
 
         // Fonction pour afficher les notifications
         function showToast(message, isError = false) {
@@ -117,23 +139,27 @@
 
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: { ideal: 'environment' }, width: 640, height: 480 }
+                    video: { facingMode: { ideal: 'environment' }, width: { ideal: 480 }, height: { ideal: 360 } }
                 });
                 videoElement.srcObject = stream;
                 videoElement.onloadedmetadata = () => loadingElement.style.display = 'none';
 
                 codeReader.decodeFromVideoDevice(undefined, videoElement, (result, err) => {
                     if (result) {
+                        const currentTime = Date.now();
+                        if (currentTime - lastScanTime < SCAN_COOLDOWN) return; // Éviter les scans trop rapides
+                        lastScanTime = currentTime;
+
                         const code = result.text.trim();
                         document.getElementById('result').innerHTML = `<p class="text-green-500">Code-barres détecté : ${code}</p><p>Recherche en cours...</p>`;
                         fetchProduit(code);
                     }
                     if (err && !(err instanceof ZXing.NotFoundException)) {
-                        showToast(`Erreur de scan : ${err.message}`, true);
+                        showToast(`Erreur de scan : ${err.message}. Essayez de stabiliser le téléphone ou d'améliorer l'éclairage.`, true);
                     }
                 });
             } catch (err) {
-                showToast(`Erreur d'accès à la caméra : ${err.message}`, true);
+                showToast(`Erreur d'accès à la caméra : ${err.message}. Vérifiez les autorisations ou essayez un autre appareil.`, true);
                 document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${err.message}</p>`;
                 scannerRunning = false;
             }
@@ -151,9 +177,29 @@
                 videoElement.srcObject = null;
             }
             scannerRunning = false;
+            torchOn = false;
             document.getElementById('result').innerHTML = '<p class="text-gray-500">Scan arrêté. Cliquez sur "Démarrer" pour recommencer.</p>';
             document.getElementById('addProductForm').classList.add('hidden');
             document.getElementById('camera-loading').style.display = 'flex';
+        }
+
+        function toggleTorch() {
+            if (!scannerRunning) return;
+            const videoElement = document.getElementById('scanner-video');
+            if (!videoElement.srcObject) return;
+
+            const track = videoElement.srcObject.getVideoTracks()[0];
+            const capabilities = track.getCapabilities();
+
+            if (!capabilities.torch) {
+                showToast('Le flash n\'est pas disponible sur cet appareil.', true);
+                return;
+            }
+
+            torchOn = !torchOn;
+            track.applyConstraints({ advanced: [{ torch: torchOn }] })
+                .then(() => showToast(`Flash ${torchOn ? 'activé' : 'désactivé'}`, false))
+                .catch(err => showToast(`Erreur du flash : ${err.message}`, true));
         }
 
         async function fetchProduit(barCode) {
@@ -233,4 +279,4 @@
         });
     </script>
 </body>
-</html> 
+</html>
