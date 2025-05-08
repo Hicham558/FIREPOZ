@@ -12,6 +12,25 @@
             transform: scale(1.5);
             transform-origin: center center;
         }
+        #scan-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 70%;
+            height: 50%;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            transition: border-color 0.3s;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .scanning {
+            border-color: rgba(0, 255, 0, 0.5); /* Vert semi-transparent pendant le scan */
+        }
+        .detected {
+            border-color: rgba(0, 255, 0, 1); /* Vert opaque quand détecté */
+        }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center">
@@ -36,6 +55,7 @@
                     <div id="camera-loading" class="absolute inset-0 flex items-center justify-center text-gray-500">
                         Chargement de la caméra...
                     </div>
+                    <div id="scan-indicator"></div>
                     <div class="absolute bottom-4 left-0 right-0 flex justify-center space-x-2 z-20">
                         <button onclick="startScanner()" class="flex items-center bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition">
                             <i class="fas fa-play mr-1"></i>Démarrer
@@ -123,13 +143,17 @@
             document.getElementById('result').innerHTML = '<p class="text-blue-500">Démarrage du scan...</p>';
             const videoElement = document.getElementById('scanner-video');
             const loadingElement = document.getElementById('camera-loading');
+            const scanIndicator = document.getElementById('scan-indicator');
 
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: { facingMode: { ideal: 'environment' }, width: { ideal: 480 }, height: { ideal: 360 } }
                 });
                 videoElement.srcObject = stream;
-                videoElement.onloadedmetadata = () => loadingElement.style.display = 'none';
+                videoElement.onloadedmetadata = () => {
+                    loadingElement.style.display = 'none';
+                    scanIndicator.classList.add('scanning'); // Indication visuelle de scan
+                };
 
                 if (!('BarcodeDetector' in window)) {
                     throw new Error('Barcode Detection API non supportée sur ce navigateur. Essayez Chrome sur Android ou Edge.');
@@ -153,13 +177,16 @@
                             lastScanTime = currentTime;
 
                             const code = barcodes[0].rawValue;
+                            scanIndicator.classList.remove('scanning');
+                            scanIndicator.classList.add('detected'); // Indication de détection
+                            setTimeout(() => scanIndicator.classList.remove('detected'), 500); // Retour après 0.5s
                             document.getElementById('result').innerHTML = `<p class="text-green-500">Code-barres détecté : ${code}</p><p>Recherche en cours...</p>`;
                             fetchProduit(code);
                         }
                     } catch (err) {
                         showToast(`Erreur de détection : ${err.message}`, true);
                     }
-                    setTimeout(scan, 100); // Analyse continue toutes les 100ms
+                    setTimeout(scan, 150); // Ajusté à 150ms pour une meilleure réactivité
                 };
 
                 scan();
@@ -173,10 +200,12 @@
         function stopScanner() {
             if (!scannerRunning) return;
             const videoElement = document.getElementById('scanner-video');
+            const scanIndicator = document.getElementById('scan-indicator');
             if (videoElement.srcObject) {
                 videoElement.srcObject.getTracks().forEach(track => track.stop());
                 videoElement.srcObject = null;
             }
+            scanIndicator.classList.remove('scanning', 'detected');
             scannerRunning = false;
             torchOn = false;
             document.getElementById('result').innerHTML = '<p class="text-gray-500">Scan arrêté. Cliquez sur "Démarrer" pour recommencer.</p>';
