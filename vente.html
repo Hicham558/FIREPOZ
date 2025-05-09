@@ -182,7 +182,7 @@
 
                     <!-- Table temporaire des lignes de vente -->
                     <div class="mb-6">
-                        <h3 class="font-medium mb-3">Lignes de la vente en cours (Commande #<span id="currentCommandeId">N/A</span>)</h3>
+                        <h3 class="font-medium mb-3">Lignes de la vente en cours</h3>
                         <div class="overflow-x-auto">
                             <table class="min-w-full divide-y divide-gray-200">
                                 <thead class="bg-gray-50">
@@ -258,7 +258,6 @@
     <script>
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
         let tempSaleLines = []; // Table temporaire pour les lignes de vente
-        let currentNumeroComande = null; // Stocke le numero_comande en cours
         let produitsCache = []; // Cache des produits pour éviter des requêtes répétées
 
         // Générer un user_id basé sur l'email et le mot de passe
@@ -280,7 +279,6 @@
                 chargerClients();
                 chargerProduits();
                 chargerVentes();
-                genererNumeroComande(); // Générer numero_comande au démarrage
             } else {
                 console.log('Aucun utilisateur connecté, redirection vers index.html');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
@@ -342,48 +340,6 @@
             content.classList.toggle('hidden');
             chevron.classList.toggle('fa-chevron-down');
             chevron.classList.toggle('fa-chevron-up');
-        }
-
-        // Générer un numero_comande
-        async function genererNumeroComande() {
-            console.log('Génération numero_comande...');
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour générer une commande', true);
-                return;
-            }
-
-            try {
-                const comandeData = {
-                    numero_table: parseInt(document.getElementById('saleClientId').value) || 0,
-                    date_comande: new Date().toISOString(),
-                    etat_c: 'Asuivre',
-                    nature: 'vente'
-                };
-                const response = await fetch(`${API_BASE_URL}/creer_comande`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify(comandeData)
-                });
-                console.log('Réponse creer_comande:', response.status, response.statusText);
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('Erreur texte creer_comande:', errorText);
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                const result = await response.json();
-                currentNumeroComande = result.numero_comande;
-                document.getElementById('currentCommandeId').textContent = currentNumeroComande;
-                console.log('Numero_comande généré:', currentNumeroComande);
-                showToast(`Commande #${currentNumeroComande} créée`);
-            } catch (error) {
-                console.error('Erreur création commande:', error);
-                showToast(`Erreur création commande: ${error.message}`, true);
-                document.getElementById('currentCommandeId').textContent = 'N/A';
-            }
         }
 
         // --- Charger les clients pour la sélection ---
@@ -524,12 +480,6 @@
         // Ajouter une ligne à la table temporaire
         function ajouterLigneVente() {
             console.log('Ajout ligne vente...');
-            if (!currentNumeroComande) {
-                showToast('Aucune commande en cours. Veuillez réessayer.', true);
-                genererNumeroComande();
-                return;
-            }
-
             const productBar = document.getElementById('saleProductBar').value.trim();
             const designation = document.getElementById('saleProductBar').dataset.designation || 'N/A';
             const quantity = parseInt(document.getElementById('saleQuantity').value) || 0;
@@ -560,7 +510,6 @@
                 tempSaleLines[existingLineIndex].remarque = unitPrice.toFixed(2);
             } else {
                 tempSaleLines.push({
-                    numero_comande: currentNumeroComande,
                     produit_bar: productBar,
                     designation: designation,
                     quantite: quantity,
@@ -687,60 +636,41 @@
                 return;
             }
 
-            if (!currentNumeroComande) {
-                showToast('Aucune commande en cours', true);
-                return;
-            }
-
             if (tempSaleLines.length === 0) {
                 showToast('Aucune ligne à valider', true);
                 return;
             }
 
+            const venteData = {
+                numero_table: parseInt(document.getElementById('saleClientId').value) || 0,
+                date_comande: new Date().toISOString(),
+                nature: 'vente',
+                lignes: tempSaleLines
+            };
+
             try {
-                // Envoyer les lignes à attache
-                const response = await fetch(`${API_BASE_URL}/ajouter_attache`, {
+                const response = await fetch(`${API_BASE_URL}/valider_vente`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-User-ID': userId
                     },
-                    body: JSON.stringify(tempSaleLines)
+                    body: JSON.stringify(venteData)
                 });
-                console.log('Réponse ajouter_attache:', response.status, response.statusText);
+                console.log('Réponse valider_vente:', response.status, response.statusText);
                 if (!response.ok) {
                     const errorText = await response.text();
-                    console.error('Erreur texte ajouter_attache:', errorText);
+                    console.error('Erreur texte valider_vente:', errorText);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
-                const attacheResult = await response.json();
-                console.log('Lignes ajoutées:', attacheResult);
+                const result = await response.json();
+                console.log('Vente validée:', result);
 
-                // Clôturer la commande
-                const clotureResponse = await fetch(`${API_BASE_URL}/cloturer_comande`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({ numero_comande: currentNumeroComande })
-                });
-                console.log('Réponse cloturer_comande:', clotureResponse.status, clotureResponse.statusText);
-                if (!clotureResponse.ok) {
-                    const errorText = await clotureResponse.text();
-                    console.error('Erreur texte cloturer_comande:', errorText);
-                    throw new Error(`Erreur ${clotureResponse.status}: ${errorText}`);
-                }
-                const clotureResult = await clotureResponse.json();
-                console.log('Commande clôturée:', clotureResult);
-
-                showToast(`Vente #${currentNumeroComande} validée avec succès`);
+                showToast(`Vente #${result.numero_comande} validée avec succès`);
                 tempSaleLines = [];
-                currentNumeroComande = null;
                 updateTempSalesTable();
                 chargerProduits();
                 chargerVentes();
-                genererNumeroComande();
             } catch (error) {
                 console.error('Erreur validation vente:', error);
                 showToast(`Erreur validation vente: ${error.message}`, true);
@@ -801,7 +731,7 @@
                         <td colspan="8" class="text-center py-4 text-red-500">
                             Erreur de chargement: ${error.message}
                         </td>
-                    </tr>
+                    </tr
                 `;
             }
         }
