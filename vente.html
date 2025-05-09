@@ -182,7 +182,7 @@
                                 <tr>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Commande ID</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit (Code)</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Unitaire</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Total</th>
@@ -436,7 +436,6 @@
                     }
                 });
 
-                // Vérifier si la réponse est correcte
                 if (!response.ok) {
                     const errorText = await response.text();
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
@@ -458,7 +457,7 @@
                     tr.innerHTML = `
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.numero_comande || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${clientInfo}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">${vente.designation || 'N/A'}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">${vente.produit_bar || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.quantite || '0'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(vente.remarque || 0).toFixed(2)}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(vente.prixt || 0).toFixed(2)}</td>
@@ -472,8 +471,8 @@
                 document.getElementById('salesList').innerHTML = `
                     <tr>
                         <td colspan="8" class="text-center py-4 text-red-500">
-                        Erreur de chargement: ${error.message}
-                    </td>
+                            Erreur de chargement: ${error.message}
+                        </td>
                     </tr>
                 `;
             }
@@ -510,44 +509,80 @@
                 return;
             }
 
-            const venteData = {
-                client_id: clientId, // '0' pour vente comptoir, sera envoyé tel quel
-                produit_bar: productBar,
-                quantite: quantityNum,
-                prixt: parseFloat(priceTotal),
-                remarque: parseFloat(unitPrice),
-                prixbh: parseFloat(pricePurchase),
-                numero_util: '1',
-                etat_c: 'en_cours',
-                nature: 'vente'
-            };
-
-            console.log('Données envoyées à /ajouter_vente:', venteData);
-
+            // Étape 1 : Générer un numero_comande via une insertion dans comande
+            let numeroComande = null;
             try {
-                const response = await fetch(`${API_BASE_URL}/ajouter_vente`, {
+                const comandeData = {
+                    numero_table: clientId,
+                    numero_util: userId,
+                    date_comande: new Date().toISOString().split('T')[0],
+                    etat_c: 'en_cours',
+                    nature: 'vente'
+                };
+
+                const comandeResponse = await fetch(`${API_BASE_URL}/creer_comande`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-User-ID': userId
                     },
-                    body: JSON.stringify(venteData)
+                    body: JSON.stringify(comandeData)
                 });
 
-                const result = await response.json();
-                console.log('Réponse du serveur:', result);
-
-                if (!response.ok) {
-                    throw new Error(result.erreur || `Erreur ${response.status}: ${response.statusText}`);
+                if (!comandeResponse.ok) {
+                    const errorText = await comandeResponse.text();
+                    throw new Error(`Erreur ${comandeResponse.status}: ${errorText}`);
                 }
+
+                const result = await comandeResponse.json();
+                numeroComande = result.numero_comande;
+                console.log('Numero_comande généré:', numeroComande);
+
+                if (!numeroComande) {
+                    throw new Error('Échec de la génération du numero_comande');
+                }
+            } catch (error) {
+                console.error('Erreur lors de la création de la commande:', error);
+                showToast(`Erreur lors de la création de la commande: ${error.message}`, true);
+                return;
+            }
+
+            // Étape 2 : Stocker la ligne de vente dans attache
+            try {
+                const attacheData = {
+                    numero_comande: numeroComande,
+                    user_id: userId,
+                    produit_bar: productBar,
+                    quantite: quantityNum,
+                    prixt: parseFloat(priceTotal),
+                    remarque: parseFloat(unitPrice),
+                    prixbh: parseFloat(pricePurchase)
+                };
+
+                const attacheResponse = await fetch(`${API_BASE_URL}/ajouter_attache`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify(attacheData)
+                });
+
+                if (!attacheResponse.ok) {
+                    const errorText = await attacheResponse.text();
+                    throw new Error(`Erreur ${attacheResponse.status}: ${errorText}`);
+                }
+
+                const attacheResult = await attacheResponse.json();
+                console.log('Ligne ajoutée à attache:', attacheResult);
 
                 showToast('Vente enregistrée avec succès');
                 resetSaleForm();
                 chargerProduits();
                 chargerVentes();
             } catch (error) {
-                console.error('Erreur lors de l\'enregistrement:', error);
-                showToast(`Erreur lors de l'enregistrement: ${error.message}`, true);
+                console.error('Erreur lors de l\'ajout à attache:', error);
+                showToast(`Erreur lors de l'enregistrement de la ligne: ${error.message}`, true);
             }
         }
 
@@ -567,19 +602,16 @@
         let isScanning = false;
 
         async function startScanner() {
-            // Vérifier la prise en charge de l'API BarcodeDetector
             if (!('BarcodeDetector' in window)) {
                 showToast('Le scanner de code-barres n\'est pas supporté par ce navigateur. Utilisez Chrome ou Edge.', true);
                 return;
             }
 
-            // Vérifier l'accès à la caméra
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 showToast('L\'accès à la caméra n\'est pas supporté par ce navigateur.', true);
                 return;
             }
 
-            // Masquer la grille des produits et afficher l'overlay
             document.getElementById('productsList').classList.add('hidden');
             document.getElementById('scannerOverlay').style.display = 'block';
             document.getElementById('scannerPreview').style.display = 'block';
@@ -590,7 +622,6 @@
             isScanning = true;
 
             try {
-                // Vérifier les formats de code-barres supportés
                 barcodeDetector = new BarcodeDetector({
                     formats: ['ean_13', 'code_128', 'upc_a', 'upc_e', 'qr_code']
                 });
@@ -601,7 +632,6 @@
                     throw new Error('Aucun format de code-barres supporté par ce navigateur.');
                 }
 
-                // Accéder à la caméra
                 stream = await navigator.mediaDevices.getUserMedia({
                     video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
                 });
@@ -610,16 +640,14 @@
                 video.srcObject = stream;
                 video.autoplay = true;
                 video.playsinline = true;
-                video.muted = true; // S'assurer que le son est désactivé
+                video.muted = true;
                 video.style.width = '100%';
                 video.style.height = '100%';
                 video.style.objectFit = 'contain';
 
-                // Vider et ajouter la vidéo à l'aperçu
                 preview.innerHTML = '';
                 preview.appendChild(video);
 
-                // Attendre que la vidéo soit prête
                 video.onloadedmetadata = () => {
                     console.log('Vidéo prête pour la détection.');
                     video.play().then(() => {
@@ -713,7 +741,6 @@
             overlay.style.display = 'none';
             scanButton.disabled = false;
 
-            // Restaurer la grille des produits
             document.getElementById('productsList').classList.remove('hidden');
         }
 
