@@ -28,22 +28,22 @@
 <body class="bg-gray-100">
     <!-- Formulaire de connexion -->
     <div id="loginModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-20 hidden">
-        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+        <form id="loginForm" class="bg-white rounded-lg p-6 w-full max-w-md">
             <h2 class="text-xl font-semibold mb-4">Connexion</h2>
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Adresse Email*</label>
-                <input type="email" id="userEmail" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre email" required>
+                <input type="email" id="userEmail" name="username" autocomplete="username" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre email" required>
             </div>
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe*</label>
-                <input type="password" id="userPassword" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre mot de passe" required>
+                <input type="password" id="userPassword" name="password" autocomplete="current-password" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre mot de passe" required>
             </div>
             <div class="flex justify-end space-x-3">
-                <button onclick="loginWithCredentials()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
+                <button type="submit" onclick="loginWithCredentials(event)" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
                     <i class="fas fa-sign-in-alt mr-2"></i>Se connecter
                 </button>
             </div>
-        </div>
+        </form>
     </div>
 
     <!-- Menu de navigation -->
@@ -343,33 +343,42 @@
     <script>
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
 
-        // Générer un UUID simple
-        function generateUUID() {
-            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-                const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
-                return v.toString(16);
-            });
+        // Générer un user_id basé sur l'email et le mot de passe
+        function generateUniqueUserId(email, password) {
+            const combined = `${email}:${password}`; // Combine email et mot de passe avec un séparateur
+            return btoa(combined); // Encode en base64
         }
 
-        // Générer un user_id unique à partir de l'email
-        function generateUniqueUserId(email) {
-            const uuid = generateUUID();
-            const emailEncoded = btoa(email); // Encoder l'email complet en base64
-            return `${emailEncoded}-${uuid}`;
-        }
-
-        // Hachage simple du mot de passe (côté client, pour démonstration)
-        function hashPassword(password) {
-            let hash = 0;
-            for (let i = 0; i < password.length; i++) {
-                const char = password.charCodeAt(i);
-                hash = ((hash << 5) - hash) + char;
+        // Vérifier si l'utilisateur est connecté au chargement de la page
+        document.addEventListener('DOMContentLoaded', () => {
+            const userId = localStorage.getItem('userId');
+            const userEmail = localStorage.getItem('userEmail');
+            if (userId && userEmail) {
+                document.getElementById('userDisplay').textContent = `Connecté en tant que : ${userEmail}`;
+                document.getElementById('userDisplay').classList.remove('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+                document.getElementById('loginModal').classList.add('hidden');
+                chargerClients();
+                chargerFournisseurs();
+                chargerProduits();
+            } else {
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                document.getElementById('loginModal').classList.remove('hidden');
             }
-            return hash.toString();
-        }
 
-        // Vérifier les identifiants (simulation côté client)
-        function loginWithCredentials() {
+            // Vérification de la connexion API
+            fetch(`${API_BASE_URL}/`)
+                .then(response => response.text())
+                .then(text => console.log('Statut API:', text))
+                .catch(err => {
+                    console.error('API non disponible:', err);
+                    showToast('Erreur de connexion à l\'API', true);
+                });
+        });
+
+        // Connexion avec email et mot de passe
+        function loginWithCredentials(event) {
+            event.preventDefault();
             const email = document.getElementById('userEmail').value.trim();
             const password = document.getElementById('userPassword').value.trim();
             if (!email || !password) {
@@ -379,11 +388,10 @@
 
             const storedUserId = localStorage.getItem('userId');
             const storedEmail = localStorage.getItem('userEmail');
-            const storedPasswordHash = localStorage.getItem('userPasswordHash');
 
-            const passwordHash = hashPassword(password);
+            const userId = generateUniqueUserId(email, password);
 
-            if (storedUserId && storedEmail === email && storedPasswordHash === passwordHash) {
+            if (storedUserId && storedEmail === email && storedUserId === userId) {
                 document.getElementById('userDisplay').textContent = `Connecté en tant que : ${email}`;
                 document.getElementById('userDisplay').classList.remove('hidden');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
@@ -392,10 +400,8 @@
                 chargerFournisseurs();
                 chargerProduits();
             } else {
-                const userId = generateUniqueUserId(email);
                 localStorage.setItem('userId', userId);
                 localStorage.setItem('userEmail', email);
-                localStorage.setItem('userPasswordHash', passwordHash);
                 document.getElementById('userDisplay').textContent = `Connecté en tant que : ${email}`;
                 document.getElementById('userDisplay').classList.remove('hidden');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
@@ -413,7 +419,6 @@
             if (userId) {
                 localStorage.removeItem('userId');
                 localStorage.removeItem('userEmail');
-                localStorage.removeItem('userPasswordHash');
                 document.getElementById('userDisplay').textContent = '';
                 document.getElementById('userDisplay').classList.add('hidden');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
