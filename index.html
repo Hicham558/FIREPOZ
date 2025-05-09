@@ -519,9 +519,8 @@
                         solde: parseFloat(solde),
                         reference,
                         contact,
-                        adresse,
-                        userId // Ajouter l'identifiant dans le corps de la requête
-                    })
+                        adresse
+                    }) // Retirer userId du corps, déjà dans l'en-tête
                 });
 
                 const result = await response.json();
@@ -649,9 +648,8 @@
                         solde: parseFloat(solde),
                         reference,
                         contact,
-                        adresse,
-                        userId
-                    })
+                        adresse
+                    }) // Retirer userId du corps, déjà dans l'en-tête
                 });
 
                 const result = await response.json();
@@ -764,17 +762,25 @@
                 return;
             }
 
-            const rows = document.querySelectorAll('#productsList tr');
-            let codeBarExists = false;
-            rows.forEach(row => {
-                const existingCode = row.querySelector('td:nth-child(1)')?.textContent;
-                if (existingCode === bar) {
-                    codeBarExists = true;
+            // Vérifier les doublons en rechargeant les produits depuis l'API
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
+                    headers: {
+                        'X-User-ID': userId
+                    }
+                });
+                if (!response.ok) {
+                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
                 }
-            });
-
-            if (codeBarExists) {
-                showToast('Ce code-barres existe déjà dans la liste des produits.', true);
+                const produits = await response.json();
+                const codeBarExists = produits.some(produit => produit.BAR === bar);
+                if (codeBarExists) {
+                    showToast('Ce code-barres existe déjà dans la liste des produits.', true);
+                    return;
+                }
+            } catch (error) {
+                showToast('Erreur lors de la vérification des doublons: ' + error.message, true);
+                console.error('Erreur vérification doublons:', error);
                 return;
             }
 
@@ -789,9 +795,8 @@
                         designation,
                         bar,
                         prix: parseFloat(prix),
-                        qte: parseInt(qte),
-                        userId
-                    })
+                        qte: parseInt(qte)
+                    }) // Retirer userId du corps, déjà dans l'en-tête
                 });
 
                 const result = await response.json();
@@ -907,24 +912,35 @@
                     const barcode = barcodes[0];
                     const scannedCode = barcode.rawValue;
 
-                    const rows = document.querySelectorAll('#productsList tr');
-                    let codeBarExists = false;
-                    let existingDesignation = '';
-                    rows.forEach(row => {
-                        const existingCode = row.querySelector('td:nth-child(1)')?.textContent;
-                        const designation = row.querySelector('td:nth-child(2)')?.textContent;
-                        if (existingCode === scannedCode) {
-                            codeBarExists = true;
-                            existingDesignation = designation;
-                        }
-                    });
-
-                    if (codeBarExists) {
-                        showToast(`Ce code-barres existe déjà : ${scannedCode} (${existingDesignation})`, true);
+                    const userId = localStorage.getItem('userId');
+                    if (!userId) {
+                        showToast('Veuillez vous connecter pour scanner un code-barres', true);
                         stopScanner();
-                    } else {
-                        document.getElementById('productBar').value = scannedCode;
-                        showToast('Code-barres scanné : ' + scannedCode);
+                        return;
+                    }
+
+                    // Vérifier les doublons via l'API
+                    try {
+                        const response = await fetch(`${API_BASE_URL}/liste_produits`, {
+                            headers: {
+                                'X-User-ID': userId
+                            }
+                        });
+                        if (!response.ok) {
+                            throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                        }
+                        const produits = await response.json();
+                        const codeBarExists = produits.some(produit => produit.BAR === scannedCode);
+                        if (codeBarExists) {
+                            showToast(`Ce code-barres existe déjà : ${scannedCode}`, true);
+                            stopScanner();
+                        } else {
+                            document.getElementById('productBar').value = scannedCode;
+                            showToast('Code-barres scanné : ' + scannedCode);
+                            stopScanner();
+                        }
+                    } catch (error) {
+                        showToast('Erreur lors de la vérification des doublons: ' + error.message, true);
                         stopScanner();
                     }
                 } else {
