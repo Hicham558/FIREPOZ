@@ -693,6 +693,21 @@
                 return;
             }
 
+            // Vérifier si le code-barres existe déjà avant d'ajouter
+            const rows = document.querySelectorAll('#productsList tr');
+            let codeBarExists = false;
+            rows.forEach(row => {
+                const existingCode = row.querySelector('td:nth-child(1)')?.textContent;
+                if (existingCode === bar) {
+                    codeBarExists = true;
+                }
+            });
+
+            if (codeBarExists) {
+                showToast('Ce code-barres existe déjà dans la liste des produits.', true);
+                return;
+            }
+
             try {
                 const response = await fetch(`${API_BASE_URL}/ajouter_item`, {
                     method: 'POST',
@@ -824,9 +839,29 @@
                 const barcodes = await barcodeDetector.detect(video);
                 if (barcodes.length > 0) {
                     const barcode = barcodes[0];
-                    document.getElementById('productBar').value = barcode.rawValue;
-                    showToast('Code-barres scanné : ' + barcode.rawValue);
-                    stopScanner();
+                    const scannedCode = barcode.rawValue;
+
+                    // Vérifier si le code-barres existe déjà dans la liste
+                    const rows = document.querySelectorAll('#productsList tr');
+                    let codeBarExists = false;
+                    let existingDesignation = '';
+                    rows.forEach(row => {
+                        const existingCode = row.querySelector('td:nth-child(1)')?.textContent;
+                        const designation = row.querySelector('td:nth-child(2)')?.textContent;
+                        if (existingCode === scannedCode) {
+                            codeBarExists = true;
+                            existingDesignation = designation;
+                        }
+                    });
+
+                    if (codeBarExists) {
+                        showToast(`Ce code-barres existe déjà : ${scannedCode} (${existingDesignation})`, true);
+                        stopScanner();
+                    } else {
+                        document.getElementById('productBar').value = scannedCode;
+                        showToast('Code-barres scanné : ' + scannedCode);
+                        stopScanner();
+                    }
                 } else {
                     // Continuer la détection
                     requestAnimationFrame(() => detectBarcodes(video));
