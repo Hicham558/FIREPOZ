@@ -291,15 +291,15 @@
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Prix Vente*</label>
-                                <input type="number" id="productPrix" class="w-full px-3 py-2 border rounded-md" required>
+                                <input type="number" id="productPrix" step="0.01" class="w-full px-3 py-2 border rounded-md" required>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Prix Achat</label>
-                                <input type="text" id="productPrixba" class="w-full px-3 py-2 border rounded-md" placeholder="Ex: 300.00">
+                                <input type="number" id="productPrixba" step="0.01" class="w-full px-3 py-2 border rounded-md" placeholder="Ex: 300.00">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Quantité*</label>
-                                <input type="text" id="productQte" class="w-full px-3 py-2 border rounded-md" required>
+                                <input type="number" id="productQte" class="w-full px-3 py-2 border rounded-md" required>
                             </div>
                         </div>
                         <div class="flex justify-end space-x-3 mt-4">
@@ -790,8 +790,8 @@
                     tr.innerHTML = `
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
                         <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.PRIX || '0'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.PRIXBA || '0.00'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || '0.00').toFixed(2)}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
                     `;
                     tbody.appendChild(tr);
@@ -828,6 +828,17 @@
                 return;
             }
 
+            // Validation du prix d'achat
+            let prixbaValue = '0.00';
+            if (prixba) {
+                const parsedPrixba = parseFloat(prixba);
+                if (isNaN(parsedPrixba) || parsedPrixba < 0) {
+                    showToast('Le prix d\'achat doit être un nombre positif', true);
+                    return;
+                }
+                prixbaValue = parsedPrixba.toFixed(2); // Formater avec 2 décimales
+            }
+
             try {
                 const response = await fetch(`${API_BASE_URL}/liste_produits`, {
                     headers: {
@@ -860,7 +871,7 @@
                         designation,
                         bar,
                         prix: parseFloat(prix),
-                        prixba: prixba || '0.00',
+                        prixba: prixbaValue,
                         qte: parseInt(qte)
                     })
                 });
@@ -898,8 +909,18 @@
             const rows = document.querySelectorAll('#productsList tr');
 
             rows.forEach(row => {
+                const code = row.querySelector('td:nth-child(1)')?.textContent.toLowerCase();
                 const designation = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-                if (designation?.includes(searchTerm)) {
+                const prix = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
+                const prixba = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
+                const qte = row.querySelector('td:nth-child(5)')?.textContent.toLowerCase();
+                if (
+                    code?.includes(searchTerm) ||
+                    designation?.includes(searchTerm) ||
+                    prix?.includes(searchTerm) ||
+                    prixba?.includes(searchTerm) ||
+                    qte?.includes(searchTerm)
+                ) {
                     row.style.display = '';
                 } else {
                     row.style.display = 'none';
@@ -1047,4 +1068,3 @@
     </script>
 </body>
 </html>
-
