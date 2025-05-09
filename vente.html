@@ -410,9 +410,13 @@
                         'X-User-ID': userId
                     }
                 });
+
+                // Vérifier si la réponse est correcte
                 if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
+
                 const ventes = await response.json();
                 const tbody = document.getElementById('salesList');
 
@@ -439,6 +443,7 @@
                     tbody.appendChild(tr);
                 });
             } catch (error) {
+                console.error('Erreur détaillée lors du chargement des ventes:', error);
                 document.getElementById('salesList').innerHTML = `
                     <tr>
                         <td colspan="8" class="text-center py-4 text-red-500">
@@ -446,7 +451,6 @@
                         </td>
                     </tr>
                 `;
-                console.error('Erreur ventes:', error);
             }
         }
 
@@ -538,11 +542,13 @@
         let isScanning = false;
 
         async function startScanner() {
+            // Vérifier la prise en charge de l'API BarcodeDetector
             if (!('BarcodeDetector' in window)) {
                 showToast('Le scanner de code-barres n\'est pas supporté par ce navigateur. Utilisez Chrome ou Edge.', true);
                 return;
             }
 
+            // Vérifier l'accès à la caméra
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 showToast('L\'accès à la caméra n\'est pas supporté par ce navigateur.', true);
                 return;
@@ -558,6 +564,7 @@
             isScanning = true;
 
             try {
+                // Vérifier les formats de code-barres supportés
                 barcodeDetector = new BarcodeDetector({
                     formats: ['ean_13', 'code_128', 'upc_a', 'upc_e', 'qr_code']
                 });
@@ -568,24 +575,38 @@
                     throw new Error('Aucun format de code-barres supporté par ce navigateur.');
                 }
 
+                // Accéder à la caméra
                 stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment' }
+                    video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
                 });
 
                 const video = document.createElement('video');
                 video.srcObject = stream;
                 video.autoplay = true;
                 video.playsinline = true;
+                video.muted = true; // S'assurer que le son est désactivé
+                video.style.width = '100%';
+                video.style.height = '100%';
+                video.style.objectFit = 'contain';
+
+                // Vider et ajouter la vidéo à l'aperçu
                 preview.innerHTML = '';
                 preview.appendChild(video);
 
+                // Attendre que la vidéo soit prête
                 video.onloadedmetadata = () => {
                     console.log('Vidéo prête pour la détection.');
-                    detectBarcodes(video);
+                    video.play().then(() => {
+                        detectBarcodes(video);
+                    }).catch(err => {
+                        console.error('Erreur lors de la lecture de la vidéo:', err);
+                        showToast('Erreur lors de la lecture de la vidéo: ' + err.message, true);
+                        stopScanner();
+                    });
                 };
             } catch (err) {
-                console.error('Erreur lors du démarrage du scanner :', err);
-                let errorMessage = 'Erreur lors du démarrage du scanner : ';
+                console.error('Erreur lors du démarrage du scanner:', err);
+                let errorMessage = 'Erreur lors du démarrage du scanner: ';
                 if (err.name === 'NotAllowedError') {
                     errorMessage += 'Accès à la caméra refusé. Veuillez autoriser l\'accès.';
                 } else if (err.name === 'NotFoundError') {
@@ -640,8 +661,8 @@
                     requestAnimationFrame(() => detectBarcodes(video));
                 }
             } catch (err) {
-                console.error('Erreur lors de la détection du code-barres :', err);
-                let errorMessage = 'Erreur lors de la détection du code-barres : ';
+                console.error('Erreur lors de la détection du code-barres:', err);
+                let errorMessage = 'Erreur lors de la détection du code-barres: ';
                 if (err.name === 'NotReadableError') {
                     errorMessage += 'Impossible de lire le code-barres. Assurez-vous qu\'il est bien visible.';
                 } else {
