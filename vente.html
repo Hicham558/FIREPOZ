@@ -370,7 +370,6 @@
             document.getElementById('saleUnitPrice').value = prix.toFixed(2);
             document.getElementById('salePricePurchase').value = prixba.toFixed(2);
 
-            // Vérifier le stock
             const quantityInput = document.getElementById('saleQuantity');
             quantityInput.setAttribute('max', stock);
             if (stock <= 0) {
@@ -458,7 +457,7 @@
                 return;
             }
 
-            const clientId = document.getElementById('saleClientId').value;
+            const clientId = document.getElementById('saleClientId').value; // '0' pour vente comptoir
             const productBar = document.getElementById('saleProductBar').value.trim();
             const quantity = document.getElementById('saleQuantity').value.trim();
             const unitPrice = document.getElementById('saleUnitPrice').value.trim();
@@ -476,12 +475,25 @@
                 return;
             }
 
-            // Vérifier le stock
             const stock = parseInt(document.getElementById('saleQuantity').getAttribute('max')) || 0;
             if (quantityNum > stock) {
                 showToast('Quantité demandée supérieure au stock disponible', true);
                 return;
             }
+
+            const venteData = {
+                client_id: clientId, // '0' pour vente comptoir, sera envoyé tel quel
+                produit_bar: productBar,
+                quantite: quantityNum,
+                prixt: parseFloat(priceTotal),
+                remarque: parseFloat(unitPrice),
+                prixbh: parseFloat(pricePurchase),
+                numero_util: '1',
+                etat_c: 'en_cours',
+                nature: 'vente'
+            };
+
+            console.log('Données envoyées à /ajouter_vente:', venteData);
 
             try {
                 const response = await fetch(`${API_BASE_URL}/ajouter_vente`, {
@@ -490,31 +502,23 @@
                         'Content-Type': 'application/json',
                         'X-User-ID': userId
                     },
-                    body: JSON.stringify({
-                        client_id: clientId, // Envoie le numero_clt (ou "0" pour vente comptoir)
-                        produit_bar: productBar, // numero_item
-                        quantite: quantityNum, // quantite
-                        prixt: parseFloat(priceTotal), // prixt (prix total)
-                        remarque: parseFloat(unitPrice), // remarque (prix unitaire)
-                        prixbh: parseFloat(pricePurchase), // prixbh (prix d'achat)
-                        numero_util: '1', // À ajuster selon ton besoin
-                        etat_c: 'en_cours',
-                        nature: 'vente'
-                    })
+                    body: JSON.stringify(venteData)
                 });
 
                 const result = await response.json();
+                console.log('Réponse du serveur:', result);
+
                 if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de l\'ajout');
+                    throw new Error(result.erreur || `Erreur ${response.status}: ${response.statusText}`);
                 }
 
                 showToast('Vente enregistrée avec succès');
                 resetSaleForm();
-                chargerProduits(); // Recharger pour mettre à jour le stock
+                chargerProduits();
                 chargerVentes();
             } catch (error) {
-                showToast(error.message, true);
-                console.error('Erreur ajout vente:', error);
+                console.error('Erreur lors de l\'enregistrement:', error);
+                showToast(`Erreur lors de l'enregistrement: ${error.message}`, true);
             }
         }
 
@@ -543,6 +547,9 @@
                 showToast('L\'accès à la caméra n\'est pas supporté par ce navigateur.', true);
                 return;
             }
+
+            // Masquer la section des produits pendant le scan
+            document.getElementById('productsSection').classList.add('hidden');
 
             const preview = document.getElementById('scannerPreview');
             const scanButton = document.getElementById('scanButton');
@@ -656,6 +663,9 @@
             preview.style.display = 'none';
             preview.innerHTML = '';
             scanButton.disabled = false;
+
+            // Restaurer la section des produits après le scan
+            document.getElementById('productsSection').classList.remove('hidden');
         }
 
         // Recherche manuelle
