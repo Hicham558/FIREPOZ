@@ -20,6 +20,11 @@
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
         }
+        @keyframes userPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
         .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
         .animate-pulse { animation: pulse 2s infinite ease-in-out; }
         .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
@@ -37,6 +42,7 @@
             display: none;
             background: #000;
         }
+        .user-anim { animation: userPulse 1.5s infinite ease-in-out; }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -63,14 +69,11 @@
                 <i class="fas fa-fire mr-2 text-amber-400 animate-pulse"></i> FirePoz
             </h1>
             <div class="space-x-4 flex items-center">
-                <a href="#" class="hover:text-indigo-200 transition flex items-center">
-                    <i class="fas fa-home mr-1"></i> Accueil
-                </a>
                 <a href="page1.html" class="hover:text-indigo-200 transition flex items-center">
                     <i class="fas fa-barcode mr-1"></i> Scanner Produit
                 </a>
-                <span id="userDisplay" class="text-sm"></span>
-                <button id="logoutButton" onclick="logout()" class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition hidden">
+                <span id="userDisplay" class="text-sm user-anim hidden"></span>
+                <button id="loginLogoutButton" class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition flex items-center">
                     <i class="fas fa-sign-out-alt mr-1"></i>Déconnexion
                 </button>
             </div>
@@ -289,7 +292,7 @@
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Quantité*</label>
-                                <input type="number" id="productQte" class="w-full px-3 py-2 border rounded-md" required>
+                                <input type="text" id="productQte" class="w-full px-3 py-2 border rounded-md" required>
                             </div>
                         </div>
                         <div class="flex justify-end space-x-3 mt-4">
@@ -358,12 +361,14 @@
             const userId = localStorage.getItem('userId');
             if (userId) {
                 document.getElementById('userDisplay').textContent = `Connecté en tant que : ${userId}`;
-                document.getElementById('logoutButton').classList.remove('hidden');
+                document.getElementById('userDisplay').classList.remove('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
                 document.getElementById('loginModal').classList.add('hidden');
                 chargerClients();
                 chargerFournisseurs();
                 chargerProduits();
             } else {
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
                 document.getElementById('loginModal').classList.remove('hidden');
             }
 
@@ -377,32 +382,35 @@
                 });
         });
 
-        // Fonction de connexion
-        function login() {
-            const userId = document.getElementById('userId').value.trim();
-            if (!userId) {
-                showToast('Veuillez entrer un identifiant', true);
-                return;
+        // Fonction de connexion/déconnexion
+        function loginLogout() {
+            const userId = localStorage.getItem('userId');
+            if (userId) {
+                // Déconnexion
+                localStorage.removeItem('userId');
+                document.getElementById('userDisplay').textContent = '';
+                document.getElementById('userDisplay').classList.add('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                document.getElementById('loginModal').classList.remove('hidden');
+                document.getElementById('clientsList').innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+                document.getElementById('fournisseursList').innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+                document.getElementById('productsList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+            } else {
+                // Connexion
+                const inputUserId = document.getElementById('userId').value.trim();
+                if (!inputUserId) {
+                    showToast('Veuillez entrer un identifiant', true);
+                    return;
+                }
+                localStorage.setItem('userId', inputUserId);
+                document.getElementById('userDisplay').textContent = `Connecté en tant que : ${inputUserId}`;
+                document.getElementById('userDisplay').classList.remove('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+                document.getElementById('loginModal').classList.add('hidden');
+                chargerClients();
+                chargerFournisseurs();
+                chargerProduits();
             }
-            localStorage.setItem('userId', userId);
-            document.getElementById('userDisplay').textContent = `Connecté en tant que : ${userId}`;
-            document.getElementById('logoutButton').classList.remove('hidden');
-            document.getElementById('loginModal').classList.add('hidden');
-            chargerClients();
-            chargerFournisseurs();
-            chargerProduits();
-        }
-
-        // Fonction de déconnexion
-        function logout() {
-            localStorage.removeItem('userId');
-            document.getElementById('userDisplay').textContent = '';
-            document.getElementById('logoutButton').classList.add('hidden');
-            document.getElementById('loginModal').classList.remove('hidden');
-            // Vider les tables pour éviter d'afficher les données d'un autre utilisateur
-            document.getElementById('clientsList').innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
-            document.getElementById('fournisseursList').innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
-            document.getElementById('productsList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
         }
 
         // Fonction pour afficher les notifications
@@ -737,8 +745,8 @@
                 document.getElementById('productsList').innerHTML = `
                     <tr>
                         <td colspan="4" class="text-center py-4 text-red-500">
-                            Erreur de chargement: ${error.message}
-                        </td>
+                        Erreur de chargement: ${error.message}
+                    </td>
                     </tr>
                 `;
                 console.error('Erreur produits:', error);
