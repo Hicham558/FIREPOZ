@@ -7,29 +7,11 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        @keyframes slideIn {
-            from { transform: translateY(-100%); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-            100% { transform: scale(1); }
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes userPulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
-        }
-        @keyframes countPulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-            100% { transform: scale(1); }
-        }
+        @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes userPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        @keyframes countPulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
         .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
         .animate-pulse { animation: pulse 2s infinite ease-in-out; }
         .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
@@ -38,15 +20,7 @@
         #productsSection { animation-delay: 0.6s; }
         #statsSection { animation-delay: 0.8s; }
         footer { animation-delay: 1s; }
-        #scannerPreview {
-            width: 100%;
-            max-width: 300px;
-            height: 200px;
-            border: 2px solid #e5e7eb;
-            margin-bottom: 1rem;
-            display: none;
-            background: #000;
-        }
+        #scannerPreview { width: 100%; max-width: 300px; height: 200px; border: 2px solid #e5e7eb; margin-bottom: 1rem; display: none; background: #000; }
         .user-anim { animation: userPulse 1.5s infinite ease-in-out; }
         .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
     </style>
@@ -60,8 +34,12 @@
                 <label class="block text-sm font-medium text-gray-700 mb-1">Adresse Email*</label>
                 <input type="email" id="userEmail" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre email" required>
             </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe*</label>
+                <input type="password" id="userPassword" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre mot de passe" required>
+            </div>
             <div class="flex justify-end space-x-3">
-                <button onclick="loginWithEmail()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
+                <button onclick="loginWithCredentials()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
                     <i class="fas fa-sign-in-alt mr-2"></i>Se connecter
                 </button>
             </div>
@@ -365,33 +343,6 @@
     <script>
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
 
-        // Vérifier si l'utilisateur est connecté au chargement de la page
-        document.addEventListener('DOMContentLoaded', () => {
-            const userId = localStorage.getItem('userId');
-            const userEmail = localStorage.getItem('userEmail');
-            if (userId && userEmail) {
-                document.getElementById('userDisplay').textContent = `Connecté en tant que : ${userEmail}`;
-                document.getElementById('userDisplay').classList.remove('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                document.getElementById('loginModal').classList.add('hidden');
-                chargerClients();
-                chargerFournisseurs();
-                chargerProduits();
-            } else {
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                document.getElementById('loginModal').classList.remove('hidden');
-            }
-
-            // Vérification de la connexion API
-            fetch(`${API_BASE_URL}/`)
-                .then(response => response.text())
-                .then(text => console.log('Statut API:', text))
-                .catch(err => {
-                    console.error('API non disponible:', err);
-                    showToast('Erreur de connexion à l\'API', true);
-                });
-        });
-
         // Générer un UUID simple
         function generateUUID() {
             return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -400,45 +351,69 @@
             });
         }
 
-        // Générer un user_id unique à partir de l'email et d'un UUID
+        // Générer un user_id unique à partir de l'email
         function generateUniqueUserId(email) {
             const uuid = generateUUID();
-            const emailEncoded = btoa(email).substring(0, 10); // Encoder l'email en base64 et limiter à 10 caractères
+            const emailEncoded = btoa(email); // Encoder l'email complet en base64
             return `${emailEncoded}-${uuid}`;
         }
 
-        // Connexion avec email
-        function loginWithEmail() {
+        // Hachage simple du mot de passe (côté client, pour démonstration)
+        function hashPassword(password) {
+            let hash = 0;
+            for (let i = 0; i < password.length; i++) {
+                const char = password.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+            }
+            return hash.toString();
+        }
+
+        // Vérifier les identifiants (simulation côté client)
+        function loginWithCredentials() {
             const email = document.getElementById('userEmail').value.trim();
-            if (!email) {
-                showToast('Veuillez entrer un email valide', true);
+            const password = document.getElementById('userPassword').value.trim();
+            if (!email || !password) {
+                showToast('Veuillez entrer un email et un mot de passe valides', true);
                 return;
             }
 
-            // Générer un user_id unique
-            const userId = generateUniqueUserId(email);
+            const storedUserId = localStorage.getItem('userId');
+            const storedEmail = localStorage.getItem('userEmail');
+            const storedPasswordHash = localStorage.getItem('userPasswordHash');
 
-            // Stocker les informations dans localStorage
-            localStorage.setItem('userId', userId);
-            localStorage.setItem('userEmail', email);
+            const passwordHash = hashPassword(password);
 
-            // Mettre à jour l'interface
-            document.getElementById('userDisplay').textContent = `Connecté en tant que : ${email}`;
-            document.getElementById('userDisplay').classList.remove('hidden');
-            document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-            document.getElementById('loginModal').classList.add('hidden');
-            chargerClients();
-            chargerFournisseurs();
-            chargerProduits();
+            if (storedUserId && storedEmail === email && storedPasswordHash === passwordHash) {
+                document.getElementById('userDisplay').textContent = `Connecté en tant que : ${email}`;
+                document.getElementById('userDisplay').classList.remove('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+                document.getElementById('loginModal').classList.add('hidden');
+                chargerClients();
+                chargerFournisseurs();
+                chargerProduits();
+            } else {
+                const userId = generateUniqueUserId(email);
+                localStorage.setItem('userId', userId);
+                localStorage.setItem('userEmail', email);
+                localStorage.setItem('userPasswordHash', passwordHash);
+                document.getElementById('userDisplay').textContent = `Connecté en tant que : ${email}`;
+                document.getElementById('userDisplay').classList.remove('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+                document.getElementById('loginModal').classList.add('hidden');
+                chargerClients();
+                chargerFournisseurs();
+                chargerProduits();
+                showToast('Nouveau compte créé avec succès');
+            }
         }
 
         // Fonction de déconnexion
         function loginLogout() {
             const userId = localStorage.getItem('userId');
             if (userId) {
-                // Déconnexion
                 localStorage.removeItem('userId');
                 localStorage.removeItem('userEmail');
+                localStorage.removeItem('userPasswordHash');
                 document.getElementById('userDisplay').textContent = '';
                 document.getElementById('userDisplay').classList.add('hidden');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
