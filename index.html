@@ -6,8 +6,6 @@
     <title>Gestion Commerciale</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Charger la bibliothèque Google Sign-In -->
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         @keyframes slideIn {
             from { transform: translateY(-100%); opacity: 0; }
@@ -54,11 +52,19 @@
     </style>
 </head>
 <body class="bg-gray-100">
-    <!-- Formulaire de connexion avec Google -->
+    <!-- Formulaire de connexion -->
     <div id="loginModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-20 hidden">
         <div class="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 class="text-xl font-semibold mb-4">Connexion avec Google</h2>
-            <div id="googleSignInButton" class="flex justify-center mb-4"></div>
+            <h2 class="text-xl font-semibold mb-4">Connexion</h2>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Adresse Email*</label>
+                <input type="email" id="userEmail" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre email" required>
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button onclick="loginWithEmail()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
+                    <i class="fas fa-sign-in-alt mr-2"></i>Se connecter
+                </button>
+            </div>
         </div>
     </div>
 
@@ -358,27 +364,13 @@
 
     <script>
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
-        const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com'; // Remplace par ton Client ID
 
-        // Initialiser le bouton Google Sign-In
-        window.onload = function () {
-            google.accounts.id.initialize({
-                client_id: GOOGLE_CLIENT_ID,
-                callback: handleCredentialResponse
-            });
-            google.accounts.id.renderButton(
-                document.getElementById('googleSignInButton'),
-                { theme: 'outline', size: 'large' }
-            );
-            checkUserSession();
-        };
-
-        // Vérifier si l'utilisateur est déjà connecté
-        function checkUserSession() {
+        // Vérifier si l'utilisateur est connecté au chargement de la page
+        document.addEventListener('DOMContentLoaded', () => {
             const userId = localStorage.getItem('userId');
-            const userName = localStorage.getItem('userName');
-            if (userId && userName) {
-                document.getElementById('userDisplay').textContent = `Connecté en tant que : ${userName}`;
+            const userEmail = localStorage.getItem('userEmail');
+            if (userId && userEmail) {
+                document.getElementById('userDisplay').textContent = `Connecté en tant que : ${userEmail}`;
                 document.getElementById('userDisplay').classList.remove('hidden');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
                 document.getElementById('loginModal').classList.add('hidden');
@@ -398,49 +390,46 @@
                     console.error('API non disponible:', err);
                     showToast('Erreur de connexion à l\'API', true);
                 });
+        });
+
+        // Générer un UUID simple
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
         }
 
-        // Gérer la réponse de Google Sign-In
-        function handleCredentialResponse(response) {
-            const profile = parseJwt(response.credential);
-            const userName = profile.name;
-            const email = profile.email;
-            const googleId = profile.sub;
+        // Générer un user_id unique à partir de l'email et d'un UUID
+        function generateUniqueUserId(email) {
+            const uuid = generateUUID();
+            const emailEncoded = btoa(email).substring(0, 10); // Encoder l'email en base64 et limiter à 10 caractères
+            return `${emailEncoded}-${uuid}`;
+        }
 
-            // Générer un user_id unique (par exemple, combinaison de googleId et email hashé)
-            const userId = generateUniqueUserId(googleId, email);
+        // Connexion avec email
+        function loginWithEmail() {
+            const email = document.getElementById('userEmail').value.trim();
+            if (!email) {
+                showToast('Veuillez entrer un email valide', true);
+                return;
+            }
+
+            // Générer un user_id unique
+            const userId = generateUniqueUserId(email);
 
             // Stocker les informations dans localStorage
             localStorage.setItem('userId', userId);
-            localStorage.setItem('userName', userName);
+            localStorage.setItem('userEmail', email);
 
             // Mettre à jour l'interface
-            document.getElementById('userDisplay').textContent = `Connecté en tant que : ${userName}`;
+            document.getElementById('userDisplay').textContent = `Connecté en tant que : ${email}`;
             document.getElementById('userDisplay').classList.remove('hidden');
             document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
             document.getElementById('loginModal').classList.add('hidden');
-
-            // Charger les données
             chargerClients();
             chargerFournisseurs();
             chargerProduits();
-        }
-
-        // Décoder le JWT pour extraire les informations du profil
-        function parseJwt(token) {
-            const base64Url = token.split('.')[1];
-            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-            const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-            }).join(''));
-            return JSON.parse(jsonPayload);
-        }
-
-        // Générer un user_id unique
-        function generateUniqueUserId(googleId, email) {
-            // Utiliser un simple hash de l'email pour plus d'unicité
-            const emailHash = btoa(email).substring(0, 10); // Base64 de l'email, limité à 10 caractères
-            return `${googleId}-${emailHash}`;
         }
 
         // Fonction de déconnexion
@@ -449,8 +438,7 @@
             if (userId) {
                 // Déconnexion
                 localStorage.removeItem('userId');
-                localStorage.removeItem('userName');
-                google.accounts.id.disableAutoSelect();
+                localStorage.removeItem('userEmail');
                 document.getElementById('userDisplay').textContent = '';
                 document.getElementById('userDisplay').classList.add('hidden');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
@@ -461,8 +449,6 @@
                 document.getElementById('clientCount').classList.add('hidden');
                 document.getElementById('fournisseurCount').classList.add('hidden');
                 document.getElementById('productCount').classList.add('hidden');
-            } else {
-                document.getElementById('loginModal').classList.remove('hidden');
             }
         }
 
