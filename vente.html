@@ -3,26 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enregistrer une Vente</title>
+    <title>Gestion des Ventes</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes userPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        @keyframes countPulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
+        .animate-pulse { animation: pulse 2s infinite ease-in-out; }
         .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
+        #productsSection { animation-delay: 0.2s; }
+        #salesSection { animation-delay: 0.4s; }
+        footer { animation-delay: 1s; }
         #scannerPreview { width: 100%; max-width: 300px; height: 200px; border: 2px solid #e5e7eb; margin-bottom: 1rem; display: none; background: #000; }
-        #productSuggestions { position: absolute; z-index: 10; width: 100%; max-height: 200px; overflow-y: auto; background: white; border: 1px solid #e5e7eb; border-radius: 0.375rem; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
-        #productSuggestions div { padding: 0.5rem 1rem; cursor: pointer; }
-        #productSuggestions div:hover { background: #f3f4f6; }
+        .user-anim { animation: userPulse 1.5s infinite ease-in-out; }
+        .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
+        .small-email { font-size: 0.75rem; line-height: 1rem; }
     </style>
 </head>
 <body class="bg-gray-100">
-    <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-fade-in">
+    <!-- Menu de navigation -->
+    <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-slide-in">
         <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-2xl font-bold flex items-center">
-                <i class="fas fa-fire mr-2 text-amber-400"></i> FirePoz
-            </h1>
+            <div class="flex flex-col">
+                <h1 class="text-2xl font-bold flex items-center">
+                    <i class="fas fa-fire mr-2 text-amber-400 animate-pulse"></i> FirePoz
+                </h1>
+                <span id="userDisplay" class="small-email user-anim hidden"></span>
+            </div>
             <div class="space-x-4 flex items-center">
-                <a href="index.html" class="hover:text-indigo-200 transition">Retour</a>
+                <a href="index.html" class="hover:text-indigo-200 transition flex items-center">
+                    <i class="fas fa-home mr-1"></i> Accueil
+                </a>
                 <button id="loginLogoutButton" onclick="loginLogout()" class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition flex items-center">
                     <i class="fas fa-sign-out-alt mr-1"></i>Déconnexion
                 </button>
@@ -30,72 +45,141 @@
         </div>
     </nav>
 
+    <!-- Contenu principal -->
     <div class="container mx-auto px-4 py-16 mt-16">
-        <h1 class="text-3xl font-bold text-indigo-700 mb-8 animate-fade-in">Enregistrer une Vente</h1>
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-indigo-700">Gestion des Ventes</h1>
+            <p class="text-gray-600 flex items-center">
+                <i class="fas fa-shopping-cart mr-2 text-indigo-500"></i> Ventes en temps réel
+            </p>
+        </header>
 
-        <!-- Formulaire pour ajouter une vente -->
-        <div class="bg-white rounded-lg shadow-md p-6 mb-8 animate-fade-in">
-            <form id="venteForm" class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Client (optionnel)</label>
-                    <select id="clientId" class="w-full px-3 py-2 border rounded-md">
-                        <option value="">Sans client</option>
-                    </select>
-                </div>
-                <div class="relative">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Produit (Code Barre ou Désignation)*</label>
-                    <input type="text" id="produitBar" class="w-full px-3 py-2 border rounded-md" required placeholder="Tapez pour rechercher...">
-                    <div id="productSuggestions" class="hidden"></div>
-                    <button id="scanButton" type="button" class="absolute right-2 top-1/2 transform translate-y-2 bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition" onclick="startScanner()">
-                        <i class="fas fa-camera"></i> Scanner
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Liste des Produits pour Vente -->
+            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="productsSection">
+                <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('productsSection')">
+                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-boxes mr-2 text-indigo-500"></i> Produits Disponibles
+                        <span id="productCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                    </h2>
+                    <button class="text-gray-600 hover:text-gray-800 transition">
+                        <i class="fas fa-chevron-down" id="productsChevron"></i>
                     </button>
                 </div>
-                <div id="scannerPreview"></div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Quantité*</label>
-                    <input type="number" id="quantite" class="w-full px-3 py-2 border rounded-md" min="1" required>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Prix unitaire (optionnel)</label>
-                    <input type="text" id="prixUnitaire" class="w-full px-3 py-2 border rounded-md" placeholder="Ex: 500.00">
-                </div>
-                <div class="flex justify-end space-x-3">
-                    <button type="button" onclick="resetVenteForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">
-                        <i class="fas fa-times mr-2"></i>Annuler
-                    </button>
-                    <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">
-                        <i class="fas fa-save mr-2"></i>Enregistrer
-                    </button>
-                </div>
-            </form>
-        </div>
+                <div class="p-6 hidden" id="productsContent">
+                    <div class="mb-4 flex flex-col md:flex-row gap-4">
+                        <div class="relative w-full md:w-1/2">
+                            <input type="text" id="searchProduct" placeholder="Rechercher un produit..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                        </div>
+                        <div class="relative w-full md:w-1/2">
+                            <input type="text" id="productBar" class="w-full px-3 py-2 border rounded-md" placeholder="Scanner ou entrer code-barres" required>
+                            <button id="scanButton" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition duration-300" onclick="startScanner()">
+                                <i class="fas fa-camera"></i> Scanner
+                            </button>
+                        </div>
+                    </div>
+                    <div id="scannerPreview"></div>
 
-        <!-- Table des lignes de vente -->
-        <div class="bg-white rounded-lg shadow-md p-6 animate-fade-in">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4">Lignes de Vente</h2>
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Commande</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Total</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Unitaire</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Achat</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Envoyé</th>
-                        </tr>
-                    </thead>
-                    <tbody id="ventesList" class="bg-white divide-y divide-gray-200">
-                        <tr>
-                            <td colspan="8" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                        </tr>
-                    </tbody>
-                </table>
+                    <div class="overflow-x-auto mt-4">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Désignation</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Vente</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Achat</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productsList" class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td colspan="6" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gestion des Ventes -->
+            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="salesSection">
+                <div class="p-6 flex justify-between items-center">
+                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-receipt mr-2 text-indigo-500"></i> Ventes
+                    </h2>
+                </div>
+                <div class="p-6">
+                    <div id="saleForm" class="mb-6 p-4 bg-gray-50 rounded-lg">
+                        <h3 class="font-medium mb-3">Nouvelle Vente</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Client (ID)</label>
+                                <input type="text" id="saleClientId" class="w-full px-3 py-2 border rounded-md">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Produit (Code)</label>
+                                <input type="text" id="saleProductBar" class="w-full px-3 py-2 border rounded-md" readonly>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Quantité*</label>
+                                <input type="number" id="saleQuantity" class="w-full px-3 py-2 border rounded-md" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Prix Total*</label>
+                                <input type="number" id="salePriceTotal" step="0.01" class="w-full px-3 py-2 border rounded-md" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Remarque</label>
+                                <input type="text" id="saleRemark" class="w-full px-3 py-2 border rounded-md">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Prix Base HT</label>
+                                <input type="number" id="salePriceHT" step="0.01" class="w-full px-3 py-2 border rounded-md">
+                            </div>
+                        </div>
+                        <div class="flex justify-end space-x-3 mt-4">
+                            <button onclick="resetSaleForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
+                                <i class="fas fa-times mr-2"></i>Annuler
+                            </button>
+                            <button onclick="ajouterVente()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
+                                <i class="fas fa-save mr-2"></i>Enregistrer
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Commande ID</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Total</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remarque</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix HT</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Envoyé</th>
+                                </tr>
+                            </thead>
+                            <tbody id="salesList" class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td colspan="7" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
+
+    <!-- Footer -->
+    <footer class="bg-gray-700 text-white text-center py-4 mt-8 animate-fade-in">
+        <p>Développé par Khelladi Hicham</p>
+        <p>Tel: <a href="tel:00213553700900" class="underline hover:text-indigo-300 transition duration-300">00213553700900</a></p>
+        <p>Email: <a href="mailto:Hicham.khelladi@gmail.com" class="underline hover:text-indigo-300 transition duration-300">Hicham.khelladi@gmail.com</a></p>
+    </footer>
 
     <div id="toast" class="fixed bottom-4 right-4 hidden">
         <div class="flex items-center px-6 py-3 rounded-md shadow-lg">
@@ -107,20 +191,49 @@
     <script>
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
 
-        // Vérifier la connexion de l'utilisateur
+        // Générer un user_id basé sur l'email et le mot de passe
+        function generateUniqueUserId(email, password) {
+            const combined = `${email.toLowerCase()}:${password}`;
+            return btoa(combined);
+        }
+
+        // Vérifier si l'utilisateur est connecté au chargement de la page
         document.addEventListener('DOMContentLoaded', () => {
             const userId = localStorage.getItem('userId');
             const userEmail = localStorage.getItem('userEmail');
-            if (!userId || !userEmail) {
-                showToast('Veuillez vous connecter', true);
+            if (userId && userEmail) {
+                document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
+                document.getElementById('userDisplay').classList.remove('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+                chargerProduits();
+                chargerVentes();
+            } else {
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
                 window.location.href = 'index.html';
-                return;
             }
-            chargerClients();
-            chargerProduits();
-            chargerVentes();
-            setupProductSearch();
+
+            // Vérification de la connexion API
+            fetch(`${API_BASE_URL}/`)
+                .then(response => response.text())
+                .then(text => console.log('Statut API:', text))
+                .catch(err => {
+                    console.error('API non disponible:', err);
+                    showToast('Erreur de connexion à l\'API', true);
+                });
         });
+
+        // Fonction de déconnexion
+        function loginLogout() {
+            const userId = localStorage.getItem('userId');
+            if (userId) {
+                localStorage.removeItem('userId');
+                localStorage.removeItem('userEmail');
+                document.getElementById('userDisplay').textContent = '';
+                document.getElementById('userDisplay').classList.add('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                window.location.href = 'index.html';
+            }
+        }
 
         // Fonction pour afficher les notifications
         function showToast(message, isError = false) {
@@ -144,102 +257,104 @@
             }, 3000);
         }
 
-        // Déconnexion
-        function loginLogout() {
-            localStorage.removeItem('userId');
-            localStorage.removeItem('userEmail');
-            window.location.href = 'index.html';
+        // Fonction pour gérer l'animation développer/envelopper
+        function toggleSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
+            const chevron = document.getElementById(`${sectionId.replace('Section', 'Chevron')}`);
+
+            content.classList.toggle('hidden');
+            chevron.classList.toggle('fa-chevron-down');
+            chevron.classList.toggle('fa-chevron-up');
         }
 
-        // Charger les clients
-        async function chargerClients() {
-            const userId = localStorage.getItem('userId');
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_clients`, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) throw new Error(`Erreur ${response.status}`);
-                const clients = await response.json();
-                const select = document.getElementById('clientId');
-                clients.forEach(client => {
-                    const option = document.createElement('option');
-                    option.value = client.numero_clt;
-                    option.textContent = `${client.nom} (${client.reference})`;
-                    select.appendChild(option);
-                });
-            } catch (error) {
-                showToast('Erreur lors du chargement des clients', true);
-            }
-        }
-
-        // Charger les produits
+        // --- Gestion des produits ---
         async function chargerProduits() {
             const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir les produits', true);
+                return;
+            }
+
             try {
                 const response = await fetch(`${API_BASE_URL}/liste_produits`, {
-                    headers: { 'X-User-ID': userId }
+                    headers: {
+                        'X-User-ID': userId
+                    }
                 });
-                if (!response.ok) throw new Error(`Erreur ${response.status}`);
+                if (!response.ok) {
+                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                }
                 const produits = await response.json();
-                window.produits = produits; // Stocker pour recherche et validation
+                const tbody = document.getElementById('productsList');
+                const countElement = document.getElementById('productCount');
+
+                if (produits.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
+                    countElement.textContent = '0';
+                    countElement.classList.remove('hidden');
+                    return;
+                }
+
+                tbody.innerHTML = '';
+                produits.forEach(produit => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-gray-50';
+                    tr.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || '0.00').toFixed(2)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <button onclick="selectProduct('${produit.BAR}')" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition duration-300">
+                                Sélectionner
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                countElement.textContent = produits.length;
+                countElement.classList.remove('hidden');
             } catch (error) {
-                showToast('Erreur lors du chargement des produits', true);
+                document.getElementById('productsList').innerHTML = `
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-red-500">
+                            Erreur de chargement: ${error.message}
+                        </td>
+                    </tr>
+                `;
+                console.error('Erreur produits:', error);
             }
         }
 
-        // Configurer la recherche de produits
-        function setupProductSearch() {
-            const input = document.getElementById('produitBar');
-            const suggestions = document.getElementById('productSuggestions');
-
-            input.addEventListener('input', () => {
-                const query = input.value.trim().toLowerCase();
-                suggestions.innerHTML = '';
-                suggestions.classList.add('hidden');
-
-                if (query.length < 2 || !window.produits) return;
-
-                const filtered = window.produits.filter(p =>
-                    p.BAR.toLowerCase().includes(query) || p.DESIGNATION.toLowerCase().includes(query)
-                );
-
-                if (filtered.length > 0) {
-                    filtered.forEach(p => {
-                        const div = document.createElement('div');
-                        div.textContent = `${p.DESIGNATION} (${p.BAR})`;
-                        div.dataset.bar = p.BAR;
-                        div.addEventListener('click', () => {
-                            input.value = p.BAR;
-                            suggestions.innerHTML = '';
-                            suggestions.classList.add('hidden');
-                        });
-                        suggestions.appendChild(div);
-                    });
-                    suggestions.classList.remove('hidden');
-                }
-            });
-
-            // Cacher les suggestions si clic en dehors
-            document.addEventListener('click', (e) => {
-                if (!input.contains(e.target) && !suggestions.contains(e.target)) {
-                    suggestions.classList.add('hidden');
-                }
-            });
+        function selectProduct(bar) {
+            document.getElementById('saleProductBar').value = bar;
+            showToast(`Produit sélectionné : ${bar}`);
         }
 
-        // Charger les lignes de vente
+        // --- Gestion des ventes ---
         async function chargerVentes() {
             const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir les ventes', true);
+                return;
+            }
+
             try {
                 const response = await fetch(`${API_BASE_URL}/liste_ventes`, {
-                    headers: { 'X-User-ID': userId }
+                    headers: {
+                        'X-User-ID': userId
+                    }
                 });
-                if (!response.ok) throw new Error(`Erreur ${response.status}`);
+                if (!response.ok) {
+                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                }
                 const ventes = await response.json();
-                const tbody = document.getElementById('ventesList');
+                const tbody = document.getElementById('salesList');
 
                 if (ventes.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-gray-500">Aucune vente trouvée</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucune vente trouvée</td></tr>';
                     return;
                 }
 
@@ -248,51 +363,46 @@
                     const tr = document.createElement('tr');
                     tr.className = 'hover:bg-gray-50';
                     tr.innerHTML = `
-                        <td class="px-6 py-4 text-sm text-gray-500">${vente.numero_attache}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500">${vente.numero_comande}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">${vente.designation || vente.numero_item}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500">${vente.quantite}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500">${vente.prixt}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500">${vente.remarque}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500">${vente.prixbh}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500">${vente.send ? 'Oui' : 'Non'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.numero_comande || 'N/A'}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">${vente.designation || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.quantite || '0'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(vente.prixt || 0).toFixed(2)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.remarque || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(vente.prixbh || 0).toFixed(2)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.send ? 'Oui' : 'Non'}</td>
                     `;
                     tbody.appendChild(tr);
                 });
             } catch (error) {
-                document.getElementById('ventesList').innerHTML = `
-                    <tr><td colspan="8" class="text-center py-4 text-red-500">Erreur: ${error.message}</td></tr>`;
+                document.getElementById('salesList').innerHTML = `
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-red-500">
+                            Erreur de chargement: ${error.message}
+                        </td>
+                    </tr>
+                `;
+                console.error('Erreur ventes:', error);
             }
         }
 
-        // Ajouter une vente
-        async function ajouterVente(event) {
-            event.preventDefault();
+        async function ajouterVente() {
             const userId = localStorage.getItem('userId');
-            const clientId = document.getElementById('clientId').value;
-            const produitBar = document.getElementById('produitBar').value.trim();
-            const quantite = parseInt(document.getElementById('quantite').value);
-            const prixUnitaire = document.getElementById('prixUnitaire').value.trim();
-
-            if (!produitBar || !quantite) {
-                showToast('Veuillez remplir les champs obligatoires', true);
+            if (!userId) {
+                showToast('Veuillez vous connecter pour ajouter une vente', true);
                 return;
             }
 
-            // Vérifier si le produit existe
-            const produit = window.produits.find(p => p.BAR === produitBar);
-            if (!produit) {
-                showToast('Produit introuvable', true);
-                return;
-            }
-            if (produit.QTE < quantite) {
-                showToast('Quantité insuffisante en stock', true);
-                return;
-            }
+            const clientId = document.getElementById('saleClientId').value.trim();
+            const productBar = document.getElementById('saleProductBar').value.trim();
+            const quantity = document.getElementById('saleQuantity').value.trim();
+            const priceTotal = document.getElementById('salePriceTotal').value.trim();
+            const remark = document.getElementById('saleRemark').value.trim();
+            const priceHT = document.getElementById('salePriceHT').value.trim();
 
-            // Calculer le prix total
-            const prixUnit = prixUnitaire ? parseFloat(prixUnitaire) : parseFloat(produit.PRIX);
-            const prixTotal = (prixUnit * quantite).toFixed(2);
+            if (!productBar || !quantity || !priceTotal) {
+                showToast('Veuillez remplir tous les champs obligatoires', true);
+                return;
+            }
 
             try {
                 const response = await fetch(`${API_BASE_URL}/ajouter_vente`, {
@@ -303,12 +413,13 @@
                     },
                     body: JSON.stringify({
                         client_id: clientId || null,
-                        produit_bar: produitBar,
-                        quantite: quantite,
-                        prixt: prixTotal,
-                        remarque: prixUnitaire || produit.PRIX,
-                        numero_util: userId,
-                        etat_c: 'asuivre',
+                        produit_bar: productBar,
+                        quantite: parseInt(quantity),
+                        prixt: parseFloat(priceTotal),
+                        remarque: remark,
+                        prixbh: priceHT ? parseFloat(priceHT) : 0.0,
+                        numero_util: '1', // À ajuster selon ton besoin
+                        etat_c: 'en_cours',
                         nature: 'vente'
                     })
                 });
@@ -319,31 +430,36 @@
                 }
 
                 showToast('Vente enregistrée avec succès');
-                resetVenteForm();
+                resetSaleForm();
                 chargerVentes();
             } catch (error) {
                 showToast(error.message, true);
+                console.error('Erreur ajout vente:', error);
             }
         }
 
-        // Réinitialiser le formulaire
-        function resetVenteForm() {
-            document.getElementById('clientId').value = '';
-            document.getElementById('produitBar').value = '';
-            document.getElementById('quantite').value = '';
-            document.getElementById('prixUnitaire').value = '';
-            document.getElementById('productSuggestions').classList.add('hidden');
-            stopScanner();
+        function resetSaleForm() {
+            document.getElementById('saleClientId').value = '';
+            document.getElementById('saleProductBar').value = '';
+            document.getElementById('saleQuantity').value = '';
+            document.getElementById('salePriceTotal').value = '';
+            document.getElementById('saleRemark').value = '';
+            document.getElementById('salePriceHT').value = '';
         }
 
-        // Scanner de code-barres
+        // --- Scanner de code-barres ---
         let stream = null;
         let barcodeDetector = null;
         let isScanning = false;
 
         async function startScanner() {
             if (!('BarcodeDetector' in window)) {
-                showToast('Scanner non supporté. Utilisez Chrome/Edge.', true);
+                showToast('Le scanner de code-barres n\'est pas supporté par ce navigateur. Utilisez Chrome ou Edge.', true);
+                return;
+            }
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                showToast('L\'accès à la caméra n\'est pas supporté par ce navigateur.', true);
                 return;
             }
 
@@ -355,8 +471,14 @@
 
             try {
                 barcodeDetector = new BarcodeDetector({
-                    formats: ['ean_13', 'code_128', 'upc_a', 'upc_e']
+                    formats: ['ean_13', 'code_128', 'upc_a', 'upc_e', 'qr_code']
                 });
+
+                const supportedFormats = await BarcodeDetector.getSupportedFormats();
+                console.log('Formats supportés :', supportedFormats);
+                if (supportedFormats.length === 0) {
+                    throw new Error('Aucun format de code-barres supporté par ce navigateur.');
+                }
 
                 stream = await navigator.mediaDevices.getUserMedia({
                     video: { facingMode: 'environment' }
@@ -370,10 +492,20 @@
                 preview.appendChild(video);
 
                 video.onloadedmetadata = () => {
+                    console.log('Vidéo prête pour la détection.');
                     detectBarcodes(video);
                 };
             } catch (err) {
-                showToast('Erreur caméra: ' + err.message, true);
+                console.error('Erreur lors du démarrage du scanner :', err);
+                let errorMessage = 'Erreur lors du démarrage du scanner : ';
+                if (err.name === 'NotAllowedError') {
+                    errorMessage += 'Accès à la caméra refusé. Veuillez autoriser l\'accès.';
+                } else if (err.name === 'NotFoundError') {
+                    errorMessage += 'Aucune caméra trouvée sur cet appareil.';
+                } else {
+                    errorMessage += err.message;
+                }
+                showToast(errorMessage, true);
                 stopScanner();
             }
         }
@@ -384,15 +516,52 @@
             try {
                 const barcodes = await barcodeDetector.detect(video);
                 if (barcodes.length > 0) {
-                    document.getElementById('produitBar').value = barcodes[0].rawValue;
-                    document.getElementById('productSuggestions').classList.add('hidden');
-                    showToast('Code-barres scanné');
-                    stopScanner();
+                    const barcode = barcodes[0];
+                    const scannedCode = barcode.rawValue;
+
+                    const userId = localStorage.getItem('userId');
+                    if (!userId) {
+                        showToast('Veuillez vous connecter pour scanner un code-barres', true);
+                        stopScanner();
+                        return;
+                    }
+
+                    try {
+                        const response = await fetch(`${API_BASE_URL}/liste_produits`, {
+                            headers: {
+                                'X-User-ID': userId
+                            }
+                        });
+                        if (!response.ok) {
+                            throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                        }
+                        const produits = await response.json();
+                        const produit = produits.find(p => p.BAR === scannedCode);
+                        if (!produit) {
+                            showToast(`Produit avec code ${scannedCode} non trouvé`, true);
+                            stopScanner();
+                        } else {
+                            document.getElementById('saleProductBar').value = scannedCode;
+                            document.getElementById('salePriceTotal').value = produit.PRIX || '0.00';
+                            showToast(`Produit scanné : ${produit.DESIGNATION} (Prix: ${produit.PRIX})`);
+                            stopScanner();
+                        }
+                    } catch (error) {
+                        showToast('Erreur lors de la vérification des produits: ' + error.message, true);
+                        stopScanner();
+                    }
                 } else {
                     requestAnimationFrame(() => detectBarcodes(video));
                 }
             } catch (err) {
-                showToast('Erreur détection: ' + err.message, true);
+                console.error('Erreur lors de la détection du code-barres :', err);
+                let errorMessage = 'Erreur lors de la détection du code-barres : ';
+                if (err.name === 'NotReadableError') {
+                    errorMessage += 'Impossible de lire le code-barres. Assurez-vous qu\'il est bien visible.';
+                } else {
+                    errorMessage += err.message;
+                }
+                showToast(errorMessage, true);
                 stopScanner();
             }
         }
@@ -403,13 +572,82 @@
                 stream.getTracks().forEach(track => track.stop());
                 stream = null;
             }
-            document.getElementById('scannerPreview').style.display = 'none';
-            document.getElementById('scannerPreview').innerHTML = '';
-            document.getElementById('scanButton').disabled = false;
+            const preview = document.getElementById('scannerPreview');
+            const scanButton = document.getElementById('scanButton');
+            preview.style.display = 'none';
+            preview.innerHTML = '';
+            scanButton.disabled = false;
         }
 
-        // Écouteurs d'événements
-        document.getElementById('venteForm').addEventListener('submit', ajouterVente);
+        // Recherche manuelle
+        document.getElementById('searchProduct').addEventListener('input', async function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour rechercher un produit', true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
+                    headers: {
+                        'X-User-ID': userId
+                    }
+                });
+                if (!response.ok) {
+                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                }
+                const produits = await response.json();
+                const tbody = document.getElementById('productsList');
+
+                tbody.innerHTML = '';
+                const filteredProducts = produits.filter(produit =>
+                    produit.BAR.toLowerCase().includes(searchTerm) ||
+                    produit.DESIGNATION.toLowerCase().includes(searchTerm) ||
+                    parseFloat(produit.PRIX || 0).toFixed(2).includes(searchTerm) ||
+                    parseFloat(produit.PRIXBA || '0.00').toFixed(2).includes(searchTerm)
+                );
+
+                if (filteredProducts.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
+                    return;
+                }
+
+                filteredProducts.forEach(produit => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-gray-50';
+                    tr.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || '0.00').toFixed(2)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <button onclick="selectProduct('${produit.BAR}')" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition duration-300">
+                                Sélectionner
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (error) {
+                document.getElementById('productsList').innerHTML = `
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-red-500">
+                            Erreur de recherche: ${error.message}
+                        </td>
+                    </tr>
+                `;
+                console.error('Erreur recherche produits:', error);
+            }
+        });
+
+        // Gestion des erreurs CORS
+        window.addEventListener('unhandledrejection', event => {
+            if (event.reason.message.includes('Failed to fetch')) {
+                showToast('Erreur de connexion au serveur. Vérifiez l\'URL ou les paramètres CORS.', true);
+            }
+        });
     </script>
 </body>
 </html>
