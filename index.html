@@ -325,6 +325,9 @@
                             </div>
                         </div>
                         <div class="flex justify-end space-x-3 mt-4">
+                            <button onclick="stopScanner()" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition duration-300 transform hover:scale-105">
+                                <i class="fas fa-stop mr-2"></i>Arrêter
+                            </button>
                             <button onclick="resetProductForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
                                 <i class="fas fa-times mr-2"></i>Annuler
                             </button>
@@ -748,6 +751,7 @@
         // --- Scanner de code-barres avec Barcode Detection API ---
         let stream = null;
         let barcodeDetector = null;
+        let isScanning = false;
 
         async function startScanner() {
             // Vérifier si l'API Barcode Detection est supportée
@@ -756,10 +760,17 @@
                 return;
             }
 
+            // Vérifier si la caméra est disponible
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                showToast('L\'accès à la caméra n\'est pas supporté par ce navigateur.', true);
+                return;
+            }
+
             const preview = document.getElementById('scannerPreview');
             const scanButton = document.getElementById('scanButton');
             preview.style.display = 'block';
             scanButton.disabled = true;
+            isScanning = true;
 
             try {
                 // Initialiser le BarcodeDetector avec les formats supportés
@@ -770,6 +781,9 @@
                 // Vérifier les formats supportés
                 const supportedFormats = await BarcodeDetector.getSupportedFormats();
                 console.log('Formats supportés :', supportedFormats);
+                if (supportedFormats.length === 0) {
+                    throw new Error('Aucun format de code-barres supporté par ce navigateur.');
+                }
 
                 // Accéder à la caméra
                 stream = await navigator.mediaDevices.getUserMedia({
@@ -783,42 +797,55 @@
                 preview.innerHTML = '';
                 preview.appendChild(video);
 
-                // Détecter les codes-barres en continu
-                const detectBarcodes = async () => {
-                    if (!video.readyState === 4) {
-                        // Attendre que la vidéo soit prête
-                        video.onloadedmetadata = () => detectBarcodes();
-                        return;
-                    }
-
-                    try {
-                        const barcodes = await barcodeDetector.detect(video);
-                        if (barcodes.length > 0) {
-                            const barcode = barcodes[0];
-                            document.getElementById('productBar').value = barcode.rawValue;
-                            showToast('Code-barres scanné : ' + barcode.rawValue);
-                            stopScanner();
-                        } else {
-                            // Continuer la détection
-                            requestAnimationFrame(detectBarcodes);
-                        }
-                    } catch (err) {
-                        console.error('Erreur lors de la détection :', err);
-                        showToast('Erreur lors de la détection du code-barres', true);
-                        stopScanner();
-                    }
+                // Attendre que la vidéo soit prête
+                video.onloadedmetadata = () => {
+                    console.log('Vidéo prête pour la détection.');
+                    detectBarcodes(video);
                 };
-
-                detectBarcodes();
             } catch (err) {
                 console.error('Erreur lors du démarrage du scanner :', err);
-                showToast('Erreur lors du démarrage du scanner : ' + err.message, true);
-                preview.style.display = 'none';
-                scanButton.disabled = false;
+                let errorMessage = 'Erreur lors du démarrage du scanner : ';
+                if (err.name === 'NotAllowedError') {
+                    errorMessage += 'Accès à la caméra refusé. Veuillez autoriser l\'accès à la caméra.';
+                } else if (err.name === 'NotFoundError') {
+                    errorMessage += 'Aucune caméra trouvée sur cet appareil.';
+                } else {
+                    errorMessage += err.message;
+                }
+                showToast(errorMessage, true);
+                stopScanner();
+            }
+        }
+
+        async function detectBarcodes(video) {
+            if (!isScanning) return; // Arrêter la détection si le scanner est désactivé
+
+            try {
+                const barcodes = await barcodeDetector.detect(video);
+                if (barcodes.length > 0) {
+                    const barcode = barcodes[0];
+                    document.getElementById('productBar').value = barcode.rawValue;
+                    showToast('Code-barres scanné : ' + barcode.rawValue);
+                    stopScanner();
+                } else {
+                    // Continuer la détection
+                    requestAnimationFrame(() => detectBarcodes(video));
+                }
+            } catch (err) {
+                console.error('Erreur lors de la détection du code-barres :', err);
+                let errorMessage = 'Erreur lors de la détection du code-barres : ';
+                if (err.name === 'NotReadableError') {
+                    errorMessage += 'Impossible de lire le code-barres. Assurez-vous qu\'il est bien visible et éclairé.';
+                } else {
+                    errorMessage += err.message;
+                }
+                showToast(errorMessage, true);
+                stopScanner();
             }
         }
 
         function stopScanner() {
+            isScanning = false;
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
                 stream = null;
