@@ -115,8 +115,10 @@
                         <h3 class="font-medium mb-3">Nouvelle Vente</h3>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Client (ID)</label>
-                                <input type="text" id="saleClientId" class="w-full px-3 py-2 border rounded-md">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Client</label>
+                                <select id="saleClientId" class="w-full px-3 py-2 border rounded-md">
+                                    <option value="0">Vente Comptoir (Sans client)</option>
+                                </select>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Produit (Code)</label>
@@ -127,16 +129,16 @@
                                 <input type="number" id="saleQuantity" class="w-full px-3 py-2 border rounded-md" required>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Prix Total*</label>
-                                <input type="number" id="salePriceTotal" step="0.01" class="w-full px-3 py-2 border rounded-md" required>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Prix Unitaire*</label>
+                                <input type="number" id="saleUnitPrice" step="0.01" class="w-full px-3 py-2 border rounded-md" required>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Remarque</label>
-                                <input type="text" id="saleRemark" class="w-full px-3 py-2 border rounded-md">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Prix Total</label>
+                                <input type="number" id="salePriceTotal" step="0.01" class="w-full px-3 py-2 border rounded-md" readonly>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Prix Base HT</label>
-                                <input type="number" id="salePriceHT" step="0.01" class="w-full px-3 py-2 border rounded-md">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Prix Achat (Ref)</label>
+                                <input type="number" id="salePricePurchase" step="0.01" class="w-full px-3 py-2 border rounded-md" readonly>
                             </div>
                         </div>
                         <div class="flex justify-end space-x-3 mt-4">
@@ -154,17 +156,18 @@
                             <thead class="bg-gray-50">
                                 <tr>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Commande ID</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Unitaire</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Total</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remarque</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix HT</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Achat</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Envoyé</th>
                                 </tr>
                             </thead>
                             <tbody id="salesList" class="bg-white divide-y divide-gray-200">
                                 <tr>
-                                    <td colspan="7" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                                    <td colspan="8" class="text-center py-4 text-gray-500">Chargement en cours...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -205,6 +208,7 @@
                 document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
                 document.getElementById('userDisplay').classList.remove('hidden');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+                chargerClients();
                 chargerProduits();
                 chargerVentes();
             } else {
@@ -268,6 +272,39 @@
             chevron.classList.toggle('fa-chevron-up');
         }
 
+        // --- Charger les clients pour la sélection ---
+        async function chargerClients() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir les clients', true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_clients`, {
+                    headers: {
+                        'X-User-ID': userId
+                    }
+                });
+                if (!response.ok) {
+                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                }
+                const clients = await response.json();
+                const selectElement = document.getElementById('saleClientId');
+
+                // Ajouter les clients à la liste déroulante
+                clients.forEach(client => {
+                    const option = document.createElement('option');
+                    option.value = client.numero_clt;
+                    option.textContent = `${client.nom} (ID: ${client.numero_clt})`;
+                    selectElement.appendChild(option);
+                });
+            } catch (error) {
+                showToast('Erreur lors du chargement des clients: ' + error.message, true);
+                console.error('Erreur clients:', error);
+            }
+        }
+
         // --- Gestion des produits ---
         async function chargerProduits() {
             const userId = localStorage.getItem('userId');
@@ -307,7 +344,7 @@
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || '0.00').toFixed(2)}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <button onclick="selectProduct('${produit.BAR}')" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition duration-300">
+                            <button onclick="selectProduct('${produit.BAR}', ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE})" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition duration-300">
                                 Sélectionner
                             </button>
                         </td>
@@ -328,10 +365,37 @@
             }
         }
 
-        function selectProduct(bar) {
+        function selectProduct(bar, prix, prixba, stock) {
             document.getElementById('saleProductBar').value = bar;
+            document.getElementById('saleUnitPrice').value = prix.toFixed(2);
+            document.getElementById('salePricePurchase').value = prixba.toFixed(2);
+
+            // Vérifier le stock
+            const quantityInput = document.getElementById('saleQuantity');
+            quantityInput.setAttribute('max', stock);
+            if (stock <= 0) {
+                showToast('Stock insuffisant pour ce produit', true);
+                quantityInput.value = 0;
+                document.getElementById('salePriceTotal').value = '0.00';
+            } else {
+                quantityInput.value = 1;
+                updateTotalPrice();
+            }
+
             showToast(`Produit sélectionné : ${bar}`);
         }
+
+        // Calculer le prix total en fonction de la quantité et du prix unitaire
+        function updateTotalPrice() {
+            const quantity = parseInt(document.getElementById('saleQuantity').value) || 0;
+            const unitPrice = parseFloat(document.getElementById('saleUnitPrice').value) || 0;
+            const totalPrice = quantity * unitPrice;
+            document.getElementById('salePriceTotal').value = totalPrice.toFixed(2);
+        }
+
+        // Écouter les changements sur la quantité pour recalculer le prix total
+        document.getElementById('saleQuantity').addEventListener('input', updateTotalPrice);
+        document.getElementById('saleUnitPrice').addEventListener('input', updateTotalPrice);
 
         // --- Gestion des ventes ---
         async function chargerVentes() {
@@ -354,20 +418,22 @@
                 const tbody = document.getElementById('salesList');
 
                 if (ventes.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucune vente trouvée</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-gray-500">Aucune vente trouvée</td></tr>';
                     return;
                 }
 
                 tbody.innerHTML = '';
                 ventes.forEach(vente => {
+                    const clientInfo = vente.numero_table === '0' ? 'Vente Comptoir' : `Client ID: ${vente.numero_table}`;
                     const tr = document.createElement('tr');
                     tr.className = 'hover:bg-gray-50';
                     tr.innerHTML = `
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.numero_comande || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${clientInfo}</td>
                         <td class="px-6 py-4 text-sm text-gray-900">${vente.designation || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.quantite || '0'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(vente.remarque || 0).toFixed(2)}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(vente.prixt || 0).toFixed(2)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.remarque || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(vente.prixbh || 0).toFixed(2)}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.send ? 'Oui' : 'Non'}</td>
                     `;
@@ -376,7 +442,7 @@
             } catch (error) {
                 document.getElementById('salesList').innerHTML = `
                     <tr>
-                        <td colspan="7" class="text-center py-4 text-red-500">
+                        <td colspan="8" class="text-center py-4 text-red-500">
                             Erreur de chargement: ${error.message}
                         </td>
                     </tr>
@@ -392,15 +458,28 @@
                 return;
             }
 
-            const clientId = document.getElementById('saleClientId').value.trim();
+            const clientId = document.getElementById('saleClientId').value;
             const productBar = document.getElementById('saleProductBar').value.trim();
             const quantity = document.getElementById('saleQuantity').value.trim();
+            const unitPrice = document.getElementById('saleUnitPrice').value.trim();
             const priceTotal = document.getElementById('salePriceTotal').value.trim();
-            const remark = document.getElementById('saleRemark').value.trim();
-            const priceHT = document.getElementById('salePriceHT').value.trim();
+            const pricePurchase = document.getElementById('salePricePurchase').value.trim();
 
-            if (!productBar || !quantity || !priceTotal) {
+            if (!productBar || !quantity || !unitPrice) {
                 showToast('Veuillez remplir tous les champs obligatoires', true);
+                return;
+            }
+
+            const quantityNum = parseInt(quantity);
+            if (quantityNum <= 0) {
+                showToast('La quantité doit être supérieure à 0', true);
+                return;
+            }
+
+            // Vérifier le stock
+            const stock = parseInt(document.getElementById('saleQuantity').getAttribute('max')) || 0;
+            if (quantityNum > stock) {
+                showToast('Quantité demandée supérieure au stock disponible', true);
                 return;
             }
 
@@ -412,12 +491,12 @@
                         'X-User-ID': userId
                     },
                     body: JSON.stringify({
-                        client_id: clientId || null,
-                        produit_bar: productBar,
-                        quantite: parseInt(quantity),
-                        prixt: parseFloat(priceTotal),
-                        remarque: remark,
-                        prixbh: priceHT ? parseFloat(priceHT) : 0.0,
+                        client_id: clientId, // Envoie le numero_clt (ou "0" pour vente comptoir)
+                        produit_bar: productBar, // numero_item
+                        quantite: quantityNum, // quantite
+                        prixt: parseFloat(priceTotal), // prixt (prix total)
+                        remarque: parseFloat(unitPrice), // remarque (prix unitaire)
+                        prixbh: parseFloat(pricePurchase), // prixbh (prix d'achat)
                         numero_util: '1', // À ajuster selon ton besoin
                         etat_c: 'en_cours',
                         nature: 'vente'
@@ -431,6 +510,7 @@
 
                 showToast('Vente enregistrée avec succès');
                 resetSaleForm();
+                chargerProduits(); // Recharger pour mettre à jour le stock
                 chargerVentes();
             } catch (error) {
                 showToast(error.message, true);
@@ -439,12 +519,13 @@
         }
 
         function resetSaleForm() {
-            document.getElementById('saleClientId').value = '';
+            document.getElementById('saleClientId').value = '0';
             document.getElementById('saleProductBar').value = '';
             document.getElementById('saleQuantity').value = '';
+            document.getElementById('saleUnitPrice').value = '';
             document.getElementById('salePriceTotal').value = '';
-            document.getElementById('saleRemark').value = '';
-            document.getElementById('salePriceHT').value = '';
+            document.getElementById('salePricePurchase').value = '';
+            document.getElementById('saleQuantity').removeAttribute('max');
         }
 
         // --- Scanner de code-barres ---
@@ -541,9 +622,7 @@
                             showToast(`Produit avec code ${scannedCode} non trouvé`, true);
                             stopScanner();
                         } else {
-                            document.getElementById('saleProductBar').value = scannedCode;
-                            document.getElementById('salePriceTotal').value = produit.PRIX || '0.00';
-                            showToast(`Produit scanné : ${produit.DESIGNATION} (Prix: ${produit.PRIX})`);
+                            selectProduct(produit.BAR, produit.PRIX, produit.PRIXBA, produit.QTE);
                             stopScanner();
                         }
                     } catch (error) {
@@ -623,7 +702,7 @@
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || '0.00').toFixed(2)}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <button onclick="selectProduct('${produit.BAR}')" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition duration-300">
+                            <button onclick="selectProduct('${produit.BAR}', ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE})" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition duration-300">
                                 Sélectionner
                             </button>
                         </td>
