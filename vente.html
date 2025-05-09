@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enregistrer une Vente</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
+        #scannerPreview { width: 100%; max-width: 300px; height: 200px; border: 2px solid #e5e7eb; margin-bottom: 1rem; display: none; background: #000; }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-fade-in">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-2xl font-bold flex items-center">
+                <i class="fas fa-fire mr-2 text-amber-400"></i> FirePoz
+            </h1>
+            <div class="space-x-4 flex items-center">
+                <a href="index.html" class="hover:text-indigo-200 transition">Retour</a>
+                <button id="loginLogoutButton" onclick="loginLogout()" class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition flex items-center">
+                    <i class="fas fa-sign-out-alt mr-1"></i>Déconnexion
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto px-4 py-16 mt-16">
+        <h1 class="text-3xl font-bold text-indigo-700 mb-8 animate-fade-in">Enregistrer une Vente</h1>
+
+        <!-- Formulaire pour ajouter une vente -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8 animate-fade-in">
+            <form id="venteForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Client (optionnel)</label>
+                    <select id="clientId" class="w-full px-3 py-2 border rounded-md">
+                        <option value="">Sans client</option>
+                    </select>
+                </div>
+                <div class="relative">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Produit (Code Barre)*</label>
+                    <input type="text" id="produitBar" class="w-full px-3 py-2 border rounded-md" required>
+                    <button id="scanButton" type="button" class="absolute right-2 top-1/2 transform translate-y-2 bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition" onclick="startScanner()">
+                        <i class="fas fa-camera"></i> Scanner
+                    </button>
+                </div>
+                <div id="scannerPreview"></div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Quantité*</label>
+                    <input type="number" id="quantite" class="w-full px-3 py-2 border rounded-md" min="1" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Prix unitaire (optionnel)</label>
+                    <input type="text" id="prixUnitaire" class="w-full px-3 py-2 border rounded-md" placeholder="Ex: 500.00">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Prix d'achat (optionnel)</label>
+                    <input type="text" id="prixAchat" class="w-full px-3 py-2 border rounded-md" placeholder="Ex: 300.00">
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="resetVenteForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">
+                        <i class="fas fa-times mr-2"></i>Annuler
+                    </button>
+                    <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">
+                        <i class="fas fa-save mr-2"></i>Enregistrer
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Table des lignes de vente -->
+        <div class="bg-white rounded-lg shadow-md p-6 animate-fade-in">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Lignes de Vente</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Commande</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Total</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Unitaire</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Achat</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Envoyé</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ventesList" class="bg-white divide-y divide-gray-200">
+                        <tr>
+                            <td colspan="8" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="fixed bottom-4 right-4 hidden">
+        <div class="flex items-center px-6 py-3 rounded-md shadow-lg">
+            <i id="toastIcon" class="mr-2"></i>
+            <span id="toastMessage"></span>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
+
+        // Vérifier la connexion de l'utilisateur
+        document.addEventListener('DOMContentLoaded', () => {
+            const userId = localStorage.getItem('userId');
+            const userEmail = localStorage.getItem('userEmail');
+            if (!userId || !userEmail) {
+                showToast('Veuillez vous connecter', true);
+                window.location.href = 'index.html';
+                return;
+            }
+            chargerClients();
+            chargerProduits();
+            chargerVentes();
+        });
+
+        // Fonction pour afficher les notifications
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+
+            toast.className = isError
+                ? 'fixed bottom-4 right-4 flex items-center bg-red-500 text-white px-6 py-3 rounded-md shadow-lg'
+                : 'fixed bottom-4 right-4 flex items-center bg-green-500 text-white px-6 py-3 rounded-md shadow-lg';
+
+            toastIcon.className = isError
+                ? 'fas fa-exclamation-circle mr-2'
+                : 'fas fa-check-circle mr-2';
+
+            toastMessage.textContent = message;
+            toast.classList.remove('hidden');
+
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
+        }
+
+        // Déconnexion
+        function loginLogout() {
+            localStorage.removeItem('userId');
+            localStorage.removeItem('userEmail');
+            window.location.href = 'index.html';
+        }
+
+        // Charger les clients
+        async function chargerClients() {
+            const userId = localStorage.getItem('userId');
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_clients`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) throw new Error(`Erreur ${response.status}`);
+                const clients = await response.json();
+                const select = document.getElementById('clientId');
+                clients.forEach(client => {
+                    const option = document.createElement('option');
+                    option.value = client.numero_clt;
+                    option.textContent = `${client.nom} (${client.reference})`;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                showToast('Erreur lors du chargement des clients', true);
+            }
+        }
+
+        // Charger les produits
+        async function chargerProduits() {
+            const userId = localStorage.getItem('userId');
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) throw new Error(`Erreur ${response.status}`);
+                const produits = await response.json();
+                // Peut être utilisé pour autocomplétion ou validation du code-barres
+                window.produits = produits; // Stocker pour usage dans ajouterVente
+            } catch (error) {
+                showToast('Erreur lors du chargement des produits', true);
+            }
+        }
+
+        // Charger les lignes de vente
+        async function chargerVentes() {
+            const userId = localStorage.getItem('userId');
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_ventes`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) throw new Error(`Erreur ${response.status}`);
+                const ventes = await response.json();
+                const tbody = document.getElementById('ventesList');
+
+                if (ventes.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-gray-500">Aucune vente trouvée</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = '';
+                ventes.forEach(vente => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-gray-50';
+                    tr.innerHTML = `
+                        <td class="px-6 py-4 text-sm text-gray-500">${vente.numero_attache}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${vente.numero_comande}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">${vente.designation || vente.numero_item}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${vente.quantite}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${vente.prixt}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${vente.remarque}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${vente.prixbh}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${vente.send ? 'Oui' : 'Non'}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (error) {
+                document.getElementById('ventesList').innerHTML = `
+                    <tr><td colspan="8" class="text-center py-4 text-red-500">Erreur: ${error.message}</td></tr>`;
+            }
+        }
+
+        // Ajouter une vente
+        async function ajouterVente(event) {
+            event.preventDefault();
+            const userId = localStorage.getItem('userId');
+            const clientId = document.getElementById('clientId').value;
+            const produitBar = document.getElementById('produitBar').value.trim();
+            const quantite = parseInt(document.getElementById('quantite').value);
+            const prixUnitaire = document.getElementById('prixUnitaire').value.trim();
+            const prixAchat = document.getElementById('prixAchat').value.trim();
+
+            if (!produitBar || !quantite) {
+                showToast('Veuillez remplir les champs obligatoires', true);
+                return;
+            }
+
+            // Vérifier si le produit existe
+            const produit = window.produits.find(p => p.BAR === produitBar);
+            if (!produit) {
+                showToast('Produit introuvable', true);
+                return;
+            }
+            if (produit.QTE < quantite) {
+                showToast('Quantité insuffisante en stock', true);
+                return;
+            }
+
+            // Calculer le prix total (utiliser prix unitaire saisi ou prix du produit)
+            const prixUnit = prixUnitaire ? parseFloat(prixUnitaire) : parseFloat(produit.PRIX);
+            const prixTotal = (prixUnit * quantite).toFixed(2);
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/ajouter_vente`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify({
+                        client_id: clientId || null,
+                        produit_bar: produitBar,
+                        quantite: quantite,
+                        prixt: prixTotal,
+                        remarque: prixUnitaire || produit.PRIX,
+                        prixbh: prixAchat || '0.00',
+                        numero_util: userId,
+                        etat_c: 'asuivre',
+                        nature: 'vente'
+                    })
+                });
+
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.erreur || 'Erreur lors de l\'ajout');
+                }
+
+                showToast('Vente enregistrée avec succès');
+                resetVenteForm();
+                chargerVentes();
+            } catch (error) {
+                showToast(error.message, true);
+            }
+        }
+
+        // Réinitialiser le formulaire
+        function resetVenteForm() {
+            document.getElementById('clientId').value = '';
+            document.getElementById('produitBar').value = '';
+            document.getElementById('quantite').value = '';
+            document.getElementById('prixUnitaire').value = '';
+            document.getElementById('prixAchat').value = '';
+            stopScanner();
+        }
+
+        // Scanner de code-barres
+        let stream = null;
+        let barcodeDetector = null;
+        let isScanning = false;
+
+        async function startScanner() {
+            if (!('BarcodeDetector' in window)) {
+                showToast('Scanner non supporté. Utilisez Chrome/Edge.', true);
+                return;
+            }
+
+            const preview = document.getElementById('scannerPreview');
+            const scanButton = document.getElementById('scanButton');
+            preview.style.display = 'block';
+            scanButton.disabled = true;
+            isScanning = true;
+
+            try {
+                barcodeDetector = new BarcodeDetector({
+                    formats: ['ean_13', 'code_128', 'upc_a', 'upc_e']
+                });
+
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' }
+                });
+
+                const video = document.createElement('video');
+                video.srcObject = stream;
+                video.autoplay = true;
+                video.playsinline = true;
+                preview.innerHTML = '';
+                preview.appendChild(video);
+
+                video.onloadedmetadata = () => {
+                    detectBarcodes(video);
+                };
+            } catch (err) {
+                showToast('Erreur caméra: ' + err.message, true);
+                stopScanner();
+            }
+        }
+
+        async function detectBarcodes(video) {
+            if (!isScanning) return;
+
+            try {
+                const barcodes = await barcodeDetector.detect(video);
+                if (barcodes.length > 0) {
+                    document.getElementById('produitBar').value = barcodes[0].rawValue;
+                    showToast('Code-barres scanné');
+                    stopScanner();
+                } else {
+                    requestAnimationFrame(() => detectBarcodes(video));
+                }
+            } catch (err) {
+                showToast('Erreur détection: ' + err.message, true);
+                stopScanner();
+            }
+        }
+
+        function stopScanner() {
+            isScanning = false;
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+            document.getElementById('scannerPreview').style.display = 'none';
+            document.getElementById('scannerPreview').innerHTML = '';
+            document.getElementById('scanButton').disabled = false;
+        }
+
+        // Écouteurs d'événements
+        document.getElementById('venteForm').addEventListener('submit', ajouterVente);
+    </script>
+</body>
+</html>
