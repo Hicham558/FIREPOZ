@@ -12,9 +12,11 @@
         @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes userPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
         @keyframes countPulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        @keyframes totalPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
         .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
         .animate-pulse { animation: pulse 2s infinite ease-in-out; }
         .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
+        .animate-total-pulse { animation: totalPulse 1.5s ease-in-out; }
         #productsSection { animation-delay: 0.2s; }
         #salesSection { animation-delay: 0.4s; }
         footer { animation-delay: 1s; }
@@ -44,6 +46,7 @@
         .user-anim { animation: userPulse 1.5s infinite ease-in-out; }
         .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
         .small-email { font-size: 0.75rem; line-height: 1rem; }
+        .quantity-input { width: 60px; }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -67,7 +70,7 @@
         </div>
     </nav>
 
-    <!-- Aperçu du scanner (déplacé en haut) -->
+    <!-- Aperçu du scanner -->
     <div id="scannerPreview"></div>
     <div id="scannerOverlay"></div>
 
@@ -133,6 +136,7 @@
                 <div class="p-6 flex justify-between items-center">
                     <h2 class="text-xl font-semibold text-gray-800 flex items-center">
                         <i class="fas fa-receipt mr-2 text-indigo-500"></i> Ventes
+                        <span id="saleItemCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
                     </h2>
                 </div>
                 <div class="p-6">
@@ -151,7 +155,7 @@
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Quantité*</label>
-                                <input type="number" id="saleQuantity" class="w-full px-3 py-2 border rounded-md" required>
+                                <input type="number" id="saleQuantity" class="w-full px-3 py-2 border rounded-md" required min="1">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Prix Unitaire*</label>
@@ -170,13 +174,48 @@
                             <button onclick="resetSaleForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
                                 <i class="fas fa-times mr-2"></i>Annuler
                             </button>
-                            <button onclick="ajouterVente()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-save mr-2"></i>Enregistrer
+                            <button onclick="ajouterLigneVente()" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition duration-300 transform hover:scale-105">
+                                <i class="fas fa-plus mr-2"></i>Ajouter à la vente
                             </button>
                         </div>
                     </div>
 
+                    <!-- Table temporaire des lignes de vente -->
+                    <div class="mb-6">
+                        <h3 class="font-medium mb-3">Lignes de la vente en cours (Commande #<span id="currentCommandeId">N/A</span>)</h3>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Unitaire</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Total</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tempSalesList" class="bg-white divide-y divide-gray-200">
+                                    <tr>
+                                        <td colspan="6" class="text-center py-4 text-gray-500">Aucune ligne ajoutée</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-4 flex justify-between items-center">
+                            <div>
+                                <span class="text-sm font-medium text-gray-700">Total: </span>
+                                <span id="totalSale" class="text-lg font-bold text-indigo-600 animate-total-pulse">0.00 DA</span>
+                            </div>
+                            <button id="validateSaleButton" onclick="validerVente()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105" disabled>
+                                <i class="fas fa-check mr-2"></i>Valider la vente
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Historique des ventes -->
                     <div class="overflow-x-auto">
+                        <h3 class="font-medium mb-3">Historique des Ventes</h3>
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
@@ -203,7 +242,7 @@
     </div>
 
     <!-- Footer -->
-    <footer class="bg-gray-700 text-white text-center py-4 mt-8 animate-fade-in">
+    <footer class="bg-gray-700 text-white text-center py-4 animate-fade-in">
         <p>Développé par Khelladi Hicham</p>
         <p>Tel: <a href="tel:00213553700900" class="underline hover:text-indigo-300 transition duration-300">00213553700900</a></p>
         <p>Email: <a href="mailto:Hicham.khelladi@gmail.com" class="underline hover:text-indigo-300 transition duration-300">Hicham.khelladi@gmail.com</a></p>
@@ -218,6 +257,9 @@
 
     <script>
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
+        let tempSaleLines = []; // Table temporaire pour les lignes de vente
+        let currentNumeroComande = null; // Stocke le numero_comande en cours
+        let produitsCache = []; // Cache des produits pour éviter des requêtes répétées
 
         // Générer un user_id basé sur l'email et le mot de passe
         function generateUniqueUserId(email, password) {
@@ -227,16 +269,20 @@
 
         // Vérifier si l'utilisateur est connecté au chargement de la page
         document.addEventListener('DOMContentLoaded', () => {
+            console.log('Page chargée, vérification utilisateur...');
             const userId = localStorage.getItem('userId');
             const userEmail = localStorage.getItem('userEmail');
             if (userId && userEmail) {
+                console.log('Utilisateur connecté:', userId, userEmail);
                 document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
                 document.getElementById('userDisplay').classList.remove('hidden');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
                 chargerClients();
                 chargerProduits();
                 chargerVentes();
+                genererNumeroComande(); // Générer numero_comande au démarrage
             } else {
+                console.log('Aucun utilisateur connecté, redirection vers index.html');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
                 window.location.href = 'index.html';
             }
@@ -253,6 +299,7 @@
 
         // Fonction de déconnexion
         function loginLogout() {
+            console.log('Déconnexion en cours...');
             const userId = localStorage.getItem('userId');
             if (userId) {
                 localStorage.removeItem('userId');
@@ -297,8 +344,51 @@
             chevron.classList.toggle('fa-chevron-up');
         }
 
+        // Générer un numero_comande
+        async function genererNumeroComande() {
+            console.log('Génération numero_comande...');
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour générer une commande', true);
+                return;
+            }
+
+            try {
+                const comandeData = {
+                    numero_table: parseInt(document.getElementById('saleClientId').value) || 0,
+                    date_comande: new Date().toISOString(),
+                    etat_c: 'Asuivre',
+                    nature: 'vente'
+                };
+                const response = await fetch(`${API_BASE_URL}/creer_comande`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify(comandeData)
+                });
+                console.log('Réponse creer_comande:', response.status, response.statusText);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Erreur texte creer_comande:', errorText);
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                const result = await response.json();
+                currentNumeroComande = result.numero_comande;
+                document.getElementById('currentCommandeId').textContent = currentNumeroComande;
+                console.log('Numero_comande généré:', currentNumeroComande);
+                showToast(`Commande #${currentNumeroComande} créée`);
+            } catch (error) {
+                console.error('Erreur création commande:', error);
+                showToast(`Erreur création commande: ${error.message}`, true);
+                document.getElementById('currentCommandeId').textContent = 'N/A';
+            }
+        }
+
         // --- Charger les clients pour la sélection ---
         async function chargerClients() {
+            console.log('Chargement des clients...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour voir les clients', true);
@@ -311,13 +401,16 @@
                         'X-User-ID': userId
                     }
                 });
+                console.log('Réponse liste_clients:', response.status, response.statusText);
                 if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                    const errorText = await response.text();
+                    console.error('Erreur texte liste_clients:', errorText);
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 const clients = await response.json();
+                console.log('Clients reçus:', clients);
                 const selectElement = document.getElementById('saleClientId');
 
-                // Ajouter les clients à la liste déroulante
                 clients.forEach(client => {
                     const option = document.createElement('option');
                     option.value = client.numero_clt;
@@ -332,6 +425,7 @@
 
         // --- Gestion des produits ---
         async function chargerProduits() {
+            console.log('Chargement des produits...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour voir les produits', true);
@@ -344,14 +438,18 @@
                         'X-User-ID': userId
                     }
                 });
+                console.log('Réponse liste_produits:', response.status, response.statusText);
                 if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                    const errorText = await response.text();
+                    console.error('Erreur texte liste_produits:', errorText);
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
-                const produits = await response.json();
+                produitsCache = await response.json();
+                console.log('Produits reçus:', produitsCache);
                 const tbody = document.getElementById('productsList');
                 const countElement = document.getElementById('productCount');
 
-                if (produits.length === 0) {
+                if (produitsCache.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
                     countElement.textContent = '0';
                     countElement.classList.remove('hidden');
@@ -359,7 +457,7 @@
                 }
 
                 tbody.innerHTML = '';
-                produits.forEach(produit => {
+                produitsCache.forEach(produit => {
                     const tr = document.createElement('tr');
                     tr.className = 'hover:bg-gray-50';
                     tr.innerHTML = `
@@ -369,14 +467,14 @@
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || '0.00').toFixed(2)}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <button onclick="selectProduct('${produit.BAR}', ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE})" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition duration-300">
+                            <button onclick="selectProduct('${produit.BAR}', ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition duration-300">
                                 Sélectionner
                             </button>
                         </td>
                     `;
                     tbody.appendChild(tr);
                 });
-                countElement.textContent = produits.length;
+                countElement.textContent = produitsCache.length;
                 countElement.classList.remove('hidden');
             } catch (error) {
                 document.getElementById('productsList').innerHTML = `
@@ -390,10 +488,12 @@
             }
         }
 
-        function selectProduct(bar, prix, prixba, stock) {
+        function selectProduct(bar, prix, prixba, stock, designation) {
+            console.log('Produit sélectionné:', bar, prix, prixba, stock, designation);
             document.getElementById('saleProductBar').value = bar;
             document.getElementById('saleUnitPrice').value = prix.toFixed(2);
             document.getElementById('salePricePurchase').value = prixba.toFixed(2);
+            document.getElementById('saleProductBar').dataset.designation = designation;
 
             const quantityInput = document.getElementById('saleQuantity');
             quantityInput.setAttribute('max', stock);
@@ -406,7 +506,7 @@
                 updateTotalPrice();
             }
 
-            showToast(`Produit sélectionné : ${bar}`);
+            showToast(`Produit sélectionné : ${designation}`);
         }
 
         // Calculer le prix total en fonction de la quantité et du prix unitaire
@@ -417,12 +517,239 @@
             document.getElementById('salePriceTotal').value = totalPrice.toFixed(2);
         }
 
-        // Écouter les changements sur la quantité pour recalculer le prix total
+        // Écouter les changements sur la quantité et le prix unitaire
         document.getElementById('saleQuantity').addEventListener('input', updateTotalPrice);
         document.getElementById('saleUnitPrice').addEventListener('input', updateTotalPrice);
 
-        // --- Gestion des ventes ---
+        // Ajouter une ligne à la table temporaire
+        function ajouterLigneVente() {
+            console.log('Ajout ligne vente...');
+            if (!currentNumeroComande) {
+                showToast('Aucune commande en cours. Veuillez réessayer.', true);
+                genererNumeroComande();
+                return;
+            }
+
+            const productBar = document.getElementById('saleProductBar').value.trim();
+            const designation = document.getElementById('saleProductBar').dataset.designation || 'N/A';
+            const quantity = parseInt(document.getElementById('saleQuantity').value) || 0;
+            const unitPrice = parseFloat(document.getElementById('saleUnitPrice').value) || 0;
+            const priceTotal = parseFloat(document.getElementById('salePriceTotal').value) || 0;
+            const pricePurchase = parseFloat(document.getElementById('salePricePurchase').value) || 0;
+
+            if (!productBar || quantity <= 0 || unitPrice <= 0) {
+                showToast('Veuillez remplir tous les champs obligatoires', true);
+                return;
+            }
+
+            const stock = parseInt(document.getElementById('saleQuantity').getAttribute('max')) || 0;
+            const produit = produitsCache.find(p => p.BAR === productBar);
+            const existingLine = tempSaleLines.find(line => line.produit_bar === productBar);
+            const totalQuantity = (existingLine ? existingLine.quantite : 0) + quantity;
+
+            if (produit && totalQuantity > produit.QTE) {
+                showToast('Quantité demandée supérieure au stock disponible', true);
+                return;
+            }
+
+            // Ajouter ou mettre à jour la ligne
+            const existingLineIndex = tempSaleLines.findIndex(line => line.produit_bar === productBar);
+            if (existingLineIndex >= 0) {
+                tempSaleLines[existingLineIndex].quantite = totalQuantity;
+                tempSaleLines[existingLineIndex].prixt = totalQuantity * unitPrice;
+                tempSaleLines[existingLineIndex].remarque = unitPrice.toFixed(2);
+            } else {
+                tempSaleLines.push({
+                    numero_comande: currentNumeroComande,
+                    produit_bar: productBar,
+                    designation: designation,
+                    quantite: quantity,
+                    prixt: priceTotal,
+                    remarque: unitPrice.toFixed(2),
+                    prixbh: pricePurchase
+                });
+            }
+
+            updateTempSalesTable();
+            resetSaleForm();
+            showToast('Ligne ajoutée à la vente');
+        }
+
+        // Mettre à jour la table temporaire
+        function updateTempSalesTable() {
+            const tbody = document.getElementById('tempSalesList');
+            const totalElement = document.getElementById('totalSale');
+            const itemCountElement = document.getElementById('saleItemCount');
+            const validateButton = document.getElementById('validateSaleButton');
+
+            if (tempSaleLines.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucune ligne ajoutée</td></tr>';
+                totalElement.textContent = '0.00 DA';
+                itemCountElement.textContent = '0';
+                itemCountElement.classList.add('hidden');
+                validateButton.disabled = true;
+                return;
+            }
+
+            tbody.innerHTML = '';
+            let total = 0;
+            let totalItems = 0;
+
+            tempSaleLines.forEach((ligne, index) => {
+                const lineTotal = parseFloat(ligne.prixt) || 0;
+                total += lineTotal;
+                totalItems += ligne.quantite;
+
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50';
+                tr.innerHTML = `
+                    <td class="px-6 py-4 text-sm text-gray-900">${ligne.designation || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ligne.produit_bar || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div class="flex items-center space-x-2">
+                            <button onclick="modifierQuantite(${index}, -1)" class="bg-gray-300 text-gray-700 px-2 py-1 rounded-md hover:bg-gray-400 transition">-</button>
+                            <span>${ligne.quantite}</span>
+                            <button onclick="modifierQuantite(${index}, 1)" class="bg-gray-300 text-gray-700 px-2 py-1 rounded-md hover:bg-gray-400 transition">+</button>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <input type="number" step="0.01" value="${parseFloat(ligne.remarque).toFixed(2)}" onchange="modifierPrix(${index}, this.value)" class="quantity-input px-2 py-1 border rounded-md">
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${lineTotal.toFixed(2)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <button onclick="supprimerLigne(${index})" class="bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            totalElement.textContent = `${total.toFixed(2)} DA`;
+            totalElement.classList.add('animate-total-pulse');
+            setTimeout(() => totalElement.classList.remove('animate-total-pulse'), 1500);
+            itemCountElement.textContent = totalItems;
+            itemCountElement.classList.remove('hidden');
+            validateButton.disabled = false;
+        }
+
+        // Modifier la quantité
+        function modifierQuantite(index, delta) {
+            const ligne = tempSaleLines[index];
+            const produit = produitsCache.find(p => p.BAR === ligne.produit_bar);
+            const newQuantity = ligne.quantite + delta;
+
+            if (newQuantity <= 0) {
+                supprimerLigne(index);
+                return;
+            }
+
+            if (produit && newQuantity > produit.QTE) {
+                showToast('Quantité demandée supérieure au stock disponible', true);
+                return;
+            }
+
+            ligne.quantite = newQuantity;
+            ligne.prixt = newQuantity * parseFloat(ligne.remarque);
+            updateTempSalesTable();
+            showToast(`Quantité mise à jour: ${ligne.quantite}`);
+        }
+
+        // Modifier le prix unitaire
+        function modifierPrix(index, newPrice) {
+            const price = parseFloat(newPrice);
+            if (isNaN(price) || price <= 0) {
+                showToast('Prix unitaire invalide', true);
+                return;
+            }
+
+            const ligne = tempSaleLines[index];
+            ligne.remarque = price.toFixed(2);
+            ligne.prixt = ligne.quantite * price;
+            updateTempSalesTable();
+            showToast('Prix unitaire mis à jour');
+        }
+
+        // Supprimer une ligne
+        function supprimerLigne(index) {
+            const ligne = tempSaleLines[index];
+            tempSaleLines.splice(index, 1);
+            updateTempSalesTable();
+            showToast(`Ligne "${ligne.designation}" supprimée`);
+        }
+
+        // Valider la vente
+        async function validerVente() {
+            console.log('Validation vente...');
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour valider la vente', true);
+                return;
+            }
+
+            if (!currentNumeroComande) {
+                showToast('Aucune commande en cours', true);
+                return;
+            }
+
+            if (tempSaleLines.length === 0) {
+                showToast('Aucune ligne à valider', true);
+                return;
+            }
+
+            try {
+                // Envoyer les lignes à attache
+                const response = await fetch(`${API_BASE_URL}/ajouter_attache`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify(tempSaleLines)
+                });
+                console.log('Réponse ajouter_attache:', response.status, response.statusText);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Erreur texte ajouter_attache:', errorText);
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                const attacheResult = await response.json();
+                console.log('Lignes ajoutées:', attacheResult);
+
+                // Clôturer la commande
+                const clotureResponse = await fetch(`${API_BASE_URL}/cloturer_comande`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify({ numero_comande: currentNumeroComande })
+                });
+                console.log('Réponse cloturer_comande:', clotureResponse.status, clotureResponse.statusText);
+                if (!clotureResponse.ok) {
+                    const errorText = await clotureResponse.text();
+                    console.error('Erreur texte cloturer_comande:', errorText);
+                    throw new Error(`Erreur ${clotureResponse.status}: ${errorText}`);
+                }
+                const clotureResult = await clotureResponse.json();
+                console.log('Commande clôturée:', clotureResult);
+
+                showToast(`Vente #${currentNumeroComande} validée avec succès`);
+                tempSaleLines = [];
+                currentNumeroComande = null;
+                updateTempSalesTable();
+                chargerProduits();
+                chargerVentes();
+                genererNumeroComande();
+            } catch (error) {
+                console.error('Erreur validation vente:', error);
+                showToast(`Erreur validation vente: ${error.message}`, true);
+            }
+        }
+
+        // --- Gestion des ventes historiques ---
         async function chargerVentes() {
+            console.log('Chargement des ventes...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour voir les ventes', true);
@@ -435,13 +762,14 @@
                         'X-User-ID': userId
                     }
                 });
-
+                console.log('Réponse liste_ventes:', response.status, response.statusText);
                 if (!response.ok) {
                     const errorText = await response.text();
+                    console.error('Erreur texte liste_ventes:', errorText);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
-
                 const ventes = await response.json();
+                console.log('Ventes reçues:', ventes);
                 const tbody = document.getElementById('salesList');
 
                 if (ventes.length === 0) {
@@ -451,7 +779,7 @@
 
                 tbody.innerHTML = '';
                 ventes.forEach(vente => {
-                    const clientInfo = vente.numero_table === 0 ? 'Vente Comptoir' : `Client ID: ${vente.numero_table}`;
+                    const clientInfo = vente.numero_table === 0 ? 'Vente Comptoir' : `Table ${vente.numero_table}`;
                     const tr = document.createElement('tr');
                     tr.className = 'hover:bg-gray-50';
                     tr.innerHTML = `
@@ -478,116 +806,10 @@
             }
         }
 
-        async function ajouterVente() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour ajouter une vente', true);
-                return;
-            }
-
-            const clientId = parseInt(document.getElementById('saleClientId').value); // '0' pour vente comptoir
-            const productBar = document.getElementById('saleProductBar').value.trim();
-            const quantity = document.getElementById('saleQuantity').value.trim();
-            const unitPrice = document.getElementById('saleUnitPrice').value.trim();
-            const priceTotal = document.getElementById('salePriceTotal').value.trim();
-            const pricePurchase = document.getElementById('salePricePurchase').value.trim();
-
-            if (!productBar || !quantity || !unitPrice) {
-                showToast('Veuillez remplir tous les champs obligatoires', true);
-                return;
-            }
-
-            const quantityNum = parseInt(quantity);
-            if (quantityNum <= 0) {
-                showToast('La quantité doit être supérieure à 0', true);
-                return;
-            }
-
-            const stock = parseInt(document.getElementById('saleQuantity').getAttribute('max')) || 0;
-            if (quantityNum > stock) {
-                showToast('Quantité demandée supérieure au stock disponible', true);
-                return;
-            }
-
-            // Étape 1 : Générer un numero_comande via une insertion dans comande
-            let numeroComande = null;
-            try {
-                const comandeData = {
-                    numero_table: clientId,
-                    date_comande: new Date().toISOString(),
-                    etat_c: 'en_cours',
-                    nature: 'vente'
-                };
-
-                const comandeResponse = await fetch(`${API_BASE_URL}/creer_comande`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify(comandeData)
-                });
-
-                if (!comandeResponse.ok) {
-                    const errorText = await comandeResponse.text();
-                    throw new Error(`Erreur ${comandeResponse.status}: ${errorText}`);
-                }
-
-                const result = await comandeResponse.json();
-                numeroComande = result.numero_comande;
-                console.log('Numero_comande généré:', numeroComande);
-
-                if (!numeroComande) {
-                    throw new Error('Échec de la génération du numero_comande');
-                }
-            } catch (error) {
-                console.error('Erreur lors de la création de la commande:', error);
-                showToast(`Erreur lors de la création de la commande: ${error.message}`, true);
-                return;
-            }
-
-            // Étape 2 : Stocker la ligne de vente dans attache
-            try {
-                const attacheData = {
-                    numero_comande: numeroComande,
-                    user_id: userId,
-                    produit_bar: productBar,
-                    quantite: quantityNum,
-                    prixt: parseFloat(priceTotal),
-                    remarque: parseFloat(unitPrice).toFixed(2),
-                    prixbh: parseFloat(pricePurchase)
-                };
-
-                const attacheResponse = await fetch(`${API_BASE_URL}/ajouter_attache`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify(attacheData)
-                });
-
-                if (!attacheResponse.ok) {
-                    const errorText = await attacheResponse.text();
-                    throw new Error(`Erreur ${attacheResponse.status}: ${errorText}`);
-                }
-
-                const attacheResult = await attacheResponse.json();
-                console.log('Ligne ajoutée à attache:', attacheResult);
-
-                showToast('Vente enregistrée avec succès');
-                resetSaleForm();
-                chargerProduits();
-                chargerVentes();
-            } catch (error) {
-                console.error('Erreur lors de l\'ajout à attache:', error);
-                showToast(`Erreur lors de l'enregistrement de la ligne: ${error.message}`, true);
-            }
-        }
-
         function resetSaleForm() {
-            document.getElementById('saleClientId').value = '0';
+            console.log('Réinitialisation du formulaire de vente...');
             document.getElementById('saleProductBar').value = '';
+            document.getElementById('saleProductBar').dataset.designation = '';
             document.getElementById('saleQuantity').value = '';
             document.getElementById('saleUnitPrice').value = '';
             document.getElementById('salePriceTotal').value = '';
@@ -601,6 +823,7 @@
         let isScanning = false;
 
         async function startScanner() {
+            console.log('Démarrage du scanner...');
             if (!('BarcodeDetector' in window)) {
                 showToast('Le scanner de code-barres n\'est pas supporté par ce navigateur. Utilisez Chrome ou Edge.', true);
                 return;
@@ -680,34 +903,14 @@
                 if (barcodes.length > 0) {
                     const barcode = barcodes[0];
                     const scannedCode = barcode.rawValue;
+                    console.log('Code-barres détecté:', scannedCode);
 
-                    const userId = localStorage.getItem('userId');
-                    if (!userId) {
-                        showToast('Veuillez vous connecter pour scanner un code-barres', true);
+                    const produit = produitsCache.find(p => p.BAR === scannedCode);
+                    if (!produit) {
+                        showToast(`Produit avec code ${scannedCode} non trouvé`, true);
                         stopScanner();
-                        return;
-                    }
-
-                    try {
-                        const response = await fetch(`${API_BASE_URL}/liste_produits`, {
-                            headers: {
-                                'X-User-ID': userId
-                            }
-                        });
-                        if (!response.ok) {
-                            throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-                        }
-                        const produits = await response.json();
-                        const produit = produits.find(p => p.BAR === scannedCode);
-                        if (!produit) {
-                            showToast(`Produit avec code ${scannedCode} non trouvé`, true);
-                            stopScanner();
-                        } else {
-                            selectProduct(produit.BAR, produit.PRIX, produit.PRIXBA, produit.QTE);
-                            stopScanner();
-                        }
-                    } catch (error) {
-                        showToast('Erreur lors de la vérification des produits: ' + error.message, true);
+                    } else {
+                        selectProduct(produit.BAR, produit.PRIX, produit.PRIXBA, produit.QTE, produit.DESIGNATION);
                         stopScanner();
                     }
                 } else {
@@ -727,6 +930,7 @@
         }
 
         function stopScanner() {
+            console.log('Arrêt du scanner...');
             isScanning = false;
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
@@ -744,72 +948,48 @@
         }
 
         // Recherche manuelle
-        document.getElementById('searchProduct').addEventListener('input', async function(e) {
+        document.getElementById('searchProduct').addEventListener('input', function(e) {
+            console.log('Recherche produit:', e.target.value);
             const searchTerm = e.target.value.toLowerCase();
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour rechercher un produit', true);
+            const tbody = document.getElementById('productsList');
+
+            tbody.innerHTML = '';
+            const filteredProducts = produitsCache.filter(produit =>
+                produit.BAR.toLowerCase().includes(searchTerm) ||
+                produit.DESIGNATION.toLowerCase().includes(searchTerm) ||
+                parseFloat(produit.PRIX || 0).toFixed(2).includes(searchTerm) ||
+                parseFloat(produit.PRIXBA || '0.00').toFixed(2).includes(searchTerm)
+            );
+
+            if (filteredProducts.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
                 return;
             }
 
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
-                });
-                if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-                }
-                const produits = await response.json();
-                const tbody = document.getElementById('productsList');
-
-                tbody.innerHTML = '';
-                const filteredProducts = produits.filter(produit =>
-                    produit.BAR.toLowerCase().includes(searchTerm) ||
-                    produit.DESIGNATION.toLowerCase().includes(searchTerm) ||
-                    parseFloat(produit.PRIX || 0).toFixed(2).includes(searchTerm) ||
-                    parseFloat(produit.PRIXBA || '0.00').toFixed(2).includes(searchTerm)
-                );
-
-                if (filteredProducts.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
-                    return;
-                }
-
-                filteredProducts.forEach(produit => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || '0.00').toFixed(2)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <button onclick="selectProduct('${produit.BAR}', ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE})" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition duration-300">
-                                Sélectionner
-                            </button>
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-            } catch (error) {
-                document.getElementById('productsList').innerHTML = `
-                    <tr>
-                        <td colspan="6" class="text-center py-4 text-red-500">
-                            Erreur de recherche: ${error.message}
-                        </td>
-                    </tr
+            filteredProducts.forEach(produit => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50';
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
+                    <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || '0.00').toFixed(2)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <button onclick="selectProduct('${produit.BAR}', ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition duration-300">
+                            Sélectionner
+                        </button>
+                    </td>
                 `;
-                console.error('Erreur recherche produits:', error);
-            }
+                tbody.appendChild(tr);
+            });
         });
 
         // Gestion des erreurs CORS
         window.addEventListener('unhandledrejection', event => {
             if (event.reason.message.includes('Failed to fetch')) {
                 showToast('Erreur de connexion au serveur. Vérifiez l\'URL ou les paramètres CORS.', true);
+                console.error('Erreur CORS:', event.reason);
             }
         });
     </script>
