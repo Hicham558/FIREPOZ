@@ -114,6 +114,14 @@
         let lastScanTime = 0;
         const SCAN_COOLDOWN = 2000;
 
+        // Vérifier si l'utilisateur est connecté au chargement de la page
+        document.addEventListener('DOMContentLoaded', () => {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                window.location.href = 'index.html';
+            }
+        });
+
         // Fonction pour afficher les notifications
         function showToast(message, isError = false) {
             const toast = document.getElementById('toast');
@@ -139,6 +147,14 @@
         async function startScanner() {
             if (scannerRunning) return;
             scannerRunning = true;
+
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour utiliser le scanner', true);
+                stopScanner();
+                window.location.href = 'index.html';
+                return;
+            }
 
             document.getElementById('result').innerHTML = '<p class="text-blue-500">Démarrage du scan...</p>';
             const videoElement = document.getElementById('scanner-video');
@@ -181,7 +197,7 @@
                             scanIndicator.classList.add('detected'); // Indication de détection
                             setTimeout(() => scanIndicator.classList.remove('detected'), 500); // Retour après 0.5s
                             document.getElementById('result').innerHTML = `<p class="text-green-500">Code-barres détecté : ${code}</p><p>Recherche en cours...</p>`;
-                            fetchProduit(code);
+                            fetchProduit(code, userId);
                         }
                     } catch (err) {
                         showToast(`Erreur de détection : ${err.message}`, true);
@@ -232,9 +248,13 @@
                 .catch(err => showToast(`Erreur du flash : ${err.message}`, true));
         }
 
-        async function fetchProduit(barCode) {
+        async function fetchProduit(barCode, userId) {
             try {
-                const response = await fetch(`${API_BASE_URL}/liste_produits`);
+                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
+                    headers: {
+                        'X-User-ID': userId
+                    }
+                });
                 if (!response.ok) throw new Error(`Erreur ${response.status}: ${response.statusText}`);
                 const produits = await response.json();
                 const produit = produits.find(p => p.BAR === barCode);
@@ -263,6 +283,13 @@
 
         document.getElementById('productForm').addEventListener('submit', async function(event) {
             event.preventDefault();
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour ajouter un produit', true);
+                window.location.href = 'index.html';
+                return;
+            }
+
             const designation = document.getElementById('designation').value.trim();
             const bar = document.getElementById('bar').value.trim();
             const prix = parseFloat(document.getElementById('prix').value);
@@ -273,10 +300,32 @@
                 return;
             }
 
+            // Vérifier les doublons
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
+                    headers: {
+                        'X-User-ID': userId
+                    }
+                });
+                if (!response.ok) throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                const produits = await response.json();
+                const codeBarExists = produits.some(p => p.BAR === bar);
+                if (codeBarExists) {
+                    showToast('Ce code-barres existe déjà pour cet utilisateur.', true);
+                    return;
+                }
+            } catch (error) {
+                showToast(`Erreur lors de la vérification des doublons : ${error.message}`, true);
+                return;
+            }
+
             try {
                 const response = await fetch(`${API_BASE_URL}/ajouter_item`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
                     body: JSON.stringify({ designation, bar, prix, qte })
                 });
                 const result = await response.json();
