@@ -3,51 +3,99 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion Commerciale</title>
+    <title>Gestion des Ventes</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <style>
         @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes userPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
         @keyframes countPulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        @keyframes totalPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        @keyframes zoomIn { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
         .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
         .animate-pulse { animation: pulse 2s infinite ease-in-out; }
         .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
-        #clientsSection { animation-delay: 0.2s; }
-        #fournisseursSection { animation-delay: 0.4s; }
-        #productsSection { animation-delay: 0.6s; }
-        #statsSection { animation-delay: 0.8s; }
+        .animate-total-pulse { animation: totalPulse 1.5s ease-in-out; }
+        .animate-zoom-in { animation: zoomIn 0.3s ease-out forwards; }
+
+        #productsSection { animation-delay: 0.2s; }
+        #salesSection { animation-delay: 0.4s; }
         footer { animation-delay: 1s; }
-        #scannerPreview { width: 100%; max-width: 300px; height: 200px; border: 2px solid #e5e7eb; margin-bottom: 1rem; display: none; background: #000; }
+
+        #productsContent {
+            position: relative;
+        }
+
+        #productsContent .max-h-\[300px\] {
+            max-height: 300px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #a0aec0 #edf2f7;
+        }
+        #productsContent .max-h-\[300px\]::-webkit-scrollbar {
+            width: 8px;
+        }
+        #productsContent .max-h-\[300px\]::-webkit-scrollbar-thumb {
+            background-color: #a0aec0;
+            border-radius: 4px;
+        }
+        #productsContent .max-h-\[300px\]::-webkit-scrollbar-track {
+            background-color: #edf2f7;
+        }
+
+        #scannerPreview {
+            width: 400px;
+            height: 300px;
+            max-width: 90vw;
+            border: 2px solid #e5e7eb;
+            background: #000;
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        #scannerPreview video {
+            width: 100%;
+            height: 100%;
+            display: block;
+            object-fit: cover;
+        }
+        #scannerOverlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+        }
+
+        @media (max-width: 640px) {
+            #scannerPreview {
+                width: 300px;
+                height: 200px;
+            }
+        }
+
         .user-anim { animation: userPulse 1.5s infinite ease-in-out; }
         .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
         .small-email { font-size: 0.75rem; line-height: 1rem; }
+        .quantity-input { width: 60px; }
     </style>
 </head>
 <body class="bg-gray-100">
-    <!-- Formulaire de connexion -->
-    <div id="loginModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-20 hidden">
-        <form id="loginForm" class="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 class="text-xl font-semibold mb-4">Connexion</h2>
-            <p class="text-sm text-red-500 mb-4">⚠️ Le mot de passe ne doit pas être celui de votre email.</p>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Adresse Email*</label>
-                <input type="email" id="userEmail" name="username" autocomplete="username" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre email" required>
-            </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe*</label>
-                <input type="password" id="userPassword" name="password" autocomplete="current-password" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre mot de passe" required>
-            </div>
-            <div class="flex justify-end space-x-3">
-                <button type="submit" onclick="loginWithCredentials(event)" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
-                    <i class="fas fa-sign-in-alt mr-2"></i>Se connecter
-                </button>
-            </div>
-        </form>
-    </div>
-
     <!-- Menu de navigation -->
     <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-slide-in">
         <div class="container mx-auto flex justify-between items-center">
@@ -58,8 +106,8 @@
                 <span id="userDisplay" class="small-email user-anim hidden"></span>
             </div>
             <div class="space-x-4 flex items-center">
-                <a href="page1.html" class="hover:text-indigo-200 transition flex items-center">
-                    <i class="fas fa-barcode mr-1"></i> Scanner Produit
+                <a href="index.html" class="hover:text-indigo-200 transition flex items-center">
+                    <i class="fas fa-home mr-1"></i> Accueil
                 </a>
                 <button id="loginLogoutButton" onclick="loginLogout()" class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition flex items-center">
                     <i class="fas fa-sign-out-alt mr-1"></i>Déconnexion
@@ -68,287 +116,132 @@
         </div>
     </nav>
 
+    <!-- Sélection du client -->
+    <div class="bg-white shadow-md p-4 sticky top-16 z-10 animate-fade-in">
+        <div class="container mx-auto">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Client</label>
+            <select id="saleClientId" class="w-full md:w-1/3 px-3 py-2 border rounded-md">
+                <option value="0">Vente Comptoir (Sans client)</option>
+            </select>
+        </div>
+    </div>
+
     <!-- Contenu principal -->
     <div class="container mx-auto px-4 py-16 mt-16">
         <header class="mb-8">
-            <h1 class="text-3xl font-bold text-indigo-700">KHsphers software</h1>
+            <h1 class="text-3xl font-bold text-indigo-700">Gestion des Ventes</h1>
             <p class="text-gray-600 flex items-center">
-                <i class="fas fa-database mr-2 text-indigo-500"></i> Fueled by PostgreSQL
+                <i class="fas fa-shopping-cart mr-2 text-indigo-500"></i> Ventes en temps réel
             </p>
         </header>
 
-        <!-- Boutons Vente et Achat -->
-        <div class="flex mb-8">
-            <a href="vente.html" class="w-1/2 bg-green-600 text-white py-6 flex items-center justify-center hover:bg-green-700 transition-all duration-300 transform hover:scale-105 animate-pulse">
-                <i class="fas fa-shopping-cart text-4xl mr-3"></i>
-                <span class="text-2xl font-semibold">Vente</span>
-            </a>
-            <a href="achat.html" class="w-1/2 bg-blue-600 text-white py-6 flex items-center justify-center hover:bg-blue-700 transition-all duration-300 transform hover:scale-105 animate-pulse">
-                <i class="fas fa-box-open text-4xl mr-3"></i>
-                <span class="text-2xl font-semibold">Achat</span>
-            </a>
+        <!-- Liste des Produits pour Vente -->
+        <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="productsSection">
+            <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('productsSection')">
+                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                    <i class="fas fa-boxes mr-2 text-indigo-500"></i> Produits Disponibles
+                    <span id="productCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                </h2>
+                <button class="text-gray-600 hover:text-gray-800 transition">
+                    <i class="fas fa-chevron-down" id="productsChevron"></i>
+                </button>
+            </div>
+            <div class="p-6 hidden" id="productsContent">
+                <!-- Aperçu du scanner -->
+                <div id="scannerPreview" class="animate-zoom-in"></div>
+                <div id="scannerOverlay"></div>
+
+                <div class="mb-4 flex flex-col md:flex-row gap-4 sticky top-32 bg-white z-10 p-4 -mx-6">
+                    <div class="relative w-full md:w-1/2">
+                        <input type="text" id="searchProduct" placeholder="Rechercher un produit..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                    </div>
+                    <div class="relative w-full md:w-1/2">
+                        <input type="text" id="productBar" class="w-full px-3 py-2 border rounded-md" placeholder="Scanner ou entrer code-barres" required>
+                        <button id="scanButton" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition duration-300" onclick="startScanner()">
+                            <i class="fas fa-camera"></i> Scanner
+                        </button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto mt-4 max-h-[300px] overflow-y-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50 sticky top-0 z-10">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Désignation</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Vente</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Achat</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                            </tr>
+                        </thead>
+                        <tbody id="productsList" class="bg-white divide-y divide-gray-200">
+                            <tr>
+                                <td colspan="7" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
-            <!-- Gestion Clients -->
-            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="clientsSection">
-                <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('clientsSection')">
-                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-users mr-2 text-indigo-500"></i> Gestion Clients
-                        <span id="clientCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                    </h2>
-                    <button class="text-gray-600 hover:text-gray-800 transition">
-                        <i class="fas fa-chevron-down" id="clientsChevron"></i>
-                    </button>
-                </div>
-                <div class="p-6 hidden" id="clientsContent">
-                    <div class="mb-4">
-                        <div class="relative">
-                            <input type="text" id="searchClient" placeholder="Rechercher des clients..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                        </div>
-                        <div class="flex justify-end mt-2">
-                            <button onclick="toggleClientForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-plus mr-2"></i>Ajouter
-                            </button>
-                        </div>
-                    </div>
-
-                    <div id="clientForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
-                        <h3 class="font-medium mb-3">Nouveau Client</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
-                                <input type="text" id="clientNom" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Solde*</label>
-                                <input type="number" id="clientSolde" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Référence*</label>
-                                <input type="text" id="clientReference" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Contact</label>
-                                <input type="text" id="clientContact" class="w-full px-3 py-2 border rounded-md">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
-                                <input type="text" id="clientAdresse" class="w-full px-3 py-2 border rounded-md">
-                            </div>
-                        </div>
-                        <div class="flex justify-end space-x-3 mt-4">
-                            <button onclick="resetClientForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-times mr-2"></i>Annuler
-                            </button>
-                            <button onclick="ajouterClient()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-save mr-2"></i>Enregistrer
-                            </button>
-                        </div>
-                    </div>
-
+        <!-- Gestion des Ventes -->
+        <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="salesSection">
+            <div class="p-6 flex justify-between items-center">
+                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                    <i class="fas fa-receipt mr-2 text-indigo-500"></i> Ventes
+                    <span id="saleItemCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                </h2>
+            </div>
+            <div class="p-6">
+                <!-- Table temporaire des lignes de vente -->
+                <div class="mb-6">
+                    <h3 class="font-medium mb-3">Lignes de la vente en cours</h3>
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Unitaire</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Total</th>
                                 </tr>
                             </thead>
-                            <tbody id="clientsList" class="bg-white divide-y divide-gray-200">
+                            <tbody id="tempSalesList" class="bg-white divide-y divide-gray-200">
                                 <tr>
-                                    <td colspan="6" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                                    <td colspan="6" class="text-center py-4 text-gray-500">Aucune ligne ajoutée</td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
-                </div>
-            </div>
-
-            <!-- Gestion Fournisseurs -->
-            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="fournisseursSection">
-                <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('fournisseursSection')">
-                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-truck mr-2 text-indigo-500"></i> Gestion Fournisseurs
-                        <span id="fournisseurCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                    </h2>
-                    <button class="text-gray-600 hover:text-gray-800 transition">
-                        <i class="fas fa-chevron-down" id="fournisseursChevron"></i>
-                    </button>
-                </div>
-                <div class="p-6 hidden" id="fournisseursContent">
-                    <div class="mb-4">
-                        <div class="relative">
-                            <input type="text" id="searchFournisseur" placeholder="Rechercher des fournisseurs..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                    <div class="mt-4 flex justify-between items-center">
+                        <div>
+                            <span class="text-sm font-medium text-gray-700">Total: </span>
+                            <span id="totalSale" class="text-lg font-bold text-indigo-600 animate-total-pulse">0.00 DA</span>
                         </div>
-                        <div class="flex justify-end mt-2">
-                            <button onclick="toggleFournisseurForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-plus mr-2"></i>Ajouter
+                        <div class="flex space-x-2">
+                            <button id="printSaleButton80mm" onclick="imprimerVente80mm()" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition duration-300 transform hover:scale-105" disabled>
+                                <i class="fas fa-print mr-2"></i>Imprimer 80mm
+                            </button>
+                            <button id="printSaleButtonA4" onclick="imprimerVenteA4()" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition duration-300 transform hover:scale-105" disabled>
+                                <i class="fas fa-file-pdf mr-2"></i>Imprimer A4
+                            </button>
+                            <button id="validateSaleButton" onclick="validerVente()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105" disabled>
+                                <i class="fas fa-check mr-2"></i>Valider la vente
                             </button>
                         </div>
-                    </div>
-
-                    <div id="fournisseurForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
-                        <h3 class="font-medium mb-3">Nouveau Fournisseur</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
-                                <input type="text" id="fournisseurNom" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Solde*</label>
-                                <input type="number" id="fournisseurSolde" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Référence*</label>
-                                <input type="text" id="fournisseurReference" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Contact</label>
-                                <input type="text" id="fournisseurContact" class="w-full px-3 py-2 border rounded-md">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
-                                <input type="text" id="fournisseurAdresse" class="w-full px-3 py-2 border rounded-md">
-                            </div>
-                        </div>
-                        <div class="flex justify-end space-x-3 mt-4">
-                            <button onclick="resetFournisseurForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-times mr-2"></i>Annuler
-                            </button>
-                            <button onclick="ajouterFournisseur()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-save mr-2"></i>Enregistrer
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
-                                </tr>
-                            </thead>
-                            <tbody id="fournisseursList" class="bg-white divide-y divide-gray-200">
-                                <tr>
-                                    <td colspan="6" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                                </tr>
-                            </tbody>
-                        </table>
                     </div>
                 </div>
-            </div>
-
-            <!-- Liste des Produits -->
-            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="productsSection">
-                <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('productsSection')">
-                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-boxes mr-2 text-indigo-500"></i> Liste des Produits
-                        <span id="productCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                    </h2>
-                    <button class="text-gray-600 hover:text-gray-800 transition">
-                        <i class="fas fa-chevron-down" id="productsChevron"></i>
-                    </button>
-                </div>
-                <div class="p-6 hidden" id="productsContent">
-                    <div class="mb-4">
-                        <div class="relative">
-                            <input type="text" id="searchProduct" placeholder="Rechercher des produits..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                        </div>
-                        <div class="flex justify-end mt-2">
-                            <button onclick="toggleProductForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-plus mr-2"></i>Ajouter
-                            </button>
-                        </div>
-                    </div>
-
-                    <div id="productForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
-                        <h3 class="font-medium mb-3">Nouveau Produit</h3>
-                        <div id="scannerPreview"></div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Désignation*</label>
-                                <input type="text" id="productDesignation" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div class="relative">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Code Barre*</label>
-                                <input type="text" id="productBar" class="w-full px-3 py-2 border rounded-md" required>
-                                <button id="scanButton" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition duration-300" onclick="startScanner()">
-                                    <i class="fas fa-camera"></i> Scanner
-                                </button>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Prix Vente*</label>
-                                <input type="number" id="productPrix" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Prix Achat</label>
-                                <input type="text" id="productPrixba" class="w-full px-3 py-2 border rounded-md" placeholder="Ex: 300.00">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Quantité*</label>
-                                <input type="text" id="productQte" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                        </div>
-                        <div class="flex justify-end space-x-3 mt-4">
-                            <button onclick="stopScanner()" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-stop mr-2"></i>Arrêter
-                            </button>
-                            <button onclick="resetProductForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-times mr-2"></i>Annuler
-                            </button>
-                            <button onclick="ajouterProduit()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-save mr-2"></i>Enregistrer
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Désignation</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Vente</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Achat</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                                </tr>
-                            </thead>
-                            <tbody id="productsList" class="bg-white divide-y divide-gray-200">
-                                <tr>
-                                    <td colspan="5" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Statistiques -->
-            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="statsSection">
-                <a href="page2.html" class="block p-6 flex justify-between items-center hover:bg-gray-50 transition duration-300">
-                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-chart-bar mr-2 text-indigo-500"></i> Statistiques
-                    </h2>
-                </a>
             </div>
         </div>
     </div>
 
     <!-- Footer -->
-    <footer class="bg-gray-700 text-white text-center py-4 mt-8 animate-fade-in">
+    <footer class="bg-gray-700 text-white text-center py-4 animate-fade-in">
         <p>Développé par Khelladi Hicham</p>
         <p>Tel: <a href="tel:00213553700900" class="underline hover:text-indigo-300 transition duration-300">00213553700900</a></p>
         <p>Email: <a href="mailto:Hicham.khelladi@gmail.com" class="underline hover:text-indigo-300 transition duration-300">Hicham.khelladi@gmail.com</a></p>
@@ -363,31 +256,31 @@
 
     <script>
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
+        let tempSaleLines = [];
+        let produitsCache = [];
 
-        // Générer un user_id basé sur l'email et le mot de passe
         function generateUniqueUserId(email, password) {
             const combined = `${email.toLowerCase()}:${password}`;
             return btoa(combined);
         }
 
-        // Vérifier si l'utilisateur est connecté au chargement de la page
         document.addEventListener('DOMContentLoaded', () => {
+            console.log('Page chargée, vérification utilisateur...');
             const userId = localStorage.getItem('userId');
             const userEmail = localStorage.getItem('userEmail');
             if (userId && userEmail) {
+                console.log('Utilisateur connecté:', userId, userEmail);
                 document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
                 document.getElementById('userDisplay').classList.remove('hidden');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                document.getElementById('loginModal').classList.add('hidden');
                 chargerClients();
-                chargerFournisseurs();
                 chargerProduits();
             } else {
+                console.log('Aucun utilisateur connecté, redirection vers index.html');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                document.getElementById('loginModal').classList.remove('hidden');
+                window.location.href = 'index.html';
             }
 
-            // Vérification de la connexion API
             fetch(`${API_BASE_URL}/`)
                 .then(response => response.text())
                 .then(text => console.log('Statut API:', text))
@@ -397,46 +290,8 @@
                 });
         });
 
-        // Connexion avec email et mot de passe
-        function loginWithCredentials(event) {
-            event.preventDefault();
-            const email = document.getElementById('userEmail').value.trim();
-            const password = document.getElementById('userPassword').value.trim();
-            if (!email || !password) {
-                showToast('Veuillez entrer un email et un mot de passe valides', true);
-                return;
-            }
-
-            const emailLowerCase = email.toLowerCase();
-            const storedUserId = localStorage.getItem('userId');
-            const storedEmail = localStorage.getItem('userEmail');
-
-            const userId = generateUniqueUserId(emailLowerCase, password);
-
-            if (storedUserId && storedEmail === emailLowerCase && storedUserId === userId) {
-                document.getElementById('userDisplay').textContent = emailLowerCase;
-                document.getElementById('userDisplay').classList.remove('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                document.getElementById('loginModal').classList.add('hidden');
-                chargerClients();
-                chargerFournisseurs();
-                chargerProduits();
-            } else {
-                localStorage.setItem('userId', userId);
-                localStorage.setItem('userEmail', emailLowerCase);
-                document.getElementById('userDisplay').textContent = emailLowerCase;
-                document.getElementById('userDisplay').classList.remove('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                document.getElementById('loginModal').classList.add('hidden');
-                chargerClients();
-                chargerFournisseurs();
-                chargerProduits();
-                showToast('Nouveau compte créé avec succès');
-            }
-        }
-
-        // Fonction de déconnexion
         function loginLogout() {
+            console.log('Déconnexion en cours...');
             const userId = localStorage.getItem('userId');
             if (userId) {
                 localStorage.removeItem('userId');
@@ -444,17 +299,10 @@
                 document.getElementById('userDisplay').textContent = '';
                 document.getElementById('userDisplay').classList.add('hidden');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                document.getElementById('loginModal').classList.remove('hidden');
-                document.getElementById('clientsList').innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
-                document.getElementById('fournisseursList').innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
-                document.getElementById('productsList').innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
-                document.getElementById('clientCount').classList.add('hidden');
-                document.getElementById('fournisseurCount').classList.add('hidden');
-                document.getElementById('productCount').classList.add('hidden');
+                window.location.href = 'index.html';
             }
         }
 
-        // Fonction pour afficher les notifications
         function showToast(message, isError = false) {
             const toast = document.getElementById('toast');
             const toastMessage = document.getElementById('toastMessage');
@@ -476,7 +324,6 @@
             }, 3000);
         }
 
-        // Fonction pour gérer l'animation développer/envelopper
         function toggleSection(sectionId) {
             const section = document.getElementById(sectionId);
             const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
@@ -487,8 +334,8 @@
             chevron.classList.toggle('fa-chevron-up');
         }
 
-        // --- Gestion des clients ---
         async function chargerClients() {
+            console.log('Chargement des clients...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour voir les clients', true);
@@ -497,554 +344,475 @@
 
             try {
                 const response = await fetch(`${API_BASE_URL}/liste_clients`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
+                    headers: { 'X-User-ID': userId }
                 });
+                console.log('Réponse liste_clients:', response.status, response.statusText);
                 if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                    const errorText = await response.text();
+                    console.error('Erreur texte liste_clients:', errorText);
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 const clients = await response.json();
-                const tbody = document.getElementById('clientsList');
-                const countElement = document.getElementById('clientCount');
+                console.log('Clients reçus:', clients);
+                const selectElement = document.getElementById('saleClientId');
 
-                if (clients.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun client trouvé</td></tr>';
-                    countElement.textContent = '0';
-                    countElement.classList.remove('hidden');
-                    return;
-                }
-
-                tbody.innerHTML = '';
                 clients.forEach(client => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.numero_clt || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${client.nom || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.solde || '0'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.reference || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.contact || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.adresse || 'N/A'}</td>
-                    `;
-                    tbody.appendChild(tr);
+                    const option = document.createElement('option');
+                    option.value = client.numero_clt;
+                    option.textContent = `${client.nom} (ID: ${client.numero_clt})`;
+                    selectElement.appendChild(option);
                 });
-                countElement.textContent = clients.length;
-                countElement.classList.remove('hidden');
             } catch (error) {
-                document.getElementById('clientsList').innerHTML = `
-                    <tr>
-                        <td colspan="6" class="text-center py-4 text-red-500">
-                            Erreur de chargement: ${error.message}
-                        </td>
-                    </tr>
-                `;
+                showToast('Erreur lors du chargement des clients: ' + error.message, true);
                 console.error('Erreur clients:', error);
             }
         }
 
-        async function ajouterClient() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour ajouter un client', true);
-                return;
-            }
-
-            const nom = document.getElementById('clientNom').value.trim();
-            const solde = document.getElementById('clientSolde').value.trim();
-            const reference = document.getElementById('clientReference').value.trim();
-            const contact = document.getElementById('clientContact').value.trim();
-            const adresse = document.getElementById('clientAdresse').value.trim();
-
-            if (!nom || !solde || !reference) {
-                showToast('Veuillez remplir tous les champs obligatoires', true);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/ajouter_client`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({
-                        nom,
-                        solde: parseFloat(solde),
-                        reference,
-                        contact,
-                        adresse
-                    })
-                });
-
-                const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de l\'ajout');
-                }
-
-                showToast('Client ajouté avec succès');
-                resetClientForm();
-                chargerClients();
-            } catch (error) {
-                showToast(error.message, true);
-                console.error('Erreur ajout client:', error);
-            }
-        }
-
-        function resetClientForm() {
-            document.getElementById('clientNom').value = '';
-            document.getElementById('clientSolde').value = '';
-            document.getElementById('clientReference').value = '';
-            document.getElementById('clientContact').value = '';
-            document.getElementById('clientAdresse').value = '';
-            document.getElementById('clientForm').classList.add('hidden');
-        }
-
-        function toggleClientForm() {
-            document.getElementById('clientForm').classList.toggle('hidden');
-        }
-
-        document.getElementById('searchClient').addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const rows = document.querySelectorAll('#clientsList tr');
-
-            rows.forEach(row => {
-                const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-                const reference = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
-                const contact = row.querySelector('td:nth-child(5)')?.textContent.toLowerCase();
-                const adresse = row.querySelector('td:nth-child(6)')?.textContent.toLowerCase();
-                if (nom?.includes(searchTerm) || reference?.includes(searchTerm) || contact?.includes(searchTerm) || adresse?.includes(searchTerm)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-
-        // --- Gestion des fournisseurs ---
-        async function chargerFournisseurs() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les fournisseurs', true);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_fournisseurs`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
-                });
-                if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-                }
-                const fournisseurs = await response.json();
-                const tbody = document.getElementById('fournisseursList');
-                const countElement = document.getElementById('fournisseurCount');
-
-                if (fournisseurs.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun fournisseur trouvé</td></tr>';
-                    countElement.textContent = '0';
-                    countElement.classList.remove('hidden');
-                    return;
-                }
-
-                tbody.innerHTML = '';
-                fournisseurs.forEach(fournisseur => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.numero_fou || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${fournisseur.nom || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.solde || '0'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.reference || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.contact || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.adresse || 'N/A'}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-                countElement.textContent = fournisseurs.length;
-                countElement.classList.remove('hidden');
-            } catch (error) {
-                document.getElementById('fournisseursList').innerHTML = `
-                    <tr>
-                        <td colspan="6" class="text-center py-4 text-red-500">
-                            Erreur de chargement: ${error.message}
-                        </td>
-                    </tr>
-                `;
-                console.error('Erreur fournisseurs:', error);
-            }
-        }
-
-        async function ajouterFournisseur() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour ajouter un fournisseur', true);
-                return;
-            }
-
-            const nom = document.getElementById('fournisseurNom').value.trim();
-            const solde = document.getElementById('fournisseurSolde').value.trim();
-            const reference = document.getElementById('fournisseurReference').value.trim();
-            const contact = document.getElementById('fournisseurContact').value.trim();
-            const adresse = document.getElementById('fournisseurAdresse').value.trim();
-
-            if (!nom || !solde || !reference) {
-                showToast('Veuillez remplir tous les champs obligatoires', true);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/ajouter_fournisseur`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({
-                        nom,
-                        solde: parseFloat(solde),
-                        reference,
-                        contact,
-                        adresse
-                    })
-                });
-
-                const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de l\'ajout');
-                }
-
-                showToast('Fournisseur ajouté avec succès');
-                resetFournisseurForm();
-                chargerFournisseurs();
-            } catch (error) {
-                showToast(error.message, true);
-                console.error('Erreur ajout fournisseur:', error);
-            }
-        }
-
-        function resetFournisseurForm() {
-            document.getElementById('fournisseurNom').value = '';
-            document.getElementById('fournisseurSolde').value = '';
-            document.getElementById('fournisseurReference').value = '';
-            document.getElementById('fournisseurContact').value = '';
-            document.getElementById('fournisseurAdresse').value = '';
-            document.getElementById('fournisseurForm').classList.add('hidden');
-        }
-
-        function toggleFournisseurForm() {
-            document.getElementById('fournisseurForm').classList.toggle('hidden');
-        }
-
-        document.getElementById('searchFournisseur').addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const rows = document.querySelectorAll('#fournisseursList tr');
-
-            rows.forEach(row => {
-                const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-                const reference = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
-                const contact = row.querySelector('td:nth-child(5)')?.textContent.toLowerCase();
-                const adresse = row.querySelector('td:nth-child(6)')?.textContent.toLowerCase();
-                if (nom?.includes(searchTerm) || reference?.includes(searchTerm) || contact?.includes(searchTerm) || adresse?.includes(searchTerm)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-
-        // --- Gestion des produits ---
         async function chargerProduits() {
+            console.log('Début du chargement des produits...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour voir les produits', true);
+                console.log('Utilisateur non connecté, arrêt du chargement des produits.');
                 return;
             }
 
+            console.log('User ID:', userId);
+
             try {
                 const response = await fetch(`${API_BASE_URL}/liste_produits`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
+                    headers: { 'X-User-ID': userId }
                 });
+                console.log('Réponse API:', response.status, response.statusText);
                 if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                    const errorText = await response.text();
+                    console.error('Erreur texte liste_produits:', errorText);
+                    showToast(`Erreur chargement produits: ${errorText}`, true);
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
-                const produits = await response.json();
+                produitsCache = await response.json();
+                console.log('Données produits reçues:', produitsCache);
+
                 const tbody = document.getElementById('productsList');
                 const countElement = document.getElementById('productCount');
 
-                if (produits.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
+                if (!Array.isArray(produitsCache)) {
+                    console.error('Les données des produits ne sont pas un tableau:', produitsCache);
+                    showToast('Erreur: Les données des produits sont invalides', true);
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Erreur: Données invalides</td></tr>';
+                    return;
+                }
+
+                produitsCache = produitsCache.map(produit => ({
+                    ...produit,
+                    NUMERO_ITEM: parseInt(produit.NUMERO_ITEM) || 0,
+                    BAR: parseInt(produit.BAR) || 0,
+                    PRIXBA: parseFloat(produit.PRIXBA) || 0.0,
+                    PRIX: parseFloat(produit.PRIX) || 0.0,
+                    QTE: parseInt(produit.QTE) || 0,
+                    DESIGNATION: produit.DESIGNATION || 'N/A'
+                }));
+
+                if (produitsCache.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
                     countElement.textContent = '0';
                     countElement.classList.remove('hidden');
                     return;
                 }
 
                 tbody.innerHTML = '';
-                produits.forEach(produit => {
+                produitsCache.forEach(produit => {
+                    console.log('Rendu produit:', produit);
                     const tr = document.createElement('tr');
                     tr.className = 'hover:bg-gray-50';
                     tr.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.PRIX || '0'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.PRIXBA || '0.00'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <button onclick="selectProduct(${produit.NUMERO_ITEM}, ${produit.BAR}, ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition duration-300">
+                                Ajouter
+                            </button>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.NUMERO_ITEM}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.PRIX.toFixed(2)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.PRIXBA.toFixed(2)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE}</td>
                     `;
                     tbody.appendChild(tr);
                 });
-                countElement.textContent = produits.length;
+                countElement.textContent = produitsCache.length;
                 countElement.classList.remove('hidden');
             } catch (error) {
                 document.getElementById('productsList').innerHTML = `
                     <tr>
-                        <td colspan="5" class="text-center py-4 text-red-500">
+                        <td colspan="7" class="text-center py-4 text-red-500">
                             Erreur de chargement: ${error.message}
                         </td>
                     </tr>
                 `;
                 console.error('Erreur produits:', error);
+                showToast(`Erreur chargement produits: ${error.message}`, true);
             }
         }
 
-        async function ajouterProduit() {
+        function selectProduct(numeroItem, bar, prix, prixba, stock, designation) {
+            console.log('Produit ajouté:', numeroItem, bar, prix, prixba, stock, designation);
+            const numeroItemInt = parseInt(numeroItem);
+            const barInt = parseInt(bar);
+            const unitPrice = parseFloat(prix) || 0;
+            const pricePurchase = parseFloat(prixba) || 0;
+            const quantity = 1; // Quantité par défaut
+
+            if (isNaN(numeroItemInt) || isNaN(barInt) || unitPrice <= 0) {
+                showToast('Produit invalide ou prix incorrect', true);
+                return;
+            }
+
+            if (stock <= 0) {
+                showToast('Stock insuffisant pour ce produit', true);
+                return;
+            }
+
+            const produit = produitsCache.find(p => p.NUMERO_ITEM === numeroItemInt);
+            const existingLine = tempSaleLines.find(line => line.numero_item === numeroItemInt);
+            const totalQuantity = (existingLine ? existingLine.quantite : 0) + quantity;
+
+            if (produit && totalQuantity > produit.QTE) {
+                showToast('Quantité demandée supérieure au stock disponible', true);
+                return;
+            }
+
+            const priceTotal = quantity * unitPrice;
+            const existingLineIndex = tempSaleLines.findIndex(line => line.numero_item === numeroItemInt);
+
+            if (existingLineIndex >= 0) {
+                tempSaleLines[existingLineIndex].quantite = totalQuantity;
+                tempSaleLines[existingLineIndex].prixt = totalQuantity * unitPrice;
+                tempSaleLines[existingLineIndex].remarque = unitPrice.toFixed(2);
+            } else {
+                tempSaleLines.push({
+                    numero_item: numeroItemInt,
+                    produit_bar: barInt.toString(),
+                    designation: designation || 'N/A',
+                    quantite: quantity,
+                    prixt: priceTotal,
+                    remarque: unitPrice.toFixed(2),
+                    prixbh: pricePurchase
+                });
+            }
+
+            updateTempSalesTable();
+            showToast(`Produit ajouté : ${designation}`);
+        }
+
+        function updateTempSalesTable() {
+            const tbody = document.getElementById('tempSalesList');
+            const totalElement = document.getElementById('totalSale');
+            const itemCountElement = document.getElementById('saleItemCount');
+            const validateButton = document.getElementById('validateSaleButton');
+            const printButton80mm = document.getElementById('printSaleButton80mm');
+            const printButtonA4 = document.getElementById('printSaleButtonA4');
+
+            if (tempSaleLines.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucune ligne ajoutée</td></tr>';
+                totalElement.textContent = '0.00 DA';
+                itemCountElement.textContent = '0';
+                itemCountElement.classList.add('hidden');
+                validateButton.disabled = true;
+                printButton80mm.disabled = true;
+                printButtonA4.disabled = true;
+                return;
+            }
+
+            tbody.innerHTML = '';
+            let total = 0;
+            let totalItems = 0;
+
+            tempSaleLines.forEach((ligne, index) => {
+                console.log('Ligne:', ligne);
+                const lineTotal = parseFloat(ligne.prixt) || 0;
+                total += lineTotal;
+                totalItems += ligne.quantite;
+
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50';
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <button onclick="supprimerLigne(${index})" class="bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ligne.numero_item}</td>
+                    <td class="px-6 py-4 text-sm text-gray-900">${ligne.designation || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div class="flex items-center space-x-2">
+                            <button onclick="modifierQuantite(${index}, -1)" class="bg-gray-300 text-gray-700 px-2 py-1 rounded-md hover:bg-gray-400 transition">-</button>
+                            <span>${ligne.quantite}</span>
+                            <button onclick="modifierQuantite(${index}, 1)" class="bg-gray-300 text-gray-700 px-2 py-1 rounded-md hover:bg-gray-400 transition">+</button>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <input type="number" step="0.01" value="${parseFloat(ligne.remarque).toFixed(2)}" onchange="modifierPrix(${index}, this.value)" class="quantity-input px-2 py-1 border rounded-md">
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${lineTotal.toFixed(2)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            totalElement.textContent = `${total.toFixed(2)} DA`;
+            totalElement.classList.add('animate-total-pulse');
+            setTimeout(() => totalElement.classList.remove('animate-total-pulse'), 1500);
+            itemCountElement.textContent = totalItems;
+            itemCountElement.classList.remove('hidden');
+            validateButton.disabled = false;
+            printButton80mm.disabled = false;
+            printButtonA4.disabled = false;
+        }
+
+        function modifierQuantite(index, delta) {
+            const ligne = tempSaleLines[index];
+            const produit = produitsCache.find(p => p.NUMERO_ITEM === ligne.numero_item);
+            const newQuantity = ligne.quantite + delta;
+
+            if (newQuantity <= 0) {
+                supprimerLigne(index);
+                return;
+            }
+
+            if (produit && newQuantity > produit.QTE) {
+                showToast('Quantité demandée supérieure au stock disponible', true);
+                return;
+            }
+
+            ligne.quantite = newQuantity;
+            ligne.prixt = newQuantity * parseFloat(ligne.remarque);
+            updateTempSalesTable();
+            showToast(`Quantité mise à jour: ${ligne.quantite}`);
+        }
+
+        function modifierPrix(index, newPrice) {
+            const price = parseFloat(newPrice);
+            if (isNaN(price) || price <= 0) {
+                showToast('Prix unitaire invalide', true);
+                return;
+            }
+
+            const ligne = tempSaleLines[index];
+            ligne.remarque = price.toFixed(2);
+            ligne.prixt = ligne.quantite * price;
+            updateTempSalesTable();
+            showToast('Prix unitaire mis à jour');
+        }
+
+        function supprimerLigne(index) {
+            const ligne = tempSaleLines[index];
+            tempSaleLines.splice(index, 1);
+            updateTempSalesTable();
+            showToast(`Ligne "${ligne.designation}" supprimée`);
+        }
+
+        async function validerVente() {
+            console.log('Validation vente...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Veuillez vous connecter pour ajouter un produit', true);
+                showToast('Veuillez vous connecter pour valider la vente', true);
                 return;
             }
 
-            const designation = document.getElementById('productDesignation').value.trim();
-            const bar = document.getElementById('productBar').value.trim();
-            const prix = document.getElementById('productPrix').value.trim();
-            const prixba = document.getElementById('productPrixba').value.trim();
-            const qte = document.getElementById('productQte').value.trim();
-
-            if (!designation || !bar || !prix || !qte) {
-                showToast('Veuillez remplir tous les champs obligatoires', true);
+            if (tempSaleLines.length === 0) {
+                showToast('Aucune ligne à valider', true);
                 return;
             }
+
+            const venteData = {
+                numero_table: parseInt(document.getElementById('saleClientId').value) || 0,
+                date_comande: new Date().toISOString(),
+                nature: 'vente',
+                lignes: tempSaleLines.map(ligne => ({
+                    numero_item: ligne.numero_item,
+                    quantite: ligne.quantite,
+                    prixt: ligne.prixt,
+                    remarque: ligne.remarque,
+                    prixbh: ligne.prixbh
+                }))
+            };
 
             try {
-                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
-                });
-                if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-                }
-                const produits = await response.json();
-                const codeBarExists = produits.some(produit => produit.BAR === bar);
-                if (codeBarExists) {
-                    showToast('Ce code-barres existe déjà dans la liste des produits.', true);
-                    return;
-                }
-            } catch (error) {
-                showToast('Erreur lors de la vérification des doublons: ' + error.message, true);
-                console.error('Erreur vérification doublons:', error);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/ajouter_item`, {
+                const response = await fetch(`${API_BASE_URL}/valider_vente`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-User-ID': userId
                     },
-                    body: JSON.stringify({
-                        designation,
-                        bar,
-                        prix: parseFloat(prix),
-                        prixba: prixba || '0.00',
-                        qte: parseInt(qte)
-                    })
+                    body: JSON.stringify(venteData)
                 });
-
-                const result = await response.json();
+                console.log('Réponse valider_vente:', response.status, response.statusText);
                 if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de l\'ajout');
+                    const errorText = await response.text();
+                    console.error('Erreur texte valider_vente:', errorText);
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
+                const result = await response.json();
+                console.log('Vente validée:', result);
 
-                showToast('Produit ajouté avec succès');
-                resetProductForm();
+                showToast(`Vente #${result.numero_comande} validée avec succès`);
+                tempSaleLines = [];
+                updateTempSalesTable();
                 chargerProduits();
             } catch (error) {
-                showToast(error.message, true);
-                console.error('Erreur ajout produit:', error);
+                console.error('Erreur validation vente:', error);
+                showToast(`Erreur validation vente: ${error.message}`, true);
             }
         }
 
-        function resetProductForm() {
-            document.getElementById('productDesignation').value = '';
-            document.getElementById('productBar').value = '';
-            document.getElementById('productPrix').value = '';
-            document.getElementById('productPrixba').value = '';
-            document.getElementById('productQte').value = '';
-            document.getElementById('productForm').classList.add('hidden');
-            stopScanner();
-        }
+        function imprimerVente80mm() {
+            console.log('Génération de l\'aperçu d\'impression 80mm...');
+            if (tempSaleLines.length === 0) {
+                showToast('Aucune ligne à imprimer', true);
+                return;
+            }
 
-        function toggleProductForm() {
-            document.getElementById('productForm').classList.toggle('hidden');
-        }
+            const clientSelect = document.getElementById('saleClientId');
+            const clientValue = clientSelect.value;
+            const clientText = clientValue === '0' ? 'Vente Comptoir' : clientSelect.options[clientSelect.selectedIndex].text;
+            const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0).toFixed(2);
 
-        document.getElementById('searchProduct').addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const rows = document.querySelectorAll('#productsList tr');
+            let ticketContent = `
+                <div class="printable">
+                    <h1>FirePoz</h1>
+                    <p>Date: ${new Date().toLocaleString('fr-FR')}</p>
+                    <p>Client: ${clientText}</p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Produit</th>
+                                <th>Qté</th>
+                                <th>Prix U.</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
 
-            rows.forEach(row => {
-                const designation = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-                if (designation?.includes(searchTerm)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
+            tempSaleLines.forEach(ligne => {
+                ticketContent += `
+                    <tr>
+                        <td>${ligne.numero_item || 'N/A'}</td>
+                        <td>${ligne.designation || 'N/A'}</td>
+                        <td>${ligne.quantite || 0}</td>
+                        <td>${parseFloat(ligne.remarque || 0).toFixed(2)}</td>
+                        <td>${parseFloat(ligne.prixt || 0).toFixed(2)}</td>
+                    </tr>
+                `;
             });
-        });
 
-        // --- Scanner de code-barres avec Barcode Detection API ---
-        let stream = null;
-        let barcodeDetector = null;
-        let isScanning = false;
+            ticketContent += `
+                        </tbody>
+                    </table>
+                    <p class="total">Total: ${total} DA</p>
+                    <p style="text-align: center; margin-top: 3mm;">Merci de votre achat !</p>
+                </div>
+            `;
 
-        async function startScanner() {
-            if (!('BarcodeDetector' in window)) {
-                showToast('Le scanner de code-barres n\'est pas supporté par ce navigateur. Utilisez Chrome ou Edge.', true);
+            const printWindow = window.open('', '_blank', 'width=320,height=480');
+            if (!printWindow) {
+                showToast('Impossible d\'ouvrir l\'aperçu. Veuillez désactiver votre bloqueur de pop-up.', true);
                 return;
             }
 
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                showToast('L\'accès à la caméra n\'est pas supporté par ce navigateur.', true);
-                return;
-            }
-
-            const preview = document.getElementById('scannerPreview');
-            const scanButton = document.getElementById('scanButton');
-            preview.style.display = 'block';
-            scanButton.disabled = true;
-            isScanning = true;
-
-            try {
-                barcodeDetector = new BarcodeDetector({
-                    formats: ['ean_13', 'code_128', 'upc_a', 'upc_e', 'qr_code']
-                });
-
-                const supportedFormats = await BarcodeDetector.getSupportedFormats();
-                console.log('Formats supportés :', supportedFormats);
-                if (supportedFormats.length === 0) {
-                    throw new Error('Aucun format de code-barres supporté par ce navigateur.');
-                }
-
-                stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment' }
-                });
-
-                const video = document.createElement('video');
-                video.srcObject = stream;
-                video.autoplay = true;
-                video.playsinline = true;
-                preview.innerHTML = '';
-                preview.appendChild(video);
-
-                video.onloadedmetadata = () => {
-                    console.log('Vidéo prête pour la détection.');
-                    detectBarcodes(video);
-                };
-            } catch (err) {
-                console.error('Erreur lors du démarrage du scanner :', err);
-                let errorMessage = 'Erreur lors du démarrage du scanner : ';
-                if (err.name === 'NotAllowedError') {
-                    errorMessage += 'Accès à la caméra refusé. Veuillez autoriser l\'accès à la caméra.';
-                } else if (err.name === 'NotFoundError') {
-                    errorMessage += 'Aucune caméra trouvée sur cet appareil.';
-                } else {
-                    errorMessage += err.message;
-                }
-                showToast(errorMessage, true);
-                stopScanner();
-            }
-        }
-
-        async function detectBarcodes(video) {
-            if (!isScanning) return;
-
-            try {
-                const barcodes = await barcodeDetector.detect(video);
-                if (barcodes.length > 0) {
-                    const barcode = barcodes[0];
-                    const scannedCode = barcode.rawValue;
-
-                    const userId = localStorage.getItem('userId');
-                    if (!userId) {
-                        showToast('Veuillez vous connecter pour scanner un code-barres', true);
-                        stopScanner();
-                        return;
-                    }
-
-                    try {
-                        const response = await fetch(`${API_BASE_URL}/liste_produits`, {
-                            headers: {
-                                'X-User-ID': userId
+            printWindow.document.write(`
+                <html>
+                    <head>
+                        <title>Aperçu Impression 80mm - FirePoz</title>
+                        <style>
+                            body {
+                                margin: 0;
+                                padding: 10mm;
+                                background: #fff;
+                                display: flex;
+                                justify-content: center;
+                                align-items: center;
+                                min-height: 100vh;
                             }
-                        });
-                        if (!response.ok) {
-                            throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-                        }
-                        const produits = await response.json();
-                        const codeBarExists = produits.some(produit => produit.BAR === scannedCode);
-                        if (codeBarExists) {
-                            showToast(`Ce code-barres existe déjà : ${scannedCode}`, true);
-                            stopScanner();
-                        } else {
-                            document.getElementById('productBar').value = scannedCode;
-                            showToast('Code-barres scanné : ' + scannedCode);
-                            stopScanner();
-                        }
-                    } catch (error) {
-                        showToast('Erreur lors de la vérification des doublons: ' + error.message, true);
-                        stopScanner();
-                    }
-                } else {
-                    requestAnimationFrame(() => detectBarcodes(video));
-                }
-            } catch (err) {
-                console.error('Erreur lors de la détection du code-barres :', err);
-                let errorMessage = 'Erreur lors de la détection du code-barres : ';
-                if (err.name === 'NotReadableError') {
-                    errorMessage += 'Impossible de lire le code-barres. Assurez-vous qu\'il est bien visible et éclairé.';
-                } else {
-                    errorMessage += err.message;
-                }
-                showToast(errorMessage, true);
-                stopScanner();
-            }
+                            .printable {
+                                width: 80mm;
+                                font-family: Arial, sans-serif;
+                                font-size: 10pt;
+                                line-height: 1.2;
+                                color: #000;
+                                box-shadow: 0 0 5mm rgba(0, 0, 0, 0.1);
+                            }
+                            .printable h1 {
+                                font-size: 14pt;
+                                text-align: center;
+                                margin-bottom: 5mm;
+                            }
+                            .printable p, .printable table {
+                                margin-bottom: 3mm;
+                            }
+                            .printable table {
+                                width: 100%;
+                                border-collapse: collapse;
+                            }
+                            .printable th, .printable td {
+                                border: 0.5mm solid #000;
+                                padding: 1mm;
+                                font-size: 8pt;
+                                text-align: left;
+                            }
+                            .printable .total {
+                                font-weight: bold;
+                                font-size: 10pt;
+                                text-align: right;
+                            }
+                            .print-controls {
+                                text-align: center;
+                                margin-top: 10mm;
+                            }
+                            .print-controls button {
+                                padding: 5mm 10mm;
+                                margin: 0 5mm;
+                                font-size: 10pt;
+                                cursor: pointer;
+                            }
+                            @media print {
+                                body {
+                                    margin: 0;
+                                    padding: 0;
+                                }
+                                .print-controls {
+                                    display: none;
+                                }
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        ${ticketContent}
+                        <div class="print-controls">
+                            <button onclick="window.print(); window.close();" style="background-color: #4CAF50; color: white; border: none; border-radius: 5mm;">Imprimer</button>
+                            <button onclick="window.close();" style="background-color: #f44336; color: white; border: none; border-radius: 5mm;">Annuler</button>
+                        </div>
+                    </body>
+                </html>
+            `);
+            printWindow.document.close();
         }
 
-        function stopScanner() {
-            isScanning = false;
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                stream = null;
+        function imprimerVenteA4() {
+            console.log('Génération de l\'aperçu d\'impression A4...');
+            if (tempSaleLines.length === 0) {
+                showToast('Aucune ligne à imprimer', true);
+                return;
             }
-            const preview = document.getElementById('scannerPreview');
-            const scanButton = document.getElementById('scanButton');
-            preview.style.display = 'none';
-            preview.innerHTML = '';
-            scanButton.disabled = false;
-        }
 
-        // Gestion des erreurs CORS
-        window.addEventListener('unhandledrejection', event => {
-            if (event.reason.message.includes('Failed to fetch')) {
-                showToast('Erreur de connexion au serveur. Vérifiez l\'URL ou les paramètres CORS.', true);
-            }
-        });
-    </script>
-</body>
-</html>
+            const clientSelect = document.getElementById('saleClientId');
+            const clientValue = clientSelect.value;
+            const clientText = clientValue === '0' ? 'Vente Comptoir' : clientSelect.options[clientSelect.selectedIndex].text;
+            const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0).toFixed(2);
+            const saleNumber = `VENTE-${Date.now()}`; // Numéro unique de vente
 
+            let ticketContent = `
+                <div class="printable">
+                    <div style="text-align: center; margin-bottom: 20mm;">
+                        <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAABmJLR0QA/wD/AP+gvaeTAAAB+UlEQVRoge2ZvUoDQRSGv3lAC7WxtbGxsQv+AbGysbGxsVHU2NjY2NhYWFhY2NhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhY
