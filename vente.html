@@ -92,6 +92,47 @@
         .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
         .small-email { font-size: 0.75rem; line-height: 1rem; }
         .quantity-input { width: 60px; }
+
+        /* Styles pour l'impression */
+        @media print {
+            body, nav, footer, #toast, #scannerOverlay, #scannerPreview, #productsSection, .sticky, #salesSection > div:not(.printable) {
+                display: none !important;
+            }
+            .printable {
+                display: block !important;
+                width: 80mm;
+                margin: 0;
+                padding: 5mm;
+                font-family: Arial, sans-serif;
+                font-size: 10pt;
+                line-height: 1.2;
+                color: #000;
+                background: #fff;
+            }
+            .printable h1 {
+                font-size: 14pt;
+                text-align: center;
+                margin-bottom: 5mm;
+            }
+            .printable p, .printable table {
+                margin-bottom: 3mm;
+            }
+            .printable table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+            .printable th, .printable td {
+                border: 0.5mm solid #000;
+                padding: 1mm;
+                font-size: 8pt;
+                text-align: left;
+            }
+            .printable .total {
+                font-weight: bold;
+                font-size: 10pt;
+                text-align: right;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -222,9 +263,14 @@
                             <span class="text-sm font-medium text-gray-700">Total: </span>
                             <span id="totalSale" class="text-lg font-bold text-indigo-600 animate-total-pulse">0.00 DA</span>
                         </div>
-                        <button id="validateSaleButton" onclick="validerVente()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105" disabled>
-                            <i class="fas fa-check mr-2"></i>Valider la vente
-                        </button>
+                        <div class="flex space-x-2">
+                            <button id="printSaleButton" onclick="imprimerVente()" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition duration-300 transform hover:scale-105" disabled>
+                                <i class="fas fa-print mr-2"></i>Imprimer
+                            </button>
+                            <button id="validateSaleButton" onclick="validerVente()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105" disabled>
+                                <i class="fas fa-check mr-2"></i>Valider la vente
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -487,6 +533,7 @@
             const totalElement = document.getElementById('totalSale');
             const itemCountElement = document.getElementById('saleItemCount');
             const validateButton = document.getElementById('validateSaleButton');
+            const printButton = document.getElementById('printSaleButton');
 
             if (tempSaleLines.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucune ligne ajoutée</td></tr>';
@@ -494,6 +541,7 @@
                 itemCountElement.textContent = '0';
                 itemCountElement.classList.add('hidden');
                 validateButton.disabled = true;
+                printButton.disabled = true;
                 return;
             }
 
@@ -538,6 +586,7 @@
             itemCountElement.textContent = totalItems;
             itemCountElement.classList.remove('hidden');
             validateButton.disabled = false;
+            printButton.disabled = false;
         }
 
         function modifierQuantite(index, delta) {
@@ -634,6 +683,112 @@
                 console.error('Erreur validation vente:', error);
                 showToast(`Erreur validation vente: ${error.message}`, true);
             }
+        }
+
+        function imprimerVente() {
+            console.log('Impression de la vente...');
+            if (tempSaleLines.length === 0) {
+                showToast('Aucune ligne à imprimer', true);
+                return;
+            }
+
+            // Récupérer les informations du client
+            const clientSelect = document.getElementById('saleClientId');
+            const clientValue = clientSelect.value;
+            const clientText = clientValue === '0' ? 'Vente Comptoir' : clientSelect.options[clientSelect.selectedIndex].text;
+
+            // Calculer le total
+            const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0).toFixed(2);
+
+            // Générer le contenu du ticket
+            let ticketContent = `
+                <div class="printable">
+                    <h1>FirePoz</h1>
+                    <p>Date: ${new Date().toLocaleString('fr-FR')}</p>
+                    <p>Client: ${clientText}</p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Produit</th>
+                                <th>Qté</th>
+                                <th>Prix U.</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            tempSaleLines.forEach(ligne => {
+                ticketContent += `
+                    <tr>
+                        <td>${ligne.numero_item}</td>
+                        <td>${ligne.designation || 'N/A'}</td>
+                        <td>${ligne.quantite}</td>
+                        <td>${parseFloat(ligne.remarque).toFixed(2)}</td>
+                        <td>${parseFloat(ligne.prixt).toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+
+            ticketContent += `
+                        </tbody>
+                    </table>
+                    <p class="total">Total: ${total} DA</p>
+                    <p style="text-align: center; margin-top: 3mm;">Merci de votre achat !</p>
+                </div>
+            `;
+
+            // Créer une nouvelle fenêtre pour l'impression
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <html>
+                    <head>
+                        <title>Impression Ticket - FirePoz</title>
+                        <style>
+                            @media print {
+                                body {
+                                    margin: 0;
+                                    padding: 0;
+                                    width: 80mm;
+                                    font-family: Arial, sans-serif;
+                                    font-size: 10pt;
+                                    line-height: 1.2;
+                                    color: #000;
+                                    background: #fff;
+                                }
+                                h1 {
+                                    font-size: 14pt;
+                                    text-align: center;
+                                    margin-bottom: 5mm;
+                                }
+                                p, table {
+                                    margin-bottom: 3mm;
+                                }
+                                table {
+                                    width: 100%;
+                                    border-collapse: collapse;
+                                }
+                                th, td {
+                                    border: 0.5mm solid #000;
+                                    padding: 1mm;
+                                    font-size: 8pt;
+                                    text-align: left;
+                                }
+                                .total {
+                                    font-weight: bold;
+                                    font-size: 10pt;
+                                    text-align: right;
+                                }
+                            }
+                        </style>
+                    </head>
+                    <body onload="window.print(); window.close();">
+                        ${ticketContent}
+                    </body>
+                </html>
+            `);
+            printWindow.document.close();
         }
 
         let stream = null;
