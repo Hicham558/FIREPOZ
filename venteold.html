@@ -47,6 +47,11 @@
         .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
         .small-email { font-size: 0.75rem; line-height: 1rem; }
         .quantity-input { width: 60px; }
+        .total-large {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #4f46e5;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -140,49 +145,20 @@
                 </h2>
             </div>
             <div class="p-6">
-                <div id="saleForm" class="mb-6 p-4 bg-gray-50 rounded-lg">
-                    <h3 class="font-medium mb-3">Nouvelle Vente</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Client</label>
-                            <select id="saleClientId" class="w-full px-3 py-2 border rounded-md">
-                                <option value="0">Vente Comptoir (Sans client)</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Produit (Code)</label>
-                            <input type="text" id="saleProductBar" class="w-full px-3 py-2 border rounded-md" readonly>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Quantité*</label>
-                            <input type="number" id="saleQuantity" class="w-full px-3 py-2 border rounded-md" required min="1">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Prix Unitaire*</label>
-                            <input type="number" id="saleUnitPrice" step="0.01" class="w-full px-3 py-2 border rounded-md" required>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Prix Total</label>
-                            <input type="number" id="salePriceTotal" step="0.01" class="w-full px-3 py-2 border rounded-md" readonly>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Prix Achat (Ref)</label>
-                            <input type="number" id="salePricePurchase" step="0.01" class="w-full px-3 py-2 border rounded-md" readonly>
-                        </div>
-                    </div>
-                    <div class="flex justify-end space-x-3 mt-4">
-                        <button onclick="resetSaleForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
-                            <i class="fas fa-times mr-2"></i>Annuler
-                        </button>
-                        <button onclick="ajouterLigneVente()" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition duration-300 transform hover:scale-105">
-                            <i class="fas fa-plus mr-2"></i>Ajouter à la vente
-                        </button>
-                    </div>
-                </div>
-
                 <!-- Table temporaire des lignes de vente -->
                 <div class="mb-6">
                     <h3 class="font-medium mb-3">Lignes de la vente en cours</h3>
+                    <div class="flex justify-between items-center mb-4">
+                        <div>
+                            <span class="text-sm font-medium text-gray-700">Client: </span>
+                            <select id="saleClientId" class="px-3 py-2 border rounded-md">
+                                <option value="0">Vente Comptoir (Sans client)</option>
+                            </select>
+                        </div>
+                        <div class="total-large animate-total-pulse">
+                            Total: <span id="totalSale">0.00 DA</span>
+                        </div>
+                    </div>
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
@@ -202,11 +178,10 @@
                             </tbody>
                         </table>
                     </div>
-                    <div class="mt-4 flex justify-between items-center">
-                        <div>
-                            <span class="text-sm font-medium text-gray-700">Total: </span>
-                            <span id="totalSale" class="text-lg font-bold text-indigo-600 animate-total-pulse">0.00 DA</span>
-                        </div>
+                    <div class="mt-4 flex justify-end space-x-2">
+                        <button id="printSaleButton80mm" onclick="imprimerVente80mm()" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition duration-300 transform hover:scale-105" disabled>
+                            <i class="fas fa-print mr-2"></i>Imprimer 80mm
+                        </button>
                         <button id="validateSaleButton" onclick="validerVente()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105" disabled>
                             <i class="fas fa-check mr-2"></i>Valider la vente
                         </button>
@@ -232,16 +207,14 @@
 
     <script>
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
-        let tempSaleLines = []; // Table temporaire pour les lignes de vente
-        let produitsCache = []; // Cache des produits
+        let tempSaleLines = [];
+        let produitsCache = [];
 
-        // Générer un user_id basé sur l'email et le mot de passe
         function generateUniqueUserId(email, password) {
             const combined = `${email.toLowerCase()}:${password}`;
             return btoa(combined);
         }
 
-        // Vérifier l'utilisateur au chargement
         document.addEventListener('DOMContentLoaded', () => {
             console.log('Page chargée, vérification utilisateur...');
             const userId = localStorage.getItem('userId');
@@ -259,7 +232,6 @@
                 window.location.href = 'index.html';
             }
 
-            // Vérification de l'API
             fetch(`${API_BASE_URL}/`)
                 .then(response => response.text())
                 .then(text => console.log('Statut API:', text))
@@ -269,7 +241,6 @@
                 });
         });
 
-        // Déconnexion
         function loginLogout() {
             console.log('Déconnexion en cours...');
             const userId = localStorage.getItem('userId');
@@ -283,7 +254,6 @@
             }
         }
 
-        // Afficher les notifications
         function showToast(message, isError = false) {
             const toast = document.getElementById('toast');
             const toastMessage = document.getElementById('toastMessage');
@@ -305,7 +275,6 @@
             }, 3000);
         }
 
-        // Développer/envelopper une section
         function toggleSection(sectionId) {
             const section = document.getElementById(sectionId);
             const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
@@ -316,7 +285,6 @@
             chevron.classList.toggle('fa-chevron-up');
         }
 
-        // Charger les clients
         async function chargerClients() {
             console.log('Chargement des clients...');
             const userId = localStorage.getItem('userId');
@@ -351,7 +319,6 @@
             }
         }
 
-        // Charger les produits
         async function chargerProduits() {
             console.log('Chargement des produits...');
             const userId = localStorage.getItem('userId');
@@ -376,7 +343,6 @@
                 const tbody = document.getElementById('productsList');
                 const countElement = document.getElementById('productCount');
 
-                // Assurer que NUMERO_ITEM et BAR sont des entiers
                 produitsCache = produitsCache.map(produit => ({
                     ...produit,
                     NUMERO_ITEM: parseInt(produit.NUMERO_ITEM),
@@ -426,66 +392,26 @@
             }
         }
 
-        // Sélectionner un produit
         function selectProduct(numeroItem, bar, prix, prixba, stock, designation) {
             console.log('Produit sélectionné:', numeroItem, bar, prix, prixba, stock, designation);
             const numeroItemInt = parseInt(numeroItem);
             const barInt = parseInt(bar);
-            if (isNaN(numeroItemInt) || isNaN(barInt)) {
-                showToast('ID ou code produit invalide', true);
+            const unitPrice = parseFloat(prix) || 0;
+            const pricePurchase = parseFloat(prixba) || 0;
+            const quantity = 1;
+
+            if (isNaN(numeroItemInt) || isNaN(barInt) || unitPrice <= 0) {
+                showToast('Produit invalide ou prix incorrect', true);
                 return;
             }
-            document.getElementById('saleProductBar').value = barInt; // Afficher BAR dans le champ
-            document.getElementById('saleUnitPrice').value = prix.toFixed(2);
-            document.getElementById('salePricePurchase').value = prixba.toFixed(2);
-            document.getElementById('saleProductBar').dataset.designation = designation;
-            document.getElementById('saleProductBar').dataset.numeroItem = numeroItemInt;
 
-            const quantityInput = document.getElementById('saleQuantity');
-            quantityInput.setAttribute('max', stock);
             if (stock <= 0) {
                 showToast('Stock insuffisant pour ce produit', true);
-                quantityInput.value = 0;
-                document.getElementById('salePriceTotal').value = '0.00';
-            } else {
-                quantityInput.value = 1;
-                updateTotalPrice();
-            }
-
-            showToast(`Produit sélectionné : ${designation}`);
-        }
-
-        // Calculer le prix total
-        function updateTotalPrice() {
-            const quantity = parseInt(document.getElementById('saleQuantity').value) || 0;
-            const unitPrice = parseFloat(document.getElementById('saleUnitPrice').value) || 0;
-            const totalPrice = quantity * unitPrice;
-            document.getElementById('salePriceTotal').value = totalPrice.toFixed(2);
-        }
-
-        // Écouter les changements sur quantité et prix
-        document.getElementById('saleQuantity').addEventListener('input', updateTotalPrice);
-        document.getElementById('saleUnitPrice').addEventListener('input', updateTotalPrice);
-
-        // Ajouter une ligne à la table temporaire
-        function ajouterLigneVente() {
-            console.log('Ajout ligne vente...');
-            const productBar = document.getElementById('saleProductBar').value.trim();
-            const numeroItem = parseInt(document.getElementById('saleProductBar').dataset.numeroItem);
-            const designation = document.getElementById('saleProductBar').dataset.designation || 'N/A';
-            const quantity = parseInt(document.getElementById('saleQuantity').value) || 0;
-            const unitPrice = parseFloat(document.getElementById('saleUnitPrice').value) || 0;
-            const priceTotal = parseFloat(document.getElementById('salePriceTotal').value) || 0;
-            const pricePurchase = parseFloat(document.getElementById('salePricePurchase').value) || 0;
-
-            if (!productBar || isNaN(numeroItem) || quantity <= 0 || unitPrice <= 0) {
-                showToast('Veuillez remplir tous les champs obligatoires', true);
                 return;
             }
 
-            const stock = parseInt(document.getElementById('saleQuantity').getAttribute('max')) || 0;
-            const produit = produitsCache.find(p => p.NUMERO_ITEM === numeroItem);
-            const existingLine = tempSaleLines.find(line => line.numero_item === numeroItem);
+            const produit = produitsCache.find(p => p.NUMERO_ITEM === numeroItemInt);
+            const existingLine = tempSaleLines.find(line => line.numero_item === numeroItemInt);
             const totalQuantity = (existingLine ? existingLine.quantite : 0) + quantity;
 
             if (produit && totalQuantity > produit.QTE) {
@@ -493,16 +419,18 @@
                 return;
             }
 
-            const existingLineIndex = tempSaleLines.findIndex(line => line.numero_item === numeroItem);
+            const priceTotal = quantity * unitPrice;
+            const existingLineIndex = tempSaleLines.findIndex(line => line.numero_item === numeroItemInt);
+
             if (existingLineIndex >= 0) {
                 tempSaleLines[existingLineIndex].quantite = totalQuantity;
                 tempSaleLines[existingLineIndex].prixt = totalQuantity * unitPrice;
                 tempSaleLines[existingLineIndex].remarque = unitPrice.toFixed(2);
             } else {
                 tempSaleLines.push({
-                    numero_item: numeroItem, // NUMERO_ITEM
-                    produit_bar: productBar, // BAR
-                    designation: designation,
+                    numero_item: numeroItemInt,
+                    produit_bar: barInt.toString(),
+                    designation: designation || 'N/A',
                     quantite: quantity,
                     prixt: priceTotal,
                     remarque: unitPrice.toFixed(2),
@@ -511,16 +439,15 @@
             }
 
             updateTempSalesTable();
-            resetSaleForm();
-            showToast('Ligne ajoutée à la vente');
+            showToast(`Produit ajouté : ${designation}`);
         }
 
-        // Mettre à jour la table temporaire
         function updateTempSalesTable() {
             const tbody = document.getElementById('tempSalesList');
             const totalElement = document.getElementById('totalSale');
             const itemCountElement = document.getElementById('saleItemCount');
             const validateButton = document.getElementById('validateSaleButton');
+            const printButton80mm = document.getElementById('printSaleButton80mm');
 
             if (tempSaleLines.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucune ligne ajoutée</td></tr>';
@@ -528,6 +455,7 @@
                 itemCountElement.textContent = '0';
                 itemCountElement.classList.add('hidden');
                 validateButton.disabled = true;
+                printButton80mm.disabled = true;
                 return;
             }
 
@@ -572,9 +500,9 @@
             itemCountElement.textContent = totalItems;
             itemCountElement.classList.remove('hidden');
             validateButton.disabled = false;
+            printButton80mm.disabled = false;
         }
 
-        // Modifier la quantité
         function modifierQuantite(index, delta) {
             const ligne = tempSaleLines[index];
             const produit = produitsCache.find(p => p.NUMERO_ITEM === ligne.numero_item);
@@ -596,7 +524,6 @@
             showToast(`Quantité mise à jour: ${ligne.quantite}`);
         }
 
-        // Modifier le prix unitaire
         function modifierPrix(index, newPrice) {
             const price = parseFloat(newPrice);
             if (isNaN(price) || price <= 0) {
@@ -611,7 +538,6 @@
             showToast('Prix unitaire mis à jour');
         }
 
-        // Supprimer une ligne
         function supprimerLigne(index) {
             const ligne = tempSaleLines[index];
             tempSaleLines.splice(index, 1);
@@ -619,7 +545,6 @@
             showToast(`Ligne "${ligne.designation}" supprimée`);
         }
 
-        // Valider la vente
         async function validerVente() {
             console.log('Validation vente...');
             const userId = localStorage.getItem('userId');
@@ -638,7 +563,7 @@
                 date_comande: new Date().toISOString(),
                 nature: 'vente',
                 lignes: tempSaleLines.map(ligne => ({
-                    numero_item: ligne.numero_item, // NUMERO_ITEM
+                    numero_item: ligne.numero_item,
                     quantite: ligne.quantite,
                     prixt: ligne.prixt,
                     remarque: ligne.remarque,
@@ -674,20 +599,140 @@
             }
         }
 
-        // Réinitialiser le formulaire
-        function resetSaleForm() {
-            console.log('Réinitialisation du formulaire de vente...');
-            document.getElementById('saleProductBar').value = '';
-            document.getElementById('saleProductBar').dataset.designation = '';
-            document.getElementById('saleProductBar').dataset.numeroItem = '';
-            document.getElementById('saleQuantity').value = '';
-            document.getElementById('saleUnitPrice').value = '';
-            document.getElementById('salePriceTotal').value = '';
-            document.getElementById('salePricePurchase').value = '';
-            document.getElementById('saleQuantity').removeAttribute('max');
+        function imprimerVente80mm() {
+            console.log('Génération de l\'aperçu d\'impression 80mm...');
+            if (tempSaleLines.length === 0) {
+                showToast('Aucune ligne à imprimer', true);
+                return;
+            }
+
+            const clientSelect = document.getElementById('saleClientId');
+            const clientValue = clientSelect.value;
+            const clientText = clientValue === '0' ? 'Vente Comptoir' : clientSelect.options[clientSelect.selectedIndex].text;
+            const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0).toFixed(2);
+
+            let ticketContent = `
+                <div class="printable">
+                    <h1>FirePoz</h1>
+                    <p>Date: ${new Date().toLocaleString('fr-FR')}</p>
+                    <p>Client: ${clientText}</p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Produit</th>
+                                <th>Qté</th>
+                                <th>Prix U.</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            tempSaleLines.forEach(ligne => {
+                ticketContent += `
+                    <tr>
+                        <td>${ligne.numero_item || 'N/A'}</td>
+                        <td>${ligne.designation || 'N/A'}</td>
+                        <td>${ligne.quantite || 0}</td>
+                        <td>${parseFloat(ligne.remarque || 0).toFixed(2)}</td>
+                        <td>${parseFloat(ligne.prixt || 0).toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+
+            ticketContent += `
+                        </tbody>
+                    </table>
+                    <p class="total">Total: ${total} DA</p>
+                    <p style="text-align: center; margin-top: 3mm;">Merci de votre achat !</p>
+                </div>
+            `;
+
+            const printWindow = window.open('', '_blank', 'width=320,height=480');
+            if (!printWindow) {
+                showToast('Impossible d\'ouvrir l\'aperçu. Veuillez désactiver votre bloqueur de pop-up.', true);
+                return;
+            }
+
+            printWindow.document.write(`
+                <html>
+                    <head>
+                        <title>Aperçu Impression 80mm - FirePoz</title>
+                        <style>
+                            body {
+                                margin: 0;
+                                padding: 10mm;
+                                background: #fff;
+                                display: flex;
+                                justify-content: center;
+                                align-items: center;
+                                min-height: 100vh;
+                            }
+                            .printable {
+                                width: 80mm;
+                                font-family: Arial, sans-serif;
+                                font-size: 10pt;
+                                line-height: 1.2;
+                                color: #000;
+                                box-shadow: 0 0 5mm rgba(0, 0, 0, 0.1);
+                            }
+                            .printable h1 {
+                                font-size: 14pt;
+                                text-align: center;
+                                margin-bottom: 5mm;
+                            }
+                            .printable p, .printable table {
+                                margin-bottom: 3mm;
+                            }
+                            .printable table {
+                                width: 100%;
+                                border-collapse: collapse;
+                            }
+                            .printable th, .printable td {
+                                border: 0.5mm solid #000;
+                                padding: 1mm;
+                                font-size: 8pt;
+                                text-align: left;
+                            }
+                            .printable .total {
+                                font-weight: bold;
+                                font-size: 10pt;
+                                text-align: right;
+                            }
+                            .print-controls {
+                                text-align: center;
+                                margin-top: 10mm;
+                            }
+                            .print-controls button {
+                                padding: 5mm 10mm;
+                                margin: 0 5mm;
+                                font-size: 10pt;
+                                cursor: pointer;
+                            }
+                            @media print {
+                                body {
+                                    margin: 0;
+                                    padding: 0;
+                                }
+                                .print-controls {
+                                    display: none;
+                                }
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        ${ticketContent}
+                        <div class="print-controls">
+                            <button onclick="window.print(); window.close();" style="background-color: #4CAF50; color: white; border: none; border-radius: 5mm;">Imprimer</button>
+                            <button onclick="window.close();" style="background-color: #f44336; color: white; border: none; border-radius: 5mm;">Annuler</button>
+                        </div>
+                    </body>
+                </html>
+            `);
+            printWindow.document.close();
         }
 
-        // Scanner de code-barres
         let stream = null;
         let barcodeDetector = null;
         let isScanning = false;
@@ -817,7 +862,6 @@
             document.getElementById('productsList').classList.remove('hidden');
         }
 
-        // Recherche de produit
         document.getElementById('searchProduct').addEventListener('input', function(e) {
             console.log('Recherche produit:', e.target.value);
             const searchTerm = e.target.value.toLowerCase();
@@ -827,7 +871,7 @@
             const filteredProducts = produitsCache.filter(produit =>
                 produit.NUMERO_ITEM.toString().includes(searchTerm) ||
                 produit.BAR.toString().includes(searchTerm) ||
-                produit.DESIGNATION.toLowerCase(). equilibration(searchTerm) ||
+                produit.DESIGNATION.toLowerCase().includes(searchTerm) ||
                 parseFloat(produit.PRIX || 0).toFixed(2).includes(searchTerm) ||
                 parseFloat(produit.PRIXBA || 0).toFixed(2).includes(searchTerm)
             );
@@ -857,7 +901,6 @@
             });
         });
 
-        // Gestion des erreurs CORS
         window.addEventListener('unhandledrejection', event => {
             if (event.reason.message.includes('Failed to fetch')) {
                 showToast('Erreur de connexion au serveur. Vérifiez l\'URL ou les paramètres CORS.', true);
