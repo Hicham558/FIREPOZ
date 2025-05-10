@@ -92,47 +92,6 @@
         .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
         .small-email { font-size: 0.75rem; line-height: 1rem; }
         .quantity-input { width: 60px; }
-
-        /* Styles pour l'impression */
-        @media print {
-            body, nav, footer, #toast, #scannerOverlay, #scannerPreview, #productsSection, .sticky, #salesSection > div:not(.printable) {
-                display: none !important;
-            }
-            .printable {
-                display: block !important;
-                width: 80mm;
-                margin: 0;
-                padding: 5mm;
-                font-family: Arial, sans-serif;
-                font-size: 10pt;
-                line-height: 1.2;
-                color: #000;
-                background: #fff;
-            }
-            .printable h1 {
-                font-size: 14pt;
-                text-align: center;
-                margin-bottom: 5mm;
-            }
-            .printable p, .printable table {
-                margin-bottom: 3mm;
-            }
-            .printable table {
-                width: 100%;
-                border-collapse: collapse;
-            }
-            .printable th, .printable td {
-                border: 0.5mm solid #000;
-                padding: 1mm;
-                font-size: 8pt;
-                text-align: left;
-            }
-            .printable .total {
-                font-weight: bold;
-                font-size: 10pt;
-                text-align: right;
-            }
-        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -686,7 +645,7 @@
         }
 
         function imprimerVente() {
-            console.log('Impression de la vente...');
+            console.log('Génération de l\'aperçu d\'impression...');
             if (tempSaleLines.length === 0) {
                 showToast('Aucune ligne à imprimer', true);
                 return;
@@ -722,11 +681,11 @@
             tempSaleLines.forEach(ligne => {
                 ticketContent += `
                     <tr>
-                        <td>${ligne.numero_item}</td>
+                        <td>${ligne.numero_item || 'N/A'}</td>
                         <td>${ligne.designation || 'N/A'}</td>
-                        <td>${ligne.quantite}</td>
-                        <td>${parseFloat(ligne.remarque).toFixed(2)}</td>
-                        <td>${parseFloat(ligne.prixt).toFixed(2)}</td>
+                        <td>${ligne.quantite || 0}</td>
+                        <td>${parseFloat(ligne.remarque || 0).toFixed(2)}</td>
+                        <td>${parseFloat(ligne.prixt || 0).toFixed(2)}</td>
                     </tr>
                 `;
             });
@@ -739,52 +698,85 @@
                 </div>
             `;
 
-            // Créer une nouvelle fenêtre pour l'impression
-            const printWindow = window.open('', '_blank');
+            // Créer une fenêtre pour l'aperçu
+            const printWindow = window.open('', '_blank', 'width=320,height=480');
+            if (!printWindow) {
+                showToast('Impossible d\'ouvrir l\'aperçu. Veuillez désactiver votre bloqueur de pop-up.', true);
+                return;
+            }
+
             printWindow.document.write(`
                 <html>
                     <head>
-                        <title>Impression Ticket - FirePoz</title>
+                        <title>Aperçu Impression - FirePoz</title>
                         <style>
+                            body {
+                                margin: 0;
+                                padding: 10mm;
+                                background: #fff;
+                                display: flex;
+                                justify-content: center;
+                                align-items: center;
+                                min-height: 100vh;
+                            }
+                            .printable {
+                                width: 80mm;
+                                font-family: Arial, sans-serif;
+                                font-size: 10pt;
+                                line-height: 1.2;
+                                color: #000;
+                                box-shadow: 0 0 5mm rgba(0, 0, 0, 0.1);
+                            }
+                            .printable h1 {
+                                font-size: 14pt;
+                                text-align: center;
+                                margin-bottom: 5mm;
+                            }
+                            .printable p, .printable table {
+                                margin-bottom: 3mm;
+                            }
+                            .printable table {
+                                width: 100%;
+                                border-collapse: collapse;
+                            }
+                            .printable th, .printable td {
+                                border: 0.5mm solid #000;
+                                padding: 1mm;
+                                font-size: 8pt;
+                                text-align: left;
+                            }
+                            .printable .total {
+                                font-weight: bold;
+                                font-size: 10pt;
+                                text-align: right;
+                            }
+                            .print-controls {
+                                text-align: center;
+                                margin-top: 10mm;
+                            }
+                            .print-controls button {
+                                padding: 5mm 10mm;
+                                margin: 0 5mm;
+                                font-size: 10pt;
+                                cursor: pointer;
+                            }
                             @media print {
                                 body {
                                     margin: 0;
                                     padding: 0;
-                                    width: 80mm;
-                                    font-family: Arial, sans-serif;
-                                    font-size: 10pt;
-                                    line-height: 1.2;
-                                    color: #000;
-                                    background: #fff;
                                 }
-                                h1 {
-                                    font-size: 14pt;
-                                    text-align: center;
-                                    margin-bottom: 5mm;
-                                }
-                                p, table {
-                                    margin-bottom: 3mm;
-                                }
-                                table {
-                                    width: 100%;
-                                    border-collapse: collapse;
-                                }
-                                th, td {
-                                    border: 0.5mm solid #000;
-                                    padding: 1mm;
-                                    font-size: 8pt;
-                                    text-align: left;
-                                }
-                                .total {
-                                    font-weight: bold;
-                                    font-size: 10pt;
-                                    text-align: right;
+                                .print-controls {
+                                    display: none;
                                 }
                             }
                         </style>
                     </head>
-                    <body onload="window.print(); window.close();">
+                    <body>
                         ${ticketContent}
+                        <div class="print-controls">
+                            <button onclick="window.print(); window.close();" style="background-color: #4CAF50; color: white; border: none; border-radius: 5mm;">Imprimer</button>
+                            <button onclick="window.close();" style="background-color: #f44336; color: white; border: none; border-radius: 5mm;">Annuler</button>
+                        </div>
                     </body>
                 </html>
             `);
