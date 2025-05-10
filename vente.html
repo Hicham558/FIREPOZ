@@ -177,40 +177,6 @@
                 </h2>
             </div>
             <div class="p-6">
-                <div id="saleForm" class="mb-6 p-4 bg-gray-50 rounded-lg">
-                    <h3 class="font-medium mb-3">Nouvelle Vente</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Produit (Code)</label>
-                            < parv class="w-full px-3 py-2 border rounded-md" readonly>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Quantité*</label>
-                            <input type="number" id="saleQuantity" class="w-full px-3 py-2 border rounded-md" required min="1">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Prix Unitaire*</label>
-                            <input type="number" id="saleUnitPrice" step="0.01" class="w-full px-3 py-2 border rounded-md" required>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Prix Total</label>
-                            <input type="number" id="salePriceTotal" step="0.01" class="w-full px-3 py-2 border rounded-md" readonly>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Prix Achat (Ref)</label>
-                            <input type="number" id="salePricePurchase" step="0.01" class="w-full px-3 py-2 border rounded-md" readonly>
-                        </div>
-                    </div>
-                    <div class="flex justify-end space-x-3 mt-4">
-                        <button onclick="resetSaleForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
-                            <i class="fas fa-times mr-2"></i>Annuler
-                        </button>
-                        <button onclick="ajouterLigneVente()" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition duration-300 transform hover:scale-105">
-                            <i class="fas fa-plus mr-2"></i>Ajouter à la vente
-                        </button>
-                    </div>
-                </div>
-
                 <!-- Table temporaire des lignes de vente -->
                 <div class="mb-6">
                     <h3 class="font-medium mb-3">Lignes de la vente en cours</h3>
@@ -421,7 +387,7 @@
                     tr.innerHTML = `
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             <button onclick="selectProduct(${produit.NUMERO_ITEM}, ${produit.BAR}, ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition duration-300">
-                                Sélectionner
+                                Ajouter
                             </button>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.NUMERO_ITEM || 'N/A'}</td>
@@ -449,62 +415,25 @@
         }
 
         function selectProduct(numeroItem, bar, prix, prixba, stock, designation) {
-            console.log('Produit sélectionné:', numeroItem, bar, prix, prixba, stock, designation);
+            console.log('Produit ajouté:', numeroItem, bar, prix, prixba, stock, designation);
             const numeroItemInt = parseInt(numeroItem);
             const barInt = parseInt(bar);
-            if (isNaN(numeroItemInt) || isNaN(barInt)) {
-                showToast('ID ou code produit invalide', true);
+            const unitPrice = parseFloat(prix) || 0;
+            const pricePurchase = parseFloat(prixba) || 0;
+            const quantity = 1; // Quantité par défaut
+
+            if (isNaN(numeroItemInt) || isNaN(barInt) || unitPrice <= 0) {
+                showToast('Produit invalide ou prix incorrect', true);
                 return;
             }
-            document.getElementById('saleProductBar').value = barInt;
-            document.getElementById('saleUnitPrice').value = prix.toFixed(2);
-            document.getElementById('salePricePurchase').value = prixba.toFixed(2);
-            document.getElementById('saleProductBar').dataset.designation = designation;
-            document.getElementById('saleProductBar').dataset.numeroItem = numeroItemInt;
 
-            const quantityInput = document.getElementById('saleQuantity');
-            quantityInput.setAttribute('max', stock);
             if (stock <= 0) {
                 showToast('Stock insuffisant pour ce produit', true);
-                quantityInput.value = 0;
-                document.getElementById('salePriceTotal').value = '0.00';
-            } else {
-                quantityInput.value = 1;
-                updateTotalPrice();
-                ajouterLigneVente();
-            }
-
-            showToast(`Produit sélectionné : ${designation}`);
-        }
-
-        function updateTotalPrice() {
-            const quantity = parseInt(document.getElementById('saleQuantity').value) || 0;
-            const unitPrice = parseFloat(document.getElementById('saleUnitPrice').value) || 0;
-            const totalPrice = quantity * unitPrice;
-            document.getElementById('salePriceTotal').value = totalPrice.toFixed(2);
-        }
-
-        document.getElementById('saleQuantity').addEventListener('input', updateTotalPrice);
-        document.getElementById('saleUnitPrice').addEventListener('input', updateTotalPrice);
-
-        function ajouterLigneVente() {
-            console.log('Ajout ligne vente...');
-            const productBar = document.getElementById('saleProductBar').value.trim();
-            const numeroItem = parseInt(document.getElementById('saleProductBar').dataset.numeroItem);
-            const designation = document.getElementById('saleProductBar').dataset.designation || 'N/A';
-            const quantity = parseInt(document.getElementById('saleQuantity').value) || 0;
-            const unitPrice = parseFloat(document.getElementById('saleUnitPrice').value) || 0;
-            const priceTotal = parseFloat(document.getElementById('salePriceTotal').value) || 0;
-            const pricePurchase = parseFloat(document.getElementById('salePricePurchase').value) || 0;
-
-            if (!productBar || isNaN(numeroItem) || quantity <= 0 || unitPrice <= 0) {
-                showToast('Veuillez remplir tous les champs obligatoires', true);
                 return;
             }
 
-            const stock = parseInt(document.getElementById('saleQuantity').getAttribute('max')) || 0;
-            const produit = produitsCache.find(p => p.NUMERO_ITEM === numeroItem);
-            const existingLine = tempSaleLines.find(line => line.numero_item === numeroItem);
+            const produit = produitsCache.find(p => p.NUMERO_ITEM === numeroItemInt);
+            const existingLine = tempSaleLines.find(line => line.numero_item === numeroItemInt);
             const totalQuantity = (existingLine ? existingLine.quantite : 0) + quantity;
 
             if (produit && totalQuantity > produit.QTE) {
@@ -512,16 +441,18 @@
                 return;
             }
 
-            const existingLineIndex = tempSaleLines.findIndex(line => line.numero_item === numeroItem);
+            const priceTotal = quantity * unitPrice;
+            const existingLineIndex = tempSaleLines.findIndex(line => line.numero_item === numeroItemInt);
+
             if (existingLineIndex >= 0) {
                 tempSaleLines[existingLineIndex].quantite = totalQuantity;
                 tempSaleLines[existingLineIndex].prixt = totalQuantity * unitPrice;
                 tempSaleLines[existingLineIndex].remarque = unitPrice.toFixed(2);
             } else {
                 tempSaleLines.push({
-                    numero_item: numeroItem,
-                    produit_bar: productBar,
-                    designation: designation,
+                    numero_item: numeroItemInt,
+                    produit_bar: barInt.toString(),
+                    designation: designation || 'N/A',
                     quantite: quantity,
                     prixt: priceTotal,
                     remarque: unitPrice.toFixed(2),
@@ -530,8 +461,7 @@
             }
 
             updateTempSalesTable();
-            resetSaleForm();
-            showToast('Ligne ajoutée à la vente');
+            showToast(`Produit ajouté : ${designation}`);
         }
 
         function updateTempSalesTable() {
@@ -686,18 +616,6 @@
                 console.error('Erreur validation vente:', error);
                 showToast(`Erreur validation vente: ${error.message}`, true);
             }
-        }
-
-        function resetSaleForm() {
-            console.log('Réinitialisation du formulaire de vente...');
-            document.getElementById('saleProductBar').value = '';
-            document.getElementById('saleProductBar').dataset.designation = '';
-            document.getElementById('saleProductBar').dataset.numeroItem = '';
-            document.getElementById('saleQuantity').value = '';
-            document.getElementById('saleUnitPrice').value = '';
-            document.getElementById('salePriceTotal').value = '';
-            document.getElementById('salePricePurchase').value = '';
-            document.getElementById('saleQuantity').removeAttribute('max');
         }
 
         let stream = null;
@@ -858,7 +776,7 @@
                 tr.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <button onclick="selectProduct(${produit.NUMERO_ITEM}, ${produit.BAR}, ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition duration-300">
-                            Sélectionner
+                            Ajouter
                         </button>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.NUMERO_ITEM || 'N/A'}</td>
