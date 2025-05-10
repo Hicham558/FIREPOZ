@@ -82,6 +82,9 @@
         #productsContent .table-container table {
             width: 100%;
         }
+        #paymentForm {
+            transition: all 0.3s ease;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -188,6 +191,22 @@
                         </div>
                         <div class="flex justify-between items-center">
                             <div class="relative">
+                                <div class="mb-4">
+                                    <span class="text-sm font-medium text-gray-700 mr-2">Mode de paiement: </span>
+                                    <div class="relative inline-block w-64">
+                                        <select id="paymentMode" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300" onchange="togglePaymentForm()">
+                                            <option value="espece" selected>Espèce</option>
+                                            <option value="a_terme">À terme</option>
+                                        </select>
+                                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="paymentForm" class="hidden mb-4">
+                                    <label for="amountPaid" class="text-sm font-medium text-gray-700 mr-2">Montant versé: </label>
+                                    <input type="number" id="amountPaid" step="0.01" min="0" class="w-64 px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0.00 DA">
+                                </div>
                                 <span class="text-sm font-medium text-gray-700 mr-2">Client: </span>
                                 <div class="relative inline-block w-64">
                                     <select id="saleClientId" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300">
@@ -257,6 +276,12 @@
         function generateUniqueUserId(email, password) {
             const combined = `${email.toLowerCase()}:${password}`;
             return btoa(combined);
+        }
+
+        function togglePaymentForm() {
+            const paymentMode = document.getElementById('paymentMode').value;
+            const paymentForm = document.getElementById('paymentForm');
+            paymentForm.classList.toggle('hidden', paymentMode === 'espece');
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -605,10 +630,32 @@
                 return;
             }
 
+            const paymentMode = document.getElementById('paymentMode').value;
+            const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
+            const numeroTable = parseInt(document.getElementById('saleClientId').value) || 0;
+
+            if (paymentMode === 'a_terme' && numeroTable === 0) {
+                showToast('Veuillez sélectionner un client pour une vente à terme', true);
+                return;
+            }
+
+            if (paymentMode === 'a_terme' && amountPaid < 0) {
+                showToast('Le montant versé ne peut pas être négatif', true);
+                return;
+            }
+
+            const totalSale = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
+            if (paymentMode === 'a_terme' && amountPaid > totalSale) {
+                showToast('Le montant versé ne peut pas dépasser le total de la vente', true);
+                return;
+            }
+
             const venteData = {
-                numero_table: parseInt(document.getElementById('saleClientId').value) || 0,
+                numero_table: numeroTable,
                 date_comande: new Date().toISOString(),
                 nature: 'vente',
+                payment_mode: paymentMode,
+                amount_paid: amountPaid,
                 lignes: tempSaleLines.map(ligne => ({
                     numero_item: ligne.numero_item,
                     quantite: ligne.quantite,
@@ -638,6 +685,9 @@
 
                 showToast(`Vente #${result.numero_comande} validée avec succès`);
                 tempSaleLines = [];
+                document.getElementById('paymentMode').value = 'espece';
+                document.getElementById('amountPaid').value = '';
+                togglePaymentForm();
                 updateTempSalesTable();
                 chargerProduits();
             } catch (error) {
@@ -656,6 +706,8 @@
             const clientSelect = document.getElementById('saleClientId');
             const clientValue = clientSelect.value;
             const clientText = clientValue === '0' ? 'Vente Comptoir' : clientSelect.options[clientSelect.selectedIndex].text;
+            const paymentMode = document.getElementById('paymentMode').value;
+            const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
             const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0).toFixed(2);
 
             let ticketContent = `
@@ -663,6 +715,8 @@
                     <h1>FirePoz</h1>
                     <p>Date: ${new Date().toLocaleString('fr-FR')}</p>
                     <p>Client: ${clientText}</p>
+                    <p>Mode de paiement: ${paymentMode === 'espece' ? 'Espèce' : 'À terme'}</p>
+                    ${paymentMode === 'a_terme' ? `<p>Montant versé: ${amountPaid.toFixed(2)} DA</p>` : ''}
                     <table>
                         <thead>
                             <tr>
@@ -790,6 +844,8 @@
             const clientSelect = document.getElementById('saleClientId');
             const clientValue = clientSelect.value;
             const clientText = clientValue === '0' ? 'Vente Comptoir' : clientSelect.options[clientSelect.selectedIndex].text;
+            const paymentMode = document.getElementById('paymentMode').value;
+            const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
             const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0).toFixed(2);
             const userEmail = localStorage.getItem('userEmail') || 'Utilisateur inconnu';
 
@@ -800,6 +856,8 @@
                         <p><strong>Émis par :</strong> ${userEmail}</p>
                         <p><strong>Date :</strong> ${new Date().toLocaleString('fr-FR')}</p>
                         <p><strong>Client :</strong> ${clientText}</p>
+                        <p><strong>Mode de paiement :</strong> ${paymentMode === 'espece' ? 'Espèce' : 'À terme'}</p>
+                        ${paymentMode === 'a_terme' ? `<p><strong>Montant versé :</strong> ${amountPaid.toFixed(2)} DA</p>` : ''}
                     </header>
                     <table>
                         <thead>
