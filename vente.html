@@ -377,10 +377,12 @@
                 const tbody = document.getElementById('productsList');
                 const countElement = document.getElementById('productCount');
 
-                // Convertir BAR en entier si nécessaire
+                // Assurer que NUMERO_ITEM et BAR sont des entiers
                 produitsCache = produitsCache.map(produit => ({
                     ...produit,
-                    BAR: parseInt(produit.BAR) // Convertir BAR en entier
+                    NUMERO_ITEM: parseInt(produit.NUMERO_ITEM),
+                    BAR: parseInt(produit.BAR),
+                    PRIXBA: parseFloat(produit.PRIXBA) || 0.0
                 }));
 
                 if (produitsCache.length === 0) {
@@ -392,20 +394,20 @@
 
                 tbody.innerHTML = '';
                 produitsCache.forEach(produit => {
-                    console.log('Rendu produit:', produit); // Log pour déboguer
+                    console.log('Rendu produit:', produit);
                     const tr = document.createElement('tr');
                     tr.className = 'hover:bg-gray-50';
                     tr.innerHTML = `
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <button onclick="selectProduct(${produit.BAR}, ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition duration-300">
+                            <button onclick="selectProduct(${produit.NUMERO_ITEM}, ${produit.BAR}, ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition duration-300">
                                 Sélectionner
                             </button>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.NUMERO_ITEM || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
                         <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || '0.00').toFixed(2)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || 0).toFixed(2)}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
                     `;
                     tbody.appendChild(tr);
@@ -426,18 +428,19 @@
         }
 
         // Sélectionner un produit
-        function selectProduct(bar, prix, prixba, stock, designation) {
-            console.log('Produit sélectionné:', bar, prix, prixba, stock, designation);
-            const numeroItem = parseInt(bar); // Convertir en entier
-            if (isNaN(numeroItem)) {
-                showToast('Code produit invalide (doit être un nombre)', true);
+        function selectProduct(numeroItem, bar, prix, prixba, stock, designation) {
+            console.log('Produit sélectionné:', numeroItem, bar, prix, prixba, stock, designation);
+            const numeroItemInt = parseInt(numeroItem);
+            const barInt = parseInt(bar);
+            if (isNaN(numeroItemInt) || isNaN(barInt)) {
+                showToast('ID ou code produit invalide', true);
                 return;
             }
-            document.getElementById('saleProductBar').value = numeroItem;
+            document.getElementById('saleProductBar').value = barInt; // Afficher BAR dans le champ
             document.getElementById('saleUnitPrice').value = prix.toFixed(2);
             document.getElementById('salePricePurchase').value = prixba.toFixed(2);
             document.getElementById('saleProductBar').dataset.designation = designation;
-            document.getElementById('saleProductBar').dataset.numeroItem = numeroItem; // Stocker numero_item
+            document.getElementById('saleProductBar').dataset.numeroItem = numeroItemInt;
 
             const quantityInput = document.getElementById('saleQuantity');
             quantityInput.setAttribute('max', stock);
@@ -482,7 +485,7 @@
             }
 
             const stock = parseInt(document.getElementById('saleQuantity').getAttribute('max')) || 0;
-            const produit = produitsCache.find(p => p.BAR === numeroItem);
+            const produit = produitsCache.find(p => p.NUMERO_ITEM === numeroItem);
             const existingLine = tempSaleLines.find(line => line.numero_item === numeroItem);
             const totalQuantity = (existingLine ? existingLine.quantite : 0) + quantity;
 
@@ -498,8 +501,8 @@
                 tempSaleLines[existingLineIndex].remarque = unitPrice.toFixed(2);
             } else {
                 tempSaleLines.push({
-                    numero_item: numeroItem, // Entier
-                    produit_bar: productBar, // Garder pour la colonne Code
+                    numero_item: numeroItem, // NUMERO_ITEM
+                    produit_bar: productBar, // BAR
                     designation: designation,
                     quantite: quantity,
                     prixt: priceTotal,
@@ -534,7 +537,7 @@
             let totalItems = 0;
 
             tempSaleLines.forEach((ligne, index) => {
-                console.log('Ligne:', ligne); // Log pour vérifier numero_item
+                console.log('Ligne:', ligne);
                 const lineTotal = parseFloat(ligne.prixt) || 0;
                 total += lineTotal;
                 totalItems += ligne.quantite;
@@ -576,7 +579,7 @@
         // Modifier la quantité
         function modifierQuantite(index, delta) {
             const ligne = tempSaleLines[index];
-            const produit = produitsCache.find(p => p.BAR === ligne.numero_item);
+            const produit = produitsCache.find(p => p.NUMERO_ITEM === ligne.numero_item);
             const newQuantity = ligne.quantite + delta;
 
             if (newQuantity <= 0) {
@@ -637,7 +640,7 @@
                 date_comande: new Date().toISOString(),
                 nature: 'vente',
                 lignes: tempSaleLines.map(ligne => ({
-                    numero_item: ligne.numero_item,
+                    numero_item: ligne.numero_item, // NUMERO_ITEM
                     quantite: ligne.quantite,
                     prixt: ligne.prixt,
                     remarque: ligne.remarque,
@@ -779,7 +782,7 @@
                         showToast(`Produit avec code ${scannedCode} non trouvé`, true);
                         stopScanner();
                     } else {
-                        selectProduct(produit.BAR, produit.PRIX, produit.PRIXBA, produit.QTE, produit.DESIGNATION);
+                        selectProduct(produit.NUMERO_ITEM, produit.BAR, produit.PRIX, produit.PRIXBA, produit.QTE, produit.DESIGNATION);
                         stopScanner();
                     }
                 } else {
@@ -824,10 +827,11 @@
 
             tbody.innerHTML = '';
             const filteredProducts = produitsCache.filter(produit =>
+                produit.NUMERO_ITEM.toString().includes(searchTerm) ||
                 produit.BAR.toString().includes(searchTerm) ||
                 produit.DESIGNATION.toLowerCase().includes(searchTerm) ||
                 parseFloat(produit.PRIX || 0).toFixed(2).includes(searchTerm) ||
-                parseFloat(produit.PRIXBA || '0.00').toFixed(2).includes(searchTerm)
+                parseFloat(produit.PRIXBA || 0).toFixed(2).includes(searchTerm)
             );
 
             if (filteredProducts.length === 0) {
@@ -840,15 +844,15 @@
                 tr.className = 'hover:bg-gray-50';
                 tr.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <button onclick="selectProduct(${produit.BAR}, ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition duration-300">
+                        <button onclick="selectProduct(${produit.NUMERO_ITEM}, ${produit.BAR}, ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition duration-300">
                             Sélectionner
                         </button>
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.NUMERO_ITEM || 'N/A'}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
                     <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || '0.00').toFixed(2)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || 0).toFixed(2)}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
                 `;
                 tbody.appendChild(tr);
