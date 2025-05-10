@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -187,17 +186,18 @@
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Unitaire</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Total</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="tempSalesList" class="bg-white divide-y divide-gray-200">
                                 <tr>
-                                    <td colspan="6" class="text-center py-4 text-gray-500">Aucune ligne ajoutée</td>
+                                    <td colspan="7" class="text-center py-4 text-gray-500">Aucune ligne ajoutée</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -343,57 +343,10 @@
                     const option = document.createElement('option');
                     option.value = client.numero_clt;
                     option.textContent = `${client.nom} (ID: ${client.numero_clt})`;
-                    selectElement.appendChild(option);
-                });
-            } catch (error) {
-                showToast('Erreur lors du chargement des clients: ' + error.message, true);
-                console.error('Erreur clients:', error);
-            }
-        }
-
-        // Charger les produits
-        async function chargerProduits() {
-            console.log('Chargement des produits...');
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les produits', true);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
-                    headers: { 'X-User-ID': userId }
-                });
-                console.log('Réponse liste_produits:', response.status, response.statusText);
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('Erreur texte liste_produits:', errorText);
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                produitsCache = await response.json();
-                console.log('Produits reçus:', produitsCache);
-                const tbody = document.getElementById('productsList');
-                const countElement = document.getElementById('productCount');
-
-                if (produitsCache.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
-                    countElement.textContent = '0';
-                    countElement.classList.remove('hidden');
-                    return;
-                }
-
-                tbody.innerHTML = '';
-                produitsCache.forEach(produit => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || '0.00').toFixed(2)}</td>
+ afloat(produit.PRIXBA || '0.00').toFixed(2)}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <button onclick="selectProduct('${produit.BAR}', ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition duration-300">
+                            <button onclick="selectProduct(${produit.BAR}, ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition duration-300">
                                 Sélectionner
                             </button>
                         </td>
@@ -417,10 +370,16 @@
         // Sélectionner un produit
         function selectProduct(bar, prix, prixba, stock, designation) {
             console.log('Produit sélectionné:', bar, prix, prixba, stock, designation);
-            document.getElementById('saleProductBar').value = bar;
+            const numeroItem = parseInt(bar); // Convertir en entier
+            if (isNaN(numeroItem)) {
+                showToast('Code produit invalide (doit être un nombre)', true);
+                return;
+            }
+            document.getElementById('saleProductBar').value = numeroItem;
             document.getElementById('saleUnitPrice').value = prix.toFixed(2);
             document.getElementById('salePricePurchase').value = prixba.toFixed(2);
             document.getElementById('saleProductBar').dataset.designation = designation;
+            document.getElementById('saleProductBar').dataset.numeroItem = numeroItem; // Stocker numero_item
 
             const quantityInput = document.getElementById('saleQuantity');
             quantityInput.setAttribute('max', stock);
@@ -452,20 +411,21 @@
         function ajouterLigneVente() {
             console.log('Ajout ligne vente...');
             const productBar = document.getElementById('saleProductBar').value.trim();
+            const numeroItem = parseInt(document.getElementById('saleProductBar').dataset.numeroItem);
             const designation = document.getElementById('saleProductBar').dataset.designation || 'N/A';
             const quantity = parseInt(document.getElementById('saleQuantity').value) || 0;
             const unitPrice = parseFloat(document.getElementById('saleUnitPrice').value) || 0;
             const priceTotal = parseFloat(document.getElementById('salePriceTotal').value) || 0;
             const pricePurchase = parseFloat(document.getElementById('salePricePurchase').value) || 0;
 
-            if (!productBar || quantity <= 0 || unitPrice <= 0) {
+            if (!productBar || isNaN(numeroItem) || quantity <= 0 || unitPrice <= 0) {
                 showToast('Veuillez remplir tous les champs obligatoires', true);
                 return;
             }
 
             const stock = parseInt(document.getElementById('saleQuantity').getAttribute('max')) || 0;
-            const produit = produitsCache.find(p => p.BAR === productBar);
-            const existingLine = tempSaleLines.find(line => line.produit_bar === productBar);
+            const produit = produitsCache.find(p => parseInt(p.BAR) === numeroItem);
+            const existingLine = tempSaleLines.find(line => line.numero_item === numeroItem);
             const totalQuantity = (existingLine ? existingLine.quantite : 0) + quantity;
 
             if (produit && totalQuantity > produit.QTE) {
@@ -473,14 +433,15 @@
                 return;
             }
 
-            const existingLineIndex = tempSaleLines.findIndex(line => line.produit_bar === productBar);
+            const existingLineIndex = tempSaleLines.findIndex(line => line.numero_item === numeroItem);
             if (existingLineIndex >= 0) {
                 tempSaleLines[existingLineIndex].quantite = totalQuantity;
                 tempSaleLines[existingLineIndex].prixt = totalQuantity * unitPrice;
                 tempSaleLines[existingLineIndex].remarque = unitPrice.toFixed(2);
             } else {
                 tempSaleLines.push({
-                    produit_bar: productBar,
+                    numero_item: numeroItem, // Entier
+                    produit_bar: productBar, // Garder pour la colonne Code
                     designation: designation,
                     quantite: quantity,
                     prixt: priceTotal,
@@ -502,7 +463,7 @@
             const validateButton = document.getElementById('validateSaleButton');
 
             if (tempSaleLines.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucune ligne ajoutée</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucune ligne ajoutée</td></tr>';
                 totalElement.textContent = '0.00 DA';
                 itemCountElement.textContent = '0';
                 itemCountElement.classList.add('hidden');
@@ -515,6 +476,7 @@
             let totalItems = 0;
 
             tempSaleLines.forEach((ligne, index) => {
+                console.log('Ligne:', ligne); // Log pour vérifier numero_item
                 const lineTotal = parseFloat(ligne.prixt) || 0;
                 total += lineTotal;
                 totalItems += ligne.quantite;
@@ -522,6 +484,12 @@
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-gray-50';
                 tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <button onclick="supprimerLigne(${index})" class="bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ligne.numero_item}</td>
                     <td class="px-6 py-4 text-sm text-gray-900">${ligne.designation || 'N/A'}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ligne.produit_bar || 'N/A'}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -535,11 +503,6 @@
                         <input type="number" step="0.01" value="${parseFloat(ligne.remarque).toFixed(2)}" onchange="modifierPrix(${index}, this.value)" class="quantity-input px-2 py-1 border rounded-md">
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${lineTotal.toFixed(2)}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <button onclick="supprimerLigne(${index})" class="bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </td>
                 `;
                 tbody.appendChild(tr);
             });
@@ -555,7 +518,7 @@
         // Modifier la quantité
         function modifierQuantite(index, delta) {
             const ligne = tempSaleLines[index];
-            const produit = produitsCache.find(p => p.BAR === ligne.produit_bar);
+            const produit = produitsCache.find(p => parseInt(p.BAR) === ligne.numero_item);
             const newQuantity = ligne.quantite + delta;
 
             if (newQuantity <= 0) {
@@ -615,7 +578,13 @@
                 numero_table: parseInt(document.getElementById('saleClientId').value) || 0,
                 date_comande: new Date().toISOString(),
                 nature: 'vente',
-                lignes: tempSaleLines
+                lignes: tempSaleLines.map(ligne => ({
+                    numero_item: ligne.numero_item,
+                    quantite: ligne.quantite,
+                    prixt: ligne.prixt,
+                    remarque: ligne.remarque,
+                    prixbh: ligne.prixbh
+                }))
             };
 
             try {
@@ -651,6 +620,7 @@
             console.log('Réinitialisation du formulaire de vente...');
             document.getElementById('saleProductBar').value = '';
             document.getElementById('saleProductBar').dataset.designation = '';
+            document.getElementById('saleProductBar').dataset.numeroItem = '';
             document.getElementById('saleQuantity').value = '';
             document.getElementById('saleUnitPrice').value = '';
             document.getElementById('salePriceTotal').value = '';
@@ -796,7 +766,7 @@
 
             tbody.innerHTML = '';
             const filteredProducts = produitsCache.filter(produit =>
-                produit.BAR.toLowerCase().includes(searchTerm) ||
+                produit.BAR.toString().includes(searchTerm) ||
                 produit.DESIGNATION.toLowerCase().includes(searchTerm) ||
                 parseFloat(produit.PRIX || 0).toFixed(2).includes(searchTerm) ||
                 parseFloat(produit.PRIXBA || '0.00').toFixed(2).includes(searchTerm)
@@ -817,7 +787,7 @@
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || '0.00').toFixed(2)}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <button onclick="selectProduct('${produit.BAR}', ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition duration-300">
+                        <button onclick="selectProduct(${produit.BAR}, ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition duration-300">
                             Sélectionner
                         </button>
                     </td>
