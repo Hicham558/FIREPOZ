@@ -9,7 +9,7 @@
     <!-- Flatpickr pour le DatePicker -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <!-- Chart.js pour le diagramme camembert -->
+    <!-- Chart.js pour les diagrammes -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
@@ -24,6 +24,7 @@
         .animate-total-pulse { animation: totalPulse 1.5s ease-in-out; }
         #dailySalesSection { animation-delay: 0.3s; }
         #topArticlesSection { animation-delay: 0.5s; }
+        #profitSection { animation-delay: 0.7s; }
         footer { animation-delay: 1s; }
         .user-anim { animation: userPulse 1.5s infinite ease-in-out; }
         .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
@@ -42,7 +43,7 @@
         #dailySalesContent .table-container table {
             width: 100%;
         }
-        #topArticlesContent .chart-container {
+        #topArticlesContent .chart-container, #profitContent .chart-container {
             max-width: 500px;
             margin: 0 auto;
         }
@@ -226,6 +227,27 @@
             </div>
         </div>
 
+        <!-- Bénéfice -->
+        <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="profitSection">
+            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('profitSection')">
+                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                    <i class="fas fa-chart-line mr-2 text-indigo-500"></i> Bénéfice
+                    <span id="profitCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                </h2>
+                <button class="text-gray-600 hover:text-gray-800 transition">
+                    <i class="fas fa-chevron-down" id="profitChevron"></i>
+                </button>
+            </div>
+            <div class="p-6" id="profitContent">
+                <div class="mb-4">
+                    <h3 class="text-lg font-medium text-gray-700">Bénéfice Total (Date Sélectionnée): <span id="profitTotal" class="text-indigo-600 font-bold">0.00 DA</span></h3>
+                </div>
+                <div class="flex justify-center">
+                    <canvas id="profitChart" width="400" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+
         <!-- Zone d'impression A4 (cachée par défaut) -->
         <div id="printAreaA4" class="hidden">
             <h1 class="text-2xl font-bold mb-4">Rapport des Ventes</h1>
@@ -327,7 +349,9 @@
         let dailySalesCache = { tickets: [], bons: [], total: 0 };
         let clientsCache = [];
         let topArticlesCache = [];
+        let profitCache = [];
         let topArticlesChart = null;
+        let profitChart = null;
 
         function showToast(message, isError = false) {
             const toast = document.getElementById('toast');
@@ -530,28 +554,22 @@
                 const countElement = document.getElementById('topArticlesCount');
                 const totalElement = document.getElementById('topArticlesTotal');
 
-                // Calculer le total des quantités
                 const totalQuantite = topArticlesCache.reduce((sum, article) => sum + parseInt(article.quantite || 0), 0);
 
-                // Mettre à jour les éléments de l'interface
                 countElement.textContent = topArticlesCache.length;
                 countElement.classList.remove('hidden');
                 totalElement.textContent = totalQuantite;
 
-                // Préparer les données pour le diagramme camembert
                 const labels = topArticlesCache.map(article => article.designation || 'N/A');
                 const quantites = topArticlesCache.map(article => parseInt(article.quantite || 0));
 
-                // Définir des couleurs dynamiques
                 const backgroundColors = quantites.map((_, index) => `hsl(${(index * 360) / quantites.length}, 70%, 60%)`);
                 const borderColors = quantites.map((_, index) => `hsl(${(index * 360) / quantites.length}, 70%, 40%)`);
 
-                // Détruire le graphique précédent s'il existe
                 if (topArticlesChart) {
                     topArticlesChart.destroy();
                 }
 
-                // Créer un nouveau graphique
                 const ctx = document.getElementById('topArticlesChart').getContext('2d');
                 topArticlesChart = new Chart(ctx, {
                     type: 'pie',
@@ -567,9 +585,7 @@
                     options: {
                         responsive: true,
                         plugins: {
-                            legend: {
-                                position: 'top',
-                            },
+                            legend: { position: 'top' },
                             tooltip: {
                                 callbacks: {
                                     label: function(context) {
@@ -582,12 +598,97 @@
                         }
                     }
                 });
-
             } catch (error) {
                 console.error('Erreur articles:', error);
                 showToast(`Erreur chargement articles: ${error.message}`, true);
                 document.getElementById('topArticlesTotal').textContent = '0';
                 document.getElementById('topArticlesCount').classList.add('hidden');
+            }
+        }
+
+        async function chargerProfit(date = '', numeroClt = '') {
+            console.log('Chargement du bénéfice...', { date, numeroClt });
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir le bénéfice', true);
+                return;
+            }
+
+            try {
+                const params = new URLSearchParams();
+                if (date) params.append('date', date);
+                if (numeroClt) params.append('numero_clt', numeroClt);
+                const url = `${API_BASE_URL}/profit_by_date?${params.toString()}`;
+
+                const response = await fetch(url, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                profitCache = await response.json();
+
+                const countElement = document.getElementById('profitCount');
+                const totalElement = document.getElementById('profitTotal');
+
+                const selectedDateProfit = profitCache.find(p => p.date === date)?.profit || 0;
+                const totalDays = profitCache.length;
+
+                countElement.textContent = totalDays;
+                countElement.classList.remove('hidden');
+                totalElement.textContent = `${parseFloat(selectedDateProfit).toFixed(2)} DA`;
+
+                const labels = profitCache.map(p => new Date(p.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }));
+                const profits = profitCache.map(p => parseFloat(p.profit));
+
+                if (profitChart) {
+                    profitChart.destroy();
+                }
+
+                const ctx = document.getElementById('profitChart').getContext('2d');
+                profitChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Bénéfice (DA)',
+                            data: profits,
+                            borderColor: '#4f46e5',
+                            backgroundColor: 'rgba(79, 70, 229, 0.2)',
+                            fill: true,
+                            tension: 0.4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: { display: true, text: 'Bénéfice (DA)' }
+                            },
+                            x: {
+                                title: { display: true, text: 'Date' }
+                            }
+                        },
+                        plugins: {
+                            legend: { display: true, position: 'top' },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const value = context.raw || 0;
+                                        return `Bénéfice: ${value.toFixed(2)} DA`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Erreur bénéfice:', error);
+                showToast(`Erreur chargement bénéfice: ${error.message}`, true);
+                document.getElementById('profitTotal').textContent = '0.00 DA';
+                document.getElementById('profitCount').classList.add('hidden');
             }
         }
 
@@ -633,14 +734,12 @@
             const printDate = document.getElementById('printDate');
             const printClient = document.getElementById('printClient');
 
-            // Remplir la date et le client
             const dateFilter = document.getElementById('dateFilter').value || new Date().toISOString().split('T')[0];
             const clientFilter = document.getElementById('clientFilter');
             const clientText = clientFilter.options[clientFilter.selectedIndex]?.text || 'Tous les clients';
             printDate.textContent = dateFilter;
             printClient.textContent = clientText;
 
-            // Remplir les tickets
             printTicketsList.innerHTML = '';
             dailySalesCache.tickets.forEach(vente => {
                 const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
@@ -654,7 +753,6 @@
                 printTicketsList.appendChild(tr);
             });
 
-            // Remplir les bons
             printBonsList.innerHTML = '';
             dailySalesCache.bons.forEach(vente => {
                 const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
@@ -668,10 +766,8 @@
                 printBonsList.appendChild(tr);
             });
 
-            // Remplir le total
             printTotal.textContent = parseFloat(dailySalesCache.total).toFixed(2);
 
-            // Afficher la zone d'impression et imprimer
             printArea.classList.remove('hidden');
             window.print();
             printArea.classList.add('hidden');
@@ -691,7 +787,6 @@
             const ticketLignes = document.getElementById('ticketLignes');
             const ticketTotal = document.getElementById('ticketTotal');
 
-            // Remplir les informations du ticket
             ticketNumero.textContent = vente.numero_comande;
             ticketDate.textContent = new Date(vente.date_comande).toLocaleString('fr-FR');
             ticketClient.textContent = vente.client_nom || 'Comptoir';
@@ -709,7 +804,6 @@
             const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
             ticketTotal.textContent = totalVente.toFixed(2);
 
-            // Afficher la zone d'impression et imprimer
             printArea.classList.remove('hidden');
             window.print();
             printArea.classList.add('hidden');
@@ -727,6 +821,7 @@
                 chargerClients();
                 chargerVentesJour();
                 chargerArticlesPlusVendus();
+                chargerProfit();
             } else {
                 console.log('Aucun utilisateur connecté, redirection vers index.html');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
@@ -740,6 +835,7 @@
                     const clientFilter = document.getElementById('clientFilter').value;
                     chargerVentesJour(dateStr, clientFilter);
                     chargerArticlesPlusVendus(dateStr, clientFilter);
+                    chargerProfit(dateStr, clientFilter);
                 }
             });
 
@@ -748,6 +844,7 @@
                 const clientFilter = e.target.value;
                 chargerVentesJour(dateFilter, clientFilter);
                 chargerArticlesPlusVendus(dateFilter, clientFilter);
+                chargerProfit(dateFilter, clientFilter);
             });
 
             fetch(`${API_BASE_URL}/`)
