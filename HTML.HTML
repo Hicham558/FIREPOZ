@@ -3,51 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion Commerciale</title>
+    <title>Ventes du Jour</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Flatpickr pour le DatePicker -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <style>
         @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes userPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
         @keyframes countPulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        @keyframes totalPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
         .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
         .animate-pulse { animation: pulse 2s infinite ease-in-out; }
         .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
-        #clientsSection { animation-delay: 0.2s; }
-        #fournisseursSection { animation-delay: 0.4s; }
-        #productsSection { animation-delay: 0.6s; }
-        #statsSection { animation-delay: 0.8s; }
+        .animate-total-pulse { animation: totalPulse 1.5s ease-in-out; }
+        #dailySalesSection { animation-delay: 0.3s; }
         footer { animation-delay: 1s; }
-        #scannerPreview { width: 100%; max-width: 300px; height: 200px; border: 2px solid #e5e7eb; margin-bottom: 1rem; display: none; background: #000; }
         .user-anim { animation: userPulse 1.5s infinite ease-in-out; }
         .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
         .small-email { font-size: 0.75rem; line-height: 1rem; }
+        .total-large {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #4f46e5;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+        }
+        #dailySalesContent .table-container {
+            max-height: 300px;
+            overflow-y: auto;
+            overflow-x: auto;
+        }
+        #dailySalesContent .table-container table {
+            width: 100%;
+        }
+        /* Style pour le DatePicker */
+        .flatpickr-input {
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            padding: 0.5rem 2.5rem 0.5rem 0.75rem;
+            width: 100%;
+            background: white;
+        }
+        .flatpickr-input:focus {
+            outline: none;
+            ring: 2px;
+            ring-color: #4f46e5;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
-    <!-- Formulaire de connexion -->
-    <div id="loginModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-20 hidden">
-        <form id="loginForm" class="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 class="text-xl font-semibold mb-4">Connexion</h2>
-            <p class="text-sm text-red-500 mb-4">⚠️ Le mot de passe ne doit pas être celui de votre email.</p>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Adresse Email*</label>
-                <input type="email" id="userEmail" name="username" autocomplete="username" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre email" required>
-            </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe*</label>
-                <input type="password" id="userPassword" name="password" autocomplete="current-password" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre mot de passe" required>
-            </div>
-            <div class="flex justify-end space-x-3">
-                <button type="submit" onclick="loginWithCredentials(event)" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
-                    <i class="fas fa-sign-in-alt mr-2"></i>Se connecter
-                </button>
-            </div>
-        </form>
-    </div>
-
     <!-- Menu de navigation -->
     <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-slide-in">
         <div class="container mx-auto flex justify-between items-center">
@@ -58,8 +65,11 @@
                 <span id="userDisplay" class="small-email user-anim hidden"></span>
             </div>
             <div class="space-x-4 flex items-center">
-                <a href="page1.html" class="hover:text-indigo-200 transition flex items-center">
-                    <i class="fas fa-barcode mr-1"></i> Scanner Produit
+                <a href="vente.html" class="hover:text-indigo-200 transition flex items-center">
+                    <i class="fas fa-shopping-cart mr-1"></i> Ventes
+                </a>
+                <a href="index.html" class="hover:text-indigo-200 transition flex items-center">
+                    <i class="fas fa-home mr-1"></i> Accueil
                 </a>
                 <button id="loginLogoutButton" onclick="loginLogout()" class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition flex items-center">
                     <i class="fas fa-sign-out-alt mr-1"></i>Déconnexion
@@ -71,262 +81,80 @@
     <!-- Contenu principal -->
     <div class="container mx-auto px-4 py-16 mt-16">
         <header class="mb-8">
-            <h1 class="text-3xl font-bold text-indigo-700">KHsphers software</h1>
+            <h1 class="text-3xl font-bold text-indigo-700">Ventes du Jour</h1>
             <p class="text-gray-600 flex items-center">
-                <i class="fas fa-database mr-2 text-indigo-500"></i> Fueled by PostgreSQL
+                <i class="fas fa-calendar-day mr-2 text-indigo-500"></i> Résumé des ventes en temps réel
             </p>
         </header>
 
-        <!-- Boutons Vente et Achat -->
-        <div class="flex mb-8">
-            <a href="vente.html" class="w-1/2 bg-green-600 text-white py-6 flex items-center justify-center hover:bg-green-700 transition-all duration-300 transform hover:scale-105 animate-pulse">
-                <i class="fas fa-shopping-cart text-4xl mr-3"></i>
-                <span class="text-2xl font-semibold">Vente</span>
-            </a>
-            <a href="achat.html" class="w-1/2 bg-blue-600 text-white py-6 flex items-center justify-center hover:bg-blue-700 transition-all duration-300 transform hover:scale-105 animate-pulse">
-                <i class="fas fa-box-open text-4xl mr-3"></i>
-                <span class="text-2xl font-semibold">Achat</span>
-            </a>
+        <!-- Filtres -->
+        <div class="mb-6 flex flex-col md:flex-row gap-4">
+            <div class="relative w-full md:w-1/3">
+                <label for="dateFilter" class="text-sm font-medium text-gray-700">Date</label>
+                <input type="text" id="dateFilter" placeholder="Sélectionner une date" class="flatpickr-input mt-1">
+            </div>
+            <div class="relative w-full md:w-1/3">
+                <label for="clientFilter" class="text-sm font-medium text-gray-700">Client</label>
+                <select id="clientFilter" class="mt-1 block w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300">
+                    <option value="">Tous les clients</option>
+                    <option value="0">Comptoir</option>
+                    <!-- Options des clients seront ajoutées dynamiquement -->
+                </select>
+            </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
-            <!-- Gestion Clients -->
-            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="clientsSection">
-                <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('clientsSection')">
-                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-users mr-2 text-indigo-500"></i> Gestion Clients
-                        <span id="clientCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                    </h2>
-                    <button class="text-gray-600 hover:text-gray-800 transition">
-                        <i class="fas fa-chevron-down" id="clientsChevron"></i>
-                    </button>
+        <!-- Ventes du Jour -->
+        <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="dailySalesSection">
+            <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('dailySalesSection')">
+                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                    <i class="fas fa-calendar-day mr-2 text-indigo-500"></i> Ventes
+                    <span id="dailySalesCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                </h2>
+                <button class="text-gray-600 hover:text-gray-800 transition">
+                    <i class="fas fa-chevron-down" id="dailySalesChevron"></i>
+                </button>
+            </div>
+            <div class="p-6 hidden" id="dailySalesContent">
+                <div class="mb-4">
+                    <h3 class="text-lg font-medium text-gray-700">Total: <span id="dailySalesTotal" class="text-indigo-600 font-bold">0.00 DA</span></h3>
                 </div>
-                <div class="p-6 hidden" id="clientsContent">
-                    <div class="mb-4">
-                        <div class="relative">
-                            <input type="text" id="searchClient" placeholder="Rechercher des clients..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                        </div>
-                        <div class="flex justify-end mt-2">
-                            <button onclick="toggleClientForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-plus mr-2"></i>Ajouter
-                            </button>
-                        </div>
-                    </div>
-
-                    <div id="clientForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
-                        <h3 class="font-medium mb-3">Nouveau Client</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
-                                <input type="text" id="clientNom" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Solde*</label>
-                                <input type="number" id="clientSolde" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Référence*</label>
-                                <input type="text" id="clientReference" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Contact</label>
-                                <input type="text" id="clientContact" class="w-full px-3 py-2 border rounded-md">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
-                                <input type="text" id="clientAdresse" class="w-full px-3 py-2 border rounded-md">
-                            </div>
-                        </div>
-                        <div class="flex justify-end space-x-3 mt-4">
-                            <button onclick="resetClientForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-times mr-2"></i>Annuler
-                            </button>
-                            <button onclick="ajouterClient()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-save mr-2"></i>Enregistrer
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="overflow-x-auto">
+                <!-- Tickets -->
+                <div class="mb-6">
+                    <h4 class="text-md font-medium text-gray-600 mb-2">Tickets (Ventes Comptoir)</h4>
+                    <div class="table-container">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Commande</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
                                 </tr>
                             </thead>
-                            <tbody id="clientsList" class="bg-white divide-y divide-gray-200">
+                            <tbody id="ticketsList" class="bg-white divide-y divide-gray-200">
                                 <tr>
-                                    <td colspan="6" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                                    <td colspan="5" class="text-center py-4 text-gray-500">Chargement en cours...</td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
-            </div>
-
-            <!-- Gestion Fournisseurs -->
-            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="fournisseursSection">
-                <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('fournisseursSection')">
-                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-truck mr-2 text-indigo-500"></i> Gestion Fournisseurs
-                        <span id="fournisseurCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                    </h2>
-                    <button class="text-gray-600 hover:text-gray-800 transition">
-                        <i class="fas fa-chevron-down" id="fournisseursChevron"></i>
-                    </button>
-                </div>
-                <div class="p-6 hidden" id="fournisseursContent">
-                    <div class="mb-4">
-                        <div class="relative">
-                            <input type="text" id="searchFournisseur" placeholder="Rechercher des fournisseurs..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                        </div>
-                        <div class="flex justify-end mt-2">
-                            <button onclick="toggleFournisseurForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-plus mr-2"></i>Ajouter
-                            </button>
-                        </div>
-                    </div>
-
-                    <div id="fournisseurForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
-                        <h3 class="font-medium mb-3">Nouveau Fournisseur</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
-                                <input type="text" id="fournisseurNom" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Solde*</label>
-                                <input type="number" id="fournisseurSolde" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Référence*</label>
-                                <input type="text" id="fournisseurReference" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Contact</label>
-                                <input type="text" id="fournisseurContact" class="w-full px-3 py-2 border rounded-md">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
-                                <input type="text" id="fournisseurAdresse" class="w-full px-3 py-2 border rounded-md">
-                            </div>
-                        </div>
-                        <div class="flex justify-end space-x-3 mt-4">
-                            <button onclick="resetFournisseurForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-times mr-2"></i>Annuler
-                            </button>
-                            <button onclick="ajouterFournisseur()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-save mr-2"></i>Enregistrer
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="overflow-x-auto">
+                <!-- Bons de Livraison -->
+                <div>
+                    <h4 class="text-md font-medium text-gray-600 mb-2">Bons de Livraison</h4>
+                    <div class="table-container">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Commande</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
                                 </tr>
                             </thead>
-                            <tbody id="fournisseursList" class="bg-white divide-y divide-gray-200">
-                                <tr>
-                                    <td colspan="6" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Liste des Produits -->
-            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="productsSection">
-                <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('productsSection')">
-                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-boxes mr-2 text-indigo-500"></i> Liste des Produits
-                        <span id="productCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                    </h2>
-                    <button class="text-gray-600 hover:text-gray-800 transition">
-                        <i class="fas fa-chevron-down" id="productsChevron"></i>
-                    </button>
-                </div>
-                <div class="p-6 hidden" id="productsContent">
-                    <div class="mb-4">
-                        <div class="relative">
-                            <input type="text" id="searchProduct" placeholder="Rechercher des produits..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                        </div>
-                        <div class="flex justify-end mt-2">
-                            <button onclick="toggleProductForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-plus mr-2"></i>Ajouter
-                            </button>
-                        </div>
-                    </div>
-
-                    <div id="productForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
-                        <h3 class="font-medium mb-3">Nouveau Produit</h3>
-                        <div id="scannerPreview"></div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Désignation*</label>
-                                <input type="text" id="productDesignation" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div class="relative">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Code Barre*</label>
-                                <input type="text" id="productBar" class="w-full px-3 py-2 border rounded-md" required>
-                                <button id="scanButton" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition duration-300" onclick="startScanner()">
-                                    <i class="fas fa-camera"></i> Scanner
-                                </button>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Prix Vente*</label>
-                                <input type="number" id="productPrix" step="0.01" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Prix Achat</label>
-                                <input type="number" id="productPrixba" step="0.01" class="w-full px-3 py-2 border rounded-md" placeholder="Ex: 300.00">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Quantité*</label>
-                                <input type="number" id="productQte" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                        </div>
-                        <div class="flex justify-end space-x-3 mt-4">
-                            <button onclick="stopScanner()" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-stop mr-2"></i>Arrêter
-                            </button>
-                            <button onclick="resetProductForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-times mr-2"></i>Annuler
-                            </button>
-                            <button onclick="ajouterProduit()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-save mr-2"></i>Enregistrer
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Désignation</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Vente</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Achat</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                                </tr>
-                            </thead>
-                            <tbody id="productsList" class="bg-white divide-y divide-gray-200">
+                            <tbody id="bonsList" class="bg-white divide-y divide-gray-200">
                                 <tr>
                                     <td colspan="5" class="text-center py-4 text-gray-500">Chargement en cours...</td>
                                 </tr>
@@ -335,25 +163,17 @@
                     </div>
                 </div>
             </div>
-
-            <!-- Statistiques -->
-            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="statsSection">
-                <a href="page2.html" class="block p-6 flex justify-between items-center hover:bg-gray-50 transition duration-300">
-                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-chart-bar mr-2 text-indigo-500"></i> Statistiques
-                    </h2>
-                </a>
-            </div>
         </div>
     </div>
 
     <!-- Footer -->
-    <footer class="bg-gray-700 text-white text-center py-4 mt-8 animate-fade-in">
+    <footer class="bg-gray-700 text-white text-center py-4 animate-fade-in">
         <p>Développé par Khelladi Hicham</p>
         <p>Tel: <a href="tel:00213553700900" class="underline hover:text-indigo-300 transition duration-300">00213553700900</a></p>
         <p>Email: <a href="mailto:Hicham.khelladi@gmail.com" class="underline hover:text-indigo-300 transition duration-300">Hicham.khelladi@gmail.com</a></p>
     </footer>
 
+    <!-- Toast -->
     <div id="toast" class="fixed bottom-4 right-4 hidden">
         <div class="flex items-center px-6 py-3 rounded-md shadow-lg">
             <i id="toastIcon" class="mr-2"></i>
@@ -361,100 +181,36 @@
         </div>
     </div>
 
+    <!-- Modal pour les détails des lignes de vente -->
+    <div id="saleDetailsModal" class="fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white rounded-lg shadow-lg max-w-2xl w-full p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-semibold text-gray-800">Détails de la Vente #<span id="modalSaleNumber"></span></h3>
+                <button onclick="closeSaleDetailsModal()" class="text-gray-600 hover:text-gray-800">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="table-container max-h-96 overflow-y-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Unitaire</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="saleDetailsList" class="bg-white divide-y divide-gray-200"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <script>
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
+        let dailySalesCache = { tickets: [], bons: [], total: 0 };
+        let clientsCache = [];
 
-        // Générer un user_id basé sur l'email et le mot de passe
-        function generateUniqueUserId(email, password) {
-            const combined = `${email.toLowerCase()}:${password}`;
-            return btoa(combined);
-        }
-
-        // Vérifier si l'utilisateur est connecté au chargement de la page
-        document.addEventListener('DOMContentLoaded', () => {
-            const userId = localStorage.getItem('userId');
-            const userEmail = localStorage.getItem('userEmail');
-            if (userId && userEmail) {
-                document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
-                document.getElementById('userDisplay').classList.remove('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                document.getElementById('loginModal').classList.add('hidden');
-                chargerClients();
-                chargerFournisseurs();
-                chargerProduits();
-            } else {
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                document.getElementById('loginModal').classList.remove('hidden');
-            }
-
-            // Vérification de la connexion API
-            fetch(`${API_BASE_URL}/`)
-                .then(response => response.text())
-                .then(text => console.log('Statut API:', text))
-                .catch(err => {
-                    console.error('API non disponible:', err);
-                    showToast('Erreur de connexion à l\'API', true);
-                });
-        });
-
-        // Connexion avec email et mot de passe
-        function loginWithCredentials(event) {
-            event.preventDefault();
-            const email = document.getElementById('userEmail').value.trim();
-            const password = document.getElementById('userPassword').value.trim();
-            if (!email || !password) {
-                showToast('Veuillez entrer un email et un mot de passe valides', true);
-                return;
-            }
-
-            const emailLowerCase = email.toLowerCase();
-            const storedUserId = localStorage.getItem('userId');
-            const storedEmail = localStorage.getItem('userEmail');
-
-            const userId = generateUniqueUserId(emailLowerCase, password);
-
-            if (storedUserId && storedEmail === emailLowerCase && storedUserId === userId) {
-                document.getElementById('userDisplay').textContent = emailLowerCase;
-                document.getElementById('userDisplay').classList.remove('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                document.getElementById('loginModal').classList.add('hidden');
-                chargerClients();
-                chargerFournisseurs();
-                chargerProduits();
-            } else {
-                localStorage.setItem('userId', userId);
-                localStorage.setItem('userEmail', emailLowerCase);
-                document.getElementById('userDisplay').textContent = emailLowerCase;
-                document.getElementById('userDisplay').classList.remove('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                document.getElementById('loginModal').classList.add('hidden');
-                chargerClients();
-                chargerFournisseurs();
-                chargerProduits();
-                showToast('Nouveau compte créé avec succès');
-            }
-        }
-
-        // Fonction de déconnexion
-        function loginLogout() {
-            const userId = localStorage.getItem('userId');
-            if (userId) {
-                localStorage.removeItem('userId');
-                localStorage.removeItem('userEmail');
-                document.getElementById('userDisplay').textContent = '';
-                document.getElementById('userDisplay').classList.add('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                document.getElementById('loginModal').classList.remove('hidden');
-                document.getElementById('clientsList').innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
-                document.getElementById('fournisseursList').innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
-                document.getElementById('productsList').innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
-                document.getElementById('clientCount').classList.add('hidden');
-                document.getElementById('fournisseurCount').classList.add('hidden');
-                document.getElementById('productCount').classList.add('hidden');
-            }
-        }
-
-        // Fonction pour afficher les notifications
         function showToast(message, isError = false) {
             const toast = document.getElementById('toast');
             const toastMessage = document.getElementById('toastMessage');
@@ -476,7 +232,6 @@
             }, 3000);
         }
 
-        // Fonction pour gérer l'animation développer/envelopper
         function toggleSection(sectionId) {
             const section = document.getElementById(sectionId);
             const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
@@ -487,8 +242,21 @@
             chevron.classList.toggle('fa-chevron-up');
         }
 
-        // --- Gestion des clients ---
+        function loginLogout() {
+            console.log('Déconnexion en cours...');
+            const userId = localStorage.getItem('userId');
+            if (userId) {
+                localStorage.removeItem('userId');
+                localStorage.removeItem('userEmail');
+                document.getElementById('userDisplay').textContent = '';
+                document.getElementById('userDisplay').classList.add('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                window.location.href = 'index.html';
+            }
+        }
+
         async function chargerClients() {
+            console.log('Chargement des clients...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour voir les clients', true);
@@ -497,573 +265,201 @@
 
             try {
                 const response = await fetch(`${API_BASE_URL}/liste_clients`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
+                    headers: { 'X-User-ID': userId }
                 });
                 if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
-                const clients = await response.json();
-                const tbody = document.getElementById('clientsList');
-                const countElement = document.getElementById('clientCount');
+                clientsCache = await response.json();
+                const selectElement = document.getElementById('clientFilter');
 
-                if (clients.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun client trouvé</td></tr>';
-                    countElement.textContent = '0';
-                    countElement.classList.remove('hidden');
-                    return;
-                }
-
-                tbody.innerHTML = '';
-                clients.forEach(client => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.numero_clt || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${client.nom || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.solde || '0'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.reference || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.contact || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.adresse || 'N/A'}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-                countElement.textContent = clients.length;
-                countElement.classList.remove('hidden');
-            } catch (error) {
-                document.getElementById('clientsList').innerHTML = `
-                    <tr>
-                        <td colspan="6" class="text-center py-4 text-red-500">
-                            Erreur de chargement: ${error.message}
-                        </td>
-                    </tr>
+                // Ajouter les clients à la ComboBox
+                selectElement.innerHTML = `
+                    <option value="">Tous les clients</option>
+                    <option value="0">Comptoir</option>
                 `;
+                clientsCache.forEach(client => {
+                    const option = document.createElement('option');
+                    option.value = client.numero_clt;
+                    option.textContent = `${client.nom} (ID: ${client.numero_clt})`;
+                    selectElement.appendChild(option);
+                });
+            } catch (error) {
+                showToast('Erreur lors du chargement des clients: ' + error.message, true);
                 console.error('Erreur clients:', error);
             }
         }
 
-        async function ajouterClient() {
+        async function chargerVentesJour(date = '', numeroClt = '') {
+            console.log('Chargement des ventes...', { date, numeroClt });
             const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Veuillez vous connecter pour ajouter un client', true);
-                return;
-            }
-
-            const nom = document.getElementById('clientNom').value.trim();
-            const solde = document.getElementById('clientSolde').value.trim();
-            const reference = document.getElementById('clientReference').value.trim();
-            const contact = document.getElementById('clientContact').value.trim();
-            const adresse = document.getElementById('clientAdresse').value.trim();
-
-            if (!nom || !solde || !reference) {
-                showToast('Veuillez remplir tous les champs obligatoires', true);
+                showToast('Veuillez vous connecter pour voir les ventes', true);
+                window.location.href = 'index.html';
                 return;
             }
 
             try {
-                const response = await fetch(`${API_BASE_URL}/ajouter_client`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({
-                        nom,
-                        solde: parseFloat(solde),
-                        reference,
-                        contact,
-                        adresse
-                    })
-                });
+                // Construire l'URL avec les paramètres de filtre
+                const params = new URLSearchParams();
+                if (date) params.append('date', date);
+                if (numeroClt) params.append('numero_clt', numeroClt);
+                const url = `${API_BASE_URL}/ventes_jour?${params.toString()}`;
 
-                const result = await response.json();
+                const response = await fetch(url, {
+                    headers: { 'X-User-ID': userId }
+                });
                 if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de l\'ajout');
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                dailySalesCache = await response.json();
+
+                const ticketsTbody = document.getElementById('ticketsList');
+                const bonsTbody = document.getElementById('bonsList');
+                const countElement = document.getElementById('dailySalesCount');
+                const totalElement = document.getElementById('dailySalesTotal');
+
+                // Tickets
+                if (dailySalesCache.tickets.length === 0) {
+                    ticketsTbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun ticket</td></tr>';
+                } else {
+                    ticketsTbody.innerHTML = '';
+                    dailySalesCache.tickets.forEach(vente => {
+                        const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
+                        const tr = document.createElement('tr');
+                        tr.className = 'hover:bg-gray-50';
+                        tr.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${vente.numero_comande}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.client_nom || 'Comptoir'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalVente.toFixed(2)} DA</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <button onclick="showSaleDetails(${vente.numero_comande}, '${vente.nature}')" class="bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition">
+                                    <i class="fas fa-eye"></i> Voir
+                                </button>
+                            </td>
+                        `;
+                        ticketsTbody.appendChild(tr);
+                    });
                 }
 
-                showToast('Client ajouté avec succès');
-                resetClientForm();
+                // Bons de Livraison
+                if (dailySalesCache.bons.length === 0) {
+                    bonsTbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun bon de livraison</td></tr>';
+                } else {
+                    bonsTbody.innerHTML = '';
+                    dailySalesCache.bons.forEach(vente => {
+                        const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
+                        const tr = document.createElement('tr');
+                        tr.className = 'hover:bg-gray-50';
+                        tr.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${vente.numero_comande}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.client_nom || 'Comptoir'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalVente.toFixed(2)} DA</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <button onclick="showSaleDetails(${vente.numero_comande}, '${vente.nature}')" class="bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition">
+                                    <i class="fas fa-eye"></i> Voir
+                                </button>
+                            </td>
+                        `;
+                        bonsTbody.appendChild(tr);
+                    });
+                }
+
+                // Total et compteur
+                countElement.textContent = dailySalesCache.tickets.length + dailySalesCache.bons.length;
+                countElement.classList.remove('hidden');
+                totalElement.textContent = `${parseFloat(dailySalesCache.total).toFixed(2)} DA`;
+            } catch (error) {
+                document.getElementById('ticketsList').innerHTML = `
+                    <tr><td colspan="5" class="text-center py-4 text-red-500">Erreur de chargement: ${error.message}</td></tr>
+                `;
+                document.getElementById('bonsList').innerHTML = `
+                    <tr><td colspan="5" class="text-center py-4 text-red-500">Erreur de chargement: ${error.message}</td></tr>
+                `;
+                console.error('Erreur ventes:', error);
+                showToast(`Erreur chargement ventes: ${error.message}`, true);
+            }
+        }
+
+        function showSaleDetails(numeroComande, nature) {
+            const vente = [...dailySalesCache.tickets, ...dailySalesCache.bons].find(v => v.numero_comande === numeroComande);
+            if (!vente) {
+                showToast('Vente non trouvée', true);
+                return;
+            }
+
+            const modal = document.getElementById('saleDetailsModal');
+            const modalSaleNumber = document.getElementById('modalSaleNumber');
+            const saleDetailsList = document.getElementById('saleDetailsList');
+
+            modalSaleNumber.textContent = numeroComande;
+            saleDetailsList.innerHTML = '';
+
+            vente.lignes.forEach(ligne => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50';
+                tr.innerHTML = `
+                    <td class="px-6 py-4 text-sm text-gray-900">${ligne.designation || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ligne.quantite || 0}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(ligne.remarque || 0).toFixed(2)} DA</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(ligne.prixt || 0).toFixed(2)} DA</td>
+                `;
+                saleDetailsList.appendChild(tr);
+            });
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeSaleDetailsModal() {
+            const modal = document.getElementById('saleDetailsModal');
+            modal.classList.add('hidden');
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Page chargée, vérification utilisateur...');
+            const userId = localStorage.getItem('userId');
+            const userEmail = localStorage.getItem('userEmail');
+            if (userId && userEmail) {
+                console.log('Utilisateur connecté:', userId, userEmail);
+                document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
+                document.getElementById('userDisplay').classList.remove('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
                 chargerClients();
-            } catch (error) {
-                showToast(error.message, true);
-                console.error('Erreur ajout client:', error);
+                chargerVentesJour(); // Charger les ventes du jour par défaut
+            } else {
+                console.log('Aucun utilisateur connecté, redirection vers index.html');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                window.location.href = 'index.html';
             }
-        }
 
-        function resetClientForm() {
-            document.getElementById('clientNom').value = '';
-            document.getElementById('clientSolde').value = '';
-            document.getElementById('clientReference').value = '';
-            document.getElementById('clientContact').value = '';
-            document.getElementById('clientAdresse').value = '';
-            document.getElementById('clientForm').classList.add('hidden');
-        }
-
-        function toggleClientForm() {
-            document.getElementById('clientForm').classList.toggle('hidden');
-        }
-
-        document.getElementById('searchClient').addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const rows = document.querySelectorAll('#clientsList tr');
-
-            rows.forEach(row => {
-                const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-                const reference = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
-                const contact = row.querySelector('td:nth-child(5)')?.textContent.toLowerCase();
-                const adresse = row.querySelector('td:nth-child(6)')?.textContent.toLowerCase();
-                if (nom?.includes(searchTerm) || reference?.includes(searchTerm) || contact?.includes(searchTerm) || adresse?.includes(searchTerm)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
+            // Initialiser le DatePicker
+            flatpickr('#dateFilter', {
+                dateFormat: 'Y-m-d',
+                defaultDate: new Date(),
+                onChange: (selectedDates, dateStr) => {
+                    const clientFilter = document.getElementById('clientFilter').value;
+                    chargerVentesJour(dateStr, clientFilter);
                 }
             });
-        });
 
-        // --- Gestion des fournisseurs ---
-        async function chargerFournisseurs() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les fournisseurs', true);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_fournisseurs`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
-                });
-                if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-                }
-                const fournisseurs = await response.json();
-                const tbody = document.getElementById('fournisseursList');
-                const countElement = document.getElementById('fournisseurCount');
-
-                if (fournisseurs.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun fournisseur trouvé</td></tr>';
-                    countElement.textContent = '0';
-                    countElement.classList.remove('hidden');
-                    return;
-                }
-
-                tbody.innerHTML = '';
-                fournisseurs.forEach(fournisseur => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.numero_fou || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${fournisseur.nom || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.solde || '0'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.reference || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.contact || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.adresse || 'N/A'}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-                countElement.textContent = fournisseurs.length;
-                countElement.classList.remove('hidden');
-            } catch (error) {
-                document.getElementById('fournisseursList').innerHTML = `
-                    <tr>
-                        <td colspan="6" class="text-center py-4 text-red-500">
-                            Erreur de chargement: ${error.message}
-                        </td>
-                    </tr>
-                `;
-                console.error('Erreur fournisseurs:', error);
-            }
-        }
-
-        async function ajouterFournisseur() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour ajouter un fournisseur', true);
-                return;
-            }
-
-            const nom = document.getElementById('fournisseurNom').value.trim();
-            const solde = document.getElementById('fournisseurSolde').value.trim();
-            const reference = document.getElementById('fournisseurReference').value.trim();
-            const contact = document.getElementById('fournisseurContact').value.trim();
-            const adresse = document.getElementById('fournisseurAdresse').value.trim();
-
-            if (!nom || !solde || !reference) {
-                showToast('Veuillez remplir tous les champs obligatoires', true);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/ajouter_fournisseur`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({
-                        nom,
-                        solde: parseFloat(solde),
-                        reference,
-                        contact,
-                        adresse
-                    })
-                });
-
-                const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de l\'ajout');
-                }
-
-                showToast('Fournisseur ajouté avec succès');
-                resetFournisseurForm();
-                chargerFournisseurs();
-            } catch (error) {
-                showToast(error.message, true);
-                console.error('Erreur ajout fournisseur:', error);
-            }
-        }
-
-        function resetFournisseurForm() {
-            document.getElementById('fournisseurNom').value = '';
-            document.getElementById('fournisseurSolde').value = '';
-            document.getElementById('fournisseurReference').value = '';
-            document.getElementById('fournisseurContact').value = '';
-            document.getElementById('fournisseurAdresse').value = '';
-            document.getElementById('fournisseurForm').classList.add('hidden');
-        }
-
-        function toggleFournisseurForm() {
-            document.getElementById('fournisseurForm').classList.toggle('hidden');
-        }
-
-        document.getElementById('searchFournisseur').addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const rows = document.querySelectorAll('#fournisseursList tr');
-
-            rows.forEach(row => {
-                const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-                const reference = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
-                const contact = row.querySelector('td:nth-child(5)')?.textContent.toLowerCase();
-                const adresse = row.querySelector('td:nth-child(6)')?.textContent.toLowerCase();
-                if (nom?.includes(searchTerm) || reference?.includes(searchTerm) || contact?.includes(searchTerm) || adresse?.includes(searchTerm)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
+            // Ajouter un écouteur pour le filtre client
+            document.getElementById('clientFilter').addEventListener('change', (e) => {
+                const dateFilter = document.getElementById('dateFilter').value;
+                const clientFilter = e.target.value;
+                chargerVentesJour(dateFilter, clientFilter);
             });
-        });
 
-        // --- Gestion des produits ---
-        async function chargerProduits() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les produits', true);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
+            fetch(`${API_BASE_URL}/`)
+                .then(response => response.text())
+                .then(text => console.log('Statut API:', text))
+                .catch(err => {
+                    console.error('API non disponible:', err);
+                    showToast('Erreur de connexion à l\'API', true);
                 });
-                if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-                }
-                const produits = await response.json();
-                const tbody = document.getElementById('productsList');
-                const countElement = document.getElementById('productCount');
-
-                if (produits.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
-                    countElement.textContent = '0';
-                    countElement.classList.remove('hidden');
-                    return;
-                }
-
-                tbody.innerHTML = '';
-                produits.forEach(produit => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || '0.00').toFixed(2)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-                countElement.textContent = produits.length;
-                countElement.classList.remove('hidden');
-            } catch (error) {
-                document.getElementById('productsList').innerHTML = `
-                    <tr>
-                        <td colspan="5" class="text-center py-4 text-red-500">
-                            Erreur de chargement: ${error.message}
-                        </td>
-                    </tr>
-                `;
-                console.error('Erreur produits:', error);
-            }
-        }
-
-        async function ajouterProduit() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour ajouter un produit', true);
-                return;
-            }
-
-            const designation = document.getElementById('productDesignation').value.trim();
-            const bar = document.getElementById('productBar').value.trim();
-            const prix = document.getElementById('productPrix').value.trim();
-            const prixba = document.getElementById('productPrixba').value.trim();
-            const qte = document.getElementById('productQte').value.trim();
-
-            if (!designation || !bar || !prix || !qte) {
-                showToast('Veuillez remplir tous les champs obligatoires', true);
-                return;
-            }
-
-            // Validation du prix d'achat
-            let prixbaValue = '0.00';
-            if (prixba) {
-                const parsedPrixba = parseFloat(prixba);
-                if (isNaN(parsedPrixba) || parsedPrixba < 0) {
-                    showToast('Le prix d\'achat doit être un nombre positif', true);
-                    return;
-                }
-                prixbaValue = parsedPrixba.toFixed(2); // Formater avec 2 décimales
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
-                });
-                if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-                }
-                const produits = await response.json();
-                const codeBarExists = produits.some(produit => produit.BAR === bar);
-                if (codeBarExists) {
-                    showToast('Ce code-barres existe déjà dans la liste des produits.', true);
-                    return;
-                }
-            } catch (error) {
-                showToast('Erreur lors de la vérification des doublons: ' + error.message, true);
-                console.error('Erreur vérification doublons:', error);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/ajouter_item`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({
-                        designation,
-                        bar,
-                        prix: parseFloat(prix),
-                        prixba: prixbaValue,
-                        qte: parseInt(qte)
-                    })
-                });
-
-                const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de l\'ajout');
-                }
-
-                showToast('Produit ajouté avec succès');
-                resetProductForm();
-                chargerProduits();
-            } catch (error) {
-                showToast(error.message, true);
-                console.error('Erreur ajout produit:', error);
-            }
-        }
-
-        function resetProductForm() {
-            document.getElementById('productDesignation').value = '';
-            document.getElementById('productBar').value = '';
-            document.getElementById('productPrix').value = '';
-            document.getElementById('productPrixba').value = '';
-            document.getElementById('productQte').value = '';
-            document.getElementById('productForm').classList.add('hidden');
-            stopScanner();
-        }
-
-        function toggleProductForm() {
-            document.getElementById('productForm').classList.toggle('hidden');
-        }
-
-        document.getElementById('searchProduct').addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const rows = document.querySelectorAll('#productsList tr');
-
-            rows.forEach(row => {
-                const code = row.querySelector('td:nth-child(1)')?.textContent.toLowerCase();
-                const designation = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-                const prix = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
-                const prixba = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
-                const qte = row.querySelector('td:nth-child(5)')?.textContent.toLowerCase();
-                if (
-                    code?.includes(searchTerm) ||
-                    designation?.includes(searchTerm) ||
-                    prix?.includes(searchTerm) ||
-                    prixba?.includes(searchTerm) ||
-                    qte?.includes(searchTerm)
-                ) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-
-        // --- Scanner de code-barres avec Barcode Detection API ---
-        let stream = null;
-        let barcodeDetector = null;
-        let isScanning = false;
-
-        async function startScanner() {
-            if (!('BarcodeDetector' in window)) {
-                showToast('Le scanner de code-barres n\'est pas supporté par ce navigateur. Utilisez Chrome ou Edge.', true);
-                return;
-            }
-
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                showToast('L\'accès à la caméra n\'est pas supporté par ce navigateur.', true);
-                return;
-            }
-
-            const preview = document.getElementById('scannerPreview');
-            const scanButton = document.getElementById('scanButton');
-            preview.style.display = 'block';
-            scanButton.disabled = true;
-            isScanning = true;
-
-            try {
-                barcodeDetector = new BarcodeDetector({
-                    formats: ['ean_13', 'code_128', 'upc_a', 'upc_e', 'qr_code']
-                });
-
-                const supportedFormats = await BarcodeDetector.getSupportedFormats();
-                console.log('Formats supportés :', supportedFormats);
-                if (supportedFormats.length === 0) {
-                    throw new Error('Aucun format de code-barres supporté par ce navigateur.');
-                }
-
-                stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment' }
-                });
-
-                const video = document.createElement('video');
-                video.srcObject = stream;
-                video.autoplay = true;
-                video.playsinline = true;
-                preview.innerHTML = '';
-                preview.appendChild(video);
-
-                video.onloadedmetadata = () => {
-                    console.log('Vidéo prête pour la détection.');
-                    detectBarcodes(video);
-                };
-            } catch (err) {
-                console.error('Erreur lors du démarrage du scanner :', err);
-                let errorMessage = 'Erreur lors du démarrage du scanner : ';
-                if (err.name === 'NotAllowedError') {
-                    errorMessage += 'Accès à la caméra refusé. Veuillez autoriser l\'accès à la caméra.';
-                } else if (err.name === 'NotFoundError') {
-                    errorMessage += 'Aucune caméra trouvée sur cet appareil.';
-                } else {
-                    errorMessage += err.message;
-                }
-                showToast(errorMessage, true);
-                stopScanner();
-            }
-        }
-
-        async function detectBarcodes(video) {
-            if (!isScanning) return;
-
-            try {
-                const barcodes = await barcodeDetector.detect(video);
-                if (barcodes.length > 0) {
-                    const barcode = barcodes[0];
-                    const scannedCode = barcode.rawValue;
-
-                    const userId = localStorage.getItem('userId');
-                    if (!userId) {
-                        showToast('Veuillez vous connecter pour scanner un code-barres', true);
-                        stopScanner();
-                        return;
-                    }
-
-                    try {
-                        const response = await fetch(`${API_BASE_URL}/liste_produits`, {
-                            headers: {
-                                'X-User-ID': userId
-                            }
-                        });
-                        if (!response.ok) {
-                            throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-                        }
-                        const produits = await response.json();
-                        const codeBarExists = produits.some(produit => produit.BAR === scannedCode);
-                        if (codeBarExists) {
-                            showToast(`Ce code-barres existe déjà : ${scannedCode}`, true);
-                            stopScanner();
-                        } else {
-                            document.getElementById('productBar').value = scannedCode;
-                            showToast('Code-barres scanné : ' + scannedCode);
-                            stopScanner();
-                        }
-                    } catch (error) {
-                        showToast('Erreur lors de la vérification des doublons: ' + error.message, true);
-                        stopScanner();
-                    }
-                } else {
-                    requestAnimationFrame(() => detectBarcodes(video));
-                }
-            } catch (err) {
-                console.error('Erreur lors de la détection du code-barres :', err);
-                let errorMessage = 'Erreur lors de la détection du code-barres : ';
-                if (err.name === 'NotReadableError') {
-                    errorMessage += 'Impossible de lire le code-barres. Assurez-vous qu\'il est bien visible et éclairé.';
-                } else {
-                    errorMessage += err.message;
-                }
-                showToast(errorMessage, true);
-                stopScanner();
-            }
-        }
-
-        function stopScanner() {
-            isScanning = false;
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                stream = null;
-            }
-            const preview = document.getElementById('scannerPreview');
-            const scanButton = document.getElementById('scanButton');
-            preview.style.display = 'none';
-            preview.innerHTML = '';
-            scanButton.disabled = false;
-        }
-
-        // Gestion des erreurs CORS
-        window.addEventListener('unhandledrejection', event => {
-            if (event.reason.message.includes('Failed to fetch')) {
-                showToast('Erreur de connexion au serveur. Vérifiez l\'URL ou les paramètres CORS.', true);
-            }
         });
     </script>
 </body>
