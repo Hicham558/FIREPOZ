@@ -93,6 +93,16 @@
             color: black;
             font-size: 0.75rem;
         }
+        .stock-rupture {
+            background-color: rgba(255, 0, 0, 0.1);
+        }
+        .stock-faible {
+            background-color: rgba(255, 165, 0, 0.1);
+        }
+        .btn-disabled {
+            background-color: #d1d5db !important;
+            cursor: not-allowed !important;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -280,7 +290,7 @@
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
         let tempSaleLines = [];
         let produitsCache = [];
-        let clientsCache = []; // Cache pour stocker les infos des clients, y compris les soldes
+        let clientsCache = [];
 
         function generateUniqueUserId(email, password) {
             const combined = `${email.toLowerCase()}:${password}`;
@@ -385,10 +395,8 @@
                 console.log('Clients reçus:', clientsCache);
                 const selectElement = document.getElementById('saleClientId');
 
-                // Vider le combobox sauf l'option par défaut
                 selectElement.innerHTML = '<option value="0">Vente Comptoir (Sans client)</option>';
 
-                // Charger les soldes des clients
                 await chargerSoldesClients();
 
                 clientsCache.forEach(client => {
@@ -424,7 +432,6 @@
                 const soldes = await response.json();
                 console.log('Soldes reçus:', soldes);
 
-                // Mettre à jour le cache des clients avec les soldes
                 clientsCache.forEach(client => {
                     const soldeData = soldes.find(s => s.numero_clt === client.numero_clt);
                     client.solde = soldeData ? soldeData.solde : '0.00';
@@ -463,7 +470,8 @@
                     ...produit,
                     NUMERO_ITEM: parseInt(produit.NUMERO_ITEM),
                     BAR: parseInt(produit.BAR),
-                    PRIXBA: parseFloat(produit.PRIXBA) || 0.0
+                    PRIXBA: parseFloat(produit.PRIXBA) || 0.0,
+                    QTE: parseInt(produit.QTE) || 0
                 }));
 
                 if (produitsCache.length === 0) {
@@ -476,16 +484,21 @@
                 tbody.innerHTML = '';
                 produitsCache.forEach(produit => {
                     console.log('Rendu produit:', produit);
+                    const stockStatus = produit.QTE <= 0 ? 'Rupture' : produit.QTE <= 5 ? 'Stock faible' : produit.QTE;
+                    const stockClass = produit.QTE <= 0 ? 'stock-rupture' : produit.QTE <= 5 ? 'stock-faible' : '';
+                    const buttonDisabled = produit.QTE <= 0 ? 'btn-disabled' : '';
+                    const buttonAttrs = produit.QTE <= 0 ? 'disabled' : '';
+
                     const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
+                    tr.className = `hover:bg-gray-50 ${stockClass}`;
                     tr.innerHTML = `
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <button onclick="selectProduct(${produit.NUMERO_ITEM}, ${produit.BAR}, ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition duration-300">
+                            <button onclick="selectProduct(${produit.NUMERO_ITEM}, ${produit.BAR}, ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition duration-300 ${buttonDisabled}" ${buttonAttrs}>
                                 <i class="fas fa-plus"></i>
                             </button>
                         </td>
                         <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stockStatus}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.NUMERO_ITEM || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
@@ -736,7 +749,7 @@
                 togglePaymentForm();
                 updateTempSalesTable();
                 chargerProduits();
-                chargerClients(); // Recharger les clients pour mettre à jour les soldes
+                chargerClients();
             } catch (error) {
                 console.error('Erreur validation vente:', error);
                 showToast(`Erreur validation vente: ${error.message}`, true);
@@ -1169,6 +1182,9 @@
                     if (!produit) {
                         showToast(`Produit avec code ${scannedCode} non trouvé`, true);
                         stopScanner();
+                    } else if (produit.QTE <= 0) {
+                        showToast(`Produit ${produit.DESIGNATION} en rupture de stock`, true);
+                        stopScanner();
                     } else {
                         selectProduct(produit.NUMERO_ITEM, produit.BAR, produit.PRIX, produit.PRIXBA, produit.QTE, produit.DESIGNATION);
                         stopScanner();
@@ -1227,16 +1243,21 @@
             }
 
             filteredProducts.forEach(produit => {
+                const stockStatus = produit.QTE <= 0 ? 'Rupture' : produit.QTE <= 5 ? 'Stock faible' : produit.QTE;
+                const stockClass = produit.QTE <= 0 ? 'stock-rupture' : produit.QTE <= 5 ? 'stock-faible' : '';
+                const buttonDisabled = produit.QTE <= 0 ? 'btn-disabled' : '';
+                const buttonAttrs = produit.QTE <= 0 ? 'disabled' : '';
+
                 const tr = document.createElement('tr');
-                tr.className = 'hover:bg-gray-50';
+                tr.className = `hover:bg-gray-50 ${stockClass}`;
                 tr.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <button onclick="selectProduct(${produit.NUMERO_ITEM}, ${produit.BAR}, ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition duration-300">
+                        <button onclick="selectProduct(${produit.NUMERO_ITEM}, ${produit.BAR}, ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition duration-300 ${buttonDisabled}" ${buttonAttrs}>
                             <i class="fas fa-plus"></i>
                         </button>
                     </td>
                     <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stockStatus}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.NUMERO_ITEM || 'N/A'}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
