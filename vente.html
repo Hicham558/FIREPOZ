@@ -85,6 +85,14 @@
         #paymentForm {
             transition: all 0.3s ease;
         }
+        .solde-negatif {
+            color: red;
+            font-size: 0.75rem;
+        }
+        .solde-positif {
+            color: black;
+            font-size: 0.75rem;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -272,6 +280,7 @@
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
         let tempSaleLines = [];
         let produitsCache = [];
+        let clientsCache = []; // Cache pour stocker les infos des clients, y compris les soldes
 
         function generateUniqueUserId(email, password) {
             const combined = `${email.toLowerCase()}:${password}`;
@@ -372,19 +381,57 @@
                     console.error('Erreur texte liste_clients:', errorText);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
-                const clients = await response.json();
-                console.log('Clients reçus:', clients);
+                clientsCache = await response.json();
+                console.log('Clients reçus:', clientsCache);
                 const selectElement = document.getElementById('saleClientId');
 
-                clients.forEach(client => {
+                // Vider le combobox sauf l'option par défaut
+                selectElement.innerHTML = '<option value="0">Vente Comptoir (Sans client)</option>';
+
+                // Charger les soldes des clients
+                await chargerSoldesClients();
+
+                clientsCache.forEach(client => {
+                    const solde = parseFloat(client.solde) || 0;
+                    const soldeClass = solde < 0 ? 'solde-negatif' : 'solde-positif';
                     const option = document.createElement('option');
                     option.value = client.numero_clt;
-                    option.textContent = `${client.nom} (ID: ${client.numero_clt})`;
+                    option.innerHTML = `${client.nom} (ID: ${client.numero_clt}) <span class="${soldeClass}">[Solde: ${solde.toFixed(2)} DA]</span>`;
                     selectElement.appendChild(option);
                 });
             } catch (error) {
                 showToast('Erreur lors du chargement des clients: ' + error.message, true);
                 console.error('Erreur clients:', error);
+            }
+        }
+
+        async function chargerSoldesClients() {
+            console.log('Chargement des soldes des clients...');
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/client_solde`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Erreur texte client_solde:', errorText);
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                const soldes = await response.json();
+                console.log('Soldes reçus:', soldes);
+
+                // Mettre à jour le cache des clients avec les soldes
+                clientsCache.forEach(client => {
+                    const soldeData = soldes.find(s => s.numero_clt === client.numero_clt);
+                    client.solde = soldeData ? soldeData.solde : '0.00';
+                });
+            } catch (error) {
+                console.error('Erreur chargement soldes:', error);
+                showToast('Erreur lors du chargement des soldes: ' + error.message, true);
             }
         }
 
@@ -689,6 +736,7 @@
                 togglePaymentForm();
                 updateTempSalesTable();
                 chargerProduits();
+                chargerClients(); // Recharger les clients pour mettre à jour les soldes
             } catch (error) {
                 console.error('Erreur validation vente:', error);
                 showToast(`Erreur validation vente: ${error.message}`, true);
@@ -704,10 +752,21 @@
 
             const clientSelect = document.getElementById('saleClientId');
             const clientValue = clientSelect.value;
-            const clientText = clientValue === '0' ? 'Vente Comptoir' : clientSelect.options[clientSelect.selectedIndex].text;
+            const clientText = clientValue === '0' ? 'Vente Comptoir' : clientSelect.options[clientSelect.selectedIndex].text.replace(/<span.*<\/span>/, '');
             const paymentMode = document.getElementById('paymentMode').value;
             const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
             const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0).toFixed(2);
+            let soldeContent = '';
+
+            if (paymentMode === 'a_terme' && clientValue !== '0') {
+                const client = clientsCache.find(c => c.numero_clt === parseInt(clientValue));
+                const soldeAvant = client ? parseFloat(client.solde) || 0 : 0;
+                const soldeApres = soldeAvant + (amountPaid - parseFloat(total));
+                soldeContent = `
+                    <p>Solde avant vente: ${soldeAvant.toFixed(2)} DA</p>
+                    <p>Solde après vente: ${soldeApres.toFixed(2)} DA</p>
+                `;
+            }
 
             let ticketContent = `
                 <div class="printable">
@@ -716,6 +775,7 @@
                     <p>Client: ${clientText}</p>
                     <p>Mode de paiement: ${paymentMode === 'espece' ? 'Espèce' : 'À terme'}</p>
                     ${paymentMode === 'a_terme' ? `<p>Montant versé: ${amountPaid.toFixed(2)} DA</p>` : ''}
+                    ${soldeContent}
                     <table>
                         <thead>
                             <tr>
@@ -842,11 +902,22 @@
 
             const clientSelect = document.getElementById('saleClientId');
             const clientValue = clientSelect.value;
-            const clientText = clientValue === '0' ? 'Vente Comptoir' : clientSelect.options[clientSelect.selectedIndex].text;
+            const clientText = clientValue === '0' ? 'Vente Comptoir' : clientSelect.options[clientSelect.selectedIndex].text.replace(/<span.*<\/span>/, '');
             const paymentMode = document.getElementById('paymentMode').value;
             const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
             const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0).toFixed(2);
             const userEmail = localStorage.getItem('userEmail') || 'Utilisateur inconnu';
+            let soldeContent = '';
+
+            if (paymentMode === 'a_terme' && clientValue !== '0') {
+                const client = clientsCache.find(c => c.numero_clt === parseInt(clientValue));
+                const soldeAvant = client ? parseFloat(client.solde) || 0 : 0;
+                const soldeApres = soldeAvant + (amountPaid - parseFloat(total));
+                soldeContent = `
+                    <p><strong>Solde avant vente :</strong> ${soldeAvant.toFixed(2)} DA</p>
+                    <p><strong>Solde après vente :</strong> ${soldeApres.toFixed(2)} DA</p>
+                `;
+            }
 
             let ticketContent = `
                 <div class="printable">
@@ -857,6 +928,7 @@
                         <p><strong>Client :</strong> ${clientText}</p>
                         <p><strong>Mode de paiement :</strong> ${paymentMode === 'espece' ? 'Espèce' : 'À terme'}</p>
                         ${paymentMode === 'a_terme' ? `<p><strong>Montant versé :</strong> ${amountPaid.toFixed(2)} DA</p>` : ''}
+                        ${soldeContent}
                     </header>
                     <table>
                         <thead>
