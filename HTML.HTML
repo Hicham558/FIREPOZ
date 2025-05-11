@@ -39,24 +39,53 @@
         #dailySalesContent .table-container table {
             width: 100%;
         }
-        /* Style pour le DatePicker */
-        .flatpickr-input {
+        .flatpickr-input, select {
             border: 1px solid #d1d5db;
             border-radius: 0.375rem;
             padding: 0.5rem 2.5rem 0.5rem 0.75rem;
             width: 100%;
             background: white;
         }
-        .flatpickr-input:focus {
+        .flatpickr-input:focus, select:focus {
             outline: none;
             ring: 2px;
             ring-color: #4f46e5;
+        }
+        /* Styles pour l'impression A4 */
+        @media print and (min-width: 210mm) {
+            body * { visibility: hidden; }
+            #printAreaA4, #printAreaA4 * { visibility: visible; }
+            #printAreaA4 {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 210mm;
+                font-size: 12pt;
+            }
+            .table-container { max-height: none; overflow: visible; }
+            table { page-break-inside: auto; }
+            tr { page-break-inside: avoid; page-break-after: auto; }
+            .no-print { display: none; }
+        }
+        /* Styles pour l'impression ticket 80mm */
+        @media print and (max-width: 80mm) {
+            body * { visibility: hidden; }
+            #printAreaTicket, #printAreaTicket * { visibility: visible; }
+            #printAreaTicket {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 80mm;
+                font-size: 10pt;
+                line-height: 1.2;
+            }
+            .no-print { display: none; }
         }
     </style>
 </head>
 <body class="bg-gray-100">
     <!-- Menu de navigation -->
-    <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-slide-in">
+    <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-slide-in no-print">
         <div class="container mx-auto flex justify-between items-center">
             <div class="flex flex-col">
                 <h1 class="text-2xl font-bold flex items-center">
@@ -81,40 +110,44 @@
     <!-- Contenu principal -->
     <div class="container mx-auto px-4 py-16 mt-16">
         <header class="mb-8">
-            <h1 class="text-3xl font-bold text-indigo-700">Ventes du Jour</h1>
+            <h1 class="text-3xl font-bold text-indigo-700">Ventes</h1>
             <p class="text-gray-600 flex items-center">
-                <i class="fas fa-calendar-day mr-2 text-indigo-500"></i> Résumé des ventes en temps réel
+                <i class="fas fa-calendar-day mr-2 text-indigo-500"></i> Résumé des ventes
             </p>
         </header>
 
         <!-- Filtres -->
-        <div class="mb-6 flex flex-col md:flex-row gap-4">
+        <div class="mb-6 flex flex-col md:flex-row gap-4 no-print">
             <div class="relative w-full md:w-1/3">
                 <label for="dateFilter" class="text-sm font-medium text-gray-700">Date</label>
                 <input type="text" id="dateFilter" placeholder="Sélectionner une date" class="flatpickr-input mt-1">
             </div>
             <div class="relative w-full md:w-1/3">
                 <label for="clientFilter" class="text-sm font-medium text-gray-700">Client</label>
-                <select id="clientFilter" class="mt-1 block w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300">
+                <select id="clientFilter" class="mt-1 block w-full">
                     <option value="">Tous les clients</option>
                     <option value="0">Comptoir</option>
-                    <!-- Options des clients seront ajoutées dynamiquement -->
                 </select>
+            </div>
+            <div class="relative w-full md:w-1/3 flex items-end">
+                <button onclick="printA4()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition w-full">
+                    <i class="fas fa-print mr-1"></i> Imprimer A4
+                </button>
             </div>
         </div>
 
-        <!-- Ventes du Jour -->
+        <!-- Ventes -->
         <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="dailySalesSection">
-            <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('dailySalesSection')">
+            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('dailySalesSection')">
                 <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                    <i class="fas fa-calendar-day mr-2 text-indigo-500"></i> Ventes
+                    <i class="fas fa-calendar-day mr-2 text-indigo-500"></i> Liste des Ventes
                     <span id="dailySalesCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
                 </h2>
                 <button class="text-gray-600 hover:text-gray-800 transition">
                     <i class="fas fa-chevron-down" id="dailySalesChevron"></i>
                 </button>
             </div>
-            <div class="p-6 hidden" id="dailySalesContent">
+            <div class="p-6" id="dailySalesContent">
                 <div class="mb-4">
                     <h3 class="text-lg font-medium text-gray-700">Total: <span id="dailySalesTotal" class="text-indigo-600 font-bold">0.00 DA</span></h3>
                 </div>
@@ -125,11 +158,11 @@
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Commande</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
                                 </tr>
                             </thead>
                             <tbody id="ticketsList" class="bg-white divide-y divide-gray-200">
@@ -147,11 +180,11 @@
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Commande</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
                                 </tr>
                             </thead>
                             <tbody id="bonsList" class="bg-white divide-y divide-gray-200">
@@ -164,17 +197,72 @@
                 </div>
             </div>
         </div>
+
+        <!-- Zone d'impression A4 (cachée par défaut) -->
+        <div id="printAreaA4" class="hidden">
+            <h1 class="text-2xl font-bold mb-4">Rapport des Ventes</h1>
+            <p class="mb-2">Date: <span id="printDate"></span></p>
+            <p class="mb-4">Client: <span id="printClient"></span></p>
+            <h2 class="text-xl font-semibold mb-2">Tickets (Ventes Comptoir)</h2>
+            <table class="min-w-full border-collapse border border-gray-300 mb-6">
+                <thead>
+                    <tr class="bg-gray-100">
+                        <th class="border border-gray-300 px-4 py-2 text-left">N° Commande</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Date</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Client</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Total</th>
+                    </tr>
+                </thead>
+                <tbody id="printTicketsList"></tbody>
+            </table>
+            <h2 class="text-xl font-semibold mb-2">Bons de Livraison</h2>
+            <table class="min-w-full border-collapse border border-gray-300 mb-6">
+                <thead>
+                    <tr class="bg-gray-100">
+                        <th class="border border-gray-300 px-4 py-2 text-left">N° Commande</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Date</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Client</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Total</th>
+                    </tr>
+                </thead>
+                <tbody id="printBonsList"></tbody>
+            </table>
+            <p class="text-lg font-bold">Total: <span id="printTotal"></span> DA</p>
+        </div>
+
+        <!-- Zone d'impression ticket 80mm (cachée par défaut) -->
+        <div id="printAreaTicket" class="hidden">
+            <div style="width: 80mm; padding: 5mm; font-family: Arial, sans-serif;">
+                <h1 style="text-align: center; font-size: 14pt; margin-bottom: 5mm;">FirePoz</h1>
+                <p style="text-align: center; margin: 2mm 0;">Vente #<span id="ticketNumero"></span></p>
+                <p style="margin: 2mm 0;">Date: <span id="ticketDate"></span></p>
+                <p style="margin: 2mm 0;">Client: <span id="ticketClient"></span></p>
+                <table style="width: 100%; border-collapse: collapse; margin: 5mm 0;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid #000;">
+                            <th style="text-align: left; padding: 2mm;">Produit</th>
+                            <th style="text-align: center; padding: 2mm;">Qté</th>
+                            <th style="text-align: right; padding: 2mm;">Prix</th>
+                            <th style="text-align: right; padding: 2mm;">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ticketLignes"></tbody>
+                </table>
+                <p style="text-align: right; font-weight: bold; margin: 5mm 0;">Total: <span id="ticketTotal"></span> DA</p>
+                <p style="text-align: center; margin: 5mm 0;">Merci de votre visite !</p>
+            </div>
+        </div>
     </div>
 
     <!-- Footer -->
-    <footer class="bg-gray-700 text-white text-center py-4 animate-fade-in">
+    <footer class="bg-gray-700 text-white text-center py-4 animate-fade-in no-print">
         <p>Développé par Khelladi Hicham</p>
         <p>Tel: <a href="tel:00213553700900" class="underline hover:text-indigo-300 transition duration-300">00213553700900</a></p>
         <p>Email: <a href="mailto:Hicham.khelladi@gmail.com" class="underline hover:text-indigo-300 transition duration-300">Hicham.khelladi@gmail.com</a></p>
     </footer>
 
     <!-- Toast -->
-    <div id="toast" class="fixed bottom-4 right-4 hidden">
+    <div id="toast" class="fixed bottom-4 right-4 hidden no-print">
         <div class="flex items-center px-6 py-3 rounded-md shadow-lg">
             <i id="toastIcon" class="mr-2"></i>
             <span id="toastMessage"></span>
@@ -182,7 +270,7 @@
     </div>
 
     <!-- Modal pour les détails des lignes de vente -->
-    <div id="saleDetailsModal" class="fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center hidden z-50">
+    <div id="saleDetailsModal" class="fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center hidden z-50 no-print">
         <div class="bg-white rounded-lg shadow-lg max-w-2xl w-full p-6">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-lg font-semibold text-gray-800">Détails de la Vente #<span id="modalSaleNumber"></span></h3>
@@ -274,7 +362,6 @@
                 clientsCache = await response.json();
                 const selectElement = document.getElementById('clientFilter');
 
-                // Ajouter les clients à la ComboBox
                 selectElement.innerHTML = `
                     <option value="">Tous les clients</option>
                     <option value="0">Comptoir</option>
@@ -301,7 +388,6 @@
             }
 
             try {
-                // Construire l'URL avec les paramètres de filtre
                 const params = new URLSearchParams();
                 if (date) params.append('date', date);
                 if (numeroClt) params.append('numero_clt', numeroClt);
@@ -321,7 +407,6 @@
                 const countElement = document.getElementById('dailySalesCount');
                 const totalElement = document.getElementById('dailySalesTotal');
 
-                // Tickets
                 if (dailySalesCache.tickets.length === 0) {
                     ticketsTbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun ticket</td></tr>';
                 } else {
@@ -331,21 +416,23 @@
                         const tr = document.createElement('tr');
                         tr.className = 'hover:bg-gray-50';
                         tr.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <button onclick="showSaleDetails(${vente.numero_comande}, '${vente.nature}')" class="bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition mr-2">
+                                    <i class="fas fa-eye"></i> Voir
+                                </button>
+                                <button onclick="printTicket(${vente.numero_comande}, '${vente.nature}')" class="bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition">
+                                    <i class="fas fa-print"></i> Ticket
+                                </button>
+                            </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${vente.numero_comande}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.client_nom || 'Comptoir'}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalVente.toFixed(2)} DA</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                <button onclick="showSaleDetails(${vente.numero_comande}, '${vente.nature}')" class="bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition">
-                                    <i class="fas fa-eye"></i> Voir
-                                </button>
-                            </td>
                         `;
                         ticketsTbody.appendChild(tr);
                     });
                 }
 
-                // Bons de Livraison
                 if (dailySalesCache.bons.length === 0) {
                     bonsTbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun bon de livraison</td></tr>';
                 } else {
@@ -355,21 +442,23 @@
                         const tr = document.createElement('tr');
                         tr.className = 'hover:bg-gray-50';
                         tr.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <button onclick="showSaleDetails(${vente.numero_comande}, '${vente.nature}')" class="bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition mr-2">
+                                    <i class="fas fa-eye"></i> Voir
+                                </button>
+                                <button onclick="printTicket(${vente.numero_comande}, '${vente.nature}')" class="bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition">
+                                    <i class="fas fa-print"></i> Ticket
+                                </button>
+                            </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${vente.numero_comande}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.client_nom || 'Comptoir'}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalVente.toFixed(2)} DA</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                <button onclick="showSaleDetails(${vente.numero_comande}, '${vente.nature}')" class="bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition">
-                                    <i class="fas fa-eye"></i> Voir
-                                </button>
-                            </td>
                         `;
                         bonsTbody.appendChild(tr);
                     });
                 }
 
-                // Total et compteur
                 countElement.textContent = dailySalesCache.tickets.length + dailySalesCache.bons.length;
                 countElement.classList.remove('hidden');
                 totalElement.textContent = `${parseFloat(dailySalesCache.total).toFixed(2)} DA`;
@@ -419,6 +508,96 @@
             modal.classList.add('hidden');
         }
 
+        function printA4() {
+            const printArea = document.getElementById('printAreaA4');
+            const printTicketsList = document.getElementById('printTicketsList');
+            const printBonsList = document.getElementById('printBonsList');
+            const printTotal = document.getElementById('printTotal');
+            const printDate = document.getElementById('printDate');
+            const printClient = document.getElementById('printClient');
+
+            // Remplir la date et le client
+            const dateFilter = document.getElementById('dateFilter').value || new Date().toISOString().split('T')[0];
+            const clientFilter = document.getElementById('clientFilter');
+            const clientText = clientFilter.options[clientFilter.selectedIndex]?.text || 'Tous les clients';
+            printDate.textContent = dateFilter;
+            printClient.textContent = clientText;
+
+            // Remplir les tickets
+            printTicketsList.innerHTML = '';
+            dailySalesCache.tickets.forEach(vente => {
+                const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="border border-gray-300 px-4 py-2">${vente.numero_comande}</td>
+                    <td class="border border-gray-300 px-4 py-2">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
+                    <td class="border border-gray-300 px-4 py-2">${vente.client_nom || 'Comptoir'}</td>
+                    <td class="border border-gray-300 px-4 py-2">${totalVente.toFixed(2)} DA</td>
+                `;
+                printTicketsList.appendChild(tr);
+            });
+
+            // Remplir les bons
+            printBonsList.innerHTML = '';
+            dailySalesCache.bons.forEach(vente => {
+                const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="border border-gray-300 px-4 py-2">${vente.numero_comande}</td>
+                    <td class="border border-gray-300 px-4 py-2">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
+                    <td class="border border-gray-300 px-4 py-2">${vente.client_nom || 'Comptoir'}</td>
+                    <td class="border border-gray-300 px-4 py-2">${totalVente.toFixed(2)} DA</td>
+                `;
+                printBonsList.appendChild(tr);
+            });
+
+            // Remplir le total
+            printTotal.textContent = parseFloat(dailySalesCache.total).toFixed(2);
+
+            // Afficher la zone d'impression et imprimer
+            printArea.classList.remove('hidden');
+            window.print();
+            printArea.classList.add('hidden');
+        }
+
+        function printTicket(numeroComande, nature) {
+            const vente = [...dailySalesCache.tickets, ...dailySalesCache.bons].find(v => v.numero_comande === numeroComande);
+            if (!vente) {
+                showToast('Vente non trouvée', true);
+                return;
+            }
+
+            const printArea = document.getElementById('printAreaTicket');
+            const ticketNumero = document.getElementById('ticketNumero');
+            const ticketDate = document.getElementById('ticketDate');
+            const ticketClient = document.getElementById('ticketClient');
+            const ticketLignes = document.getElementById('ticketLignes');
+            const ticketTotal = document.getElementById('ticketTotal');
+
+            // Remplir les informations du ticket
+            ticketNumero.textContent = vente.numero_comande;
+            ticketDate.textContent = new Date(vente.date_comande).toLocaleString('fr-FR');
+            ticketClient.textContent = vente.client_nom || 'Comptoir';
+            ticketLignes.innerHTML = '';
+            vente.lignes.forEach(ligne => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="padding: 2mm;">${ligne.designation || 'N/A'}</td>
+                    <td style="text-align: center; padding: 2mm;">${ligne.quantite || 0}</td>
+                    <td style="text-align: right; padding: 2mm;">${parseFloat(ligne.remarque || 0).toFixed(2)}</td>
+                    <td style="text-align: right; padding: 2mm;">${parseFloat(ligne.prixt || 0).toFixed(2)}</td>
+                `;
+                ticketLignes.appendChild(tr);
+            });
+            const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
+            ticketTotal.textContent = totalVente.toFixed(2);
+
+            // Afficher la zone d'impression et imprimer
+            printArea.classList.remove('hidden');
+            window.print();
+            printArea.classList.add('hidden');
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             console.log('Page chargée, vérification utilisateur...');
             const userId = localStorage.getItem('userId');
@@ -429,14 +608,13 @@
                 document.getElementById('userDisplay').classList.remove('hidden');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
                 chargerClients();
-                chargerVentesJour(); // Charger les ventes du jour par défaut
+                chargerVentesJour();
             } else {
                 console.log('Aucun utilisateur connecté, redirection vers index.html');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
                 window.location.href = 'index.html';
             }
 
-            // Initialiser le DatePicker
             flatpickr('#dateFilter', {
                 dateFormat: 'Y-m-d',
                 defaultDate: new Date(),
@@ -446,7 +624,6 @@
                 }
             });
 
-            // Ajouter un écouteur pour le filtre client
             document.getElementById('clientFilter').addEventListener('change', (e) => {
                 const dateFilter = document.getElementById('dateFilter').value;
                 const clientFilter = e.target.value;
