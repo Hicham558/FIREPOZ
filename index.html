@@ -1303,4 +1303,160 @@
             document.getElementById('userForm').classList.toggle('hidden');
         }
 
-        document.getElementById('
+      
+document.getElementById('searchUser').addEventListener('input', function(e) {
+    const searchTerm = e.target.value.toLowerCase();
+    const rows = document.querySelectorAll('#usersList tr');
+    rows.forEach(row => {
+        const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
+        const statut = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
+        row.style.display = (nom?.includes(searchTerm) || statut?.includes(searchTerm)) ? '' : 'none';
+    });
+});
+
+// Scanner de code-barres avec Barcode Detection API
+let stream = null;
+let barcodeDetector = null;
+let isScanning = false;
+
+async function startScanner() {
+    if (!('BarcodeDetector' in window)) {
+        showToast('Le scanner de code-barres n\'est pas supporté par ce navigateur. Utilisez Chrome ou Edge.', true);
+        return;
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showToast('L\'accès à la caméra n\'est pas supporté par ce navigateur.', true);
+        return;
+    }
+
+    const preview = document.getElementById('scannerPreview');
+    const scanButton = document.getElementById('scanButton');
+    preview.style.display = 'block';
+    scanButton.disabled = true;
+    isScanning = true;
+
+    try {
+        barcodeDetector = new BarcodeDetector({
+            formats: ['ean_13', 'code_128', 'upc_a', 'upc_e', 'qr_code']
+        });
+
+        const supportedFormats = await BarcodeDetector.getSupportedFormats();
+        console.log('Formats supportés :', supportedFormats);
+        if (supportedFormats.length === 0) {
+            throw new Error('Aucun format de code-barres supporté par ce navigateur.');
+        }
+
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment' }
+        });
+
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.autoplay = true;
+        video.playsinline = true;
+        preview.innerHTML = '';
+        preview.appendChild(video);
+
+        video.onloadedmetadata = () => {
+            console.log('Vidéo prête pour la détection.');
+            detectBarcodes(video);
+        };
+    } catch (err) {
+        console.error('Erreur lors du démarrage du scanner :', err);
+        let errorMessage = 'Erreur lors du démarrage du scanner : ';
+        if (err.name === 'NotAllowedError') {
+            errorMessage += 'Accès à la caméra refusé. Veuillez autoriser l\'accès à la caméra.';
+        } else if (err.name === 'NotFoundError') {
+            errorMessage += 'Aucune caméra trouvée sur cet appareil.';
+        } else {
+            errorMessage += err.message;
+        }
+        showToast(errorMessage, true);
+        stopScanner();
+    }
+}
+
+async function detectBarcodes(video) {
+    if (!isScanning) return;
+
+    try {
+        const barcodes = await barcodeDetector.detect(video);
+        if (barcodes.length > 0) {
+            const barcode = barcodes[0];
+            const scannedCode = barcode.rawValue;
+
+            const userId = localStorage.getItem('user_id');
+            const numeroUtil = localStorage.getItem('numero_util');
+            if (!userId || !numeroUtil) {
+                showToast('Veuillez vous connecter pour scanner un code-barres', true);
+                stopScanner();
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
+                    headers: {
+                        'X-User-ID': userId,
+                        'X-Numero-Util': numeroUtil
+                    }
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.erreur || `Erreur ${response.status}`);
+                }
+                const produits = await response.json();
+                const codeBarExists = produits.some(produit => produit.BAR === scannedCode);
+                if (codeBarExists) {
+                    showToast(`Ce code-barres existe déjà : ${scannedCode}`, true);
+                    stopScanner();
+                } else {
+                    document.getElementById('productBar').value = scannedCode;
+                    showToast('Code-barres scanné : ' + scannedCode);
+                    stopScanner();
+                }
+            } catch (error) {
+                showToast('Erreur lors de la vérification des doublons: ' + error.message, true);
+                stopScanner();
+                if (error.message.includes('Utilisateur invalide')) {
+                    loginLogout();
+                }
+            }
+        } else {
+            requestAnimationFrame(() => detectBarcodes(video));
+        }
+    } catch (err) {
+        console.error('Erreur lors de la détection du code-barres :', err);
+        let errorMessage = 'Erreur lors de la détection du code-barres : ';
+        if (err.name === 'NotReadableError') {
+            errorMessage += 'Impossible de lire le code-barres. Assurez-vous qu\'il est bien visible et éclairé.';
+        } else {
+            errorMessage += err.message;
+        }
+        showToast(errorMessage, true);
+        stopScanner();
+    }
+}
+
+function stopScanner() {
+    isScanning = false;
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+    }
+    const preview = document.getElementById('scannerPreview');
+    const scanButton = document.getElementById('scanButton');
+    preview.style.display = 'none';
+    preview.innerHTML = '';
+    scanButton.disabled = false;
+}
+
+// Gestion des erreurs globales
+window.addEventListener('unhandledrejection', event => {
+    if (event.reason.message.includes('Failed to fetch')) {
+        showToast('Erreur de connexion au serveur. Vérifiez l\'URL ou les paramètres CORS.', true);
+    }
+});
+    </script>
+</body>
+</html>
