@@ -9,6 +9,8 @@
     <!-- Flatpickr pour le DatePicker -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <!-- Chart.js pour le diagramme camembert -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
@@ -21,6 +23,7 @@
         .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
         .animate-total-pulse { animation: totalPulse 1.5s ease-in-out; }
         #dailySalesSection { animation-delay: 0.3s; }
+        #topArticlesSection { animation-delay: 0.5s; }
         footer { animation-delay: 1s; }
         .user-anim { animation: userPulse 1.5s infinite ease-in-out; }
         .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
@@ -38,6 +41,10 @@
         }
         #dailySalesContent .table-container table {
             width: 100%;
+        }
+        #topArticlesContent .chart-container {
+            max-width: 500px;
+            margin: 0 auto;
         }
         .flatpickr-input, select {
             border: 1px solid #d1d5db;
@@ -198,6 +205,27 @@
             </div>
         </div>
 
+        <!-- Articles les plus vendus -->
+        <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="topArticlesSection">
+            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('topArticlesSection')">
+                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                    <i class="fas fa-chart-pie mr-2 text-indigo-500"></i> Articles les Plus Vendus
+                    <span id="topArticlesCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                </h2>
+                <button class="text-gray-600 hover:text-gray-800 transition">
+                    <i class="fas fa-chevron-down" id="topArticlesChevron"></i>
+                </button>
+            </div>
+            <div class="p-6" id="topArticlesContent">
+                <div class="mb-4">
+                    <h3 class="text-lg font-medium text-gray-700">Total Quantité Vendue: <span id="topArticlesTotal" class="text-indigo-600 font-bold">0</span></h3>
+                </div>
+                <div class="flex justify-center">
+                    <canvas id="topArticlesChart" width="400" height="400"></canvas>
+                </div>
+            </div>
+        </div>
+
         <!-- Zone d'impression A4 (cachée par défaut) -->
         <div id="printAreaA4" class="hidden">
             <h1 class="text-2xl font-bold mb-4">Rapport des Ventes</h1>
@@ -298,6 +326,8 @@
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
         let dailySalesCache = { tickets: [], bons: [], total: 0 };
         let clientsCache = [];
+        let topArticlesCache = [];
+        let topArticlesChart = null;
 
         function showToast(message, isError = false) {
             const toast = document.getElementById('toast');
@@ -474,6 +504,93 @@
             }
         }
 
+        async function chargerArticlesPlusVendus(date = '', numeroClt = '') {
+            console.log('Chargement des articles les plus vendus...', { date, numeroClt });
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir les articles', true);
+                return;
+            }
+
+            try {
+                const params = new URLSearchParams();
+                if (date) params.append('date', date);
+                if (numeroClt) params.append('numero_clt', numeroClt);
+                const url = `${API_BASE_URL}/articles_plus_vendus?${params.toString()}`;
+
+                const response = await fetch(url, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                topArticlesCache = await response.json();
+
+                const countElement = document.getElementById('topArticlesCount');
+                const totalElement = document.getElementById('topArticlesTotal');
+
+                // Calculer le total des quantités
+                const totalQuantite = topArticlesCache.reduce((sum, article) => sum + parseInt(article.quantite || 0), 0);
+
+                // Mettre à jour les éléments de l'interface
+                countElement.textContent = topArticlesCache.length;
+                countElement.classList.remove('hidden');
+                totalElement.textContent = totalQuantite;
+
+                // Préparer les données pour le diagramme camembert
+                const labels = topArticlesCache.map(article => article.designation || 'N/A');
+                const quantites = topArticlesCache.map(article => parseInt(article.quantite || 0));
+
+                // Définir des couleurs dynamiques
+                const backgroundColors = quantites.map((_, index) => `hsl(${(index * 360) / quantites.length}, 70%, 60%)`);
+                const borderColors = quantites.map((_, index) => `hsl(${(index * 360) / quantites.length}, 70%, 40%)`);
+
+                // Détruire le graphique précédent s'il existe
+                if (topArticlesChart) {
+                    topArticlesChart.destroy();
+                }
+
+                // Créer un nouveau graphique
+                const ctx = document.getElementById('topArticlesChart').getContext('2d');
+                topArticlesChart = new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: quantites,
+                            backgroundColor: backgroundColors,
+                            borderColor: borderColors,
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const value = context.raw || 0;
+                                        return `${label}: ${value} unités`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+
+            } catch (error) {
+                console.error('Erreur articles:', error);
+                showToast(`Erreur chargement articles: ${error.message}`, true);
+                document.getElementById('topArticlesTotal').textContent = '0';
+                document.getElementById('topArticlesCount').classList.add('hidden');
+            }
+        }
+
         function showSaleDetails(numeroComande, nature) {
             const vente = [...dailySalesCache.tickets, ...dailySalesCache.bons].find(v => v.numero_comande === numeroComande);
             if (!vente) {
@@ -609,6 +726,7 @@
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
                 chargerClients();
                 chargerVentesJour();
+                chargerArticlesPlusVendus();
             } else {
                 console.log('Aucun utilisateur connecté, redirection vers index.html');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
@@ -621,6 +739,7 @@
                 onChange: (selectedDates, dateStr) => {
                     const clientFilter = document.getElementById('clientFilter').value;
                     chargerVentesJour(dateStr, clientFilter);
+                    chargerArticlesPlusVendus(dateStr, clientFilter);
                 }
             });
 
@@ -628,6 +747,7 @@
                 const dateFilter = document.getElementById('dateFilter').value;
                 const clientFilter = e.target.value;
                 chargerVentesJour(dateFilter, clientFilter);
+                chargerArticlesPlusVendus(dateFilter, clientFilter);
             });
 
             fetch(`${API_BASE_URL}/`)
