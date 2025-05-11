@@ -6,15 +6,18 @@
     <title>Gestion Commerciale</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes userPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
         @keyframes countPulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        @keyframes kpiPop { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
         .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
         .animate-pulse { animation: pulse 2s infinite ease-in-out; }
         .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
+        .animate-kpi-pop { animation: kpiPop 0.5s ease-out forwards; }
         #clientsSection { animation-delay: 0.2s; }
         #fournisseursSection { animation-delay: 0.4s; }
         #productsSection { animation-delay: 0.6s; }
@@ -24,8 +27,12 @@
         .user-anim { animation: userPulse 1.5s infinite ease-in-out; }
         .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
         .small-email { font-size: 0.75rem; line-height: 1rem; }
-        .kpi-card { transition: transform 0.3s ease; }
-        .kpi-card:hover { transform: scale(1.05); }
+        .kpi-card { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .kpi-card:hover { transform: scale(1.08); box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2); }
+        .kpi-section { transition: opacity 0.5s ease; }
+        .kpi-updated { animation: pulse 0.5s ease-in-out; }
+        .dynamic-icon { transition: color 0.3s ease; }
+        .chart-container { animation-delay: 1s; }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -80,41 +87,54 @@
         </header>
 
         <!-- Section KPI -->
-        <div id="kpiSection" class="mb-8 animate-fade-in">
+        <div id="kpiSection" class="mb-8 animate-fade-in kpi-section">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-2xl font-semibold text-gray-800 flex items-center">
-                    <i class="fas fa-chart-line mr-2 text-indigo-500"></i> Tableau de Bord
+                    <i class="fas fa-chart-line mr-2 text-indigo-500 animate-pulse"></i> Tableau de Bord
                 </h2>
                 <select id="kpiPeriod" class="border p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <option value="day">Aujourd'hui</option>
                     <option value="week">Cette Semaine</option>
                 </select>
             </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div class="kpi-card bg-white p-6 rounded-lg shadow-md">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+                <div class="kpi-card bg-white p-6 rounded-lg shadow-md animate-kpi-pop" style="animation-delay: 0.1s;">
                     <h3 class="text-lg font-medium text-gray-700 flex items-center">
-                        <i class="fas fa-money-bill-wave mr-2 text-green-500"></i> Chiffre d'Affaires
+                        <i id="caIcon" class="fas fa-money-bill-wave mr-2 text-green-500 dynamic-icon"></i> Chiffre d'Affaires
                     </h3>
                     <p id="totalCA" class="text-2xl font-bold text-indigo-600">0.00 DA</p>
                 </div>
-                <div class="kpi-card bg-white p-6 rounded-lg shadow-md">
+                <div class="kpi-card bg-white p-6 rounded-lg shadow-md animate-kpi-pop" style="animation-delay: 0.2s;">
                     <h3 class="text-lg font-medium text-gray-700 flex items-center">
-                        <i class="fas fa-chart-pie mr-2 text-blue-500"></i> Bénéfice Total
+                        <i id="profitIcon" class="fas fa-chart-pie mr-2 text-blue-500 dynamic-icon"></i> Bénéfice Total
                     </h3>
                     <p id="totalProfit" class="text-2xl font-bold text-indigo-600">0.00 DA</p>
                 </div>
-                <div class="kpi-card bg-white p-6 rounded-lg shadow-md">
+                <div class="kpi-card bg-white p-6 rounded-lg shadow-md animate-kpi-pop" style="animation-delay: 0.3s;">
                     <h3 class="text-lg font-medium text-gray-700 flex items-center">
-                        <i class="fas fa-shopping-cart mr-2 text-yellow-500"></i> Nombre de Ventes
+                        <i id="salesIcon" class="fas fa-shopping-cart mr-2 text-yellow-500 dynamic-icon"></i> Nombre de Ventes
                     </h3>
                     <p id="salesCount" class="text-2xl font-bold text-indigo-600">0</p>
                 </div>
-                <div class="kpi-card bg-white p-6 rounded-lg shadow-md">
+                <div class="kpi-card bg-white p-6 rounded-lg shadow-md animate-kpi-pop" style="animation-delay: 0.4s;">
                     <h3 class="text-lg font-medium text-gray-700 flex items-center">
-                        <i class="fas fa-exclamation-triangle mr-2 text-red-500"></i> Ruptures de Stock
+                        <i id="stockIcon" class="fas fa-exclamation-triangle mr-2 text-red-500 dynamic-icon"></i> Ruptures de Stock
                     </h3>
                     <p id="lowStockItems" class="text-2xl font-bold text-indigo-600">0</p>
                 </div>
+                <div class="kpi-card bg-white p-6 rounded-lg shadow-md animate-kpi-pop" style="animation-delay: 0.5s;">
+                    <h3 class="text-lg font-medium text-gray-700 flex items-center">
+                        <i id="clientIcon" class="fas fa-user-check mr-2 text-purple-500 dynamic-icon"></i> Top Client
+                    </h3>
+                    <p id="topClient" class="text-xl font-bold text-indigo-600 truncate">N/A</p>
+                    <p id="topClientCA" class="text-sm text-gray-600">0.00 DA</p>
+                </div>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-md animate-fade-in chart-container">
+                <h3 class="text-lg font-medium text-gray-700 mb-4 flex items-center">
+                    <i class="fas fa-chart-area mr-2 text-indigo-500"></i> Évolution du Chiffre d'Affaires
+                </h3>
+                <canvas id="caChart" height="100"></canvas>
             </div>
         </div>
 
@@ -404,6 +424,7 @@
 
     <script>
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
+        let caChartInstance = null;
 
         // Générer un user_id basé sur l'email et le mot de passe
         function generateUniqueUserId(email, password) {
@@ -439,7 +460,10 @@
                 });
 
             // Écouteur pour le sélecteur de période KPI
-            document.getElementById('kpiPeriod').addEventListener('change', chargerKPI);
+            document.getElementById('kpiPeriod').addEventListener('change', () => {
+                document.getElementById('kpiSection').style.opacity = '0.5';
+                setTimeout(chargerKPI, 300);
+            });
         });
 
         // Fonction pour charger les KPI
@@ -462,14 +486,84 @@
                 }
                 const kpi = await response.json();
 
+                // Mettre à jour les KPI
                 document.getElementById('totalCA').textContent = `${kpi.total_ca.toFixed(2)} DA`;
                 document.getElementById('totalProfit').textContent = `${kpi.total_profit.toFixed(2)} DA`;
                 document.getElementById('salesCount').textContent = kpi.sales_count;
                 document.getElementById('lowStockItems').textContent = kpi.low_stock_items;
+                document.getElementById('topClient').textContent = kpi.top_client.name;
+                document.getElementById('topClientCA').textContent = `${kpi.top_client.ca.toFixed(2)} DA`;
+
+                // Animation de mise à jour
+                const kpiCards = document.querySelectorAll('.kpi-card');
+                kpiCards.forEach(card => {
+                    card.classList.add('kpi-updated');
+                    setTimeout(() => card.classList.remove('kpi-updated'), 500);
+                });
+
+                // Mettre à jour les icônes dynamiques
+                document.getElementById('caIcon').className = `fas fa-money-bill-wave mr-2 dynamic-icon ${kpi.total_ca > 0 ? 'text-green-500 animate-pulse' : 'text-gray-400'}`;
+                document.getElementById('profitIcon').className = `fas fa-chart-pie mr-2 dynamic-icon ${kpi.total_profit > 0 ? 'text-blue-500 animate-pulse' : 'text-gray-400'}`;
+                document.getElementById('salesIcon').className = `fas fa-shopping-cart mr-2 dynamic-icon ${kpi.sales_count > 0 ? 'text-yellow-500 animate-pulse' : 'text-gray-400'}`;
+                document.getElementById('stockIcon').className = `fas fa-exclamation-triangle mr-2 dynamic-icon ${kpi.low_stock_items > 0 ? 'text-red-500 animate-pulse' : 'text-gray-400'}`;
+                document.getElementById('clientIcon').className = `fas fa-user-check mr-2 dynamic-icon ${kpi.top_client.ca > 0 ? 'text-purple-500 animate-pulse' : 'text-gray-400'}`;
+
+                // Mettre à jour le graphique
+                updateChart(kpi.chart_data.labels, kpi.chart_data.values);
+
+                // Réactiver l'opacité
+                document.getElementById('kpiSection').style.opacity = '1';
             } catch (error) {
                 showToast(`Erreur de chargement des KPI: ${error.message}`, true);
                 console.error('Erreur KPI:', error);
+                document.getElementById('kpiSection').style.opacity = '1';
             }
+        }
+
+        // Fonction pour mettre à jour le graphique
+        function updateChart(labels, values) {
+            const ctx = document.getElementById('caChart').getContext('2d');
+            if (caChartInstance) {
+                caChartInstance.destroy();
+            }
+            caChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Chiffre d\'Affaires (DA)',
+                        data: values,
+                        borderColor: '#4F46E5',
+                        backgroundColor: 'rgba(79, 70, 229, 0.2)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Date' }
+                        },
+                        y: {
+                            title: { display: true, text: 'CA (DA)' },
+                            beginAtZero: true
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: context => `${context.parsed.y.toFixed(2)} DA`
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 1000,
+                        easing: 'easeOutQuart'
+                    }
+                }
+            });
         }
 
         // Connexion avec email et mot de passe
@@ -532,6 +626,12 @@
                 document.getElementById('totalProfit').textContent = '0.00 DA';
                 document.getElementById('salesCount').textContent = '0';
                 document.getElementById('lowStockItems').textContent = '0';
+                document.getElementById('topClient').textContent = 'N/A';
+                document.getElementById('topClientCA').textContent = '0.00 DA';
+                if (caChartInstance) {
+                    caChartInstance.destroy();
+                    caChartInstance = null;
+                }
             }
         }
 
