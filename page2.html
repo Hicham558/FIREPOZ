@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ventes du Jour</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes userPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        @keyframes countPulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        @keyframes totalPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
+        .animate-pulse { animation: pulse 2s infinite ease-in-out; }
+        .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
+        .animate-total-pulse { animation: totalPulse 1.5s ease-in-out; }
+        #dailySalesSection { animation-delay: 0.3s; }
+        footer { animation-delay: 1s; }
+        .user-anim { animation: userPulse 1.5s infinite ease-in-out; }
+        .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
+        .small-email { font-size: 0.75rem; line-height: 1rem; }
+        .total-large {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #4f46e5;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+        }
+        #dailySalesContent .table-container {
+            max-height: 300px;
+            overflow-y: auto;
+            overflow-x: auto;
+        }
+        #dailySalesContent .table-container table {
+            width: 100%;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <!-- Menu de navigation -->
+    <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-slide-in">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex flex-col">
+                <h1 class="text-2xl font-bold flex items-center">
+                    <i class="fas fa-fire mr-2 text-amber-400 animate-pulse"></i> FirePoz
+                </h1>
+                <span id="userDisplay" class="small-email user-anim hidden"></span>
+            </div>
+            <div class="space-x-4 flex items-center">
+                <a href="vente.html" class="hover:text-indigo-200 transition flex items-center">
+                    <i class="fas fa-shopping-cart mr-1"></i> Ventes
+                </a>
+                <a href="index.html" class="hover:text-indigo-200 transition flex items-center">
+                    <i class="fas fa-home mr-1"></i> Accueil
+                </a>
+                <button id="loginLogoutButton" onclick="loginLogout()" class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition flex items-center">
+                    <i class="fas fa-sign-out-alt mr-1"></i>Déconnexion
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Contenu principal -->
+    <div class="container mx-auto px-4 py-16 mt-16">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-indigo-700">Ventes du Jour</h1>
+            <p class="text-gray-600 flex items-center">
+                <i class="fas fa-calendar-day mr-2 text-indigo-500"></i> Résumé des ventes en temps réel
+            </p>
+        </header>
+
+        <!-- Ventes du Jour -->
+        <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="dailySalesSection">
+            <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('dailySalesSection')">
+                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                    <i class="fas fa-calendar-day mr-2 text-indigo-500"></i> Ventes du Jour
+                    <span id="dailySalesCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                </h2>
+                <button class="text-gray-600 hover:text-gray-800 transition">
+                    <i class="fas fa-chevron-down" id="dailySalesChevron"></i>
+                </button>
+            </div>
+            <div class="p-6 hidden" id="dailySalesContent">
+                <div class="mb-4">
+                    <h3 class="text-lg font-medium text-gray-700">Total du Jour: <span id="dailySalesTotal" class="text-indigo-600 font-bold">0.00 DA</span></h3>
+                </div>
+                <!-- Tickets -->
+                <div class="mb-6">
+                    <h4 class="text-md font-medium text-gray-600 mb-2">Tickets (Ventes Comptoir)</h4>
+                    <div class="table-container">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Commande</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ticketsList" class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td colspan="5" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <!-- Bons de Livraison -->
+                <div>
+                    <h4 class="text-md font-medium text-gray-600 mb-2">Bons de Livraison</h4>
+                    <div class="table-container">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Commande</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bonsList" class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td colspan="5" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-gray-700 text-white text-center py-4 animate-fade-in">
+        <p>Développé par Khelladi Hicham</p>
+        <p>Tel: <a href="tel:00213553700900" class="underline hover:text-indigo-300 transition duration-300">00213553700900</a></p>
+        <p>Email: <a href="mailto:Hicham.khelladi@gmail.com" class="underline hover:text-indigo-300 transition duration-300">Hicham.khelladi@gmail.com</a></p>
+    </footer>
+
+    <!-- Toast -->
+    <div id="toast" class="fixed bottom-4 right-4 hidden">
+        <div class="flex items-center px-6 py-3 rounded-md shadow-lg">
+            <i id="toastIcon" class="mr-2"></i>
+            <span id="toastMessage"></span>
+        </div>
+    </div>
+
+    <!-- Modal pour les détails des lignes de vente -->
+    <div id="saleDetailsModal" class="fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white rounded-lg shadow-lg max-w-2xl w-full p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-semibold text-gray-800">Détails de la Vente #<span id="modalSaleNumber"></span></h3>
+                <button onclick="closeSaleDetailsModal()" class="text-gray-600 hover:text-gray-800">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="table-container max-h-96 overflow-y-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Unitaire</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="saleDetailsList" class="bg-white divide-y divide-gray-200"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
+        let dailySalesCache = { tickets: [], bons: [], total: 0 };
+
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+
+            toast.className = isError
+                ? 'fixed bottom-4 right-4 flex items-center bg-red-500 text-white px-6 py-3 rounded-md shadow-lg'
+                : 'fixed bottom-4 right-4 flex items-center bg-green-500 text-white px-6 py-3 rounded-md shadow-lg';
+
+            toastIcon.className = isError
+                ? 'fas fa-exclamation-circle mr-2'
+                : 'fas fa-check-circle mr-2';
+
+            toastMessage.textContent = message;
+            toast.classList.remove('hidden');
+
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
+        }
+
+        function toggleSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
+            const chevron = document.getElementById(`${sectionId.replace('Section', 'Chevron')}`);
+
+            content.classList.toggle('hidden');
+            chevron.classList.toggle('fa-chevron-down');
+            chevron.classList.toggle('fa-chevron-up');
+        }
+
+        function loginLogout() {
+            console.log('Déconnexion en cours...');
+            const userId = localStorage.getItem('userId');
+            if (userId) {
+                localStorage.removeItem('userId');
+                localStorage.removeItem('userEmail');
+                document.getElementById('userDisplay').textContent = '';
+                document.getElementById('userDisplay').classList.add('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                window.location.href = 'index.html';
+            }
+        }
+
+        async function chargerVentesJour() {
+            console.log('Chargement des ventes du jour...');
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir les ventes du jour', true);
+                window.location.href = 'index.html';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/ventes_jour`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                console.log('Réponse ventes_jour:', response.status, response.statusText);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Erreur texte ventes_jour:', errorText);
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                dailySalesCache = await response.json();
+                console.log('Ventes du jour reçues:', dailySalesCache);
+
+                const ticketsTbody = document.getElementById('ticketsList');
+                const bonsTbody = document.getElementById('bonsList');
+                const countElement = document.getElementById('dailySalesCount');
+                const totalElement = document.getElementById('dailySalesTotal');
+
+                // Tickets
+                if (dailySalesCache.tickets.length === 0) {
+                    ticketsTbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun ticket aujourd\'hui</td></tr>';
+                } else {
+                    ticketsTbody.innerHTML = '';
+                    dailySalesCache.tickets.forEach(vente => {
+                        const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
+                        const tr = document.createElement('tr');
+                        tr.className = 'hover:bg-gray-50';
+                        tr.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${vente.numero_comande}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.client_nom || 'Comptoir'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalVente.toFixed(2)} DA</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <button onclick="showSaleDetails(${vente.numero_comande}, '${vente.nature}')" class="bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition">
+                                    <i class="fas fa-eye"></i> Voir
+                                </button>
+                            </td>
+                        `;
+                        ticketsTbody.appendChild(tr);
+                    });
+                }
+
+                // Bons de Livraison
+                if (dailySalesCache.bons.length === 0) {
+                    bonsTbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun bon de livraison aujourd\'hui</td></tr>';
+                } else {
+                    bonsTbody.innerHTML = '';
+                    dailySalesCache.bons.forEach(vente => {
+                        const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
+                        const tr = document.createElement('tr');
+                        tr.className = 'hover:bg-gray-50';
+                        tr.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${vente.numero_comande}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.client_nom || 'Comptoir'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalVente.toFixed(2)} DA</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <button onclick="showSaleDetails(${vente.numero_comande}, '${vente.nature}')" class="bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition">
+                                    <i class="fas fa-eye"></i> Voir
+                                </button>
+                            </td>
+                        `;
+                        bonsTbody.appendChild(tr);
+                    });
+                }
+
+                // Total et compteur
+                countElement.textContent = dailySalesCache.tickets.length + dailySalesCache.bons.length;
+                countElement.classList.remove('hidden');
+                totalElement.textContent = `${parseFloat(dailySalesCache.total).toFixed(2)} DA`;
+            } catch (error) {
+                document.getElementById('ticketsList').innerHTML = `
+                    <tr><td colspan="5" class="text-center py-4 text-red-500">Erreur de chargement: ${error.message}</td></tr>
+                `;
+                document.getElementById('bonsList').innerHTML = `
+                    <tr><td colspan="5" class="text-center py-4 text-red-500">Erreur de chargement: ${error.message}</td></tr>
+                `;
+                console.error('Erreur ventes jour:', error);
+                showToast(`Erreur chargement ventes: ${error.message}`, true);
+            }
+        }
+
+        function showSaleDetails(numeroComande, nature) {
+            const vente = [...dailySalesCache.tickets, ...dailySalesCache.bons].find(v => v.numero_comande === numeroComande);
+            if (!vente) {
+                showToast('Vente non trouvée', true);
+                return;
+            }
+
+            const modal = document.getElementById('saleDetailsModal');
+            const modalSaleNumber = document.getElementById('modalSaleNumber');
+            const saleDetailsList = document.getElementById('saleDetailsList');
+
+            modalSaleNumber.textContent = numeroComande;
+            saleDetailsList.innerHTML = '';
+
+            vente.lignes.forEach(ligne => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50';
+                tr.innerHTML = `
+                    <td class="px-6 py-4 text-sm text-gray-900">${ligne.designation || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ligne.quantite || 0}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(ligne.remarque || 0).toFixed(2)} DA</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(ligne.prixt || 0).toFixed(2)} DA</td>
+                `;
+                saleDetailsList.appendChild(tr);
+            });
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeSaleDetailsModal() {
+            const modal = document.getElementById('saleDetailsModal');
+            modal.classList.add('hidden');
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Page chargée, vérification utilisateur...');
+            const userId = localStorage.getItem('userId');
+            const userEmail = localStorage.getItem('userEmail');
+            if (userId && userEmail) {
+                console.log('Utilisateur connecté:', userId, userEmail);
+                document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
+                document.getElementById('userDisplay').classList.remove('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+                chargerVentesJour();
+            } else {
+                console.log('Aucun utilisateur connecté, redirection vers index.html');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                window.location.href = 'index.html';
+            }
+
+            fetch(`${API_BASE_URL}/`)
+                .then(response => response.text())
+                .then(text => console.log('Statut API:', text))
+                .catch(err => {
+                    console.error('API non disponible:', err);
+                    showToast('Erreur de connexion à l\'API', true);
+                });
+        });
+    </script>
+</body>
+</html>
