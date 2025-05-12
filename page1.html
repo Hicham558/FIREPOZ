@@ -3,14 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scanner EAN-13</title>
+    <meta name="description" content="Application de scan de codes-barres EAN-13 avec thème Twilight">
+    <title>Scanner EAN-13 - Thème Twilight</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <link rel="manifest" href="/manifest.json">
     <style>
+        body {
+            background: linear-gradient(to bottom, #1a2a44, #2e1a47); /* Dégradé Twilight */
+            color: #d9d9d9; /* Gris argenté */
+        }
         #scanner-video {
             transform: scale(1.5);
             transform-origin: center center;
+            border-radius: 8px;
         }
         #scan-indicator {
             position: absolute;
@@ -26,81 +32,90 @@
             z-index: 10;
         }
         .scanning {
-            border-color: rgba(0, 255, 0, 0.5); /* Vert semi-transparent pendant le scan */
+            border-color: rgba(0, 255, 0, 0.5); /* Vert semi-transparent */
         }
         .detected {
-            border-color: rgba(0, 255, 0, 1); /* Vert opaque quand détecté */
+            border-color: rgba(0, 255, 0, 1); /* Vert opaque */
+        }
+        .toast {
+            backdrop-filter: blur(5px);
+            background: rgba(26, 42, 68, 0.8); /* Bleu nuit semi-transparent */
+        }
+        .form-input {
+            background: #1a2a44; /* Bleu nuit */
+            border: 1px solid #800020; /* Rouge bordeaux */
+            color: #d9d9d9;
         }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+<body class="min-h-screen flex items-center justify-center">
     <div class="container mx-auto px-4 py-8 max-w-3xl">
         <header class="mb-8 text-center">
-            <h1 class="text-4xl font-bold text-indigo-700 mb-2">Scanner EAN-13</h1>
-            <p class="text-gray-600 mb-4">Pointez simplement la caméra vers le produit</p>
+            <h1 class="text-4xl font-bold text-[#b3cde0] mb-2 drop-shadow-lg">Scanner EAN-13</h1>
+            <p class="text-[#d9d9d9] mb-4">Pointez la caméra vers un code-barres EAN-13</p>
             <div class="flex justify-center gap-4">
-                <a href="index.html" class="inline-flex items-center bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
+                <a href="index.html" class="inline-flex items-center bg-[#800020] text-[#e6e6e6] px-4 py-2 rounded-md hover:bg-[#b3cde0] hover:text-[#1a2a44] transition">
                     <i class="fas fa-home mr-2"></i>Accueil
                 </a>
-                <button onclick="toggleAddProductForm()" class="inline-flex items-center bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition">
+                <button onclick="toggleAddProductForm()" class="inline-flex items-center bg-[#2e1a47] text-[#e6e6e6] px-4 py-2 rounded-md hover:bg-[#b3cde0] hover:text-[#1a2a44] transition" aria-label="Ouvrir le formulaire d'ajout de produit">
                     <i class="fas fa-plus mr-2"></i>Ajouter un produit
                 </button>
             </div>
         </header>
 
-        <div class="bg-white rounded-xl shadow-lg p-6">
+        <div class="bg-[#1a2a44]/80 rounded-xl shadow-lg p-6 backdrop-blur-sm">
             <div class="mb-6">
-                <div id="scanner-container" class="relative w-full aspect-[4/3] bg-gray-200 rounded-lg overflow-hidden">
-                    <video id="scanner-video" class="absolute inset-0 w-full h-full object-cover" autoplay muted playsinline></video>
-                    <div id="camera-loading" class="absolute inset-0 flex items-center justify-center text-gray-500">
-                        Chargement de la caméra...
+                <div id="scanner-container" class="relative w-full aspect-[4/3] bg-[#2e1a47] rounded-lg overflow-hidden">
+                    <video id="scanner-video" class="absolute inset-0 w-full h-full object-cover" autoplay muted playsinline aria-label="Flux vidéo pour scanner les codes-barres"></video>
+                    <div id="camera-loading" class="absolute inset-0 flex items-center justify-center text-[#b3cde0]">
+                        <i class="fas fa-spinner fa-spin mr-2"></i>Chargement de la caméra...
                     </div>
-                    <div id="scan-indicator"></div>
+                    <div id="scan-indicator" role="region" aria-live="polite"></div>
                     <div class="absolute bottom-4 left-0 right-0 flex justify-center space-x-2 z-20">
-                        <button onclick="startScanner()" class="flex items-center bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition">
+                        <button onclick="startScanner()" class="flex items-center bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition" aria-label="Démarrer le scanner">
                             <i class="fas fa-play mr-1"></i>Démarrer
                         </button>
-                        <button onclick="stopScanner()" class="flex items-center bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition">
+                        <button onclick="stopScanner()" class="flex items-center bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition" aria-label="Arrêter le scanner">
                             <i class="fas fa-stop mr-1"></i>Arrêter
                         </button>
-                        <button onclick="toggleTorch()" class="flex items-center bg-yellow-500 text-white px-4 py-2 rounded-md hover:bg-yellow-600 transition">
+                        <button onclick="toggleTorch()" class="flex items-center bg-yellow-500 text-white px-4 py-2 rounded-md hover:bg-yellow-600 transition" aria-label="Activer/désactiver le flash">
                             <i class="fas fa-lightbulb mr-1"></i>Flash
                         </button>
                     </div>
                 </div>
             </div>
 
-            <div id="result" class="p-4 bg-gray-50 rounded-lg text-gray-700 text-center">
+            <div id="result" class="p-4 bg-[#2e1a47]/50 rounded-lg text-[#d9d9d9] text-center" role="alert" aria-live="assertive">
                 <p class="text-lg">En attente de scan...</p>
             </div>
 
-            <div id="addProductForm" class="hidden mt-4 p-4 bg-gray-100 rounded-lg">
-                <h3 class="text-lg font-semibold mb-2">Ajouter un nouveau produit</h3>
+            <div id="addProductForm" class="hidden mt-4 p-4 bg-[#1a2a44]/50 rounded-lg">
+                <h3 class="text-lg font-semibold text-[#b3cde0] mb-2">Ajouter un nouveau produit</h3>
                 <form id="productForm">
                     <div class="mb-2">
-                        <label for="designation" class="block text-sm font-medium text-gray-700">Désignation</label>
-                        <input type="text" id="designation" name="designation" class="w-full p-2 border rounded" required>
+                        <label for="designation" class="block text-sm font-medium text-[#b3cde0]">Désignation</label>
+                        <input type="text" id="designation" name="designation" class="form-input w-full p-2 rounded" required aria-required="true">
                     </div>
                     <div class="mb-2">
-                        <label for="bar" class="block text-sm font-medium text-gray-700">Code-barres</label>
-                        <input type="text" id="bar" name="bar" class="w-full p-2 border rounded" required>
+                        <label for="bar" class="block text-sm font-medium text-[#b3cde0]">Code-barres</label>
+                        <input type="text" id="bar" name="bar" class="form-input w-full p-2 rounded" required aria-required="true">
                     </div>
                     <div class="mb-2">
-                        <label for="prix" class="block text-sm font-medium text-gray-700">Prix</label>
-                        <input type="number" id="prix" name="prix" class="w-full p-2 border rounded" step="0.01" min="0" required>
+                        <label for="prix" class="block text-sm font-medium text-[#b3cde0]">Prix (€)</label>
+                        <input type="number" id="prix" name="prix" class="form-input w-full p-2 rounded" step="0.01" min="0" required aria-required="true">
                     </div>
                     <div class="mb-2">
-                        <label for="qte" class="block text-sm font-medium text-gray-700">Quantité</label>
-                        <input type="number" id="qte" name="qte" class="w-full p-2 border rounded" min="0" required>
+                        <label for="qte" class="block text-sm font-medium text-[#b3cde0]">Quantité</label>
+                        <input type="number" id="qte" name="qte" class="form-input w-full p-2 rounded" min="0" required aria-required="true">
                     </div>
-                    <button type="submit" class="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 transition">Ajouter le produit</button>
+                    <button type="submit" class="w-full bg-[#800020] text-[#e6e6e6] py-2 rounded hover:bg-[#b3cde0] hover:text-[#1a2a44] transition" aria-label="Ajouter le produit">Ajouter le produit</button>
                 </form>
             </div>
         </div>
     </div>
 
     <!-- Toast pour notifications -->
-    <div id="toast" class="fixed bottom-4 right-4 hidden">
+    <div id="toast" class="fixed bottom-4 right-4 hidden toast">
         <div class="flex items-center px-6 py-3 rounded-md shadow-lg">
             <i id="toastIcon" class="mr-2"></i>
             <span id="toastMessage"></span>
@@ -114,34 +129,27 @@
         let lastScanTime = 0;
         const SCAN_COOLDOWN = 2000;
 
-        // Vérifier si l'utilisateur est connecté au chargement de la page
+        // Vérification de l'utilisateur
         document.addEventListener('DOMContentLoaded', () => {
             const userId = localStorage.getItem('userId');
             if (!userId) {
-                window.location.href = 'index.html';
+                showToast('Connexion requise pour utiliser le scanner', true);
+                setTimeout(() => window.location.href = 'index.html', 3000);
             }
         });
 
-        // Fonction pour afficher les notifications
+        // Afficher les notifications
         function showToast(message, isError = false) {
             const toast = document.getElementById('toast');
             const toastMessage = document.getElementById('toastMessage');
             const toastIcon = document.getElementById('toastIcon');
 
-            toast.className = isError
-                ? 'fixed bottom-4 right-4 flex items-center bg-red-500 text-white px-6 py-3 rounded-md shadow-lg'
-                : 'fixed bottom-4 right-4 flex items-center bg-green-500 text-white px-6 py-3 rounded-md shadow-lg';
-
-            toastIcon.className = isError
-                ? 'fas fa-exclamation-circle mr-2'
-                : 'fas fa-check-circle mr-2';
-
+            toast.className = `fixed bottom-4 right-4 flex items-center toast px-6 py-3 rounded-md shadow-lg ${isError ? 'bg-red-500 text-white' : 'bg-green-500 text-white'}`;
+            toastIcon.className = isError ? 'fas fa-exclamation-circle mr-2' : 'fas fa-check-circle mr-2';
             toastMessage.textContent = message;
             toast.classList.remove('hidden');
 
-            setTimeout(() => {
-                toast.classList.add('hidden');
-            }, 3000);
+            setTimeout(() => toast.classList.add('hidden'), 3000);
         }
 
         async function startScanner() {
@@ -150,16 +158,18 @@
 
             const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Veuillez vous connecter pour utiliser le scanner', true);
+                showToast('Connexion requise', true);
                 stopScanner();
-                window.location.href = 'index.html';
+                setTimeout(() => window.location.href = 'index.html', 3000);
                 return;
             }
 
-            document.getElementById('result').innerHTML = '<p class="text-blue-500">Démarrage du scan...</p>';
             const videoElement = document.getElementById('scanner-video');
             const loadingElement = document.getElementById('camera-loading');
             const scanIndicator = document.getElementById('scan-indicator');
+            const resultElement = document.getElementById('result');
+
+            resultElement.innerHTML = '<p class="text-[#b3cde0]">Démarrage du scan...</p>';
 
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
@@ -168,11 +178,11 @@
                 videoElement.srcObject = stream;
                 videoElement.onloadedmetadata = () => {
                     loadingElement.style.display = 'none';
-                    scanIndicator.classList.add('scanning'); // Indication visuelle de scan
+                    scanIndicator.classList.add('scanning');
                 };
 
                 if (!('BarcodeDetector' in window)) {
-                    throw new Error('Barcode Detection API non supportée sur ce navigateur. Essayez Chrome sur Android ou Edge.');
+                    throw new Error('API BarcodeDetector non supportée. Utilisez Chrome ou Edge sur Android.');
                 }
 
                 const barcodeDetector = new BarcodeDetector({ formats: ['ean_13'] });
@@ -194,21 +204,21 @@
 
                             const code = barcodes[0].rawValue;
                             scanIndicator.classList.remove('scanning');
-                            scanIndicator.classList.add('detected'); // Indication de détection
-                            setTimeout(() => scanIndicator.classList.remove('detected'), 500); // Retour après 0.5s
-                            document.getElementById('result').innerHTML = `<p class="text-green-500">Code-barres détecté : ${code}</p><p>Recherche en cours...</p>`;
-                            fetchProduit(code, userId);
+                            scanIndicator.classList.add('detected');
+                            setTimeout(() => scanIndicator.classList.remove('detected'), 500);
+                            resultElement.innerHTML = `<p class="text-green-500">Code détecté : ${code}</p><p>Recherche en cours...</p>`;
+                            await fetchProduit(code, userId);
                         }
                     } catch (err) {
                         showToast(`Erreur de détection : ${err.message}`, true);
                     }
-                    setTimeout(scan, 150); // Ajusté à 150ms pour une meilleure réactivité
+                    requestAnimationFrame(scan); // Utilisation de requestAnimationFrame pour une meilleure performance
                 };
 
                 scan();
             } catch (err) {
-                showToast(`Erreur : ${err.message}. Vérifiez les autorisations ou essayez un autre appareil.`, true);
-                document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${err.message}</p>`;
+                showToast(`Erreur : ${err.message}. Vérifiez les autorisations.`, true);
+                resultElement.innerHTML = `<p class="text-red-500">Erreur : ${err.message}</p>`;
                 scannerRunning = false;
             }
         }
@@ -217,6 +227,8 @@
             if (!scannerRunning) return;
             const videoElement = document.getElementById('scanner-video');
             const scanIndicator = document.getElementById('scan-indicator');
+            const resultElement = document.getElementById('result');
+
             if (videoElement.srcObject) {
                 videoElement.srcObject.getTracks().forEach(track => track.stop());
                 videoElement.srcObject = null;
@@ -224,7 +236,7 @@
             scanIndicator.classList.remove('scanning', 'detected');
             scannerRunning = false;
             torchOn = false;
-            document.getElementById('result').innerHTML = '<p class="text-gray-500">Scan arrêté. Cliquez sur "Démarrer" pour recommencer.</p>';
+            resultElement.innerHTML = '<p class="text-[#d9d9d9]">Scan arrêté. Cliquez sur "Démarrer" pour recommencer.</p>';
             document.getElementById('addProductForm').classList.add('hidden');
             document.getElementById('camera-loading').style.display = 'flex';
         }
@@ -238,7 +250,7 @@
             const capabilities = track.getCapabilities();
 
             if (!capabilities.torch) {
-                showToast('Le flash n\'est pas disponible sur cet appareil.', true);
+                showToast('Flash non disponible sur cet appareil.', true);
                 return;
             }
 
@@ -249,35 +261,34 @@
         }
 
         async function fetchProduit(barCode, userId) {
+            const resultElement = document.getElementById('result');
             try {
                 const response = await fetch(`${API_BASE_URL}/liste_produits`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
+                    headers: { 'X-User-ID': userId }
                 });
                 if (!response.ok) throw new Error(`Erreur ${response.status}: ${response.statusText}`);
                 const produits = await response.json();
                 const produit = produits.find(p => p.BAR === barCode);
                 if (produit) {
-                    document.getElementById('result').innerHTML = `
-                        <div class="bg-green-100 p-4 rounded-lg">
-                            <p class="text-green-700 font-semibold">Produit trouvé :</p>
+                    resultElement.innerHTML = `
+                        <div class="bg-[#2e1a47]/80 p-4 rounded-lg">
+                            <p class="text-green-500 font-semibold">Produit trouvé :</p>
                             <p><strong>Désignation :</strong> ${produit.DESIGNATION}</p>
                             <p><strong>Quantité :</strong> ${produit.QTE}</p>
                             <p><strong>Prix :</strong> ${produit.PRIX} €</p>
                             <p><strong>Code-barres :</strong> ${produit.BAR}</p>
                         </div>`;
                     document.getElementById('addProductForm').classList.add('hidden');
-                    showToast('Produit trouvé avec succès !');
+                    showToast('Produit trouvé !');
                 } else {
-                    document.getElementById('result').innerHTML = `<p class="text-yellow-600">Produit inconnu pour le code-barres : ${barCode}</p>`;
+                    resultElement.innerHTML = `<p class="text-yellow-500">Produit inconnu : ${barCode}</p>`;
                     document.getElementById('bar').value = barCode;
                     document.getElementById('addProductForm').classList.remove('hidden');
-                    showToast('Produit non trouvé. Veuillez ajouter un nouveau produit.', true);
+                    showToast('Produit non trouvé. Ajoutez-le.', true);
                 }
             } catch (error) {
-                showToast(`Erreur lors de la recherche : ${error.message}`, true);
-                document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${error.message}</p>`;
+                showToast(`Erreur : ${error.message}`, true);
+                resultElement.innerHTML = `<p class="text-red-500">Erreur : ${error.message}</p>`;
             }
         }
 
@@ -285,8 +296,8 @@
             event.preventDefault();
             const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Veuillez vous connecter pour ajouter un produit', true);
-                window.location.href = 'index.html';
+                showToast('Connexion requise', true);
+                setTimeout(() => window.location.href = 'index.html', 3000);
                 return;
             }
 
@@ -296,26 +307,22 @@
             const qte = parseInt(document.getElementById('qte').value);
 
             if (!designation || !bar || isNaN(prix) || isNaN(qte)) {
-                showToast('Veuillez remplir tous les champs correctement', true);
+                showToast('Veuillez remplir tous les champs', true);
                 return;
             }
 
-            // Vérifier les doublons
             try {
                 const response = await fetch(`${API_BASE_URL}/liste_produits`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
+                    headers: { 'X-User-ID': userId }
                 });
-                if (!response.ok) throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                if (!response.ok) throw new Error(`Erreur ${response.status}`);
                 const produits = await response.json();
-                const codeBarExists = produits.some(p => p.BAR === bar);
-                if (codeBarExists) {
-                    showToast('Ce code-barres existe déjà pour cet utilisateur.', true);
+                if (produits.some(p => p.BAR === bar)) {
+                    showToast('Ce code-barres existe déjà.', true);
                     return;
                 }
             } catch (error) {
-                showToast(`Erreur lors de la vérification des doublons : ${error.message}`, true);
+                showToast(`Erreur : ${error.message}`, true);
                 return;
             }
 
@@ -330,10 +337,10 @@
                 });
                 const result = await response.json();
                 if (response.ok) {
-                    document.getElementById('result').innerHTML = `<p class="text-green-500">Produit ajouté avec succès !</p>`;
+                    document.getElementById('result').innerHTML = `<p class="text-green-500">Produit ajouté !</p>`;
                     document.getElementById('addProductForm').classList.add('hidden');
                     document.getElementById('productForm').reset();
-                    showToast('Produit ajouté avec succès !');
+                    showToast('Produit ajouté !');
                 } else {
                     showToast(`Erreur : ${result.erreur}`, true);
                     document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${result.erreur}</p>`;
@@ -347,25 +354,21 @@
         function toggleAddProductForm() {
             const form = document.getElementById('addProductForm');
             form.classList.toggle('hidden');
-            document.getElementById('result').innerHTML = '<p class="text-gray-600">Ajout manuel d\'un produit.</p>';
+            document.getElementById('result').innerHTML = '<p class="text-[#b3cde0]">Ajout manuel d\'un produit.</p>';
         }
 
-        // Gestion des erreurs CORS ou réseau
+        // Gestion des erreurs réseau
         window.addEventListener('unhandledrejection', event => {
             if (event.reason.message.includes('Failed to fetch')) {
-                showToast('Erreur de connexion au serveur. Vérifiez l\'URL ou les paramètres CORS.', true);
+                showToast('Erreur de connexion au serveur.', true);
             }
         });
 
-        // Enregistrer le service worker
+        // Service Worker
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/sw.js')
-                .then((registration) => {
-                    console.log('Service Worker enregistré avec succès');
-                })
-                .catch((error) => {
-                    console.error('Erreur d\'enregistrement du Service Worker :', error);
-                });
+                .then(() => console.log('Service Worker enregistré'))
+                .catch(error => console.error('Erreur Service Worker :', error));
         }
     </script>
 </body>
