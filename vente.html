@@ -114,6 +114,13 @@
             background-color: #d1d5db !important;
             cursor: not-allowed !important;
         }
+        #sellerSection {
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -136,168 +143,177 @@
         </div>
     </nav>
 
-    <div id="scannerPreview" class="relative">
-        <button id="closeScannerButton" class="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition duration-300">
-            <i class="fas fa-times"></i> Fermer
-        </button>
-    </div>
-    <div id="scannerOverlay"></div>
-
-    <div class="container mx-auto px-4 py-16 mt-16">
-        <header class="mb-8">
-            <h1 class="text-3xl font-bold text-indigo-700">Gestion des Ventes</h1>
-            <p class="text-gray-600 flex items-center">
-                <i class="fas fa-shopping-cart mr-2 text-indigo-500"></i> Ventes en temps réel
-            </p>
-        </header>
-
-        <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="productsSection">
-            <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('productsSection')">
-                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                    <i class="fas fa-boxes mr-2 text-indigo-500"></i> Produits Disponibles
-                    <span id="productCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                </h2>
-                <button class="text-gray-600 hover:text-gray-800 transition">
-                    <i class="fas fa-chevron-down" id="productsChevron"></i>
-                </button>
+    <div class="container mx-auto px-4 pt-20">
+        <!-- Section vendeur déplacée en haut -->
+        <div id="sellerSection" class="animate-fade-in">
+            <h3 class="font-medium mb-3 text-gray-800">Sélection du Vendeur</h3>
+            <div class="flex flex-col md:flex-row gap-4 mb-4">
+                <div class="relative w-full md:w-1/3">
+                    <span class="text-sm font-medium text-gray-700 mr-2">Vendeur: </span>
+                    <select id="sellerSelect" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300">
+                        <option value="0">Sélectionner un vendeur</option>
+                    </select>
+                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700 top-6">
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+                </div>
+                <div class="relative w-full md:w-1/3 password-input-container">
+                    <span class="text-sm font-medium text-gray-700 mr-2">Mot de passe: </span>
+                    <input type="password" id="sellerPassword" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Entrez le mot de passe">
+                    <i class="fas fa-eye password-toggle" id="togglePassword" onclick="togglePasswordVisibility()"></i>
+                </div>
+                <div class="w-full md:w-1/3">
+                    <button id="validateSellerButton" onclick="validerVendeur()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300">
+                        <i class="fas fa-check mr-2"></i>Valider
+                    </button>
+                </div>
             </div>
-            <div class="p-6 hidden" id="productsContent">
-                <div class="mb-4 flex flex-col md:flex-row gap-4">
-                    <div class="relative w-full md:w-1/2">
-                        <input type="text" id="searchProduct" placeholder="Rechercher un produit..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                    </div>
-                    <div class="relative w-full md:w-1/2">
-                        <input type="text" id="productBar" class="w-full px-3 py-2 border rounded-md" placeholder="Scanner ou entrer code-barres" required>
-                        <button id="scanButton" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition duration-300" onclick="startScanner()">
-                            <i class="fas fa-camera"></i> Scanner
-                        </button>
-                    </div>
-                </div>
-                <div class="table-container">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Désignation</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Vente</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Achat</th>
-                            </tr>
-                        </thead>
-                        <tbody id="productsList" class="bg-white divide-y divide-gray-200">
-                            <tr>
-                                <td colspan="7" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+            <div>
+                <span class="text-sm font-medium text-gray-700">Vendeur sélectionné: </span>
+                <span id="selectedSellerName" class="text-sm text-indigo-600">-</span>
             </div>
         </div>
 
-        <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="salesSection">
-            <div class="p-6 flex justify-between items-center">
-                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                    <i class="fas fa-receipt mr-2 text-indigo-500"></i> Ventes
-                    <span id="saleItemCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                </h2>
-            </div>
-            <div class="p-6">
-                <div class="mb-6">
-                    <h3 class="font-medium mb-3">Vendeur</h3>
-                    <div class="flex flex-col md:flex-row gap-4 mb-4">
-                        <div class="relative w-full md:w-1/3">
-                            <span class="text-sm font-medium text-gray-700 mr-2">Vendeur: </span>
-                            <select id="sellerSelect" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300">
-                                <option value="0">Sélectionner un vendeur</option>
-                            </select>
-                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700 top-6">
-                                <i class="fas fa-chevron-down"></i>
-                            </div>
+        <div class="mt-8">
+            <header class="mb-8">
+                <h1 class="text-3xl font-bold text-indigo-700">Gestion des Ventes</h1>
+                <p class="text-gray-600 flex items-center">
+                    <i class="fas fa-shopping-cart mr-2 text-indigo-500"></i> Ventes en temps réel
+                </p>
+            </header>
+
+            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="productsSection">
+                <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('productsSection')">
+                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-boxes mr-2 text-indigo-500"></i> Produits Disponibles
+                        <span id="productCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                    </h2>
+                    <button class="text-gray-600 hover:text-gray-800 transition">
+                        <i class="fas fa-chevron-down" id="productsChevron"></i>
+                    </button>
+                </div>
+                <div class="p-6 hidden" id="productsContent">
+                    <div class="mb-4 flex flex-col md:flex-row gap-4">
+                        <div class="relative w-full md:w-1/2">
+                            <input type="text" id="searchProduct" placeholder="Rechercher un produit..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
                         </div>
-                        <div class="relative w-full md:w-1/3 password-input-container">
-                            <span class="text-sm font-medium text-gray-700 mr-2">Mot de passe: </span>
-                            <input type="password" id="sellerPassword" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Entrez le mot de passe">
-                            <i class="fas fa-eye password-toggle" id="togglePassword" onclick="togglePasswordVisibility()"></i>
-                        </div>
-                        <div class="w-full md:w-1/3">
-                            <span class="text-sm font-medium text-gray-700">Vendeur sélectionné: </span>
-                            <span id="selectedSellerName" class="text-sm text-indigo-600">-</span>
+                        <div class="relative w-full md:w-1/2">
+                            <input type="text" id="productBar" class="w-full px-3 py-2 border rounded-md" placeholder="Scanner ou entrer code-barres" required>
+                            <button id="scanButton" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition duration-300" onclick="startScanner()">
+                                <i class="fas fa-camera"></i> Scanner
+                            </button>
                         </div>
                     </div>
+                    <div class="table-container">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Désignation</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Vente</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Achat</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productsList" class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td colspan="7" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-                <div class="mb-6">
-                    <h3 class="font-medium mb-3">Lignes de la vente en cours</h3>
-                    <div class="mb-4">
-                        <div class="total-large animate-total-pulse text-center mb-4">
-                            Total: <span id="totalSale">0.00 DA</span>
-                        </div>
-                        <div class="flex justify-between items-center">
-                            <div class="relative">
-                                <div class="mb-4">
-                                    <span class="text-sm font-medium text-gray-700 mr-2">Mode de paiement: </span>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="salesSection">
+                <div class="p-6 flex justify-between items-center">
+                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-receipt mr-2 text-indigo-500"></i> Ventes
+                        <span id="saleItemCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                    </h2>
+                </div>
+                <div class="p-6">
+                    <div class="mb-6">
+                        <h3 class="font-medium mb-3">Lignes de la vente en cours</h3>
+                        <div class="mb-4">
+                            <div class="total-large animate-total-pulse text-center mb-4">
+                                Total: <span id="totalSale">0.00 DA</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <div class="relative">
+                                    <div class="mb-4">
+                                        <span class="text-sm font-medium text-gray-700 mr-2">Mode de paiement: </span>
+                                        <div class="relative inline-block w-64">
+                                            <select id="paymentMode" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300" onchange="togglePaymentForm()">
+                                                <option value="espece" selected>Espèce</option>
+                                                <option value="a_terme">À terme</option>
+                                            </select>
+                                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                                                <i class="fas fa-chevron-down"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div id="paymentForm" class="hidden mb-4">
+                                        <label for="amountPaid" class="text-sm font-medium text-gray-700 mr-2">Montant versé: </label>
+                                        <input type="number" id="amountPaid" step="0.01" min="0" class="w-64 px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0.00 DA">
+                                    </div>
+                                    <span class="text-sm font-medium text-gray-700 mr-2">Client: </span>
                                     <div class="relative inline-block w-64">
-                                        <select id="paymentMode" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300" onchange="togglePaymentForm()">
-                                            <option value="espece" selected>Espèce</option>
-                                            <option value="a_terme">À terme</option>
+                                        <select id="saleClientId" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300">
+                                            <option value="0">Vente Comptoir (Sans client)</option>
                                         </select>
                                         <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
                                             <i class="fas fa-chevron-down"></i>
                                         </div>
                                     </div>
                                 </div>
-                                <div id="paymentForm" class="hidden mb-4">
-                                    <label for="amountPaid" class="text-sm font-medium text-gray-700 mr-2">Montant versé: </label>
-                                    <input type="number" id="amountPaid" step="0.01" min="0" class="w-64 px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0.00 DA">
-                                </div>
-                                <span class="text-sm font-medium text-gray-700 mr-2">Client: </span>
-                                <div class="relative inline-block w-64">
-                                    <select id="saleClientId" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300">
-                                        <option value="0">Vente Comptoir (Sans client)</option>
-                                    </select>
-                                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
-                                        <i class="fas fa-chevron-down"></i>
-                                    </div>
-                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Unitaire</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Total</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tempSalesList" class="bg-white divide-y divide-gray-200">
-                                <tr>
-                                    <td colspan="6" class="text-center py-4 text-gray-500">Aucune ligne ajoutée</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="mt-4 flex justify-end space-x-2">
-                        <button id="printSaleButton80mm" onclick="imprimerVente80mm()" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition duration-300 transform hover:scale-105" disabled>
-                            <i class="fas fa-print mr-2"></i>Imprimer 80mm
-                        </button>
-                        <button id="printSaleButtonA4" onclick="imprimerVenteA4()" class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition duration-300 transform hover:scale-105" disabled>
-                            <i class="fas fa-file-pdf mr-2"></i>Imprimer A4
-                        </button>
-                        <button id="validateSaleButton" onclick="validerVente()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105" disabled>
-                            <i class="fas fa-check mr-2"></i>Valider la vente
-                        </button>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Unitaire</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tempSalesList" class="bg-white divide-y divide-gray-200">
+                                    <tr>
+                                        <td colspan="6" class="text-center py-4 text-gray-500">Aucune ligne ajoutée</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-4 flex justify-end space-x-2">
+                            <button id="printSaleButton80mm" onclick="imprimerVente80mm()" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition duration-300 transform hover:scale-105" disabled>
+                                <i class="fas fa-print mr-2"></i>Imprimer 80mm
+                            </button>
+                            <button id="printSaleButtonA4" onclick="imprimerVenteA4()" class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition duration-300 transform hover:scale-105" disabled>
+                                <i class="fas fa-file-pdf mr-2"></i>Imprimer A4
+                            </button>
+                            <button id="validateSaleButton" onclick="validerVente()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105" disabled>
+                                <i class="fas fa-check mr-2"></i>Valider la vente
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <div id="scannerPreview" class="relative">
+        <button id="closeScannerButton" class="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition duration-300">
+            <i class="fas fa-times"></i> Fermer
+        </button>
+    </div>
+    <div id="scannerOverlay"></div>
 
     <footer class="bg-gray-700 text-white text-center py-4 animate-fade-in">
         <p>Développé par Khelladi Hicham</p>
@@ -318,11 +334,6 @@
         let produitsCache = [];
         let clientsCache = [];
         let utilisateursCache = [];
-
-        function generateUniqueUserId(email, password) {
-            const combined = `${email.toLowerCase()}:${password}`;
-            return btoa(combined);
-        }
 
         function togglePaymentForm() {
             const paymentMode = document.getElementById('paymentMode').value;
@@ -354,6 +365,16 @@
                 document.getElementById('userDisplay').classList.remove('hidden');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
                 chargerUtilisateurs();
+                // Vérifier si un vendeur est déjà sélectionné
+                const storedSeller = localStorage.getItem('selectedSeller');
+                if (storedSeller) {
+                    const { numero_util, nom } = JSON.parse(storedSeller);
+                    document.getElementById('sellerSelect').value = numero_util;
+                    document.getElementById('selectedSellerName').textContent = nom;
+                    document.getElementById('sellerPassword').disabled = true;
+                    document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
+                    document.getElementById('validateSellerButton').onclick = clearSeller;
+                }
                 chargerClients();
                 chargerProduits();
             } else {
@@ -369,12 +390,6 @@
                     console.error('API non disponible:', err);
                     showToast('Erreur de connexion à l\'API', true);
                 });
-
-            document.getElementById('sellerSelect').addEventListener('change', function() {
-                const selectedOption = this.options[this.selectedIndex];
-                const selectedSellerName = selectedOption.text || '-';
-                document.getElementById('selectedSellerName').textContent = selectedSellerName;
-            });
         });
 
         function loginLogout() {
@@ -383,6 +398,8 @@
             if (userId) {
                 localStorage.removeItem('userId');
                 localStorage.removeItem('userEmail');
+                localStorage.removeItem('selectedSeller');
+                localStorage.removeItem('sellerPassword');
                 document.getElementById('userDisplay').textContent = '';
                 document.getElementById('userDisplay').classList.add('hidden');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
@@ -454,6 +471,84 @@
                 showToast('Erreur lors du chargement des utilisateurs: ' + error.message, true);
                 console.error('Erreur utilisateurs:', error);
             }
+        }
+
+        async function validerVendeur() {
+            console.log('Validation du vendeur...');
+            const numeroUtil = document.getElementById('sellerSelect').value;
+            const password2 = document.getElementById('sellerPassword').value;
+            const userId = localStorage.getItem('userId');
+
+            if (numeroUtil === '0') {
+                showToast('Veuillez sélectionner un vendeur', true);
+                return;
+            }
+
+            if (!password2) {
+                showToast('Veuillez entrer le mot de passe', true);
+                return;
+            }
+
+            try {
+                // Valider le mot de passe en envoyant une requête test à /valider_vente
+                const testVenteData = {
+                    numero_table: 0,
+                    date_comande: new Date().toISOString(),
+                    payment_mode: 'espece',
+                    amount_paid: 0,
+                    numero_util: parseInt(numeroUtil),
+                    password2: password2,
+                    lignes: [{ numero_item: 0, quantite: 0, prixt: 0, remarque: 'test', prixbh: 0 }]
+                };
+
+                const response = await fetch(`${API_BASE_URL}/valider_vente`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify(testVenteData)
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Erreur validation vendeur:', errorText);
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+
+                const selectedOption = document.getElementById('sellerSelect').options[document.getElementById('sellerSelect').selectedIndex];
+                const sellerName = selectedOption.text;
+
+                // Stocker les informations du vendeur
+                localStorage.setItem('selectedSeller', JSON.stringify({
+                    numero_util: numeroUtil,
+                    nom: sellerName
+                }));
+                localStorage.setItem('sellerPassword', password2);
+
+                // Mettre à jour l'interface
+                document.getElementById('selectedSellerName').textContent = sellerName;
+                document.getElementById('sellerPassword').disabled = true;
+                document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
+                document.getElementById('validateSellerButton').onclick = clearSeller;
+
+                showToast(`Vendeur ${sellerName} validé`);
+            } catch (error) {
+                showToast(`Erreur validation vendeur: ${error.message}`, true);
+                console.error('Erreur validation vendeur:', error);
+            }
+        }
+
+        function clearSeller() {
+            localStorage.removeItem('selectedSeller');
+            localStorage.removeItem('sellerPassword');
+            document.getElementById('sellerSelect').value = '0';
+            document.getElementById('sellerPassword').value = '';
+            document.getElementById('sellerPassword').disabled = false;
+            document.getElementById('selectedSellerName').textContent = '-';
+            document.getElementById('validateSellerButton').textContent = 'Valider';
+            document.getElementById('validateSellerButton').onclick = validerVendeur;
+            showToast('Vendeur désélectionné');
         }
 
         async function chargerClients() {
@@ -773,21 +868,18 @@
                 return;
             }
 
+            const storedSeller = localStorage.getItem('selectedSeller');
+            if (!storedSeller) {
+                showToast('Veuillez sélectionner et valider un vendeur', true);
+                return;
+            }
+
+            const { numero_util } = JSON.parse(storedSeller);
+            const password2 = localStorage.getItem('sellerPassword');
+
             const paymentMode = document.getElementById('paymentMode').value;
             const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
             const numeroTable = parseInt(document.getElementById('saleClientId').value) || 0;
-            const numeroUtil = document.getElementById('sellerSelect').value;
-            const password2 = document.getElementById('sellerPassword').value;
-
-            if (numeroUtil === '0') {
-                showToast('Veuillez sélectionner un vendeur', true);
-                return;
-            }
-
-            if (!password2) {
-                showToast('Veuillez entrer le mot de passe du vendeur', true);
-                return;
-            }
 
             if (paymentMode === 'a_terme' && numeroTable === 0) {
                 showToast('Veuillez sélectionner un client pour une vente à terme', true);
@@ -810,7 +902,7 @@
                 date_comande: new Date().toISOString(),
                 payment_mode: paymentMode,
                 amount_paid: amountPaid,
-                numero_util: parseInt(numeroUtil),
+                numero_util: parseInt(numero_util),
                 password2: password2,
                 lignes: tempSaleLines.map(ligne => ({
                     numero_item: ligne.numero_item,
@@ -843,9 +935,6 @@
                 tempSaleLines = [];
                 document.getElementById('paymentMode').value = 'espece';
                 document.getElementById('amountPaid').value = '';
-                document.getElementById('sellerSelect').value = '0';
-                document.getElementById('sellerPassword').value = '';
-                document.getElementById('selectedSellerName').textContent = '-';
                 togglePaymentForm();
                 updateTempSalesTable();
                 chargerProduits();
@@ -869,8 +958,8 @@
             const paymentMode = document.getElementById('paymentMode').value;
             const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
             const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0).toFixed(2);
-            const sellerSelect = document.getElementById('sellerSelect');
-            const sellerName = sellerSelect.value === '0' ? 'Non spécifié' : sellerSelect.options[sellerSelect.selectedIndex].text;
+            const storedSeller = localStorage.getItem('selectedSeller');
+            const sellerName = storedSeller ? JSON.parse(storedSeller).nom : 'Non spécifié';
             let soldeContent = '';
 
             if (paymentMode === 'a_terme' && clientValue !== '0') {
@@ -1023,8 +1112,8 @@
             const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
             const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0).toFixed(2);
             const userEmail = localStorage.getItem('userEmail') || 'Utilisateur inconnu';
-            const sellerSelect = document.getElementById('sellerSelect');
-            const sellerName = sellerSelect.value === '0' ? 'Non spécifié' : sellerSelect.options[sellerSelect.selectedIndex].text;
+            const storedSeller = localStorage.getItem('selectedSeller');
+            const sellerName = storedSeller ? JSON.parse(storedSeller).nom : 'Non spécifié';
             let soldeContent = '';
 
             if (paymentMode === 'a_terme' && clientValue !== '0') {
