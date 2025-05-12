@@ -3,9 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion Commerciale</title>
+    <title>Ventes du Jour</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Flatpickr pour le DatePicker -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <!-- Chart.js pour les diagrammes -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
@@ -13,70 +17,83 @@
         @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes userPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
         @keyframes countPulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
-        @keyframes kpiPop { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-        @keyframes clientPulse { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
+        @keyframes totalPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
         .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
         .animate-pulse { animation: pulse 2s infinite ease-in-out; }
         .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
-        .animate-kpi-pop { animation: kpiPop 0.5s ease-out forwards; }
-        .top-client-updated { animation: clientPulse 0.6s ease-in-out; }
-        #clientsSection { animation-delay: 0.2s; }
-        #fournisseursSection { animation-delay: 0.4s; }
-        #productsSection { animation-delay: 0.6s; }
-        #utilisateursSection { animation-delay: 0.8s; }
-        #statsSection { animation-delay: 1.0s; }
-        footer { animation-delay: 1.2s; }
-        #scannerPreview { width: 100%; max-width: 300px; height: 200px; border: 2px solid #e5e7eb; margin-bottom: 1rem; display: none; background: #000; }
+        .animate-total-pulse { animation: totalPulse 1.5s ease-in-out; }
+        #dailySalesSection { animation-delay: 0.3s; }
+        #topArticlesSection { animation-delay: 0.5s; }
+        #profitSection { animation-delay: 0.7s; }
+        footer { animation-delay: 1s; }
         .user-anim { animation: userPulse 1.5s infinite ease-in-out; }
         .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
         .small-email { font-size: 0.75rem; line-height: 1rem; }
-        .kpi-card { transition: transform 0.3s ease, box-shadow 0.3s ease; }
-        .kpi-card:hover { transform: scale(1.03); box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1); }
-        .kpi-section { transition: opacity 0.5s ease; }
-        .kpi-updated { animation: pulse 0.5s ease-in-out; }
-        .dynamic-icon { transition: color 0.3s ease; }
-        .chart-container { animation-delay: 1s; }
-        /* Styles spécifiques pour le panneau KPI amélioré */
-        #kpiSection {
-            border-bottom: 2px solid #e5e7eb;
-            transition: all 0.3s ease;
+        .total-large {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #4f46e5;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
         }
-        #kpiSection:hover {
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        #dailySalesContent .table-container {
+            max-height: 300px;
+            overflow-y: auto;
+            overflow-x: auto;
         }
-        .kpi-card {
-            border-left: 4px solid #4F46E5;
-            transition: all 0.3s ease;
+        #dailySalesContent .table-container table {
+            width: 100%;
         }
-        .kpi-card:hover {
-            transform: translateY(-2px);
+        #topArticlesContent .chart-container, #profitContent .chart-container {
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        .flatpickr-input, select {
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            padding: 0.5rem 2.5rem 0.5rem 0.75rem;
+            width: 100%;
+            background: white;
+        }
+        .flatpickr-input:focus, select:focus {
+            outline: none;
+            ring: 2px;
+            ring-color: #4f46e5;
+        }
+        /* Styles pour l'impression A4 */
+        @media print and (min-width: 210mm) {
+            body * { visibility: hidden; }
+            #printAreaA4, #printAreaA4 * { visibility: visible; }
+            #printAreaA4 {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 210mm;
+                font-size: 12pt;
+            }
+            .table-container { max-height: none; overflow: visible; }
+            table { page-break-inside: auto; }
+            tr { page-break-inside: avoid; page-break-after: auto; }
+            .no-print { display: none; }
+        }
+        /* Styles pour l'impression ticket 80mm */
+        @media print and (max-width: 80mm) {
+            body * { visibility: hidden; }
+            #printAreaTicket, #printAreaTicket * { visibility: visible; }
+            #printAreaTicket {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 80mm;
+                font-size: 10pt;
+                line-height: 1.2;
+            }
+            .no-print { display: none; }
         }
     </style>
 </head>
 <body class="bg-gray-100">
-    <!-- Formulaire de connexion -->
-    <div id="loginModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-20 hidden">
-        <form id="loginForm" class="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 class="text-xl font-semibold mb-4">Connexion</h2>
-            <p class="text-sm text-red-500 mb-4">⚠️ Le mot de passe ne doit pas être celui de votre email.</p>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Adresse Email*</label>
-                <input type="email" id="userEmail" name="username" autocomplete="username" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre email" required>
-            </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe*</label>
-                <input type="password" id="userPassword" name="password" autocomplete="current-password" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre mot de passe" required>
-            </div>
-            <div class="flex justify-end space-x-3">
-                <button type="submit" onclick="loginWithCredentials(event)" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
-                    <i class="fas fa-sign-in-alt mr-2"></i>Se connecter
-                </button>
-            </div>
-        </form>
-    </div>
-
     <!-- Menu de navigation -->
-    <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-slide-in">
+    <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-slide-in no-print">
         <div class="container mx-auto flex justify-between items-center">
             <div class="flex flex-col">
                 <h1 class="text-2xl font-bold flex items-center">
@@ -85,8 +102,11 @@
                 <span id="userDisplay" class="small-email user-anim hidden"></span>
             </div>
             <div class="space-x-4 flex items-center">
-                <a href="page1.html" class="hover:text-indigo-200 transition flex items-center">
-                    <i class="fas fa-barcode mr-1"></i> Scanner Produit
+                <a href="vente.html" class="hover:text-indigo-200 transition flex items-center">
+                    <i class="fas fa-shopping-cart mr-1"></i> Ventes
+                </a>
+                <a href="index.html" class="hover:text-indigo-200 transition flex items-center">
+                    <i class="fas fa-home mr-1"></i> Accueil
                 </a>
                 <button id="loginLogoutButton" onclick="loginLogout()" class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition flex items-center">
                     <i class="fas fa-sign-out-alt mr-1"></i>Déconnexion
@@ -98,317 +118,84 @@
     <!-- Contenu principal -->
     <div class="container mx-auto px-4 py-16 mt-16">
         <header class="mb-8">
-            <h1 class="text-3xl font-bold text-indigo-700">KHsphers software</h1>
+            <h1 class="text-3xl font-bold text-indigo-700">Ventes</h1>
             <p class="text-gray-600 flex items-center">
-                <i class="fas fa-database mr-2 text-indigo-500"></i> Fueled by PostgreSQL
+                <i class="fas fa-calendar-day mr-2 text-indigo-500"></i> Résumé des ventes
             </p>
         </header>
 
-        <!-- Section KPI améliorée -->
-        <div id="kpiSection" class="w-full bg-gradient-to-r from-indigo-100 to-white shadow-lg rounded-lg p-4 mb-8 sticky top-16 z-10 animate-fade-in">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                    <i class="fas fa-chart-line mr-2 text-indigo-500 animate-pulse"></i> Tableau de Bord
-                </h2>
-                <select id="kpiPeriod" class="border p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm">
-                    <option value="day">Aujourd'hui</option>
-                    <option value="week">Cette Semaine</option>
+        <!-- Filtres -->
+        <div class="mb-6 flex flex-col md:flex-row gap-4 no-print">
+            <div class="relative w-full md:w-1/3">
+                <label for="dateFilter" class="text-sm font-medium text-gray-700">Date</label>
+                <input type="text" id="dateFilter" placeholder="Sélectionner une date" class="flatpickr-input mt-1">
+            </div>
+            <div class="relative w-full md:w-1/3">
+                <label for="clientFilter" class="text-sm font-medium text-gray-700">Client</label>
+                <select id="clientFilter" class="mt-1 block w-full">
+                    <option value="">Tous les clients</option>
+                    <option value="0">Comptoir</option>
                 </select>
             </div>
-            <!-- Grille des KPI (4 par ligne, compact) -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24">
-                    <h3 class="text-xs font-medium text-gray-600 flex items-center">
-                        <i id="caIcon" class="fas fa-money-bill-wave mr-1 text-green-500 dynamic-icon"></i> Chiffre d'Affaires
-                    </h3>
-                    <p id="totalCA" class="text-lg font-bold text-indigo-600">0.00 DA</p>
-                </div>
-                <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24">
-                    <h3 class="text-xs font-medium text-gray-600 flex items-center">
-                        <i id="profitIcon" class="fas fa-chart-pie mr-1 text-blue-500 dynamic-icon"></i> Bénéfice Total
-                    </h3>
-                    <p id="totalProfit" class="text-lg font-bold text-indigo-600">0.00 DA</p>
-                </div>
-                <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24">
-                    <h3 class="text-xs font-medium text-gray-600 flex items-center">
-                        <i id="salesIcon" class="fas fa-shopping-cart mr-1 text-yellow-500 dynamic-icon"></i> Ventes
-                    </h3>
-                    <p id="salesCount" class="text-lg font-bold text-indigo-600">0</p>
-                </div>
-                <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24">
-                    <h3 class="text-xs font-medium text-gray-600 flex items-center">
-                        <i id="stockIcon" class="fas fa-exclamation-triangle mr-1 text-red-500 dynamic-icon"></i> Ruptures
-                    </h3>
-                    <p id="lowStockItems" class="text-lg font-bold text-indigo-600">0</p>
-                </div>
-                <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24 col-span-2 sm:col-span-1 lg:col-span-2">
-                    <h3 class="text-xs font-medium text-gray-600 flex items-center">
-                        <i id="clientIcon" class="fas fa-user-check mr-1 text-purple-500 dynamic-icon"></i> Top Client
-                    </h3>
-                    <p id="topClient" class="text-sm font-bold text-indigo-600 overflow-hidden text-ellipsis whitespace-nowrap" title="N/A">N/A</p>
-                    <p id="topClientCA" class="text-xs text-gray-500">0.00 DA</p>
-                </div>
+            <div class="relative w-full md:w-1/3 flex items-end">
+                <button onclick="printA4()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition w-full">
+                    <i class="fas fa-print mr-1"></i> Imprimer A4
+                </button>
             </div>
         </div>
 
-        <!-- Graphique en dessous -->
-        <div class="w-full bg-white p-4 rounded-lg shadow-md animate-fade-in chart-container mt-4">
-            <h3 class="text-lg font-medium text-gray-700 mb-4 flex items-center">
-                <i class="fas fa-chart-area mr-2 text-indigo-500"></i> Évolution du Chiffre d'Affaires
-            </h3>
-            <canvas id="caChart" height="100"></canvas>
-        </div>
-
-        <!-- Boutons Vente et Achat -->
-        <div class="flex mb-8 mt-8">
-            <a href="vente.html" class="w-1/2 bg-green-600 text-white py-6 flex items-center justify-center hover:bg-green-700 transition-all duration-300 transform hover:scale-105 animate-pulse">
-                <i class="fas fa-shopping-cart text-4xl mr-3"></i>
-                <span class="text-2xl font-semibold">Vente</span>
-            </a>
-            <a href="achat.html" class="w-1/2 bg-blue-600 text-white py-6 flex items-center justify-center hover:bg-blue-700 transition-all duration-300 transform hover:scale-105 animate-pulse">
-                <i class="fas fa-box-open text-4xl mr-3"></i>
-                <span class="text-2xl font-semibold">Achat</span>
-            </a>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
-            <!-- Gestion Clients -->
-            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="clientsSection">
-                <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('clientsSection')">
-                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-users mr-2 text-indigo-500"></i> Gestion Clients
-                        <span id="clientCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                    </h2>
-                    <button class="text-gray-600 hover:text-gray-800 transition">
-                        <i class="fas fa-chevron-down" id="clientsChevron"></i>
-                    </button>
+        <!-- Ventes -->
+        <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="dailySalesSection">
+            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('dailySalesSection')">
+                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                    <i class="fas fa-calendar-day mr-2 text-indigo-500"></i> Liste des Ventes
+                    <span id="dailySalesCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                </h2>
+                <button class="text-gray-600 hover:text-gray-800 transition">
+                    <i class="fas fa-chevron-down" id="dailySalesChevron"></i>
+                </button>
+            </div>
+            <div class="p-6" id="dailySalesContent">
+                <div class="mb-4">
+                    <h3 class="text-lg font-medium text-gray-700">Total: <span id="dailySalesTotal" class="text-indigo-600 font-bold">0.00 DA</span></h3>
                 </div>
-                <div class="p-6 hidden" id="clientsContent">
-                    <div class="mb-4">
-                        <div class="relative">
-                            <input type="text" id="searchClient" placeholder="Rechercher des clients..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                        </div>
-                        <div class="flex justify-end mt-2">
-                            <button onclick="toggleClientForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-plus mr-2"></i>Ajouter
-                            </button>
-                        </div>
-                    </div>
-
-                    <div id="clientForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
-                        <h3 class="font-medium mb-3">Nouveau Client</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
-                                <input type="text" id="clientNom" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Solde*</label>
-                                <input type="number" id="clientSolde" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Référence*</label>
-                                <input type="text" id="clientReference" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Contact</label>
-                                <input type="text" id="clientContact" class="w-full px-3 py-2 border rounded-md">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
-                                <input type="text" id="clientAdresse" class="w-full px-3 py-2 border rounded-md">
-                            </div>
-                        </div>
-                        <div class="flex justify-end space-x-3 mt-4">
-                            <button onclick="resetClientForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-times mr-2"></i>Annuler
-                            </button>
-                            <button onclick="ajouterClient()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-save mr-2"></i>Enregistrer
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="overflow-x-auto">
+                <!-- Tickets -->
+                <div class="mb-6">
+                    <h4 class="text-md font-medium text-gray-600 mb-2">Tickets (Ventes Comptoir)</h4>
+                    <div class="table-container">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Commande</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
                                 </tr>
                             </thead>
-                            <tbody id="clientsList" class="bg-white divide-y divide-gray-200">
+                            <tbody id="ticketsList" class="bg-white divide-y divide-gray-200">
                                 <tr>
-                                    <td colspan="6" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                                    <td colspan="5" class="text-center py-4 text-gray-500">Chargement en cours...</td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
-            </div>
-
-            <!-- Gestion Fournisseurs -->
-            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="fournisseursSection">
-                <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('fournisseursSection')">
-                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-truck mr-2 text-indigo-500"></i> Gestion Fournisseurs
-                        <span id="fournisseurCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                    </h2>
-                    <button class="text-gray-600 hover:text-gray-800 transition">
-                        <i class="fas fa-chevron-down" id="fournisseursChevron"></i>
-                    </button>
-                </div>
-                <div class="p-6 hidden" id="fournisseursContent">
-                    <div class="mb-4">
-                        <div class="relative">
-                            <input type="text" id="searchFournisseur" placeholder="Rechercher des fournisseurs..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                        </div>
-                        <div class="flex justify-end mt-2">
-                            <button onclick="toggleFournisseurForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-plus mr-2"></i>Ajouter
-                            </button>
-                        </div>
-                    </div>
-
-                    <div id="fournisseurForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
-                        <h3 class="font-medium mb-3">Nouveau Fournisseur</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
-                                <input type="text" id="fournisseurNom" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Solde*</label>
-                                <input type="number" id="fournisseurSolde" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Référence*</label>
-                                <input type="text" id="fournisseurReference" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Contact</label>
-                                <input type="text" id="fournisseurContact" class="w-full px-3 py-2 border rounded-md">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
-                                <input type="text" id="fournisseurAdresse" class="w-full px-3 py-2 border rounded-md">
-                            </div>
-                        </div>
-                        <div class="flex justify-end space-x-3 mt-4">
-                            <button onclick="resetFournisseurForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-times mr-2"></i>Annuler
-                            </button>
-                            <button onclick="ajouterFournisseur()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-save mr-2"></i>Enregistrer
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="overflow-x-auto">
+                <!-- Bons de Livraison -->
+                <div>
+                    <h4 class="text-md font-medium text-gray-600 mb-2">Bons de Livraison</h4>
+                    <div class="table-container">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Commande</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
                                 </tr>
                             </thead>
-                            <tbody id="fournisseursList" class="bg-white divide-y divide-gray-200">
-                                <tr>
-                                    <td colspan="6" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Liste des Produits -->
-            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="productsSection">
-                <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('productsSection')">
-                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-boxes mr-2 text-indigo-500"></i> Liste des Produits
-                        <span id="productCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                    </h2>
-                    <button class="text-gray-600 hover:text-gray-800 transition">
-                        <i class="fas fa-chevron-down" id="productsChevron"></i>
-                    </button>
-                </div>
-                <div class="p-6 hidden" id="productsContent">
-                    <div class="mb-4">
-                        <div class="relative">
-                            <input type="text" id="searchProduct" placeholder="Rechercher des produits..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                        </div>
-                        <div class="flex justify-end mt-2">
-                            <button onclick="toggleProductForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-plus mr-2"></i>Ajouter
-                            </button>
-                        </div>
-                    </div>
-
-                    <div id="productForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
-                        <h3 class="font-medium mb-3">Nouveau Produit</h3>
-                        <div id="scannerPreview"></div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Désignation*</label>
-                                <input type="text" id="productDesignation" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div class="relative">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Code Barre*</label>
-                                <input type="text" id="productBar" class="w-full px-3 py-2 border rounded-md" required>
-                                <button id="scanButton" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition duration-300" onclick="startScanner()">
-                                    <i class="fas fa-camera"></i> Scanner
-                                </button>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Prix Vente*</label>
-                                <input type="number" id="productPrix" step="0.01" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Prix Achat</label>
-                                <input type="number" id="productPrixba" step="0.01" class="w-full px-3 py-2 border rounded-md" placeholder="Ex: 300.00">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Quantité*</label>
-                                <input type="number" id="productQte" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                        </div>
-                        <div class="flex justify-end space-x-3 mt-4">
-                            <button onclick="stopScanner()" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-stop mr-2"></i>Arrêter
-                            </button>
-                            <button onclick="resetProductForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-times mr-2"></i>Annuler
-                            </button>
-                            <button onclick="ajouterProduit()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-save mr-2"></i>Enregistrer
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Désignation</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Vente</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Achat</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                                </tr>
-                            </thead>
-                            <tbody id="productsList" class="bg-white divide-y divide-gray-200">
+                            <tbody id="bonsList" class="bg-white divide-y divide-gray-200">
                                 <tr>
                                     <td colspan="5" class="text-center py-4 text-gray-500">Chargement en cours...</td>
                                 </tr>
@@ -417,351 +204,155 @@
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Gestion Utilisateurs -->
-            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="utilisateursSection">
-                <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('utilisateursSection')">
-                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-user-tie mr-2 text-indigo-500"></i> Gestion Utilisateurs
-                        <span id="utilisateurCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                    </h2>
-                    <button class="text-gray-600 hover:text-gray-800 transition">
-                        <i class="fas fa-chevron-down" id="utilisateursChevron"></i>
-                    </button>
+        <!-- Articles les plus vendus -->
+        <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="topArticlesSection">
+            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('topArticlesSection')">
+                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                    <i class="fas fa-chart-pie mr-2 text-indigo-500"></i> Articles les Plus Vendus
+                    <span id="topArticlesCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                </h2>
+                <button class="text-gray-600 hover:text-gray-800 transition">
+                    <i class="fas fa-chevron-down" id="topArticlesChevron"></i>
+                </button>
+            </div>
+            <div class="p-6" id="topArticlesContent">
+                <div class="mb-4">
+                    <h3 class="text-lg font-medium text-gray-700">Total Quantité Vendue: <span id="topArticlesTotal" class="text-indigo-600 font-bold">0</span></h3>
                 </div>
-                <div class="p-6 hidden" id="utilisateursContent">
-                    <div class="mb-4">
-                        <div class="relative">
-                            <input type="text" id="searchUtilisateur" placeholder="Rechercher des utilisateurs..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                        </div>
-                        <div class="flex justify-end mt-2">
-                            <button onclick="toggleUtilisateurForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-plus mr-2"></i>Ajouter
-                            </button>
-                        </div>
-                    </div>
-
-                    <div id="utilisateurForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
-                        <h3 class="font-medium mb-3">Nouvel Utilisateur</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
-                                <input type="text" id="utilisateurNom" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe*</label>
-                                <input type="password" id="utilisateurPassword" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Statut*</label>
-                                <select id="utilisateurStatut" class="w-full px-3 py-2 border rounded-md">
-                                    <option value="admin">Admin</option>
-                                    <option value="emplo">Employé</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="flex justify-end space-x-3 mt-4">
-                            <button onclick="resetUtilisateurForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-times mr-2"></i>Annuler
-                            </button>
-                            <button onclick="ajouterUtilisateur()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-save mr-2"></i>Enregistrer
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="utilisateursList" class="bg-white divide-y divide-gray-200">
-                                <tr>
-                                    <td colspan="4" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                <div class="flex justify-center">
+                    <canvas id="topArticlesChart" width="400" height="400"></canvas>
                 </div>
             </div>
+        </div>
 
-            <!-- Statistiques -->
-            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="statsSection">
-                <a href="page2.html" class="block p-6 flex justify-between items-center hover:bg-gray-50 transition duration-300">
-                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-chart-bar mr-2 text-indigo-500"></i> Statistiques
-                    </h2>
-                </a>
+        <!-- Bénéfice -->
+        <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="profitSection">
+            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('profitSection')">
+                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                    <i class="fas fa-chart-line mr-2 text-indigo-500"></i> Bénéfice
+                    <span id="profitCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                </h2>
+                <button class="text-gray-600 hover:text-gray-800 transition">
+                    <i class="fas fa-chevron-down" id="profitChevron"></i>
+                </button>
+            </div>
+            <div class="p-6" id="profitContent">
+                <div class="mb-4">
+                    <h3 class="text-lg font-medium text-gray-700">Bénéfice Total (Date Sélectionnée): <span id="profitTotal" class="text-indigo-600 font-bold">0.00 DA</span></h3>
+                </div>
+                <div class="flex justify-center">
+                    <canvas id="profitChart" width="400" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Zone d'impression A4 (cachée par défaut) -->
+        <div id="printAreaA4" class="hidden">
+            <h1 class="text-2xl font-bold mb-4">Rapport des Ventes</h1>
+            <p class="mb-2">Date: <span id="printDate"></span></p>
+            <p class="mb-4">Client: <span id="printClient"></span></p>
+            <h2 class="text-xl font-semibold mb-2">Tickets (Ventes Comptoir)</h2>
+            <table class="min-w-full border-collapse border border-gray-300 mb-6">
+                <thead>
+                    <tr class="bg-gray-100">
+                        <th class="border border-gray-300 px-4 py-2 text-left">N° Commande</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Date</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Client</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Total</th>
+                    </tr>
+                </thead>
+                <tbody id="printTicketsList"></tbody>
+            </table>
+            <h2 class="text-xl font-semibold mb-2">Bons de Livraison</h2>
+            <table class="min-w-full border-collapse border border-gray-300 mb-6">
+                <thead>
+                    <tr class="bg-gray-100">
+                        <th class="border border-gray-300 px-4 py-2 text-left">N° Commande</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Date</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Client</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Total</th>
+                    </tr>
+                </thead>
+                <tbody id="printBonsList"></tbody>
+            </table>
+            <p class="text-lg font-bold">Total: <span id="printTotal"></span> DA</p>
+        </div>
+
+        <!-- Zone d'impression ticket 80mm (cachée par défaut) -->
+        <div id="printAreaTicket" class="hidden">
+            <div style="width: 80mm; padding: 5mm; font-family: Arial, sans-serif;">
+                <h1 style="text-align: center; font-size: 14pt; margin-bottom: 5mm;">FirePoz</h1>
+                <p style="text-align: center; margin: 2mm 0;">Vente #<span id="ticketNumero"></span></p>
+                <p style="margin: 2mm 0;">Date: <span id="ticketDate"></span></p>
+                <p style="margin: 2mm 0;">Client: <span id="ticketClient"></span></p>
+                <table style="width: 100%; border-collapse: collapse; margin: 5mm 0;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid #000;">
+                            <th style="text-align: left; padding: 2mm;">Produit</th>
+                            <th style="text-align: center; padding: 2mm;">Qté</th>
+                            <th style="text-align: right; padding: 2mm;">Prix</th>
+                            <th style="text-align: right; padding: 2mm;">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ticketLignes"></tbody>
+                </table>
+                <p style="text-align: right; font-weight: bold; margin: 5mm 0;">Total: <span id="ticketTotal"></span> DA</p>
+                <p style="text-align: center; margin: 5mm 0;">Merci de votre visite !</p>
             </div>
         </div>
     </div>
 
     <!-- Footer -->
-    <footer class="bg-gray-700 text-white text-center py-4 mt-8 animate-fade-in">
+    <footer class="bg-gray-700 text-white text-center py-4 animate-fade-in no-print">
         <p>Développé par Khelladi Hicham</p>
         <p>Tel: <a href="tel:00213553700900" class="underline hover:text-indigo-300 transition duration-300">00213553700900</a></p>
         <p>Email: <a href="mailto:Hicham.khelladi@gmail.com" class="underline hover:text-indigo-300 transition duration-300">Hicham.khelladi@gmail.com</a></p>
     </footer>
 
-    <!-- Bouton flottant pour remonter en haut -->
-    <button id="scrollTopButton" class="hidden fixed bottom-4 right-4 bg-indigo-600 text-white p-3 rounded-full shadow-lg hover:bg-indigo-700 transition transform hover:scale-110 animate-fade-in z-30" title="Remonter en haut">
-        <i class="fas fa-arrow-up"></i>
-    </button>
-
-    <div id="toast" class="fixed bottom-4 right-4 hidden">
+    <!-- Toast -->
+    <div id="toast" class="fixed bottom-4 right-4 hidden no-print">
         <div class="flex items-center px-6 py-3 rounded-md shadow-lg">
             <i id="toastIcon" class="mr-2"></i>
             <span id="toastMessage"></span>
         </div>
     </div>
 
+    <!-- Modal pour les détails des lignes de vente -->
+    <div id="saleDetailsModal" class="fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center hidden z-50 no-print">
+        <div class="bg-white rounded-lg shadow-lg max-w-2xl w-full p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-semibold text-gray-800">Détails de la Vente #<span id="modalSaleNumber"></span></h3>
+                <button onclick="closeSaleDetailsModal()" class="text-gray-600 hover:text-gray-800">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="table-container max-h-96 overflow-y-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Unitaire</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="saleDetailsList" class="bg-white divide-y divide-gray-200"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <script>
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
-        let caChartInstance = null;
-        let stream = null;
-        let barcodeDetector = null;
-        let isScanning = false;
+        let dailySalesCache = { tickets: [], bons: [], total: 0 };
+        let clientsCache = [];
+        let topArticlesCache = [];
+        let profitCache = [];
+        let topArticlesChart = null;
+        let profitChart = null;
 
-        // Générer un user_id basé sur l'email et le mot de passe
-        function generateUniqueUserId(email, password) {
-            const combined = `${email.toLowerCase()}:${password}`;
-            return btoa(combined);
-        }
-
-        // Vérifier si l'utilisateur est connecté au chargement de la page
-        document.addEventListener('DOMContentLoaded', () => {
-            const userId = localStorage.getItem('userId');
-            const userEmail = localStorage.getItem('userEmail');
-            if (userId && userEmail) {
-                document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
-                document.getElementById('userDisplay').classList.remove('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                document.getElementById('loginModal').classList.add('hidden');
-                chargerClients();
-                chargerFournisseurs();
-                chargerProduits();
-                chargerUtilisateurs();
-                chargerKPI();
-            } else {
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                document.getElementById('loginModal').classList.remove('hidden');
-            }
-
-            // Vérification de la connexion API
-            fetch(`${API_BASE_URL}/`)
-                .then(response => response.text())
-                .then(text => console.log('Statut API:', text))
-                .catch(err => {
-                    console.error('API non disponible:', err);
-                    showToast('Erreur de connexion à l\'API', true);
-                });
-
-            // Écouteur pour le sélecteur de période KPI
-            document.getElementById('kpiPeriod').addEventListener('change', () => {
-                document.getElementById('kpiSection').style.opacity = '0.5';
-                setTimeout(chargerKPI, 300);
-            });
-
-            // Bouton remonter en haut
-            window.addEventListener('scroll', () => {
-                if (window.scrollY > 300) {
-                    document.getElementById('scrollTopButton').classList.remove('hidden');
-                } else {
-                    document.getElementById('scrollTopButton').classList.add('hidden');
-                }
-            });
-
-            document.getElementById('scrollTopButton').addEventListener('click', () => {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            });
-        });
-
-        // Fonction pour charger les KPI
-        async function chargerKPI() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les KPI', true);
-                return;
-            }
-
-            const period = document.getElementById('kpiPeriod').value;
-            try {
-                const response = await fetch(`${API_BASE_URL}/dashboard?period=${period}`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
-                });
-                if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-                }
-                const kpi = await response.json();
-
-                // Mettre à jour les KPI
-                document.getElementById('totalCA').textContent = `${kpi.total_ca.toFixed(2)} DA`;
-                document.getElementById('totalProfit').textContent = `${kpi.total_profit.toFixed(2)} DA`;
-                document.getElementById('salesCount').textContent = kpi.sales_count;
-                document.getElementById('lowStockItems').textContent = kpi.low_stock_items;
-                document.getElementById('topClient').textContent = kpi.top_client.name || 'N/A';
-                document.getElementById('topClient').title = kpi.top_client.name || 'N/A';
-                document.getElementById('topClientCA').textContent = `${kpi.top_client.ca.toFixed(2)} DA`;
-
-                // Animation de mise à jour
-                const kpiCards = document.querySelectorAll('.kpi-card');
-                kpiCards.forEach(card => {
-                    card.classList.add('kpi-updated');
-                    setTimeout(() => card.classList.remove('kpi-updated'), 500);
-                });
-
-                // Animation spécifique pour Top Client
-                const topClientCard = document.getElementById('topClient').parentElement;
-                topClientCard.classList.add('top-client-updated');
-                setTimeout(() => topClientCard.classList.remove('top-client-updated'), 600);
-
-                // Mettre à jour les icônes dynamiques
-                document.getElementById('caIcon').className = `fas fa-money-bill-wave mr-1 dynamic-icon ${kpi.total_ca > 0 ? 'text-green-500 animate-pulse' : 'text-gray-400'}`;
-                document.getElementById('profitIcon').className = `fas fa-chart-pie mr-1 dynamic-icon ${kpi.total_profit > 0 ? 'text-blue-500 animate-pulse' : 'text-gray-400'}`;
-                document.getElementById('salesIcon').className = `fas fa-shopping-cart mr-1 dynamic-icon ${kpi.sales_count > 0 ? 'text-yellow-500 animate-pulse' : 'text-gray-400'}`;
-                document.getElementById('stockIcon').className = `fas fa-exclamation-triangle mr-1 dynamic-icon ${kpi.low_stock_items > 0 ? 'text-red-500 animate-pulse' : 'text-gray-400'}`;
-                document.getElementById('clientIcon').className = `fas fa-user-check mr-1 dynamic-icon ${kpi.top_client.ca > 0 ? 'text-purple-500 animate-pulse' : 'text-gray-400'}`;
-
-                // Mettre à jour le graphique
-                updateChart(kpi.chart_data.labels, kpi.chart_data.values);
-
-                // Réactiver l'opacité
-                document.getElementById('kpiSection').style.opacity = '1';
-            } catch (error) {
-                showToast(`Erreur de chargement des KPI: ${error.message}`, true);
-                console.error('Erreur KPI:', error);
-                document.getElementById('kpiSection').style.opacity = '1';
-            }
-        }
-
-        // Fonction pour mettre à jour le graphique
-        function updateChart(labels, values) {
-            const ctx = document.getElementById('caChart').getContext('2d');
-            if (caChartInstance) {
-                caChartInstance.destroy();
-            }
-            caChartInstance = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Chiffre d\'Affaires (DA)',
-                        data: values,
-                        borderColor: '#4F46E5',
-                        backgroundColor: 'rgba(79, 70, 229, 0.2)',
-                        fill: true,
-                        tension: 0.4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        x: {
-                            title: { display: true, text: 'Date' }
-                        },
-                        y: {
-                            title: { display: true, text: 'CA (DA)' },
-                            beginAtZero: true
-                        }
-                    },
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            callbacks: {
-                                label: context => `${context.parsed.y.toFixed(2)} DA`
-                            }
-                        }
-                    },
-                    animation: {
-                        duration: 1000,
-                        easing: 'easeOutQuart'
-                    }
-                }
-            });
-        }
-
-        // Connexion avec email et mot de passe
-        function loginWithCredentials(event) {
-            event.preventDefault();
-            const email = document.getElementById('userEmail').value.trim();
-            const password = document.getElementById('userPassword').value.trim();
-            if (!email || !password) {
-                showToast('Veuillez entrer un email et un mot de passe valides', true);
-                return;
-            }
-
-            const emailLowerCase = email.toLowerCase();
-            const storedUserId = localStorage.getItem('userId');
-            const storedEmail = localStorage.getItem('userEmail');
-
-            const userId = generateUniqueUserId(emailLowerCase, password);
-
-            if (storedUserId && storedEmail === emailLowerCase && storedUserId === userId) {
-                document.getElementById('userDisplay').textContent = emailLowerCase;
-                document.getElementById('userDisplay').classList.remove('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                document.getElementById('loginModal').classList.add('hidden');
-                chargerClients();
-                chargerFournisseurs();
-                chargerProduits();
-                chargerUtilisateurs();
-                chargerKPI();
-            } else {
-                localStorage.setItem('userId', userId);
-                localStorage.setItem('userEmail', emailLowerCase);
-                document.getElementById('userDisplay').textContent = emailLowerCase;
-                document.getElementById('userDisplay').classList.remove('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                document.getElementById('loginModal').classList.add('hidden');
-                chargerClients();
-                chargerFournisseurs();
-                chargerProduits();
-                chargerUtilisateurs();
-                chargerKPI();
-                showToast('Nouveau compte créé avec succès');
-            }
-        }
-
-        // Fonction de déconnexion
-        function loginLogout() {
-            const userId = localStorage.getItem('userId');
-            if (userId) {
-                localStorage.removeItem('userId');
-                localStorage.removeItem('userEmail');
-                document.getElementById('userDisplay').textContent = '';
-                document.getElementById('userDisplay').classList.add('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                document.getElementById('loginModal').classList.remove('hidden');
-                document.getElementById('clientsList').innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
-                document.getElementById('fournisseursList').innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
-                document.getElementById('productsList').innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
-                document.getElementById('utilisateursList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
-                document.getElementById('clientCount').classList.add('hidden');
-                document.getElementById('fournisseurCount').classList.add('hidden');
-                document.getElementById('productCount').classList.add('hidden');
-                document.getElementById('utilisateurCount').classList.add('hidden');
-                document.getElementById('totalCA').textContent = '0.00 DA';
-                document.getElementById('totalProfit').textContent = '0.00 DA';
-                document.getElementById('salesCount').textContent = '0';
-                document.getElementById('lowStockItems').textContent = '0';
-                document.getElementById('topClient').textContent = 'N/A';
-                document.getElementById('topClientCA').textContent = '0.00 DA';
-                if (caChartInstance) {
-                    caChartInstance.destroy();
-                    caChartInstance = null;
-                }
-            }
-        }
-
-        // Fonction pour afficher les notifications
         function showToast(message, isError = false) {
             const toast = document.getElementById('toast');
             const toastMessage = document.getElementById('toastMessage');
@@ -783,7 +374,6 @@
             }, 3000);
         }
 
-        // Fonction pour gérer l'animation développer/envelopper
         function toggleSection(sectionId) {
             const section = document.getElementById(sectionId);
             const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
@@ -794,8 +384,21 @@
             chevron.classList.toggle('fa-chevron-up');
         }
 
-        // --- Gestion des clients ---
+        function loginLogout() {
+            console.log('Déconnexion en cours...');
+            const userId = localStorage.getItem('userId');
+            if (userId) {
+                localStorage.removeItem('userId');
+                localStorage.removeItem('userEmail');
+                document.getElementById('userDisplay').textContent = '';
+                document.getElementById('userDisplay').classList.add('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                window.location.href = 'index.html';
+            }
+        }
+
         async function chargerClients() {
+            console.log('Chargement des clients...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour voir les clients', true);
@@ -804,689 +407,454 @@
 
             try {
                 const response = await fetch(`${API_BASE_URL}/liste_clients`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
+                    headers: { 'X-User-ID': userId }
                 });
                 if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
-                const clients = await response.json();
-                const tbody = document.getElementById('clientsList');
-                const countElement = document.getElementById('clientCount');
+                clientsCache = await response.json();
+                const selectElement = document.getElementById('clientFilter');
 
-                if (clients.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun client trouvé</td></tr>';
-                    countElement.textContent = '0';
-                    countElement.classList.remove('hidden');
-                    return;
-                }
-
-                tbody.innerHTML = '';
-                clients.forEach(client => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.numero_clt || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${client.nom || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.solde || '0'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.reference || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.contact || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.adresse || 'N/A'}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-                countElement.textContent = clients.length;
-                countElement.classList.remove('hidden');
-            } catch (error) {
-                document.getElementById('clientsList').innerHTML = `
-                    <tr>
-                        <td colspan="6" class="text-center py-4 text-red-500">
-                            Erreur de chargement: ${error.message}
-                        </td>
-                    </tr>
+                selectElement.innerHTML = `
+                    <option value="">Tous les clients</option>
+                    <option value="0">Comptoir</option>
                 `;
+                clientsCache.forEach(client => {
+                    const option = document.createElement('option');
+                    option.value = client.numero_clt;
+                    option.textContent = `${client.nom} (ID: ${client.numero_clt})`;
+                    selectElement.appendChild(option);
+                });
+            } catch (error) {
+                showToast('Erreur lors du chargement des clients: ' + error.message, true);
                 console.error('Erreur clients:', error);
             }
         }
 
-        async function ajouterClient() {
+        async function chargerVentesJour(date = '', numeroClt = '') {
+            console.log('Chargement des ventes...', { date, numeroClt });
             const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Veuillez vous connecter pour ajouter un client', true);
-                return;
-            }
-
-            const nom = document.getElementById('clientNom').value.trim();
-            const solde = document.getElementById('clientSolde').value.trim();
-            const reference = document.getElementById('clientReference').value.trim();
-            const contact = document.getElementById('clientContact').value.trim();
-            const adresse = document.getElementById('clientAdresse').value.trim();
-
-            if (!nom || !solde || !reference) {
-                showToast('Veuillez remplir tous les champs obligatoires', true);
+                showToast('Veuillez vous connecter pour voir les ventes', true);
+                window.location.href = 'index.html';
                 return;
             }
 
             try {
-                const response = await fetch(`${API_BASE_URL}/ajouter_client`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({
-                        nom,
-                        solde: parseFloat(solde),
-                        reference,
-                        contact,
-                        adresse
-                    })
+                const params = new URLSearchParams();
+                if (date) params.append('date', date);
+                if (numeroClt) params.append('numero_clt', numeroClt);
+                const url = `${API_BASE_URL}/ventes_jour?${params.toString()}`;
+
+                const response = await fetch(url, {
+                    headers: { 'X-User-ID': userId }
                 });
-
-                const result = await response.json();
                 if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de l\'ajout');
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
+                dailySalesCache = await response.json();
 
-                showToast('Client ajouté avec succès');
-                resetClientForm();
-                chargerClients();
-            } catch (error) {
-                showToast(error.message, true);
-                console.error('Erreur ajout client:', error);
-            }
-        }
+                const ticketsTbody = document.getElementById('ticketsList');
+                const bonsTbody = document.getElementById('bonsList');
+                const countElement = document.getElementById('dailySalesCount');
+                const totalElement = document.getElementById('dailySalesTotal');
 
-        function resetClientForm() {
-            document.getElementById('clientNom').value = '';
-            document.getElementById('clientSolde').value = '';
-            document.getElementById('clientReference').value = '';
-            document.getElementById('clientContact').value = '';
-            document.getElementById('clientAdresse').value = '';
-            document.getElementById('clientForm').classList.add('hidden');
-        }
-
-        function toggleClientForm() {
-            document.getElementById('clientForm').classList.toggle('hidden');
-        }
-
-        document.getElementById('searchClient').addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const rows = document.querySelectorAll('#clientsList tr');
-
-            rows.forEach(row => {
-                const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-                const reference = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
-                const contact = row.querySelector('td:nth-child(5)')?.textContent.toLowerCase();
-                const adresse = row.querySelector('td:nth-child(6)')?.textContent.toLowerCase();
-                if (nom?.includes(searchTerm) || reference?.includes(searchTerm) || contact?.includes(searchTerm) || adresse?.includes(searchTerm)) {
-                    row.style.display = '';
+                if (dailySalesCache.tickets.length === 0) {
+                    ticketsTbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun ticket</td></tr>';
                 } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-
-        // --- Gestion des fournisseurs ---
-        async function chargerFournisseurs() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les fournisseurs', true);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_fournisseurs`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
-                });
-                if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-                }
-                const fournisseurs = await response.json();
-                const tbody = document.getElementById('fournisseursList');
-                const countElement = document.getElementById('fournisseurCount');
-
-                if (fournisseurs.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun fournisseur trouvé</td></tr>';
-                    countElement.textContent = '0';
-                    countElement.classList.remove('hidden');
-                    return;
+                    ticketsTbody.innerHTML = '';
+                    dailySalesCache.tickets.forEach(vente => {
+                        const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
+                        const tr = document.createElement('tr');
+                        tr.className = 'hover:bg-gray-50';
+                        tr.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <button onclick="showSaleDetails(${vente.numero_comande}, '${vente.nature}')" class="bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition mr-2">
+                                    <i class="fas fa-eye"></i> Voir
+                                </button>
+                                <button onclick="printTicket(${vente.numero_comande}, '${vente.nature}')" class="bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition">
+                                    <i class="fas fa-print"></i> Ticket
+                                </button>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${vente.numero_comande}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.client_nom || 'Comptoir'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalVente.toFixed(2)} DA</td>
+                        `;
+                        ticketsTbody.appendChild(tr);
+                    });
                 }
 
-                tbody.innerHTML = '';
-                fournisseurs.forEach(fournisseur => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.numero_fou || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${fournisseur.nom || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.solde || '0'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.reference || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.contact || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.adresse || 'N/A'}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-                countElement.textContent = fournisseurs.length;
+                if (dailySalesCache.bons.length === 0) {
+                    bonsTbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun bon de livraison</td></tr>';
+                } else {
+                    bonsTbody.innerHTML = '';
+                    dailySalesCache.bons.forEach(vente => {
+                        const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
+                        const tr = document.createElement('tr');
+                        tr.className = 'hover:bg-gray-50';
+                        tr.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <button onclick="showSaleDetails(${vente.numero_comande}, '${vente.nature}')" class="bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition mr-2">
+                                    <i class="fas fa-eye"></i> Voir
+                                </button>
+                                <button onclick="printTicket(${vente.numero_comande}, '${vente.nature}')" class="bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition">
+                                    <i class="fas fa-print"></i> Ticket
+                                </button>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${vente.numero_comande}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.client_nom || 'Comptoir'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalVente.toFixed(2)} DA</td>
+                        `;
+                        bonsTbody.appendChild(tr);
+                    });
+                }
+
+                countElement.textContent = dailySalesCache.tickets.length + dailySalesCache.bons.length;
                 countElement.classList.remove('hidden');
+                totalElement.textContent = `${parseFloat(dailySalesCache.total).toFixed(2)} DA`;
             } catch (error) {
-                document.getElementById('fournisseursList').innerHTML = `
-                    <tr>
-                        <td colspan="6" class="text-center py-4 text-red-500">
-                            Erreur de chargement: ${error.message}
-                        </td>
-                    </tr>
+                document.getElementById('ticketsList').innerHTML = `
+                    <tr><td colspan="5" class="text-center py-4 text-red-500">Erreur de chargement: ${error.message}</td></tr>
                 `;
-                console.error('Erreur fournisseurs:', error);
+                document.getElementById('bonsList').innerHTML = `
+                    <tr><td colspan="5" class="text-center py-4 text-red-500">Erreur de chargement: ${error.message}</td></tr>
+                `;
+                console.error('Erreur ventes:', error);
+                showToast(`Erreur chargement ventes: ${error.message}`, true);
             }
         }
 
-        async function ajouterFournisseur() {
+        async function chargerArticlesPlusVendus(date = '', numeroClt = '') {
+            console.log('Chargement des articles les plus vendus...', { date, numeroClt });
             const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Veuillez vous connecter pour ajouter un fournisseur', true);
-                return;
-            }
-
-            const nom = document.getElementById('fournisseurNom').value.trim();
-            const solde = document.getElementById('fournisseurSolde').value.trim();
-            const reference = document.getElementById('fournisseurReference').value.trim();
-            const contact = document.getElementById('fournisseurContact').value.trim();
-            const adresse = document.getElementById('fournisseurAdresse').value.trim();
-
-            if (!nom || !solde || !reference) {
-                showToast('Veuillez remplir tous les champs obligatoires', true);
+                showToast('Veuillez vous connecter pour voir les articles', true);
                 return;
             }
 
             try {
-                const response = await fetch(`${API_BASE_URL}/ajouter_fournisseur`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({
-                        nom,
-                        solde: parseFloat(solde),
-                        reference,
-                        contact,
-                        adresse
-                    })
-                });
+                const params = new URLSearchParams();
+                if (date) params.append('date', date);
+                if (numeroClt) params.append('numero_clt', numeroClt);
+                const url = `${API_BASE_URL}/articles_plus_vendus?${params.toString()}`;
 
-                const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de l\'ajout');
-                }
-
-                showToast('Fournisseur ajouté avec succès');
-                resetFournisseurForm();
-                chargerFournisseurs();
-            } catch (error) {
-                showToast(error.message, true);
-                console.error('Erreur ajout fournisseur:', error);
-            }
-        }
-
-        function resetFournisseurForm() {
-            document.getElementById('fournisseurNom').value = '';
-            document.getElementById('fournisseurSolde').value = '';
-            document.getElementById('fournisseurReference').value = '';
-            document.getElementById('fournisseurContact').value = '';
-            document.getElementById('fournisseurAdresse').value = '';
-            document.getElementById('fournisseurForm').classList.add('hidden');
-        }
-
-        function toggleFournisseurForm() {
-            document.getElementById('fournisseurForm').classList.toggle('hidden');
-        }
-
-        document.getElementById('searchFournisseur').addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const rows = document.querySelectorAll('#fournisseursList tr');
-
-            rows.forEach(row => {
-                const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-                const reference = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
-                const contact = row.querySelector('td:nth-child(5)')?.textContent.toLowerCase();
-                const adresse = row.querySelector('td:nth-child(6)')?.textContent.toLowerCase();
-                if (nom?.includes(searchTerm) || reference?.includes(searchTerm) || contact?.includes(searchTerm) || adresse?.includes(searchTerm)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-
-        // --- Gestion des produits ---
-        async function chargerProduits() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les produits', true);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
+                const response = await fetch(url, {
+                    headers: { 'X-User-ID': userId }
                 });
                 if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
-                const produits = await response.json();
-                const tbody = document.getElementById('productsList');
-                const countElement = document.getElementById('productCount');
+                topArticlesCache = await response.json();
 
-                if (produits.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
-                    countElement.textContent = '0';
-                    countElement.classList.remove('hidden');
-                    return;
-                }
+                const countElement = document.getElementById('topArticlesCount');
+                const totalElement = document.getElementById('topArticlesTotal');
 
-                tbody.innerHTML = '';
-                produits.forEach(produit => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || '0.00').toFixed(2)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-                countElement.textContent = produits.length;
+                const totalQuantite = topArticlesCache.reduce((sum, article) => sum + parseInt(article.quantite || 0), 0);
+
+                countElement.textContent = topArticlesCache.length;
                 countElement.classList.remove('hidden');
-            } catch (error) {
-                document.getElementById('productsList').innerHTML = `
-                    <tr>
-                        <td colspan="5" class="text-center py-4 text-red-500">
-                            Erreur de chargement: ${error.message}
-                        </td>
-                    </tr>
-                `;
-                console.error('Erreur produits:', error);
-            }
-        }
+                totalElement.textContent = totalQuantite;
 
-        async function ajouterProduit() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour ajouter un produit', true);
-                return;
-            }
+                const labels = topArticlesCache.map(article => article.designation || 'N/A');
+                const quantites = topArticlesCache.map(article => parseInt(article.quantite || 0));
 
-            const designation = document.getElementById('productDesignation').value.trim();
-            const bar = document.getElementById('productBar').value.trim();
-            const prix = document.getElementById('productPrix').value.trim();
-            const prixba = document.getElementById('productPrixba').value.trim();
-            const qte = document.getElementById('productQte').value.trim();
+                const backgroundColors = quantites.map((_, index) => `hsl(${(index * 360) / quantites.length}, 70%, 60%)`);
+                const borderColors = quantites.map((_, index) => `hsl(${(index * 360) / quantites.length}, 70%, 40%)`);
 
-            if (!designation || !bar || !prix || !qte) {
-                showToast('Veuillez remplir tous les champs obligatoires', true);
-                return;
-            }
-
-            // Validation du prix d'achat
-            let prixbaValue = '0.00';
-            if (prixba) {
-                const parsedPrixba = parseFloat(prixba);
-                if (isNaN(parsedPrixba) || parsedPrixba < 0) {
-                    showToast('Le prix d\'achat doit être un nombre positif', true);
-                    return;
+                if (topArticlesChart) {
+                    topArticlesChart.destroy();
                 }
-                prixbaValue = parsedPrixba.toFixed(2);
-            }
 
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
-                });
-                if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-                }
-                const produits = await response.json();
-                const codeBarExists = produits.some(produit => produit.BAR === bar);
-                if (codeBarExists) {
-                    showToast('Ce code-barres existe déjà dans la liste des produits.', true);
-                    return;
-                }
-            } catch (error) {
-                showToast('Erreur lors de la vérification des doublons: ' + error.message, true);
-                console.error('Erreur vérification doublons:', error);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/ajouter_item`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
+                const ctx = document.getElementById('topArticlesChart').getContext('2d');
+                topArticlesChart = new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: quantites,
+                            backgroundColor: backgroundColors,
+                            borderColor: borderColors,
+                            borderWidth: 1
+                        }]
                     },
-                    body: JSON.stringify({
-                        designation,
-                        bar,
-                        prix: parseFloat(prix),
-                        prixba: prixbaValue,
-                        qte: parseInt(qte)
-                    })
-                });
-
-                const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de l\'ajout');
-                }
-
-                showToast('Produit ajouté avec succès');
-                resetProductForm();
-                chargerProduits();
-            } catch (error) {
-                showToast(error.message, true);
-                console.error('Erreur ajout produit:', error);
-            }
-        }
-
-        function resetProductForm() {
-            document.getElementById('productDesignation').value = '';
-            document.getElementById('productBar').value = '';
-            document.getElementById('productPrix').value = '';
-            document.getElementById('productPrixba').value = '';
-            document.getElementById('productQte').value = '';
-            document.getElementById('productForm').classList.add('hidden');
-            stopScanner();
-        }
-
-        function toggleProductForm() {
-            document.getElementById('productForm').classList.toggle('hidden');
-        }
-
-        document.getElementById('searchProduct').addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const rows = document.querySelectorAll('#productsList tr');
-
-            rows.forEach(row => {
-                const code = row.querySelector('td:nth-child(1)')?.textContent.toLowerCase();
-                const designation = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-                const prix = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
-                const prixba = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
-                const qte = row.querySelector('td:nth-child(5)')?.textContent.toLowerCase();
-                if (
-                    code?.includes(searchTerm) ||
-                    designation?.includes(searchTerm) ||
-                    prix?.includes(searchTerm) ||
-                    prixba?.includes(searchTerm) ||
-                    qte?.includes(searchTerm)
-                ) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-
-        // --- Gestion des utilisateurs ---
-        async function chargerUtilisateurs() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les utilisateurs', true);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
-                });
-                if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-                }
-                const utilisateurs = await response.json();
-                const tbody = document.getElementById('utilisateursList');
-                const countElement = document.getElementById('utilisateurCount');
-
-                if (utilisateurs.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun utilisateur trouvé</td></tr>';
-                    countElement.textContent = '0';
-                    countElement.classList.remove('hidden');
-                    return;
-                }
-
-                tbody.innerHTML = '';
-                utilisateurs.forEach(utilisateur => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.numero_util || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${utilisateur.nom || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.statue || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <button onclick="supprimerUtilisateur('${utilisateur.numero_util}')" class="text-red-600 hover:text-red-800 transition">
-                                <i class="fas fa-trash-alt"></i> Supprimer
-                            </button>
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-                countElement.textContent = utilisateurs.length;
-                countElement.classList.remove('hidden');
-            } catch (error) {
-                document.getElementById('utilisateursList').innerHTML = `
-                    <tr>
-                        <td colspan="4" class="text-center py-4 text-red-500">
-                            Erreur de chargement: ${error.message}
-                        </td>
-                    </tr>
-                `;
-                console.error('Erreur utilisateurs:', error);
-            }
-        }
-
-        async function ajouterUtilisateur() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour ajouter un utilisateur', true);
-                return;
-            }
-
-            const nom = document.getElementById('utilisateurNom').value.trim();
-            const password2 = document.getElementById('utilisateurPassword').value.trim();
-            const statue = document.getElementById('utilisateurStatut').value;
-
-            if (!nom || !password2 || !statue) {
-                showToast('Veuillez remplir tous les champs obligatoires', true);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/ajouter_utilisateur`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({
-                        nom,
-                        password2,
-                        statue
-                    })
-                });
-
-                const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de l\'ajout');
-                }
-
-                showToast('Utilisateur ajouté avec succès');
-                resetUtilisateurForm();
-                chargerUtilisateurs();
-            } catch (error) {
-                showToast(error.message, true);
-                console.error('Erreur ajout utilisateur:', error);
-            }
-        }
-
-        async function supprimerUtilisateur(numero_util) {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour supprimer un utilisateur', true);
-                return;
-            }
-
-            if (!confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/supprimer_utilisateur/${numero_util}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'X-User-ID': userId
-                    }
-                });
-
-                const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de la suppression');
-                }
-
-                showToast('Utilisateur supprimé avec succès');
-                chargerUtilisateurs();
-            } catch (error) {
-                showToast(error.message, true);
-                console.error('Erreur suppression utilisateur:', error);
-            }
-        }
-
-        function resetUtilisateurForm() {
-            document.getElementById('utilisateurNom').value = '';
-            document.getElementById('utilisateurPassword').value = '';
-            document.getElementById('utilisateurStatut').value = 'admin';
-            document.getElementById('utilisateurForm').classList.add('hidden');
-        }
-
-        function toggleUtilisateurForm() {
-            document.getElementById('utilisateurForm').classList.toggle('hidden');
-        }
-
-        document.getElementById('searchUtilisateur').addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const rows = document.querySelectorAll('#utilisateursList tr');
-
-            rows.forEach(row => {
-                const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-                const statue = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
-                if (nom?.includes(searchTerm) || statue?.includes(searchTerm)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-
-        // --- Scanner de code-barres avec Barcode Detection API ---
-        async function startScanner() {
-            if (!('BarcodeDetector' in window)) {
-                showToast('Le scanner de code-barres n\'est pas supporté par ce navigateur. Utilisez Chrome ou Edge.', true);
-                return;
-            }
-
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                showToast('L\'accès à la caméra n\'est pas supporté par ce navigateur.', true);
-                return;
-            }
-
-            const preview = document.getElementById('scannerPreview');
-         
-            const scanButton = document.getElementById('scanButton');
-
-            preview.style.display = 'block';
-            scanButton.disabled = true;
-            isScanning = true;
-
-            try {
-                barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
-
-                stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment' }
-                });
-
-                const video = document.createElement('video');
-                video.srcObject = stream;
-                video.setAttribute('playsinline', 'true');
-                video.setAttribute('autoplay', 'true');
-                preview.innerHTML = '';
-                preview.appendChild(video);
-
-                await video.play().catch(err => {
-                    console.error('Erreur lors de la lecture de la vidéo:', err);
-                    showToast('Erreur lors du démarrage de la caméra.', true);
-                    stopScanner();
-                });
-
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-
-                const detectBarcode = async () => {
-                    if (!isScanning) return;
-
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-                    try {
-                        const barcodes = await barcodeDetector.detect(canvas);
-                        if (barcodes && barcodes.length > 0) {
-                            const barcode = barcodes[0].rawValue;
-                            document.getElementById('productBar').value = barcode;
-                            showToast('Code-barres détecté avec succès !');
-                            stopScanner();
-                            return;
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { position: 'top' },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const value = context.raw || 0;
+                                        return `${label}: ${value} unités`;
+                                    }
+                                }
+                            }
                         }
-                    } catch (err) {
-                        console.error('Erreur lors de la détection du code-barres:', err);
-                        showToast('Erreur lors de la détection du code-barres.', true);
                     }
-
-                    requestAnimationFrame(detectBarcode);
-                };
-
-                detectBarcode();
+                });
             } catch (error) {
-                console.error('Erreur démarrage scanner:', error);
-                showToast('Erreur lors de l\'accès à la caméra: ' + error.message, true);
-                stopScanner();
+                console.error('Erreur articles:', error);
+                showToast(`Erreur chargement articles: ${error.message}`, true);
+                document.getElementById('topArticlesTotal').textContent = '0';
+                document.getElementById('topArticlesCount').classList.add('hidden');
             }
         }
 
-        function stopScanner() {
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                stream = null;
+        async function chargerProfit(date = '', numeroClt = '') {
+            console.log('Chargement du bénéfice...', { date, numeroClt });
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir le bénéfice', true);
+                return;
             }
-            const preview = document.getElementById('scannerPreview');
-            preview.style.display = 'none';
-            preview.innerHTML = '';
-            document.getElementById('scanButton').disabled = false;
-            isScanning = false;
+
+            try {
+                const params = new URLSearchParams();
+                if (date) params.append('date', date);
+                if (numeroClt) params.append('numero_clt', numeroClt);
+                const url = `${API_BASE_URL}/profit_by_date?${params.toString()}`;
+
+                const response = await fetch(url, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                profitCache = await response.json();
+
+                const countElement = document.getElementById('profitCount');
+                const totalElement = document.getElementById('profitTotal');
+
+                const selectedDateProfit = profitCache.find(p => p.date === date)?.profit || 0;
+                const totalDays = profitCache.length;
+
+                countElement.textContent = totalDays;
+                countElement.classList.remove('hidden');
+                totalElement.textContent = `${parseFloat(selectedDateProfit).toFixed(2)} DA`;
+
+                const labels = profitCache.map(p => new Date(p.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }));
+                const profits = profitCache.map(p => parseFloat(p.profit));
+
+                if (profitChart) {
+                    profitChart.destroy();
+                }
+
+                const ctx = document.getElementById('profitChart').getContext('2d');
+                profitChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Bénéfice (DA)',
+                            data: profits,
+                            borderColor: '#4f46e5',
+                            backgroundColor: 'rgba(79, 70, 229, 0.2)',
+                            fill: true,
+                            tension: 0.4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: { display: true, text: 'Bénéfice (DA)' }
+                            },
+                            x: {
+                                title: { display: true, text: 'Date' }
+                            }
+                        },
+                        plugins: {
+                            legend: { display: true, position: 'top' },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const value = context.raw || 0;
+                                        return `Bénéfice: ${value.toFixed(2)} DA`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Erreur bénéfice:', error);
+                showToast(`Erreur chargement bénéfice: ${error.message}`, true);
+                document.getElementById('profitTotal').textContent = '0.00 DA';
+                document.getElementById('profitCount').classList.add('hidden');
+            }
         }
 
-        // Gestion des erreurs globales
-        window.onerror = function(message, source, lineno, colno, error) {
-            console.error('Erreur globale:', message, 'à', source, 'ligne', lineno);
-            showToast('Une erreur inattendue s\'est produite.', true);
-        };
+        function showSaleDetails(numeroComande, nature) {
+            const vente = [...dailySalesCache.tickets, ...dailySalesCache.bons].find(v => v.numero_comande === numeroComande);
+            if (!vente) {
+                showToast('Vente non trouvée', true);
+                return;
+            }
+
+            const modal = document.getElementById('saleDetailsModal');
+            const modalSaleNumber = document.getElementById('modalSaleNumber');
+            const saleDetailsList = document.getElementById('saleDetailsList');
+
+            modalSaleNumber.textContent = numeroComande;
+            saleDetailsList.innerHTML = '';
+
+            vente.lignes.forEach(ligne => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50';
+                tr.innerHTML = `
+                    <td class="px-6 py-4 text-sm text-gray-900">${ligne.designation || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ligne.quantite || 0}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(ligne.remarque || 0).toFixed(2)} DA</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(ligne.prixt || 0).toFixed(2)} DA</td>
+                `;
+                saleDetailsList.appendChild(tr);
+            });
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeSaleDetailsModal() {
+            const modal = document.getElementById('saleDetailsModal');
+            modal.classList.add('hidden');
+        }
+
+        function printA4() {
+            const printArea = document.getElementById('printAreaA4');
+            const printTicketsList = document.getElementById('printTicketsList');
+            const printBonsList = document.getElementById('printBonsList');
+            const printTotal = document.getElementById('printTotal');
+            const printDate = document.getElementById('printDate');
+            const printClient = document.getElementById('printClient');
+
+            const dateFilter = document.getElementById('dateFilter').value || new Date().toISOString().split('T')[0];
+            const clientFilter = document.getElementById('clientFilter');
+            const clientText = clientFilter.options[clientFilter.selectedIndex]?.text || 'Tous les clients';
+            printDate.textContent = dateFilter;
+            printClient.textContent = clientText;
+
+            printTicketsList.innerHTML = '';
+            dailySalesCache.tickets.forEach(vente => {
+                const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="border border-gray-300 px-4 py-2">${vente.numero_comande}</td>
+                    <td class="border border-gray-300 px-4 py-2">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
+                    <td class="border border-gray-300 px-4 py-2">${vente.client_nom || 'Comptoir'}</td>
+                    <td class="border border-gray-300 px-4 py-2">${totalVente.toFixed(2)} DA</td>
+                `;
+                printTicketsList.appendChild(tr);
+            });
+
+            printBonsList.innerHTML = '';
+            dailySalesCache.bons.forEach(vente => {
+                const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="border border-gray-300 px-4 py-2">${vente.numero_comande}</td>
+                    <td class="border border-gray-300 px-4 py-2">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
+                    <td class="border border-gray-300 px-4 py-2">${vente.client_nom || 'Comptoir'}</td>
+                    <td class="border border-gray-300 px-4 py-2">${totalVente.toFixed(2)} DA</td>
+                `;
+                printBonsList.appendChild(tr);
+            });
+
+            printTotal.textContent = parseFloat(dailySalesCache.total).toFixed(2);
+
+            printArea.classList.remove('hidden');
+            window.print();
+            printArea.classList.add('hidden');
+        }
+
+        function printTicket(numeroComande, nature) {
+            const vente = [...dailySalesCache.tickets, ...dailySalesCache.bons].find(v => v.numero_comande === numeroComande);
+            if (!vente) {
+                showToast('Vente non trouvée', true);
+                return;
+            }
+
+            const printArea = document.getElementById('printAreaTicket');
+            const ticketNumero = document.getElementById('ticketNumero');
+            const ticketDate = document.getElementById('ticketDate');
+            const ticketClient = document.getElementById('ticketClient');
+            const ticketLignes = document.getElementById('ticketLignes');
+            const ticketTotal = document.getElementById('ticketTotal');
+
+            ticketNumero.textContent = vente.numero_comande;
+            ticketDate.textContent = new Date(vente.date_comande).toLocaleString('fr-FR');
+            ticketClient.textContent = vente.client_nom || 'Comptoir';
+            ticketLignes.innerHTML = '';
+            vente.lignes.forEach(ligne => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="padding: 2mm;">${ligne.designation || 'N/A'}</td>
+                    <td style="text-align: center; padding: 2mm;">${ligne.quantite || 0}</td>
+                    <td style="text-align: right; padding: 2mm;">${parseFloat(ligne.remarque || 0).toFixed(2)}</td>
+                    <td style="text-align: right; padding: 2mm;">${parseFloat(ligne.prixt || 0).toFixed(2)}</td>
+                `;
+                ticketLignes.appendChild(tr);
+            });
+            const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
+            ticketTotal.textContent = totalVente.toFixed(2);
+
+            printArea.classList.remove('hidden');
+            window.print();
+            printArea.classList.add('hidden');
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Page chargée, vérification utilisateur...');
+            const userId = localStorage.getItem('userId');
+            const userEmail = localStorage.getItem('userEmail');
+            if (userId && userEmail) {
+                console.log('Utilisateur connecté:', userId, userEmail);
+                document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
+                document.getElementById('userDisplay').classList.remove('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+                chargerClients();
+                chargerVentesJour();
+                chargerArticlesPlusVendus();
+                chargerProfit();
+            } else {
+                console.log('Aucun utilisateur connecté, redirection vers index.html');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                window.location.href = 'index.html';
+            }
+
+            flatpickr('#dateFilter', {
+                dateFormat: 'Y-m-d',
+                defaultDate: new Date(),
+                onChange: (selectedDates, dateStr) => {
+                    const clientFilter = document.getElementById('clientFilter').value;
+                    chargerVentesJour(dateStr, clientFilter);
+                    chargerArticlesPlusVendus(dateStr, clientFilter);
+                    chargerProfit(dateStr, clientFilter);
+                }
+            });
+
+            document.getElementById('clientFilter').addEventListener('change', (e) => {
+                const dateFilter = document.getElementById('dateFilter').value;
+                const clientFilter = e.target.value;
+                chargerVentesJour(dateFilter, clientFilter);
+                chargerArticlesPlusVendus(dateFilter, clientFilter);
+                chargerProfit(dateFilter, clientFilter);
+            });
+
+            fetch(`${API_BASE_URL}/`)
+                .then(response => response.text())
+                .then(text => console.log('Statut API:', text))
+                .catch(err => {
+                    console.error('API non disponible:', err);
+                    showToast('Erreur de connexion à l\'API', true);
+                });
+        });
     </script>
 </body>
-</html>  
+</html>
