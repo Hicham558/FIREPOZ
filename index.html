@@ -508,6 +508,9 @@
     <script>
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
         let caChartInstance = null;
+        let stream = null;
+        let barcodeDetector = null;
+        let isScanning = false;
 
         // Générer un user_id basé sur l'email et le mot de passe
         function generateUniqueUserId(email, password) {
@@ -548,6 +551,19 @@
                 document.getElementById('kpiSection').style.opacity = '0.5';
                 setTimeout(chargerKPI, 300);
             });
+
+            // Bouton remonter en haut
+            window.addEventListener('scroll', () => {
+                if (window.scrollY > 300) {
+                    document.getElementById('scrollTopButton').classList.remove('hidden');
+                } else {
+                    document.getElementById('scrollTopButton').classList.add('hidden');
+                }
+            });
+
+            document.getElementById('scrollTopButton').addEventListener('click', () => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
         });
 
         // Fonction pour charger les KPI
@@ -576,7 +592,7 @@
                 document.getElementById('salesCount').textContent = kpi.sales_count;
                 document.getElementById('lowStockItems').textContent = kpi.low_stock_items;
                 document.getElementById('topClient').textContent = kpi.top_client.name || 'N/A';
-                document.getElementById('topClient').title = kpi.top_client.name || 'N/A'; // Infobulle avec le nom complet
+                document.getElementById('topClient').title = kpi.top_client.name || 'N/A';
                 document.getElementById('topClientCA').textContent = `${kpi.top_client.ca.toFixed(2)} DA`;
 
                 // Animation de mise à jour
@@ -1111,7 +1127,7 @@
                     showToast('Le prix d\'achat doit être un nombre positif', true);
                     return;
                 }
-                prixbaValue = parsedPrixba.toFixed(2); // Formater avec 2 décimales
+                prixbaValue = parsedPrixba.toFixed(2);
             }
 
             try {
@@ -1364,10 +1380,6 @@
         });
 
         // --- Scanner de code-barres avec Barcode Detection API ---
-        let stream = null;
-        let barcodeDetector = null;
-        let isScanning = false;
-
         async function startScanner() {
             if (!('BarcodeDetector' in window)) {
                 showToast('Le scanner de code-barres n\'est pas supporté par ce navigateur. Utilisez Chrome ou Edge.', true);
@@ -1409,12 +1421,3 @@
 
                 video.onloadedmetadata = () => {
                     console.log('Vidéo prête pour la détection.');
-                    detectBarcodes(video);
-                };
-            } catch (err) {
-                console.error('Erreur lors du démarrage du scanner :', err);
-                let errorMessage = 'Erreur lors du démarrage du scanner : ';
-                if (err.name === 'NotAllowedError') {
-                    errorMessage += 'Accès à la caméra refusé. Veuillez autoriser l\'accès à la caméra.';
-                } else if (err.name === 'NotFoundError') {
-                    errorMessage += 'A
