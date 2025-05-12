@@ -3,356 +3,126 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ventes du Jour</title>
+    <title>Scanner EAN-13</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Flatpickr pour le DatePicker -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <!-- Chart.js pour les diagrammes -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="manifest" href="/manifest.json">
     <style>
-        @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes userPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
-        @keyframes countPulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
-        @keyframes totalPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
-        .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
-        .animate-pulse { animation: pulse 2s infinite ease-in-out; }
-        .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
-        .animate-total-pulse { animation: totalPulse 1.5s ease-in-out; }
-        #dailySalesSection { animation-delay: 0.3s; }
-        #topArticlesSection { animation-delay: 0.5s; }
-        #profitSection { animation-delay: 0.7s; }
-        footer { animation-delay: 1s; }
-        .user-anim { animation: userPulse 1.5s infinite ease-in-out; }
-        .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
-        .small-email { font-size: 0.75rem; line-height: 1rem; }
-        .total-large {
-            font-size: 2.5rem;
-            font-weight: bold;
-            color: #4f46e5;
-            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+        #scanner-video {
+            transform: scale(1.5);
+            transform-origin: center center;
         }
-        #dailySalesContent .table-container {
-            max-height: 300px;
-            overflow-y: auto;
-            overflow-x: auto;
+        #scan-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 70%;
+            height: 50%;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            transition: border-color 0.3s;
+            pointer-events: none;
+            z-index: 10;
         }
-        #dailySalesContent .table-container table {
-            width: 100%;
+        .scanning {
+            border-color: rgba(0, 255, 0, 0.5); /* Vert semi-transparent pendant le scan */
         }
-        #topArticlesContent .chart-container, #profitContent .chart-container {
-            max-width: 500px;
-            margin: 0 auto;
-        }
-        .flatpickr-input, select {
-            border: 1px solid #d1d5db;
-            border-radius: 0.375rem;
-            padding: 0.5rem 2.5rem 0.5rem 0.75rem;
-            width: 100%;
-            background: white;
-        }
-        .flatpickr-input:focus, select:focus {
-            outline: none;
-            ring: 2px;
-            ring-color: #4f46e5;
-        }
-        /* Styles pour l'impression A4 */
-        @media print and (min-width: 210mm) {
-            body * { visibility: hidden; }
-            #printAreaA4, #printAreaA4 * { visibility: visible; }
-            #printAreaA4 {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 210mm;
-                font-size: 12pt;
-            }
-            .table-container { max-height: none; overflow: visible; }
-            table { page-break-inside: auto; }
-            tr { page-break-inside: avoid; page-break-after: auto; }
-            .no-print { display: none; }
-        }
-        /* Styles pour l'impression ticket 80mm */
-        @media print and (max-width: 80mm) {
-            body * { visibility: hidden; }
-            #printAreaTicket, #printAreaTicket * { visibility: visible; }
-            #printAreaTicket {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 80mm;
-                font-size: 10pt;
-                line-height: 1.2;
-            }
-            .no-print { display: none; }
+        .detected {
+            border-color: rgba(0, 255, 0, 1); /* Vert opaque quand détecté */
         }
     </style>
 </head>
-<body class="bg-gray-100">
-    <!-- Menu de navigation -->
-    <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-slide-in no-print">
-        <div class="container mx-auto flex justify-between items-center">
-            <div class="flex flex-col">
-                <h1 class="text-2xl font-bold flex items-center">
-                    <i class="fas fa-fire mr-2 text-amber-400 animate-pulse"></i> FirePoz
-                </h1>
-                <span id="userDisplay" class="small-email user-anim hidden"></span>
-            </div>
-            <div class="space-x-4 flex items-center">
-                <a href="vente.html" class="hover:text-indigo-200 transition flex items-center">
-                    <i class="fas fa-shopping-cart mr-1"></i> Ventes
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+    <div class="container mx-auto px-4 py-8 max-w-3xl">
+        <header class="mb-8 text-center">
+            <h1 class="text-4xl font-bold text-indigo-700 mb-2">Scanner EAN-13</h1>
+            <p class="text-gray-600 mb-4">Pointez simplement la caméra vers le produit</p>
+            <div class="flex justify-center gap-4">
+                <a href="index.html" class="inline-flex items-center bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
+                    <i class="fas fa-home mr-2"></i>Accueil
                 </a>
-                <a href="index.html" class="hover:text-indigo-200 transition flex items-center">
-                    <i class="fas fa-home mr-1"></i> Accueil
-                </a>
-                <button id="loginLogoutButton" onclick="loginLogout()" class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition flex items-center">
-                    <i class="fas fa-sign-out-alt mr-1"></i>Déconnexion
+                <button onclick="toggleAddProductForm()" class="inline-flex items-center bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition">
+                    <i class="fas fa-plus mr-2"></i>Ajouter un produit
                 </button>
             </div>
-        </div>
-    </nav>
-
-    <!-- Contenu principal -->
-    <div class="container mx-auto px-4 py-16 mt-16">
-        <header class="mb-8">
-            <h1 class="text-3xl font-bold text-indigo-700">Ventes</h1>
-            <p class="text-gray-600 flex items-center">
-                <i class="fas fa-calendar-day mr-2 text-indigo-500"></i> Résumé des ventes
-            </p>
         </header>
 
-        <!-- Filtres -->
-        <div class="mb-6 flex flex-col md:flex-row gap-4 no-print">
-            <div class="relative w-full md:w-1/3">
-                <label for="dateFilter" class="text-sm font-medium text-gray-700">Date</label>
-                <input type="text" id="dateFilter" placeholder="Sélectionner une date" class="flatpickr-input mt-1">
-            </div>
-            <div class="relative w-full md:w-1/3">
-                <label for="clientFilter" class="text-sm font-medium text-gray-700">Client</label>
-                <select id="clientFilter" class="mt-1 block w-full">
-                    <option value="">Tous les clients</option>
-                    <option value="0">Comptoir</option>
-                </select>
-            </div>
-            <div class="relative w-full md:w-1/3 flex items-end">
-                <button onclick="printA4()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition w-full">
-                    <i class="fas fa-print mr-1"></i> Imprimer A4
-                </button>
-            </div>
-        </div>
-
-        <!-- Ventes -->
-        <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="dailySalesSection">
-            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('dailySalesSection')">
-                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                    <i class="fas fa-calendar-day mr-2 text-indigo-500"></i> Liste des Ventes
-                    <span id="dailySalesCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                </h2>
-                <button class="text-gray-600 hover:text-gray-800 transition">
-                    <i class="fas fa-chevron-down" id="dailySalesChevron"></i>
-                </button>
-            </div>
-            <div class="p-6" id="dailySalesContent">
-                <div class="mb-4">
-                    <h3 class="text-lg font-medium text-gray-700">Total: <span id="dailySalesTotal" class="text-indigo-600 font-bold">0.00 DA</span></h3>
-                </div>
-                <!-- Tickets -->
-                <div class="mb-6">
-                    <h4 class="text-md font-medium text-gray-600 mb-2">Tickets (Ventes Comptoir)</h4>
-                    <div class="table-container">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Commande</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody id="ticketsList" class="bg-white divide-y divide-gray-200">
-                                <tr>
-                                    <td colspan="5" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                                </tr>
-                            </tbody>
-                        </table>
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <div class="mb-6">
+                <div id="scanner-container" class="relative w-full aspect-[4/3] bg-gray-200 rounded-lg overflow-hidden">
+                    <video id="scanner-video" class="absolute inset-0 w-full h-full object-cover" autoplay muted playsinline></video>
+                    <div id="camera-loading" class="absolute inset-0 flex items-center justify-center text-gray-500">
+                        Chargement de la caméra...
                     </div>
-                </div>
-                <!-- Bons de Livraison -->
-                <div>
-                    <h4 class="text-md font-medium text-gray-600 mb-2">Bons de Livraison</h4>
-                    <div class="table-container">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Commande</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody id="bonsList" class="bg-white divide-y divide-gray-200">
-                                <tr>
-                                    <td colspan="5" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <div id="scan-indicator"></div>
+                    <div class="absolute bottom-4 left-0 right-0 flex justify-center space-x-2 z-20">
+                        <button onclick="startScanner()" class="flex items-center bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition">
+                            <i class="fas fa-play mr-1"></i>Démarrer
+                        </button>
+                        <button onclick="stopScanner()" class="flex items-center bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition">
+                            <i class="fas fa-stop mr-1"></i>Arrêter
+                        </button>
+                        <button onclick="toggleTorch()" class="flex items-center bg-yellow-500 text-white px-4 py-2 rounded-md hover:bg-yellow-600 transition">
+                            <i class="fas fa-lightbulb mr-1"></i>Flash
+                        </button>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Articles les plus vendus -->
-        <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="topArticlesSection">
-            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('topArticlesSection')">
-                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                    <i class="fas fa-chart-pie mr-2 text-indigo-500"></i> Articles les Plus Vendus
-                    <span id="topArticlesCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                </h2>
-                <button class="text-gray-600 hover:text-gray-800 transition">
-                    <i class="fas fa-chevron-down" id="topArticlesChevron"></i>
-                </button>
+            <div id="result" class="p-4 bg-gray-50 rounded-lg text-gray-700 text-center">
+                <p class="text-lg">En attente de scan...</p>
             </div>
-            <div class="p-6" id="topArticlesContent">
-                <div class="mb-4">
-                    <h3 class="text-lg font-medium text-gray-700">Total Quantité Vendue: <span id="topArticlesTotal" class="text-indigo-600 font-bold">0</span></h3>
-                </div>
-                <div class="flex justify-center">
-                    <canvas id="topArticlesChart" width="400" height="400"></canvas>
-                </div>
-            </div>
-        </div>
 
-        <!-- Bénéfice -->
-        <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="profitSection">
-            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('profitSection')">
-                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                    <i class="fas fa-chart-line mr-2 text-indigo-500"></i> Bénéfice
-                    <span id="profitCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                </h2>
-                <button class="text-gray-600 hover:text-gray-800 transition">
-                    <i class="fas fa-chevron-down" id="profitChevron"></i>
-                </button>
-            </div>
-            <div class="p-6" id="profitContent">
-                <div class="mb-4">
-                    <h3 class="text-lg font-medium text-gray-700">Bénéfice Total (Date Sélectionnée): <span id="profitTotal" class="text-indigo-600 font-bold">0.00 DA</span></h3>
-                </div>
-                <div class="flex justify-center">
-                    <canvas id="profitChart" width="400" height="300"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <!-- Zone d'impression A4 (cachée par défaut) -->
-        <div id="printAreaA4" class="hidden">
-            <h1 class="text-2xl font-bold mb-4">Rapport des Ventes</h1>
-            <p class="mb-2">Date: <span id="printDate"></span></p>
-            <p class="mb-4">Client: <span id="printClient"></span></p>
-            <h2 class="text-xl font-semibold mb-2">Tickets (Ventes Comptoir)</h2>
-            <table class="min-w-full border-collapse border border-gray-300 mb-6">
-                <thead>
-                    <tr class="bg-gray-100">
-                        <th class="border border-gray-300 px-4 py-2 text-left">N° Commande</th>
-                        <th class="border border-gray-300 px-4 py-2 text-left">Date</th>
-                        <th class="border border-gray-300 px-4 py-2 text-left">Client</th>
-                        <th class="border border-gray-300 px-4 py-2 text-left">Total</th>
-                    </tr>
-                </thead>
-                <tbody id="printTicketsList"></tbody>
-            </table>
-            <h2 class="text-xl font-semibold mb-2">Bons de Livraison</h2>
-            <table class="min-w-full border-collapse border border-gray-300 mb-6">
-                <thead>
-                    <tr class="bg-gray-100">
-                        <th class="border border-gray-300 px-4 py-2 text-left">N° Commande</th>
-                        <th class="border border-gray-300 px-4 py-2 text-left">Date</th>
-                        <th class="border border-gray-300 px-4 py-2 text-left">Client</th>
-                        <th class="border border-gray-300 px-4 py-2 text-left">Total</th>
-                    </tr>
-                </thead>
-                <tbody id="printBonsList"></tbody>
-            </table>
-            <p class="text-lg font-bold">Total: <span id="printTotal"></span> DA</p>
-        </div>
-
-        <!-- Zone d'impression ticket 80mm (cachée par défaut) -->
-        <div id="printAreaTicket" class="hidden">
-            <div style="width: 80mm; padding: 5mm; font-family: Arial, sans-serif;">
-                <h1 style="text-align: center; font-size: 14pt; margin-bottom: 5mm;">FirePoz</h1>
-                <p style="text-align: center; margin: 2mm 0;">Vente #<span id="ticketNumero"></span></p>
-                <p style="margin: 2mm 0;">Date: <span id="ticketDate"></span></p>
-                <p style="margin: 2mm 0;">Client: <span id="ticketClient"></span></p>
-                <table style="width: 100%; border-collapse: collapse; margin: 5mm 0;">
-                    <thead>
-                        <tr style="border-bottom: 1px solid #000;">
-                            <th style="text-align: left; padding: 2mm;">Produit</th>
-                            <th style="text-align: center; padding: 2mm;">Qté</th>
-                            <th style="text-align: right; padding: 2mm;">Prix</th>
-                            <th style="text-align: right; padding: 2mm;">Total</th>
-                        </tr>
-                    </thead>
-                    <tbody id="ticketLignes"></tbody>
-                </table>
-                <p style="text-align: right; font-weight: bold; margin: 5mm 0;">Total: <span id="ticketTotal"></span> DA</p>
-                <p style="text-align: center; margin: 5mm 0;">Merci de votre visite !</p>
+            <div id="addProductForm" class="hidden mt-4 p-4 bg-gray-100 rounded-lg">
+                <h3 class="text-lg font-semibold mb-2">Ajouter un nouveau produit</h3>
+                <form id="productForm">
+                    <div class="mb-2">
+                        <label for="designation" class="block text-sm font-medium text-gray-700">Désignation</label>
+                        <input type="text" id="designation" name="designation" class="w-full p-2 border rounded" required>
+                    </div>
+                    <div class="mb-2">
+                        <label for="bar" class="block text-sm font-medium text-gray-700">Code-barres</label>
+                        <input type="text" id="bar" name="bar" class="w-full p-2 border rounded" required>
+                    </div>
+                    <div class="mb-2">
+                        <label for="prix" class="block text-sm font-medium text-gray-700">Prix</label>
+                        <input type="number" id="prix" name="prix" class="w-full p-2 border rounded" step="0.01" min="0" required>
+                    </div>
+                    <div class="mb-2">
+                        <label for="qte" class="block text-sm font-medium text-gray-700">Quantité</label>
+                        <input type="number" id="qte" name="qte" class="w-full p-2 border rounded" min="0" required>
+                    </div>
+                    <button type="submit" class="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 transition">Ajouter le produit</button>
+                </form>
             </div>
         </div>
     </div>
 
-    <!-- Footer -->
-    <footer class="bg-gray-700 text-white text-center py-4 animate-fade-in no-print">
-        <p>Développé par Khelladi Hicham</p>
-        <p>Tel: <a href="tel:00213553700900" class="underline hover:text-indigo-300 transition duration-300">00213553700900</a></p>
-        <p>Email: <a href="mailto:Hicham.khelladi@gmail.com" class="underline hover:text-indigo-300 transition duration-300">Hicham.khelladi@gmail.com</a></p>
-    </footer>
-
-    <!-- Toast -->
-    <div id="toast" class="fixed bottom-4 right-4 hidden no-print">
+    <!-- Toast pour notifications -->
+    <div id="toast" class="fixed bottom-4 right-4 hidden">
         <div class="flex items-center px-6 py-3 rounded-md shadow-lg">
             <i id="toastIcon" class="mr-2"></i>
             <span id="toastMessage"></span>
         </div>
     </div>
 
-    <!-- Modal pour les détails des lignes de vente -->
-    <div id="saleDetailsModal" class="fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center hidden z-50 no-print">
-        <div class="bg-white rounded-lg shadow-lg max-w-2xl w-full p-6">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-semibold text-gray-800">Détails de la Vente #<span id="modalSaleNumber"></span></h3>
-                <button onclick="closeSaleDetailsModal()" class="text-gray-600 hover:text-gray-800">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="table-container max-h-96 overflow-y-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Unitaire</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Total</th>
-                        </tr>
-                    </thead>
-                    <tbody id="saleDetailsList" class="bg-white divide-y divide-gray-200"></tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
     <script>
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
-        let dailySalesCache = { tickets: [], bons: [], total: 0 };
-        let clientsCache = [];
-        let topArticlesCache = [];
-        let profitCache = [];
-        let topArticlesChart = null;
-        let profitChart = null;
+        let scannerRunning = false;
+        let torchOn = false;
+        let lastScanTime = 0;
+        const SCAN_COOLDOWN = 2000;
 
+        // Vérifier si l'utilisateur est connecté au chargement de la page
+        document.addEventListener('DOMContentLoaded', () => {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                window.location.href = 'index.html';
+            }
+        });
+
+        // Fonction pour afficher les notifications
         function showToast(message, isError = false) {
             const toast = document.getElementById('toast');
             const toastMessage = document.getElementById('toastMessage');
@@ -374,487 +144,229 @@
             }, 3000);
         }
 
-        function toggleSection(sectionId) {
-            const section = document.getElementById(sectionId);
-            const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
-            const chevron = document.getElementById(`${sectionId.replace('Section', 'Chevron')}`);
+        async function startScanner() {
+            if (scannerRunning) return;
+            scannerRunning = true;
 
-            content.classList.toggle('hidden');
-            chevron.classList.toggle('fa-chevron-down');
-            chevron.classList.toggle('fa-chevron-up');
-        }
-
-        function loginLogout() {
-            console.log('Déconnexion en cours...');
-            const userId = localStorage.getItem('userId');
-            if (userId) {
-                localStorage.removeItem('userId');
-                localStorage.removeItem('userEmail');
-                document.getElementById('userDisplay').textContent = '';
-                document.getElementById('userDisplay').classList.add('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                window.location.href = 'index.html';
-            }
-        }
-
-        async function chargerClients() {
-            console.log('Chargement des clients...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Veuillez vous connecter pour voir les clients', true);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_clients`, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                clientsCache = await response.json();
-                const selectElement = document.getElementById('clientFilter');
-
-                selectElement.innerHTML = `
-                    <option value="">Tous les clients</option>
-                    <option value="0">Comptoir</option>
-                `;
-                clientsCache.forEach(client => {
-                    const option = document.createElement('option');
-                    option.value = client.numero_clt;
-                    option.textContent = `${client.nom} (ID: ${client.numero_clt})`;
-                    selectElement.appendChild(option);
-                });
-            } catch (error) {
-                showToast('Erreur lors du chargement des clients: ' + error.message, true);
-                console.error('Erreur clients:', error);
-            }
-        }
-
-        async function chargerVentesJour(date = '', numeroClt = '') {
-            console.log('Chargement des ventes...', { date, numeroClt });
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les ventes', true);
+                showToast('Veuillez vous connecter pour utiliser le scanner', true);
+                stopScanner();
                 window.location.href = 'index.html';
                 return;
             }
 
-            try {
-                const params = new URLSearchParams();
-                if (date) params.append('date', date);
-                if (numeroClt) params.append('numero_clt', numeroClt);
-                const url = `${API_BASE_URL}/ventes_jour?${params.toString()}`;
-
-                const response = await fetch(url, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                dailySalesCache = await response.json();
-
-                const ticketsTbody = document.getElementById('ticketsList');
-                const bonsTbody = document.getElementById('bonsList');
-                const countElement = document.getElementById('dailySalesCount');
-                const totalElement = document.getElementById('dailySalesTotal');
-
-                if (dailySalesCache.tickets.length === 0) {
-                    ticketsTbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun ticket</td></tr>';
-                } else {
-                    ticketsTbody.innerHTML = '';
-                    dailySalesCache.tickets.forEach(vente => {
-                        const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
-                        const tr = document.createElement('tr');
-                        tr.className = 'hover:bg-gray-50';
-                        tr.innerHTML = `
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                <button onclick="showSaleDetails(${vente.numero_comande}, '${vente.nature}')" class="bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition mr-2">
-                                    <i class="fas fa-eye"></i> Voir
-                                </button>
-                                <button onclick="printTicket(${vente.numero_comande}, '${vente.nature}')" class="bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition">
-                                    <i class="fas fa-print"></i> Ticket
-                                </button>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${vente.numero_comande}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.client_nom || 'Comptoir'}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalVente.toFixed(2)} DA</td>
-                        `;
-                        ticketsTbody.appendChild(tr);
-                    });
-                }
-
-                if (dailySalesCache.bons.length === 0) {
-                    bonsTbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun bon de livraison</td></tr>';
-                } else {
-                    bonsTbody.innerHTML = '';
-                    dailySalesCache.bons.forEach(vente => {
-                        const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
-                        const tr = document.createElement('tr');
-                        tr.className = 'hover:bg-gray-50';
-                        tr.innerHTML = `
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                <button onclick="showSaleDetails(${vente.numero_comande}, '${vente.nature}')" class="bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition mr-2">
-                                    <i class="fas fa-eye"></i> Voir
-                                </button>
-                                <button onclick="printTicket(${vente.numero_comande}, '${vente.nature}')" class="bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition">
-                                    <i class="fas fa-print"></i> Ticket
-                                </button>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${vente.numero_comande}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.client_nom || 'Comptoir'}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalVente.toFixed(2)} DA</td>
-                        `;
-                        bonsTbody.appendChild(tr);
-                    });
-                }
-
-                countElement.textContent = dailySalesCache.tickets.length + dailySalesCache.bons.length;
-                countElement.classList.remove('hidden');
-                totalElement.textContent = `${parseFloat(dailySalesCache.total).toFixed(2)} DA`;
-            } catch (error) {
-                document.getElementById('ticketsList').innerHTML = `
-                    <tr><td colspan="5" class="text-center py-4 text-red-500">Erreur de chargement: ${error.message}</td></tr>
-                `;
-                document.getElementById('bonsList').innerHTML = `
-                    <tr><td colspan="5" class="text-center py-4 text-red-500">Erreur de chargement: ${error.message}</td></tr>
-                `;
-                console.error('Erreur ventes:', error);
-                showToast(`Erreur chargement ventes: ${error.message}`, true);
-            }
-        }
-
-        async function chargerArticlesPlusVendus(date = '', numeroClt = '') {
-            console.log('Chargement des articles les plus vendus...', { date, numeroClt });
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les articles', true);
-                return;
-            }
+            document.getElementById('result').innerHTML = '<p class="text-blue-500">Démarrage du scan...</p>';
+            const videoElement = document.getElementById('scanner-video');
+            const loadingElement = document.getElementById('camera-loading');
+            const scanIndicator = document.getElementById('scan-indicator');
 
             try {
-                const params = new URLSearchParams();
-                if (date) params.append('date', date);
-                if (numeroClt) params.append('numero_clt', numeroClt);
-                const url = `${API_BASE_URL}/articles_plus_vendus?${params.toString()}`;
-
-                const response = await fetch(url, {
-                    headers: { 'X-User-ID': userId }
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { ideal: 'environment' }, width: { ideal: 480 }, height: { ideal: 360 } }
                 });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                topArticlesCache = await response.json();
+                videoElement.srcObject = stream;
+                videoElement.onloadedmetadata = () => {
+                    loadingElement.style.display = 'none';
+                    scanIndicator.classList.add('scanning'); // Indication visuelle de scan
+                };
 
-                const countElement = document.getElementById('topArticlesCount');
-                const totalElement = document.getElementById('topArticlesTotal');
-
-                const totalQuantite = topArticlesCache.reduce((sum, article) => sum + parseInt(article.quantite || 0), 0);
-
-                countElement.textContent = topArticlesCache.length;
-                countElement.classList.remove('hidden');
-                totalElement.textContent = totalQuantite;
-
-                const labels = topArticlesCache.map(article => article.designation || 'N/A');
-                const quantites = topArticlesCache.map(article => parseInt(article.quantite || 0));
-
-                const backgroundColors = quantites.map((_, index) => `hsl(${(index * 360) / quantites.length}, 70%, 60%)`);
-                const borderColors = quantites.map((_, index) => `hsl(${(index * 360) / quantites.length}, 70%, 40%)`);
-
-                if (topArticlesChart) {
-                    topArticlesChart.destroy();
+                if (!('BarcodeDetector' in window)) {
+                    throw new Error('Barcode Detection API non supportée sur ce navigateur. Essayez Chrome sur Android ou Edge.');
                 }
 
-                const ctx = document.getElementById('topArticlesChart').getContext('2d');
-                topArticlesChart = new Chart(ctx, {
-                    type: 'pie',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            data: quantites,
-                            backgroundColor: backgroundColors,
-                            borderColor: borderColors,
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: {
-                            legend: { position: 'top' },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        const label = context.label || '';
-                                        const value = context.raw || 0;
-                                        return `${label}: ${value} unités`;
-                                    }
-                                }
-                            }
+                const barcodeDetector = new BarcodeDetector({ formats: ['ean_13'] });
+
+                const scan = async () => {
+                    if (!scannerRunning) return;
+                    const canvas = document.createElement('canvas');
+                    canvas.width = videoElement.videoWidth;
+                    canvas.height = videoElement.videoHeight;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+                    try {
+                        const barcodes = await barcodeDetector.detect(canvas);
+                        if (barcodes.length > 0) {
+                            const currentTime = Date.now();
+                            if (currentTime - lastScanTime < SCAN_COOLDOWN) return;
+                            lastScanTime = currentTime;
+
+                            const code = barcodes[0].rawValue;
+                            scanIndicator.classList.remove('scanning');
+                            scanIndicator.classList.add('detected'); // Indication de détection
+                            setTimeout(() => scanIndicator.classList.remove('detected'), 500); // Retour après 0.5s
+                            document.getElementById('result').innerHTML = `<p class="text-green-500">Code-barres détecté : ${code}</p><p>Recherche en cours...</p>`;
+                            fetchProduit(code, userId);
                         }
+                    } catch (err) {
+                        showToast(`Erreur de détection : ${err.message}`, true);
+                    }
+                    setTimeout(scan, 150); // Ajusté à 150ms pour une meilleure réactivité
+                };
+
+                scan();
+            } catch (err) {
+                showToast(`Erreur : ${err.message}. Vérifiez les autorisations ou essayez un autre appareil.`, true);
+                document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${err.message}</p>`;
+                scannerRunning = false;
+            }
+        }
+
+        function stopScanner() {
+            if (!scannerRunning) return;
+            const videoElement = document.getElementById('scanner-video');
+            const scanIndicator = document.getElementById('scan-indicator');
+            if (videoElement.srcObject) {
+                videoElement.srcObject.getTracks().forEach(track => track.stop());
+                videoElement.srcObject = null;
+            }
+            scanIndicator.classList.remove('scanning', 'detected');
+            scannerRunning = false;
+            torchOn = false;
+            document.getElementById('result').innerHTML = '<p class="text-gray-500">Scan arrêté. Cliquez sur "Démarrer" pour recommencer.</p>';
+            document.getElementById('addProductForm').classList.add('hidden');
+            document.getElementById('camera-loading').style.display = 'flex';
+        }
+
+        function toggleTorch() {
+            if (!scannerRunning) return;
+            const videoElement = document.getElementById('scanner-video');
+            if (!videoElement.srcObject) return;
+
+            const track = videoElement.srcObject.getVideoTracks()[0];
+            const capabilities = track.getCapabilities();
+
+            if (!capabilities.torch) {
+                showToast('Le flash n\'est pas disponible sur cet appareil.', true);
+                return;
+            }
+
+            torchOn = !torchOn;
+            track.applyConstraints({ advanced: [{ torch: torchOn }] })
+                .then(() => showToast(`Flash ${torchOn ? 'activé' : 'désactivé'}`, false))
+                .catch(err => showToast(`Erreur du flash : ${err.message}`, true));
+        }
+
+        async function fetchProduit(barCode, userId) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
+                    headers: {
+                        'X-User-ID': userId
                     }
                 });
+                if (!response.ok) throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                const produits = await response.json();
+                const produit = produits.find(p => p.BAR === barCode);
+                if (produit) {
+                    document.getElementById('result').innerHTML = `
+                        <div class="bg-green-100 p-4 rounded-lg">
+                            <p class="text-green-700 font-semibold">Produit trouvé :</p>
+                            <p><strong>Désignation :</strong> ${produit.DESIGNATION}</p>
+                            <p><strong>Quantité :</strong> ${produit.QTE}</p>
+                            <p><strong>Prix :</strong> ${produit.PRIX} €</p>
+                            <p><strong>Code-barres :</strong> ${produit.BAR}</p>
+                        </div>`;
+                    document.getElementById('addProductForm').classList.add('hidden');
+                    showToast('Produit trouvé avec succès !');
+                } else {
+                    document.getElementById('result').innerHTML = `<p class="text-yellow-600">Produit inconnu pour le code-barres : ${barCode}</p>`;
+                    document.getElementById('bar').value = barCode;
+                    document.getElementById('addProductForm').classList.remove('hidden');
+                    showToast('Produit non trouvé. Veuillez ajouter un nouveau produit.', true);
+                }
             } catch (error) {
-                console.error('Erreur articles:', error);
-                showToast(`Erreur chargement articles: ${error.message}`, true);
-                document.getElementById('topArticlesTotal').textContent = '0';
-                document.getElementById('topArticlesCount').classList.add('hidden');
+                showToast(`Erreur lors de la recherche : ${error.message}`, true);
+                document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${error.message}</p>`;
             }
         }
 
-        async function chargerProfit(date = '', numeroClt = '') {
-            console.log('Chargement du bénéfice...', { date, numeroClt });
+        document.getElementById('productForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
             const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Veuillez vous connecter pour voir le bénéfice', true);
+                showToast('Veuillez vous connecter pour ajouter un produit', true);
+                window.location.href = 'index.html';
+                return;
+            }
+
+            const designation = document.getElementById('designation').value.trim();
+            const bar = document.getElementById('bar').value.trim();
+            const prix = parseFloat(document.getElementById('prix').value);
+            const qte = parseInt(document.getElementById('qte').value);
+
+            if (!designation || !bar || isNaN(prix) || isNaN(qte)) {
+                showToast('Veuillez remplir tous les champs correctement', true);
+                return;
+            }
+
+            // Vérifier les doublons
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
+                    headers: {
+                        'X-User-ID': userId
+                    }
+                });
+                if (!response.ok) throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                const produits = await response.json();
+                const codeBarExists = produits.some(p => p.BAR === bar);
+                if (codeBarExists) {
+                    showToast('Ce code-barres existe déjà pour cet utilisateur.', true);
+                    return;
+                }
+            } catch (error) {
+                showToast(`Erreur lors de la vérification des doublons : ${error.message}`, true);
                 return;
             }
 
             try {
-                const params = new URLSearchParams();
-                if (date) params.append('date', date);
-                if (numeroClt) params.append('numero_clt', numeroClt);
-                const url = `${API_BASE_URL}/profit_by_date?${params.toString()}`;
-
-                const response = await fetch(url, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                profitCache = await response.json();
-
-                const countElement = document.getElementById('profitCount');
-                const totalElement = document.getElementById('profitTotal');
-
-                const selectedDateProfit = profitCache.find(p => p.date === date)?.profit || 0;
-                const totalDays = profitCache.length;
-
-                countElement.textContent = totalDays;
-                countElement.classList.remove('hidden');
-                totalElement.textContent = `${parseFloat(selectedDateProfit).toFixed(2)} DA`;
-
-                const labels = profitCache.map(p => new Date(p.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }));
-                const profits = profitCache.map(p => parseFloat(p.profit));
-
-                if (profitChart) {
-                    profitChart.destroy();
-                }
-
-                const ctx = document.getElementById('profitChart').getContext('2d');
-                profitChart = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'Bénéfice (DA)',
-                            data: profits,
-                            borderColor: '#4f46e5',
-                            backgroundColor: 'rgba(79, 70, 229, 0.2)',
-                            fill: true,
-                            tension: 0.4
-                        }]
+                const response = await fetch(`${API_BASE_URL}/ajouter_item`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
                     },
-                    options: {
-                        responsive: true,
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                title: { display: true, text: 'Bénéfice (DA)' }
-                            },
-                            x: {
-                                title: { display: true, text: 'Date' }
-                            }
-                        },
-                        plugins: {
-                            legend: { display: true, position: 'top' },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        const value = context.raw || 0;
-                                        return `Bénéfice: ${value.toFixed(2)} DA`;
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    body: JSON.stringify({ designation, bar, prix, qte })
                 });
-            } catch (error) {
-                console.error('Erreur bénéfice:', error);
-                showToast(`Erreur chargement bénéfice: ${error.message}`, true);
-                document.getElementById('profitTotal').textContent = '0.00 DA';
-                document.getElementById('profitCount').classList.add('hidden');
-            }
-        }
-
-        function showSaleDetails(numeroComande, nature) {
-            const vente = [...dailySalesCache.tickets, ...dailySalesCache.bons].find(v => v.numero_comande === numeroComande);
-            if (!vente) {
-                showToast('Vente non trouvée', true);
-                return;
-            }
-
-            const modal = document.getElementById('saleDetailsModal');
-            const modalSaleNumber = document.getElementById('modalSaleNumber');
-            const saleDetailsList = document.getElementById('saleDetailsList');
-
-            modalSaleNumber.textContent = numeroComande;
-            saleDetailsList.innerHTML = '';
-
-            vente.lignes.forEach(ligne => {
-                const tr = document.createElement('tr');
-                tr.className = 'hover:bg-gray-50';
-                tr.innerHTML = `
-                    <td class="px-6 py-4 text-sm text-gray-900">${ligne.designation || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ligne.quantite || 0}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(ligne.remarque || 0).toFixed(2)} DA</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(ligne.prixt || 0).toFixed(2)} DA</td>
-                `;
-                saleDetailsList.appendChild(tr);
-            });
-
-            modal.classList.remove('hidden');
-        }
-
-        function closeSaleDetailsModal() {
-            const modal = document.getElementById('saleDetailsModal');
-            modal.classList.add('hidden');
-        }
-
-        function printA4() {
-            const printArea = document.getElementById('printAreaA4');
-            const printTicketsList = document.getElementById('printTicketsList');
-            const printBonsList = document.getElementById('printBonsList');
-            const printTotal = document.getElementById('printTotal');
-            const printDate = document.getElementById('printDate');
-            const printClient = document.getElementById('printClient');
-
-            const dateFilter = document.getElementById('dateFilter').value || new Date().toISOString().split('T')[0];
-            const clientFilter = document.getElementById('clientFilter');
-            const clientText = clientFilter.options[clientFilter.selectedIndex]?.text || 'Tous les clients';
-            printDate.textContent = dateFilter;
-            printClient.textContent = clientText;
-
-            printTicketsList.innerHTML = '';
-            dailySalesCache.tickets.forEach(vente => {
-                const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="border border-gray-300 px-4 py-2">${vente.numero_comande}</td>
-                    <td class="border border-gray-300 px-4 py-2">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
-                    <td class="border border-gray-300 px-4 py-2">${vente.client_nom || 'Comptoir'}</td>
-                    <td class="border border-gray-300 px-4 py-2">${totalVente.toFixed(2)} DA</td>
-                `;
-                printTicketsList.appendChild(tr);
-            });
-
-            printBonsList.innerHTML = '';
-            dailySalesCache.bons.forEach(vente => {
-                const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="border border-gray-300 px-4 py-2">${vente.numero_comande}</td>
-                    <td class="border border-gray-300 px-4 py-2">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
-                    <td class="border border-gray-300 px-4 py-2">${vente.client_nom || 'Comptoir'}</td>
-                    <td class="border border-gray-300 px-4 py-2">${totalVente.toFixed(2)} DA</td>
-                `;
-                printBonsList.appendChild(tr);
-            });
-
-            printTotal.textContent = parseFloat(dailySalesCache.total).toFixed(2);
-
-            printArea.classList.remove('hidden');
-            window.print();
-            printArea.classList.add('hidden');
-        }
-
-        function printTicket(numeroComande, nature) {
-            const vente = [...dailySalesCache.tickets, ...dailySalesCache.bons].find(v => v.numero_comande === numeroComande);
-            if (!vente) {
-                showToast('Vente non trouvée', true);
-                return;
-            }
-
-            const printArea = document.getElementById('printAreaTicket');
-            const ticketNumero = document.getElementById('ticketNumero');
-            const ticketDate = document.getElementById('ticketDate');
-            const ticketClient = document.getElementById('ticketClient');
-            const ticketLignes = document.getElementById('ticketLignes');
-            const ticketTotal = document.getElementById('ticketTotal');
-
-            ticketNumero.textContent = vente.numero_comande;
-            ticketDate.textContent = new Date(vente.date_comande).toLocaleString('fr-FR');
-            ticketClient.textContent = vente.client_nom || 'Comptoir';
-            ticketLignes.innerHTML = '';
-            vente.lignes.forEach(ligne => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td style="padding: 2mm;">${ligne.designation || 'N/A'}</td>
-                    <td style="text-align: center; padding: 2mm;">${ligne.quantite || 0}</td>
-                    <td style="text-align: right; padding: 2mm;">${parseFloat(ligne.remarque || 0).toFixed(2)}</td>
-                    <td style="text-align: right; padding: 2mm;">${parseFloat(ligne.prixt || 0).toFixed(2)}</td>
-                `;
-                ticketLignes.appendChild(tr);
-            });
-            const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
-            ticketTotal.textContent = totalVente.toFixed(2);
-
-            printArea.classList.remove('hidden');
-            window.print();
-            printArea.classList.add('hidden');
-        }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log('Page chargée, vérification utilisateur...');
-            const userId = localStorage.getItem('userId');
-            const userEmail = localStorage.getItem('userEmail');
-            if (userId && userEmail) {
-                console.log('Utilisateur connecté:', userId, userEmail);
-                document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
-                document.getElementById('userDisplay').classList.remove('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                chargerClients();
-                chargerVentesJour();
-                chargerArticlesPlusVendus();
-                chargerProfit();
-            } else {
-                console.log('Aucun utilisateur connecté, redirection vers index.html');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                window.location.href = 'index.html';
-            }
-
-            flatpickr('#dateFilter', {
-                dateFormat: 'Y-m-d',
-                defaultDate: new Date(),
-                onChange: (selectedDates, dateStr) => {
-                    const clientFilter = document.getElementById('clientFilter').value;
-                    chargerVentesJour(dateStr, clientFilter);
-                    chargerArticlesPlusVendus(dateStr, clientFilter);
-                    chargerProfit(dateStr, clientFilter);
+                const result = await response.json();
+                if (response.ok) {
+                    document.getElementById('result').innerHTML = `<p class="text-green-500">Produit ajouté avec succès !</p>`;
+                    document.getElementById('addProductForm').classList.add('hidden');
+                    document.getElementById('productForm').reset();
+                    showToast('Produit ajouté avec succès !');
+                } else {
+                    showToast(`Erreur : ${result.erreur}`, true);
+                    document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${result.erreur}</p>`;
                 }
-            });
-
-            document.getElementById('clientFilter').addEventListener('change', (e) => {
-                const dateFilter = document.getElementById('dateFilter').value;
-                const clientFilter = e.target.value;
-                chargerVentesJour(dateFilter, clientFilter);
-                chargerArticlesPlusVendus(dateFilter, clientFilter);
-                chargerProfit(dateFilter, clientFilter);
-            });
-
-            fetch(`${API_BASE_URL}/`)
-                .then(response => response.text())
-                .then(text => console.log('Statut API:', text))
-                .catch(err => {
-                    console.error('API non disponible:', err);
-                    showToast('Erreur de connexion à l\'API', true);
-                });
+            } catch (error) {
+                showToast(`Erreur réseau : ${error.message}`, true);
+                document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${error.message}</p>`;
+            }
         });
+
+        function toggleAddProductForm() {
+            const form = document.getElementById('addProductForm');
+            form.classList.toggle('hidden');
+            document.getElementById('result').innerHTML = '<p class="text-gray-600">Ajout manuel d\'un produit.</p>';
+        }
+
+        // Gestion des erreurs CORS ou réseau
+        window.addEventListener('unhandledrejection', event => {
+            if (event.reason.message.includes('Failed to fetch')) {
+                showToast('Erreur de connexion au serveur. Vérifiez l\'URL ou les paramètres CORS.', true);
+            }
+        });
+
+        // Enregistrer le service worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js')
+                .then((registration) => {
+                    console.log('Service Worker enregistré avec succès');
+                })
+                .catch((error) => {
+                    console.error('Erreur d\'enregistrement du Service Worker :', error);
+                });
+        }
     </script>
 </body>
 </html>
