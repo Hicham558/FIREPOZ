@@ -417,8 +417,7 @@
                     </div>
                 </div>
             </div>
-
-            <!-- Gestion Utilisateurs -->
+<!-- Gestion Utilisateurs -->
             <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="utilisateursSection">
                 <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('utilisateursSection')">
                     <h2 class="text-xl font-semibold text-gray-800 flex items-center">
@@ -579,6 +578,34 @@
 
             document.getElementById('scrollTopButton').addEventListener('click', () => {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+
+            // Gestion du défilement pour le panneau KPI
+            let lastScrollTop = 0;
+            const kpiSection = document.getElementById('kpiSection');
+
+            window.addEventListener('scroll', () => {
+                const currentScrollTop = window.scrollY;
+
+                if (currentScrollTop > lastScrollTop && currentScrollTop > 100) {
+                    // Défilement vers le bas et on a dépassé 100px
+                    if (!kpiSection.classList.contains('animate-fade-out-up')) {
+                        kpiSection.classList.remove('animate-fade-in-down');
+                        kpiSection.classList.add('animate-fade-out-up');
+                        setTimeout(() => {
+                            kpiSection.classList.add('hidden');
+                        }, 500);
+                    }
+                } else if (currentScrollTop < lastScrollTop && currentScrollTop <= 100) {
+                    // Défilement vers le haut et on est proche du haut
+                    if (kpiSection.classList.contains('hidden')) {
+                        kpiSection.classList.remove('hidden');
+                        kpiSection.classList.remove('animate-fade-out-up');
+                        kpiSection.classList.add('animate-fade-in-down');
+                    }
+                }
+
+                lastScrollTop = currentScrollTop <= 0 ? 0 : currentScrollTop;
             });
         });
 
@@ -1235,166 +1262,6 @@
             });
         });
 
-        // --- Gestion des utilisateurs ---
-        async function chargerUtilisateurs() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les utilisateurs', true);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
-                });
-                if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-                }
-                const utilisateurs = await response.json();
-                const tbody = document.getElementById('utilisateursList');
-                const countElement = document.getElementById('utilisateurCount');
-
-                if (utilisateurs.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun utilisateur trouvé</td></tr>';
-                    countElement.textContent = '0';
-                    countElement.classList.remove('hidden');
-                    return;
-                }
-
-                tbody.innerHTML = '';
-                utilisateurs.forEach(utilisateur => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.numero_util || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${utilisateur.nom || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.statue || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <button onclick="supprimerUtilisateur('${utilisateur.numero_util}')" class="text-red-600 hover:text-red-800 transition">
-                                <i class="fas fa-trash-alt"></i> Supprimer
-                            </button>
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-                countElement.textContent = utilisateurs.length;
-                countElement.classList.remove('hidden');
-            } catch (error) {
-                document.getElementById('utilisateursList').innerHTML = `
-                    <tr>
-                        <td colspan="4" class="text-center py-4 text-red-500">
-                            Erreur de chargement: ${error.message}
-                        </td>
-                    </tr>
-                `;
-                console.error('Erreur utilisateurs:', error);
-            }
-        }
-
-        async function ajouterUtilisateur() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour ajouter un utilisateur', true);
-                return;
-            }
-
-            const nom = document.getElementById('utilisateurNom').value.trim();
-            const password2 = document.getElementById('utilisateurPassword').value.trim();
-            const statue = document.getElementById('utilisateurStatut').value;
-
-            if (!nom || !password2 || !statue) {
-                showToast('Veuillez remplir tous les champs obligatoires', true);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/ajouter_utilisateur`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({
-                        nom,
-                        password2,
-                        statue
-                    })
-                });
-
-                const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de l\'ajout');
-                }
-
-                showToast('Utilisateur ajouté avec succès');
-                resetUtilisateurForm();
-                chargerUtilisateurs();
-            } catch (error) {
-                showToast(error.message, true);
-                console.error('Erreur ajout utilisateur:', error);
-            }
-        }
-
-        async function supprimerUtilisateur(numero_util) {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour supprimer un utilisateur', true);
-                return;
-            }
-
-            if (!confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/supprimer_utilisateur/${numero_util}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'X-User-ID': userId
-                    }
-                });
-
-                const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de la suppression');
-                }
-
-                showToast('Utilisateur supprimé avec succès');
-                chargerUtilisateurs();
-            } catch (error) {
-                showToast(error.message, true);
-                console.error('Erreur suppression utilisateur:', error);
-            }
-        }
-
-        function resetUtilisateurForm() {
-            document.getElementById('utilisateurNom').value = '';
-            document.getElementById('utilisateurPassword').value = '';
-            document.getElementById('utilisateurStatut').value = 'admin';
-            document.getElementById('utilisateurForm').classList.add('hidden');
-        }
-
-        function toggleUtilisateurForm() {
-            document.getElementById('utilisateurForm').classList.toggle('hidden');
-        }
-
-        document.getElementById('searchUtilisateur').addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const rows = document.querySelectorAll('#utilisateursList tr');
-
-            rows.forEach(row => {
-                const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-                const statue = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
-                if (nom?.includes(searchTerm) || statue?.includes(searchTerm)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-
         // --- Scanner de code-barres avec Barcode Detection API ---
         async function startScanner() {
             if (!('BarcodeDetector' in window)) {
@@ -1408,7 +1275,6 @@
             }
 
             const preview = document.getElementById('scannerPreview');
-         
             const scanButton = document.getElementById('scanButton');
 
             preview.style.display = 'block';
@@ -1487,6 +1353,166 @@
             console.error('Erreur globale:', message, 'à', source, 'ligne', lineno);
             showToast('Une erreur inattendue s\'est produite.', true);
         };
+
+        // --- Gestion des utilisateurs ---
+        async function chargerUtilisateurs() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir les utilisateurs', true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+                    headers: {
+                        'X-User-ID': userId
+                    }
+                });
+                if (!response.ok) {
+                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                }
+                const utilisateurs = await response.json();
+                const tbody = document.getElementById('utilisateursList');
+                const countElement = document.getElementById('utilisateurCount');
+
+                if (utilisateurs.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun utilisateur trouvé</td></tr>';
+                    countElement.textContent = '0';
+                    countElement.classList.remove('hidden');
+                    return;
+                }
+
+                tbody.innerHTML = '';
+                utilisateurs.forEach(utilisateur => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-gray-50';
+                    tr.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.numero_util || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${utilisateur.nom || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.statut || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <button onclick="supprimerUtilisateur(${utilisateur.numero_util})" class="bg-red-500 text-white px-2 py-1 rounded-md hover:bg-red-600 transition">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                countElement.textContent = utilisateurs.length;
+                countElement.classList.remove('hidden');
+            } catch (error) {
+                document.getElementById('utilisateursList').innerHTML = `
+                    <tr>
+                        <td colspan="4" class="text-center py-4 text-red-500">
+                            Erreur de chargement: ${error.message}
+                        </td>
+                    </tr>
+                `;
+                console.error('Erreur utilisateurs:', error);
+            }
+        }
+
+        async function ajouterUtilisateur() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour ajouter un utilisateur', true);
+                return;
+            }
+
+            const nom = document.getElementById('utilisateurNom').value.trim();
+            const password = document.getElementById('utilisateurPassword').value.trim();
+            const statut = document.getElementById('utilisateurStatut').value;
+
+            if (!nom || !password || !statut) {
+                showToast('Veuillez remplir tous les champs obligatoires', true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/ajouter_utilisateur`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify({
+                        nom,
+                        password,
+                        statut
+                    })
+                });
+
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.erreur || 'Erreur lors de l\'ajout');
+                }
+
+                showToast('Utilisateur ajouté avec succès');
+                resetUtilisateurForm();
+                chargerUtilisateurs();
+            } catch (error) {
+                showToast(error.message, true);
+                console.error('Erreur ajout utilisateur:', error);
+            }
+        }
+
+        function resetUtilisateurForm() {
+            document.getElementById('utilisateurNom').value = '';
+            document.getElementById('utilisateurPassword').value = '';
+            document.getElementById('utilisateurStatut').value = 'admin';
+            document.getElementById('utilisateurForm').classList.add('hidden');
+        }
+
+        function toggleUtilisateurForm() {
+            document.getElementById('utilisateurForm').classList.toggle('hidden');
+        }
+
+        document.getElementById('searchUtilisateur').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('#utilisateursList tr');
+
+            rows.forEach(row => {
+                const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
+                const statut = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
+                if (nom?.includes(searchTerm) || statut?.includes(searchTerm)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+
+        async function supprimerUtilisateur(userId) {
+            const userIdAuth = localStorage.getItem('userId');
+            if (!userIdAuth) {
+                showToast('Veuillez vous connecter pour supprimer un utilisateur', true);
+                return;
+            }
+
+            if (confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/supprimer_utilisateur`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-User-ID': userIdAuth
+                        },
+                        body: JSON.stringify({ numero_util: userId })
+                    });
+
+                    const result = await response.json();
+                    if (!response.ok) {
+                        throw new Error(result.erreur || 'Erreur lors de la suppression');
+                    }
+
+                    showToast('Utilisateur supprimé avec succès');
+                    chargerUtilisateurs();
+                } catch (error) {
+                    showToast(error.message, true);
+                    console.error('Erreur suppression utilisateur:', error);
+                }
+            }
+        }
     </script>
 </body>
-</html>  
+</html>
