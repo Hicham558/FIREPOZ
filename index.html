@@ -1421,3 +1421,66 @@
 
                 video.onloadedmetadata = () => {
                     console.log('Vidéo prête pour la détection.');
+                    video.play().catch(err => {
+                        
+                        console.error('Erreur lors de la lecture de la vidéo:', err);
+                        showToast('Erreur lors du démarrage de la caméra.', true);
+                        stopScanner();
+                    });
+
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+
+                    const detectBarcode = async () => {
+                        if (!isScanning) return;
+
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                        try {
+                            const barcodes = await barcodeDetector.detect(canvas);
+                            if (barcodes && barcodes.length > 0) {
+                                const barcode = barcodes[0].rawValue;
+                                document.getElementById('productBar').value = barcode;
+                                showToast('Code-barres détecté avec succès !');
+                                stopScanner();
+                                return;
+                            }
+                        } catch (err) {
+                            console.error('Erreur lors de la détection du code-barres:', err);
+                            showToast('Erreur lors de la détection du code-barres.', true);
+                        }
+
+                        requestAnimationFrame(detectBarcode);
+                    };
+
+                    detectBarcode();
+                };
+            } catch (error) {
+                console.error('Erreur démarrage scanner:', error);
+                showToast('Erreur lors de l\'accès à la caméra: ' + error.message, true);
+                stopScanner();
+            }
+        }
+
+        function stopScanner() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+            const preview = document.getElementById('scannerPreview');
+            preview.style.display = 'none';
+            preview.innerHTML = '';
+            document.getElementById('scanButton').disabled = false;
+            isScanning = false;
+        }
+
+        // Gestion des erreurs globales
+        window.onerror = function(message, source, lineno, colno, error) {
+            console.error('Erreur globale:', message, 'à', source, 'ligne', lineno);
+            showToast('Une erreur inattendue s\'est produite.', true);
+        };
+    </script>
+</body>
+</html>
