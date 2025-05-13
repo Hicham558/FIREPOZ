@@ -37,9 +37,11 @@
         .dynamic-icon { transition: color 0.3s ease; }
         .chart-container { animation-delay: 1s; }
         /* Styles spécifiques pour le panneau KPI amélioré */
- #kpiSection {
+#kpiSection {
     border-bottom: 2px solid #e5e7eb;
-    transition: opacity 0.3s ease, visibility 0.3s ease;
+    transition: opacity 0.3s ease; /* Transition uniquement pour l'opacité */
+    opacity: 1; /* Valeur par défaut */
+}
 }
 }
         #kpiSection:hover {
@@ -563,17 +565,33 @@
                     showToast('Erreur de connexion à l\'API', true);
                 });
 // Gestion de la disparition du KPI lors du défilement
+// Gestion forcée de la disparition du KPI lors du défilement
+let lastScrollY = 0; // Pour suivre la direction du défilement
 window.addEventListener('scroll', () => {
     const kpiSection = document.getElementById('kpiSection');
-    const kpiPosition = kpiSection.getBoundingClientRect();
+    const currentScrollY = window.scrollY;
+    const kpiHeight = kpiSection.offsetHeight; // Hauteur de la section KPI
+    const threshold = kpiHeight + 100; // Seuil pour masquer (ajustable)
 
-    if (kpiPosition.bottom < 0) {
-        // KPI hors de la vue (en haut) : masquer la section
-        kpiSection.style.display = 'none';
-    } else {
-        // KPI visible ou partiellement visible : afficher la section
+    if (currentScrollY > threshold && currentScrollY > lastScrollY) {
+        // Défilement vers le bas au-delà du seuil : forcer la disparition
+        kpiSection.style.opacity = '0';
+        setTimeout(() => {
+            kpiSection.style.display = 'none';
+            kpiSection.style.position = 'relative'; // Neutraliser sticky
+        }, 300); // Attendre la fin de la transition
+    } else if (currentScrollY < threshold || currentScrollY < lastScrollY) {
+        // Défilement vers le haut ou au-dessus du seuil : réafficher
         kpiSection.style.display = 'block';
+        kpiSection.style.position = 'sticky'; // Restaurer sticky
+        setTimeout(() => {
+            kpiSection.style.opacity = '1';
+        }, 10); // Petit délai pour appliquer display: block
     }
+
+    lastScrollY = currentScrollY; // Mettre à jour la dernière position
+    // Débogage
+    console.log('ScrollY:', currentScrollY, 'KPI Display:', kpiSection.style.display);
 });
             // Écouteur pour le sélecteur de période KPI
             document.getElementById('kpiPeriod').addEventListener('change', () => {
