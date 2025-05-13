@@ -18,6 +18,7 @@
         @keyframes userPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
         @keyframes countPulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
         @keyframes totalPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        @keyframes smoothBlink { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
         .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
         .animate-pulse { animation: pulse 2s infinite ease-in-out; }
         .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
@@ -29,6 +30,7 @@
         footer { animation-delay: 1s; }
         .user-anim { animation: userPulse 1.5s infinite ease-in-out; }
         .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
+        .seller-anim { animation: smoothBlink 1.5s infinite ease-in-out; }
         .small-email { font-size: 0.75rem; line-height: 1rem; }
         .total-large {
             font-size: 2.5rem;
@@ -48,7 +50,6 @@
             max-width: 500px;
             margin: 0 auto;
         }
-        /* Amélioration des styles des listes déroulantes */
         .flatpickr-input, select {
             border: 1px solid #d1d5db;
             border-radius: 0.375rem;
@@ -71,7 +72,6 @@
             background-color: #f3f4f6;
             cursor: not-allowed;
         }
-        /* Styles pour l'impression A4 */
         @media print and (min-width: 210mm) {
             body * { visibility: hidden; }
             #printAreaA4, #printAreaA4 * { visibility: visible; }
@@ -87,7 +87,6 @@
             tr { page-break-inside: avoid; page-break-after: auto; }
             .no-print { display: none; }
         }
-        /* Styles pour l'impression ticket 80mm */
         @media print and (max-width: 80mm) {
             body * { visibility: hidden; }
             #printAreaTicket, #printAreaTicket * { visibility: visible; }
@@ -112,6 +111,7 @@
                     <i class="fas fa-fire mr-2 text-amber-400 animate-pulse"></i> FirePoz
                 </h1>
                 <span id="userDisplay" class="small-email user-anim hidden"></span>
+                <span id="selectedSellerDisplay" class="small-email hidden"></span>
             </div>
             <div class="space-x-4 flex items-center">
                 <a href="vente.html" class="hover:text-indigo-200 transition flex items-center">
@@ -235,10 +235,10 @@
                     <span id="topArticlesCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
                 </h2>
                 <button class="text-gray-600 hover:text-gray-800 transition">
-                    <i class="fas fa-chevron-down" id="topArticlesChevron"></i>
+                    <i class="fas fa-chevron-up" id="topArticlesChevron"></i>
                 </button>
             </div>
-            <div class="p-6 hidden" id="topArticlesContent">
+            <div class="p-6" id="topArticlesContent">
                 <div class="mb-4">
                     <h3 class="text-lg font-medium text-gray-700">Total Quantité Vendue: <span id="topArticlesTotal" class="text-indigo-600 font-bold">0</span></h3>
                 </div>
@@ -949,9 +949,9 @@
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
 
                 // Charger les données initiales
-                const today = new Date().toISOString().split('T')[0]; // Date par défaut
-                const numeroClt = ''; // Tous les clients par défaut
-                const numeroUtil = '0'; // Tous les utilisateurs par défaut
+                const today = new Date().toISOString().split('T')[0];
+                const numeroClt = '';
+                const numeroUtil = '0';
 
                 // Charger les clients et utilisateurs avant les données
                 Promise.all([chargerClients(), chargerUtilisateurs()]).then(() => {
@@ -991,9 +991,29 @@
                 const dateFilter = document.getElementById('dateFilter').value || new Date().toISOString().split('T')[0];
                 const clientFilter = document.getElementById('clientFilter').value || '';
                 const userFilter = e.target.value || '0';
+
                 chargerVentesJour(dateFilter, clientFilter, userFilter);
                 chargerArticlesPlusVendus(dateFilter, clientFilter, userFilter);
                 chargerProfit(dateFilter, clientFilter, userFilter);
+
+                // Afficher le nom du vendeur sélectionné et faire clignoter
+                const selectedSellerDisplay = document.getElementById('selectedSellerDisplay');
+                if (userFilter === '0') {
+                    selectedSellerDisplay.textContent = 'Tous les utilisateurs';
+                    selectedSellerDisplay.classList.add('hidden');
+                } else {
+                    const selectedOption = e.target.options[e.target.selectedIndex];
+                    selectedSellerDisplay.textContent = selectedOption.textContent;
+                    selectedSellerDisplay.classList.remove('hidden');
+                    selectedSellerDisplay.classList.add('seller-anim');
+                }
+
+                // Fermer la section "Valeur du Stock et Zakat"
+                const stockValueContent = document.getElementById('stockValueContent');
+                const stockValueChevron = document.getElementById('stockValueChevron');
+                stockValueContent.classList.add('hidden');
+                stockValueChevron.classList.remove('fa-chevron-up');
+                stockValueChevron.classList.add('fa-chevron-down');
             });
 
             fetch(`${API_BASE_URL}/`)
