@@ -48,17 +48,28 @@
             max-width: 500px;
             margin: 0 auto;
         }
+        /* Amélioration des styles des listes déroulantes */
         .flatpickr-input, select {
             border: 1px solid #d1d5db;
             border-radius: 0.375rem;
             padding: 0.5rem 2.5rem 0.5rem 0.75rem;
             width: 100%;
             background: white;
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke%3D%22%236B7280%22%3E%3Cpath%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%222%22%20d%3D%22M19%209l-7%207-7-7%22%2F%3E%3C%2Fsvg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 1.5em;
+            transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
         }
         .flatpickr-input:focus, select:focus {
             outline: none;
-            ring: 2px;
-            ring-color: #4f46e5;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+        }
+        select:disabled {
+            background-color: #f3f4f6;
+            cursor: not-allowed;
         }
         /* Styles pour l'impression A4 */
         @media print and (min-width: 210mm) {
@@ -227,7 +238,7 @@
                     <i class="fas fa-chevron-down" id="topArticlesChevron"></i>
                 </button>
             </div>
-            <div class="p-6" id="topArticlesContent">
+            <div class="p-6 hidden" id="topArticlesContent">
                 <div class="mb-4">
                     <h3 class="text-lg font-medium text-gray-700">Total Quantité Vendue: <span id="topArticlesTotal" class="text-indigo-600 font-bold">0</span></h3>
                 </div>
@@ -248,7 +259,7 @@
                     <i class="fas fa-chevron-down" id="profitChevron"></i>
                 </button>
             </div>
-            <div class="p-6" id="profitContent">
+            <div class="p-6 hidden" id="profitContent">
                 <div class="mb-4">
                     <h3 class="text-lg font-medium text-gray-700">Bénéfice Total (Date Sélectionnée): <span id="profitTotal" class="text-indigo-600 font-bold">0.00 DA</span></h3>
                 </div>
@@ -268,7 +279,7 @@
                     <i class="fas fa-chevron-down" id="stockValueChevron"></i>
                 </button>
             </div>
-            <div class="p-6" id="stockValueContent">
+            <div class="p-6 hidden" id="stockValueContent">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div class="bg-gray-50 p-4 rounded-md">
                         <h3 class="text-lg font-medium text-gray-700">Valeur Stock (Achat)</h3>
@@ -326,7 +337,7 @@
             <p class="text-lg font-bold">Total: <span id="printTotal"></span> DA</p>
         </div>
 
-<!-- Zone d'impression ticket 80mm (cachée par défaut) -->
+        <!-- Zone d'impression ticket 80mm (cachée par défaut) -->
         <div id="printAreaTicket" class="hidden">
             <div style="width: 80mm; padding: 5mm; font-family: Arial, sans-serif;">
                 <h1 style="text-align: center; font-size: 14pt; margin-bottom: 5mm;">FirePoz</h1>
@@ -511,7 +522,7 @@
             }
         }
 
-        async function chargerVentesJour(date = '', numeroClt = '', numeroUtil = '') {
+        async function chargerVentesJour(date = '', numeroClt = '', numeroUtil = '0') {
             console.log('Chargement des ventes...', { date, numeroClt, numeroUtil });
             const userId = localStorage.getItem('userId');
             if (!userId) {
@@ -610,7 +621,7 @@
             }
         }
 
-        async function chargerArticlesPlusVendus(date = '', numeroClt = '', numeroUtil = '') {
+        async function chargerArticlesPlusVendus(date = '', numeroClt = '', numeroUtil = '0') {
             console.log('Chargement des articles les plus vendus...', { date, numeroClt, numeroUtil });
             const userId = localStorage.getItem('userId');
             if (!userId) {
@@ -689,7 +700,7 @@
             }
         }
 
-        async function chargerProfit(date = '', numeroClt = '', numeroUtil = '') {
+        async function chargerProfit(date = '', numeroClt = '', numeroUtil = '0') {
             console.log('Chargement du bénéfice...', { date, numeroClt, numeroUtil });
             const userId = localStorage.getItem('userId');
             if (!userId) {
@@ -936,12 +947,19 @@
                 document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
                 document.getElementById('userDisplay').classList.remove('hidden');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                chargerClients();
-                chargerUtilisateurs();
-                chargerVentesJour();
-                chargerArticlesPlusVendus();
-                chargerProfit();
-                chargerValeurStock();
+
+                // Charger les données initiales
+                const today = new Date().toISOString().split('T')[0]; // Date par défaut
+                const numeroClt = ''; // Tous les clients par défaut
+                const numeroUtil = '0'; // Tous les utilisateurs par défaut
+
+                // Charger les clients et utilisateurs avant les données
+                Promise.all([chargerClients(), chargerUtilisateurs()]).then(() => {
+                    chargerVentesJour(today, numeroClt, numeroUtil);
+                    chargerArticlesPlusVendus(today, numeroClt, numeroUtil);
+                    chargerProfit(today, numeroClt, numeroUtil);
+                    chargerValeurStock();
+                });
             } else {
                 console.log('Aucun utilisateur connecté, redirection vers index.html');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
@@ -952,8 +970,8 @@
                 dateFormat: 'Y-m-d',
                 defaultDate: new Date(),
                 onChange: (selectedDates, dateStr) => {
-                    const clientFilter = document.getElementById('clientFilter').value;
-                    const userFilter = document.getElementById('userFilter').value;
+                    const clientFilter = document.getElementById('clientFilter').value || '';
+                    const userFilter = document.getElementById('userFilter').value || '0';
                     chargerVentesJour(dateStr, clientFilter, userFilter);
                     chargerArticlesPlusVendus(dateStr, clientFilter, userFilter);
                     chargerProfit(dateStr, clientFilter, userFilter);
@@ -961,18 +979,18 @@
             });
 
             document.getElementById('clientFilter').addEventListener('change', (e) => {
-                const dateFilter = document.getElementById('dateFilter').value;
-                const clientFilter = e.target.value;
-                const userFilter = document.getElementById('userFilter').value;
+                const dateFilter = document.getElementById('dateFilter').value || new Date().toISOString().split('T')[0];
+                const clientFilter = e.target.value || '';
+                const userFilter = document.getElementById('userFilter').value || '0';
                 chargerVentesJour(dateFilter, clientFilter, userFilter);
                 chargerArticlesPlusVendus(dateFilter, clientFilter, userFilter);
                 chargerProfit(dateFilter, clientFilter, userFilter);
             });
 
             document.getElementById('userFilter').addEventListener('change', (e) => {
-                const dateFilter = document.getElementById('dateFilter').value;
-                const clientFilter = document.getElementById('clientFilter').value;
-                const userFilter = e.target.value;
+                const dateFilter = document.getElementById('dateFilter').value || new Date().toISOString().split('T')[0];
+                const clientFilter = document.getElementById('clientFilter').value || '';
+                const userFilter = e.target.value || '0';
                 chargerVentesJour(dateFilter, clientFilter, userFilter);
                 chargerArticlesPlusVendus(dateFilter, clientFilter, userFilter);
                 chargerProfit(dateFilter, clientFilter, userFilter);
