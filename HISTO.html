@@ -5,325 +5,539 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestion des Versements</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        .hidden { display: none; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
 </head>
-<body class="bg-gray-100 min-h-screen font-sans">
-    <div class="container mx-auto p-6">
-        <h1 class="text-3xl font-bold mb-6 text-center text-gray-800">Gestion des Versements</h1>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-4">
+        <h1 class="text-3xl font-bold mb-6 text-center">Gestion des Versements et Réceptions</h1>
 
-        <!-- Formulaire pour ajouter un versement -->
-        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
-            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Nouveau Versement</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <!-- Type de versement -->
-                <div>
-                    <label for="type" class="block text-sm font-medium text-gray-700">Type</label>
-                    <select id="type" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
-                        <option value="C">Client</option>
-                        <option value="F">Fournisseur</option>
-                    </select>
-                </div>
-                <!-- Client/Fournisseur -->
-                <div>
-                    <label for="numero_cf" class="block text-sm font-medium text-gray-700">Client/Fournisseur</label>
-                    <select id="numero_cf" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
-                        <option value="">Sélectionnez...</option>
-                    </select>
-                </div>
-                <!-- Montant -->
-                <div>
-                    <label for="montant" class="block text-sm font-medium text-gray-700">Montant</label>
-                    <input type="number" id="montant" step="0.01" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Ex: 100.00 ou -100.00">
-                </div>
-                <!-- Justificatif -->
-                <div>
-                    <label for="justificatif" class="block text-sm font-medium text-gray-700">Justificatif</label>
-                    <input type="text" id="justificatif" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Description du versement">
-                </div>
-                <!-- Utilisateur -->
-                <div>
-                    <label for="numero_util" class="block text-sm font-medium text-gray-700">Utilisateur</label>
-                    <select id="numero_util" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
-                        <option value="">Sélectionnez...</option>
-                    </select>
-                </div>
-            </div>
-            <button id="submitVersement" class="mt-4 w-full bg-indigo-600 text-white p-2 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                Enregistrer le Versement
-            </button>
+        <!-- Filtre Utilisateur -->
+        <div class="mb-6">
+            <label for="utilisateur" class="block text-lg font-medium">Filtrer par Utilisateur:</label>
+            <select id="utilisateur" class="mt-2 p-2 border rounded w-full md:w-1/3">
+                <option value="0">Tous les utilisateurs</option>
+                <!-- Options remplies via JS -->
+            </select>
         </div>
 
-        <!-- Filtres pour l'historique -->
-        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
-            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Historique des Versements</h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <div>
-                    <label for="filter_date" class="block text-sm font-medium text-gray-700">Date</label>
-                    <input type="date" id="filter_date" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
-                </div>
-                <div>
-                    <label for="filter_type" class="block text-sm font-medium text-gray-700">Type</label>
-                    <select id="filter_type" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
-                        <option value="">Tous</option>
-                        <option value="C">Client</option>
-                        <option value="F">Fournisseur</option>
-                    </select>
-                </div>
-                <div>
-                    <label for="filter_numero_cf" class="block text-sm font-medium text-gray-700">Client/Fournisseur</label>
-                    <select id="filter_numero_cf" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
-                        <option value="">Tous</option>
-                    </select>
-                </div>
-            </div>
-            <button id="applyFilters" class="w-full bg-indigo-600 text-white p-2 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                Appliquer les Filtres
-            </button>
+        <!-- Onglets Clients/Fournisseurs -->
+        <div class="tabs mb-6">
+            <button id="tab-clients" class="px-4 py-2 bg-blue-500 text-white rounded-l-lg">Clients</button>
+            <button id="tab-fournisseurs" class="px-4 py-2 bg-gray-300 text-black rounded-r-lg">Fournisseurs</button>
         </div>
 
-        <!-- Tableaux pour l'historique -->
-        <div class="bg-white p-6 rounded-lg shadow-md">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client/Fournisseur</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Justificatif</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Utilisateur</th>
-                    </tr>
-                </thead>
-                <tbody id="versementsTable" class="bg-white divide-y divide-gray-200">
-                    <!-- Les données seront insérées dynamiquement -->
-                </tbody>
-            </table>
-            <!-- Pagination -->
-            <div class="mt-4 flex justify-between items-center">
-                <div>
-                    <span id="paginationInfo" class="text-sm text-gray-700"></span>
+        <!-- Section Clients -->
+        <div id="section-clients" class="section">
+            <h2 class="text-2xl font-semibold mb-4">Versements Clients</h2>
+
+            <!-- Formulaire Versement Client -->
+            <div class="bg-white p-6 rounded-lg shadow mb-6">
+                <h3 class="text-xl font-medium mb-4">Ajouter un Versement Client</h3>
+                <form id="form-versement-client">
+                    <div class="mb-4">
+                        <label for="client" class="block">Client:</label>
+                        <select id="client" name="numero_cf" class="w-full p-2 border rounded" required>
+                            <option value="">Sélectionner un client</option>
+                            <!-- Options remplies via JS -->
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label for="montant-client" class="block">Montant:</label>
+                        <input type="number" id="montant-client" name="montant" step="0.01" class="w-full p-2 border rounded" required>
+                    </div>
+                    <div class="mb-4">
+                        <label for="justificatif-client" class="block">Justificatif:</label>
+                        <input type="text" id="justificatif-client" name="justificatif" class="w-full p-2 border rounded">
+                    </div>
+                    <div class="mb-4">
+                        <label for="numero-util-client" class="block">Utilisateur:</label>
+                        <select id="numero-util-client" name="numero_util" class="w-full p-2 border rounded" required>
+                            <option value="">Sélectionner un utilisateur</option>
+                            <!-- Options remplies via JS -->
+                        </select>
+                    </div>
+                    <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded">Ajouter Versement</button>
+                </form>
+                <p id="message-client" class="mt-2"></p>
+            </div>
+
+            <!-- Historique Clients -->
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h3 class="text-xl font-medium mb-4">Historique des Versements Clients</h3>
+                <div class="mb-4">
+                    <label for="date-client" class="block">Date:</label>
+                    <input type="date" id="date-client" class="p-2 border rounded">
                 </div>
-                <div class="space-x-2">
-                    <button id="prevPage" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50" disabled>Précédent</button>
-                    <button id="nextPage" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50" disabled>Suivant</button>
-                </div>
+                <div id="historique-clients"></div>
+                <div id="pagination-clients" class="mt-4"></div>
             </div>
         </div>
 
-        <!-- Alerte pour messages -->
-        <div id="alert" class="hidden fixed top-4 right-4 p-4 rounded-md shadow-md">
-            <p id="alertMessage" class="text-sm"></p>
+        <!-- Section Fournisseurs -->
+        <div id="section-fournisseurs" class="section hidden">
+            <h2 class="text-2xl font-semibold mb-4">Versements et Réceptions Fournisseurs</h2>
+
+            <!-- Formulaire Versement Fournisseur -->
+            <div class="bg-white p-6 rounded-lg shadow mb-6">
+                <h3 class="text-xl font-medium mb-4">Ajouter un Versement Fournisseur</h3>
+                <form id="form-versement-fournisseur">
+                    <div class="mb-4">
+                        <label for="fournisseur" class="block">Fournisseur:</label>
+                        <select id="fournisseur" name="numero_cf" class="w-full p-2 border rounded" required>
+                            <option value="">Sélectionner un fournisseur</option>
+                            <!-- Options remplies via JS -->
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label for="montant-fournisseur" class="block">Montant:</label>
+                        <input type="number" id="montant-fournisseur" name="montant" step="0.01" class="w-full p-2 border rounded" required>
+                    </div>
+                    <div class="mb-4">
+                        <label for="justificatif-fournisseur" class="block">Justificatif:</label>
+                        <input type="text" id="justificatif-fournisseur" name="justificatif" class="w-full p-2 border rounded">
+                    </div>
+                    <div class="mb-4">
+                        <label for="numero-util-fournisseur" class="block">Utilisateur:</label>
+                        <select id="numero-util-fournisseur" name="numero_util" class="w-full p-2 border rounded" required>
+                            <option value="">Sélectionner un utilisateur</option>
+                            <!-- Options remplies via JS -->
+                        </select>
+                    </div>
+                    <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded">Ajouter Versement</button>
+                </form>
+                <p id="message-fournisseur" class="mt-2"></p>
+            </div>
+
+            <!-- Formulaire Achat Fournisseur -->
+            <div class="bg-white p-6 rounded-lg shadow mb-6">
+                <h3 class="text-xl font-medium mb-4">Traiter un Achat Fournisseur</h3>
+                <form id="form-achat-fournisseur">
+                    <div class="mb-4">
+                        <label for="fournisseur-achat" class="block">Fournisseur:</label>
+                        <select id="fournisseur-achat" name="numero_fou" class="w-full p-2 border rounded" required>
+                            <option value="">Sélectionner un fournisseur</option>
+                            <!-- Options remplies via JS -->
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label for="total-cost" class="block">Coût Total:</label>
+                        <input type="number" id="total-cost" name="total_cost" step="0.01" class="w-full p-2 border rounded" required>
+                    </div>
+                    <div class="mb-4">
+                        <label for="justificatif-achat" class="block">Justificatif:</label>
+                        <input type="text" id="justificatif-achat" name="justificatif" class="w-full p-2 border rounded">
+                    </div>
+                    <div class="mb-4">
+                        <label for="numero-util-achat" class="block">Utilisateur (optionnel):</label>
+                        <select id="numero-util-achat" name="numero_util" class="w-full p-2 border rounded">
+                            <option value="">Aucun</option>
+                            <!-- Options remplies via JS -->
+                        </select>
+                    </div>
+                    <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded">Traiter Achat</button>
+                </form>
+                <p id="message-achat" class="mt-2"></p>
+            </div>
+
+            <!-- Formulaire Réception Fournisseur -->
+            <div class="bg-white p-6 rounded-lg shadow mb-6">
+                <h3 class="text-xl font-medium mb-4">Valider une Réception Fournisseur</h3>
+                <form id="form-reception-fournisseur">
+                    <div class="mb-4">
+                        <label for="fournisseur-reception" class="block">Fournisseur:</label>
+                        <select id="fournisseur-reception" name="numero_four" class="w-full p-2 border rounded" required>
+                            <option value="">Sélectionner un fournisseur</option>
+                            <!-- Options remplies via JS -->
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label for="numero-util-reception" class="block">Utilisateur:</label>
+                        <select id="numero-util-reception" name="numero_util" class="w-full p-2 border rounded" required>
+                            <option value="">Sélectionner un utilisateur</option>
+                            <!-- Options remplies via JS -->
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label for="password2" class="block">Mot de passe:</label>
+                        <input type="password" id="password2" name="password2" class="w-full p-2 border rounded" required>
+                    </div>
+                    <div id="lignes-reception" class="mb-4">
+                        <h4 class="font-medium mb-2">Articles:</h4>
+                        <div class="ligne-reception mb-2">
+                            <select name="numero_item" class="p-2 border rounded w-1/3" required>
+                                <option value="">Article</option>
+                                <!-- Options remplies via JS -->
+                            </select>
+                            <input type="number" name="qtea" placeholder="Quantité" step="0.01" class="p-2 border rounded w-1/4 mx-2" required>
+                            <input type="number" name="prixbh" placeholder="Prix d'achat" step="0.01" class="p-2 border rounded w-1/4" required>
+                            <button type="button" class="remove-ligne bg-red-500 text-white px-2 py-1 rounded">Supprimer</button>
+                        </div>
+                    </div>
+                    <button type="button" id="add-ligne" class="bg-green-500 text-white px-4 py-2 rounded mb-4">Ajouter Article</button>
+                    <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded">Valider Réception</button>
+                </form>
+                <p id="message-reception" class="mt-2"></p>
+            </div>
+
+            <!-- Historique Fournisseurs -->
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h3 class="text-xl font-medium mb-4">Historique des Vers[^] Versements et Réceptions Fournisseurs</h3>
+                <div class="mb-4">
+                    <label for="date-fournisseur" class="block">Date:</label>
+                    <input type="date" id="date-fournisseur" class="p-2 border rounded">
+                </div>
+                <div id="historique-fournisseurs"></div>
+                <div id="pagination-fournisseurs" class="mt-4"></div>
+            </div>
         </div>
     </div>
 
     <script>
-        const API_URL = 'https://your-api-url.com'; // Remplace par l'URL de ton API
-        const USER_ID = 'your-user-id'; // Remplace par l'ID utilisateur (doit être dynamique dans une vraie app)
+        const API_URL = 'https://your-api-url.com'; // Remplacer par l'URL de ton API
+        const USER_ID = 'your-user-id'; // Remplacer par l'ID utilisateur réel
 
-        let currentPage = 1;
-        let totalPages = 1;
-        let perPage = 10;
-
-        // Charger les données initiales
+        // Initialisation
         document.addEventListener('DOMContentLoaded', () => {
-            loadClients();
-            loadFournisseurs();
-            loadUtilisateurs();
-            loadVersements();
+            chargerUtilisateurs();
+            chargerClients();
+            chargerFournisseurs();
+            chargerProduits();
+            chargerHistorique('C', 1);
+            chargerHistorique('F', 1);
+
+            // Gestion des onglets
+            document.getElementById('tab-clients').addEventListener('click', () => {
+                document.getElementById('section-clients').classList.remove('hidden');
+                document.getElementById('section-fournisseurs').classList.add('hidden');
+                document.getElementById('tab-clients').classList.add('bg-blue-500', 'text-white');
+                document.getElementById('tab-fournisseurs').classList.remove('bg-blue-500', 'text-white');
+                document.getElementById('tab-fournisseurs').classList.add('bg-gray-300', 'text-black');
+            });
+            document.getElementById('tab-fournisseurs').addEventListener('click', () => {
+                document.getElementById('section-fournisseurs').classList.remove('hidden');
+                document.getElementById('section-clients').classList.add('hidden');
+                document.getElementById('tab-fournisseurs').classList.add('bg-blue-500', 'text-white');
+                document.getElementById('tab-clients').classList.remove('bg-blue-500', 'text-white');
+                document.getElementById('tab-clients').classList.add('bg-gray-300', 'text-black');
+            });
+
+            // Gestion des formulaires
+            document.getElementById('form-versement-client').addEventListener('submit', (e) => handleVersement(e, 'C'));
+            document.getElementById('form-versement-fournisseur').addEventListener('submit', (e) => handleVersement(e, 'F'));
+            document.getElementById('form-achat-fournisseur').addEventListener('submit', handleAchat);
+            document.getElementById('form-reception-fournisseur').addEventListener('submit', handleReception);
+
+            // Gestion des filtres
+            document.getElementById('utilisateur').addEventListener('change', () => {
+                chargerHistorique('C', 1);
+                chargerHistorique('F', 1);
+            });
+            document.getElementById('date-client').addEventListener('change', () => chargerHistorique('C', 1));
+            document.getElementById('date-fournisseur').addEventListener('change', () => chargerHistorique('F', 1));
+
+            // Gestion des lignes de réception
+            document.getElementById('add-ligne').addEventListener('click', addLigneReception);
+            document.querySelectorAll('.remove-ligne').forEach(btn => {
+                btn.addEventListener('click', (e) => e.target.closest('.ligne-reception').remove());
+            });
         });
 
-        // Charger les clients
-        async function loadClients() {
+        // Charger les utilisateurs
+        async function chargerUtilisateurs() {
             try {
-                const response = await axios.get(`${API_URL}/liste_clients`, {
+                const response = await fetch(`${API_URL}/liste_utilisateurs`, {
                     headers: { 'X-User-ID': USER_ID }
                 });
-                const clients = response.data;
-                const select = document.getElementById('numero_cf');
-                const filterSelect = document.getElementById('filter_numero_cf');
-                select.innerHTML = '<option value="">Sélectionnez...</option>';
-                filterSelect.innerHTML = '<option value="">Tous</option>';
-                clients.forEach(client => {
-                    const option = document.createElement('option');
-                    option.value = client.numero_clt;
-                    option.textContent = `${client.nom} (Solde: ${client.solde})`;
-                    select.appendChild(option);
-                    filterSelect.appendChild(option.cloneNode(true));
+                const utilisateurs = await response.json();
+                const selects = [
+                    document.getElementById('numero-util-client'),
+                    document.getElementById('numero-util-fournisseur'),
+                    document.getElementById('numero-util-achat'),
+                    document.getElementById('numero-util-reception'),
+                    document.getElementById('utilisateur')
+                ];
+                selects.forEach(select => {
+                    utilisateurs.forEach(u => {
+                        const option = document.createElement('option');
+                        option.value = u.numero_util;
+                        option.textContent = u.nom;
+                        select.appendChild(option);
+                    });
                 });
             } catch (error) {
-                showAlert('Erreur lors du chargement des clients', 'error');
+                console.error('Erreur chargement utilisateurs:', error);
+            }
+        }
+
+        // Charger les clients
+        async function chargerClients() {
+            try {
+                const response = await fetch(`${API_URL}/liste_clients`, {
+                    headers: { 'X-User-ID': USER_ID }
+                });
+                const clients = await response.json();
+                const select = document.getElementById('client');
+                clients.forEach(c => {
+                    const option = document.createElement('option');
+                    option.value = c.numero_clt;
+                    option.textContent = c.nom;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Erreur chargement clients:', error);
             }
         }
 
         // Charger les fournisseurs
-        async function loadFournisseurs() {
+        async function chargerFournisseurs() {
             try {
-                const response = await axios.get(`${API_URL}/liste_fournisseurs`, {
+                const response = await fetch(`${API_URL}/liste_fournisseurs`, {
                     headers: { 'X-User-ID': USER_ID }
                 });
-                const fournisseurs = response.data;
-                const select = document.getElementById('numero_cf');
-                const filterSelect = document.getElementById('filter_numero_cf');
-                select.innerHTML = '<option value="">Sélectionnez...</option>';
-                filterSelect.innerHTML = '<option value="">Tous</option>';
-                fournisseurs.forEach(fournisseur => {
-                    const option = document.createElement('option');
-                    option.value = fournisseur.numero_fou;
-                    option.textContent = `${fournisseur.nom} (Solde: ${fournisseur.solde})`;
-                    select.appendChild(option);
-                    filterSelect.appendChild(option.cloneNode(true));
+                const fournisseurs = await response.json();
+                const selects = [
+                    document.getElementById('fournisseur'),
+                    document.getElementById('fournisseur-achat'),
+                    document.getElementById('fournisseur-reception')
+                ];
+                selects.forEach(select => {
+                    fournisseurs.forEach(f => {
+                        const option = document.createElement('option');
+                        option.value = f.numero_fou;
+                        option.textContent = f.nom;
+                        select.appendChild(option);
+                    });
                 });
             } catch (error) {
-                showAlert('Erreur lors du chargement des fournisseurs', 'error');
+                console.error('Erreur chargement fournisseurs:', error);
             }
         }
 
-        // Charger les utilisateurs
-        async function loadUtilisateurs() {
+        // Charger les produits pour réception
+        async function chargerProduits() {
             try {
-                const response = await axios.get(`${API_URL}/liste_utilisateurs`);
-                const utilisateurs = response.data;
-                const select = document.getElementById('numero_util');
-                select.innerHTML = '<option value="">Sélectionnez...</option>';
-                utilisateurs.forEach(user => {
+                const response = await fetch(`${API_URL}/liste_produits`, {
+                    headers: { 'X-User-ID': USER_ID }
+                });
+                const produits = await response.json();
+                const select = document.querySelector('.ligne-reception select[name="numero_item"]');
+                produits.forEach(p => {
                     const option = document.createElement('option');
-                    option.value = user.numero_util;
-                    option.textContent = user.nom;
+                    option.value = p.NUMERO_ITEM;
+                    option.textContent = p.DESIGNATION;
                     select.appendChild(option);
                 });
             } catch (error) {
-                showAlert('Erreur lors du chargement des utilisateurs', 'error');
+                console.error('Erreur chargement produits:', error);
             }
         }
 
-        // Charger l'historique des versements
-        async function loadVersements() {
+        // Ajouter une ligne de réception
+        function addLigneReception() {
+            const container = document.getElementById('lignes-reception');
+            const ligne = document.createElement('div');
+            ligne.className = 'ligne-reception mb-2';
+            ligne.innerHTML = `
+                <select name="numero_item" class="p-2 border rounded w-1/3" required>
+                    <option value="">Article</option>
+                    ${document.querySelector('.ligne-reception select[name="numero_item"]').innerHTML}
+                </select>
+                <input type="number" name="qtea" placeholder="Quantité" step="0.01" class="p-2 border rounded w-1/4 mx-2" required>
+                <input type="number" name="prixbh" placeholder="Prix d'achat" step="0.01" class="p-2 border rounded w-1/4" required>
+                <button type="button" class="remove-ligne bg-red-500 text-white px-2 py-1 rounded">Supprimer</button>
+            `;
+            container.appendChild(ligne);
+            ligne.querySelector('.remove-ligne').addEventListener('click', () => ligne.remove());
+        }
+
+        // Gérer les versements
+        async function handleVersement(e, type) {
+            e.preventDefault();
+            const form = e.target;
+            const message = document.getElementById(`message-${type === 'C' ? 'client' : 'fournisseur'}`);
+            const data = {
+                type,
+                numero_cf: form.numero_cf.value,
+                montant: form.montant.value,
+                justificatif: form.justificatif.value,
+                numero_util: form.numero_util.value
+            };
+
             try {
-                const params = new URLSearchParams({
-                    page: currentPage,
-                    per_page: perPage
+                const response = await fetch(`${API_URL}/ajouter_versement`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': USER_ID
+                    },
+                    body: JSON.stringify(data)
                 });
-                const filterDate = document.getElementById('filter_date').value;
-                const filterType = document.getElementById('filter_type').value;
-                const filterNumeroCf = document.getElementById('filter_numero_cf').value;
-                if (filterDate) params.append('date', filterDate);
-                if (filterType) params.append('type', filterType);
-                if (filterNumeroCf) params.append('numero_cf', filterNumeroCf);
+                const result = await response.json();
+                if (response.ok) {
+                    message.className = 'success';
+                    message.textContent = `Versement ajouté (ID: ${result.numero_mc})`;
+                    form.reset();
+                    chargerHistorique(type, 1);
+                } else {
+                    message.className = 'error';
+                    message.textContent = result.erreur || 'Erreur lors de l\'ajout';
+                }
+            } catch (error) {
+                message.className = 'error';
+                message.textContent = 'Erreur réseau';
+            }
+        }
 
-                const response = await axios.get(`${API_URL}/historique_versements?${params.toString()}`, {
-                    headers: { 'X-User-ID': USER_ID }
+        // Gérer les achats
+        async function handleAchat(e) {
+            e.preventDefault();
+            const form = e.target;
+            const message = document.getElementById('message-achat');
+            const data = {
+                numero_fou: form.numero_fou.value,
+                total_cost: form.total_cost.value,
+                justificatif: form.justificatif.value,
+                numero_util: form.numero_util.value || null
+            };
+
+            try {
+                const response = await fetch(`${API_URL}/process_purchase`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': USER_ID
+                    },
+                    body: JSON.stringify(data)
                 });
-                const data = response.data;
+                const result = await response.json();
+                if (response.ok) {
+                    message.className = 'success';
+                    message.textContent = `Achat traité (Nouveau solde: ${result.nouveau_solde})`;
+                    form.reset();
+                    chargerHistorique('F', 1);
+                } else {
+                    message.className = 'error';
+                    message.textContent = result.erreur || 'Erreur lors du traitement';
+                }
+            } catch (error) {
+                message.className = 'error';
+                message.textContent = 'Erreur réseau';
+            }
+        }
 
-                // Mettre à jour la table
-                const table = document.getElementById('versementsTable');
-                table.innerHTML = '';
-                data.versements.forEach(versement => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(versement.date_mc).toLocaleDateString()}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${versement.cf === 'C' ? 'Client' : 'Fournisseur'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${versement.nom}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${versement.montant}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${versement.justificatif}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${versement.utilisateur_nom}</td>
+        // Gérer les réceptions
+        async function handleReception(e) {
+            e.preventDefault();
+            const form = e.target;
+            const message = document.getElementById('message-reception');
+            const lignes = Array.from(document.querySelectorAll('.ligne-reception')).map(ligne => ({
+                numero_item: ligne.querySelector('[name="numero_item"]').value,
+                qtea: ligne.querySelector('[name="qtea"]').value,
+                prixbh: ligne.querySelector('[name="prixbh"]').value
+            }));
+            const data = {
+                numero_four: form.numero_four.value,
+                numero_util: form.numero_util.value,
+                password2: form.password2.value,
+                lignes
+            };
+
+            try {
+                const response = await fetch(`${API_URL}/valider_reception`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': USER_ID
+                    },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    message.className = 'success';
+                    message.textContent = `Réception validée (ID: ${result.numero_mouvement})`;
+                    form.reset();
+                    document.getElementById('lignes-reception').innerHTML = `
+                        <h4 class="font-medium mb-2">Articles:</h4>
+                        <div class="ligne-reception mb-2">
+                            <select name="numero_item" class="p-2 border rounded w-1/3" required>
+                                <option value="">Article</option>
+                            </select>
+                            <input type="number" name="qtea" placeholder="Quantité" step="0.01" class="p-2 border rounded w-1/4 mx-2" required>
+                            <input type="number" name="prixbh" placeholder="Prix d'achat" step="0.01" class="p-2 border rounded w-1/4" required>
+                            <button type="button" class="remove-ligne bg-red-500 text-white px-2 py-1 rounded">Supprimer</button>
+                        </div>
                     `;
-                    table.appendChild(row);
-                });
-
-                // Mettre à jour la pagination
-                totalPages = data.total_pages;
-                document.getElementById('paginationInfo').textContent = `Page ${data.page} sur ${data.total_pages} (${data.total} versements)`;
-                document.getElementById('prevPage').disabled = currentPage === 1;
-                document.getElementById('nextPage').disabled = currentPage === totalPages;
+                    chargerProduits();
+                    chargerHistorique('F', 1);
+                } else {
+                    message.className = 'error';
+                    message.textContent = result.error || 'Erreur lors de la validation';
+                }
             } catch (error) {
-                showAlert('Erreur lors du chargement de l\'historique', 'error');
+                message.className = 'error';
+                message.textContent = 'Erreur réseau';
             }
         }
 
-        // Enregistrer un versement
-        document.getElementById('submitVersement').addEventListener('click', async () => {
-            const type = document.getElementById('type').value;
-            const numero_cf = document.getElementById('numero_cf').value;
-            const montant = document.getElementById('montant').value;
-            const justificatif = document.getElementById('justificatif').value;
-            const numero_util = document.getElementById('numero_util').value;
-
-            if (!type || !numero_cf || !montant || !numero_util) {
-                showAlert('Tous les champs obligatoires doivent être remplis', 'error');
-                return;
-            }
+        // Charger l'historique
+        async function chargerHistorique(type, page) {
+            const date = document.getElementById(`date-${type === 'C' ? 'client' : 'fournisseur'}`).value;
+            const utilisateur = document.getElementById('utilisateur').value;
+            const container = document.getElementById(`historique-${type === 'C' ? 'clients' : 'fournisseurs'}`);
+            const pagination = document.getElementById(`pagination-${type === 'C' ? 'clients' : 'fournisseurs'}`);
+            let url = `${API_URL}/historique_versements?page=${page}&per_page=10&type=${type}`;
+            if (date) url += `&date=${date}`;
+            if (utilisateur !== '0') url += `&numero_util=${utilisateur}`;
 
             try {
-                const response = await axios.post(`${API_URL}/ajouter_versement`, {
-                    type,
-                    numero_cf,
-                    montant,
-                    justificatif,
-                    numero_util
-                }, {
+                const response = await fetch(url, {
                     headers: { 'X-User-ID': USER_ID }
                 });
-                showAlert('Versement enregistré avec succès', 'success');
-                // Réinitialiser le formulaire
-                document.getElementById('type').value = 'C';
-                document.getElementById('numero_cf').value = '';
-                document.getElementById('montant').value = '';
-                document.getElementById('justificatif').value = '';
-                document.getElementById('numero_util').value = '';
-                // Recharger l'historique
-                currentPage = 1;
-                loadVersements();
+                const data = await response.json();
+                container.innerHTML = `
+                    <table class="w-full border-collapse">
+                        <thead>
+                            <tr class="bg-gray-200">
+                                <th class="border p-2">Date</th>
+                                <th class="border p-2">Nom</th>
+                                <th class="border p-2">Montant</th>
+                                <th class="border p-2">Justificatif</th>
+                                <th class="border p-2">Utilisateur</th>
+                                <th class="border p-2">Origine</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.versements.map(v => `
+                                <tr>
+                                    <td class="border p-2">${new Date(v.date_mc).toLocaleDateString()}</td>
+                                    <td class="border p-2">${v.nom}</td>
+                                    <td class="border p-2">${v.montant}</td>
+                                    <td class="border p-2">${v.justificatif}</td>
+                                    <td class="border p-2">${v.utilisateur_nom}</td>
+                                    <td class="border p-2">${v.origine}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+                pagination.innerHTML = `
+                    <div class="flex justify-between">
+                        <button class="px-4 py-2 bg-blue-500 text-white rounded ${page === 1 ? 'opacity-50 cursor-not-allowed' : ''}" 
+                                ${page === 1 ? 'disabled' : ''} 
+                                onclick="chargerHistorique('${type}', ${page - 1})">Précédent</button>
+                        <span>Page ${data.page} / ${data.total_pages}</span>
+                        <button class="px-4 py-2 bg-blue-500 text-white rounded ${page >= data.total_pages ? 'opacity-50 cursor-not-allowed' : ''}" 
+                                ${page >= data.total_pages ? 'disabled' : ''} 
+                                onclick="chargerHistorique('${type}', ${page + 1})">Suivant</button>
+                    </div>
+                `;
             } catch (error) {
-                showAlert(error.response?.data?.erreur || 'Erreur lors de l\'enregistrement', 'error');
+                container.innerHTML = '<p class="error">Erreur lors du chargement de l\'historique</p>';
             }
-        });
-
-        // Appliquer les filtres
-        document.getElementById('applyFilters').addEventListener('click', () => {
-            currentPage = 1;
-            loadVersements();
-        });
-
-        // Navigation dans la pagination
-        document.getElementById('prevPage').addEventListener('click', () => {
-            if (currentPage > 1) {
-                currentPage--;
-                loadVersements();
-            }
-        });
-
-        document.getElementById('nextPage').addEventListener('click', () => {
-            if (currentPage < totalPages) {
-                currentPage++;
-                loadVersements();
-            }
-        });
-
-        // Mettre à jour la liste des clients/fournisseurs en fonction du type
-        document.getElementById('type').addEventListener('change', () => {
-            const type = document.getElementById('type').value;
-            if (type === 'C') {
-                loadClients();
-            } else {
-                loadFournisseurs();
-            }
-        });
-
-        // Afficher une alerte
-        function showAlert(message, type) {
-            const alert = document.getElementById('alert');
-            const alertMessage = document.getElementById('alertMessage');
-            alertMessage.textContent = message;
-            alert.classList.remove('hidden', 'bg-red-100', 'bg-green-100', 'text-red-700', 'text-green-700');
-            if (type === 'success') {
-                alert.classList.add('bg-green-100', 'text-green-700');
-            } else {
-                alert.classList.add('bg-red-100', 'text-red-700');
-            }
-            setTimeout(() => {
-                alert.classList.add('hidden');
-            }, 5000);
         }
     </script>
 </body>
