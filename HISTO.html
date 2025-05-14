@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion des Versements</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen font-sans">
+    <div class="container mx-auto p-6">
+        <h1 class="text-3xl font-bold mb-6 text-center text-gray-800">Gestion des Versements</h1>
+
+        <!-- Formulaire pour ajouter un versement -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Nouveau Versement</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Type de versement -->
+                <div>
+                    <label for="type" class="block text-sm font-medium text-gray-700">Type</label>
+                    <select id="type" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="C">Client</option>
+                        <option value="F">Fournisseur</option>
+                    </select>
+                </div>
+                <!-- Client/Fournisseur -->
+                <div>
+                    <label for="numero_cf" class="block text-sm font-medium text-gray-700">Client/Fournisseur</label>
+                    <select id="numero_cf" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">Sélectionnez...</option>
+                    </select>
+                </div>
+                <!-- Montant -->
+                <div>
+                    <label for="montant" class="block text-sm font-medium text-gray-700">Montant</label>
+                    <input type="number" id="montant" step="0.01" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Ex: 100.00 ou -100.00">
+                </div>
+                <!-- Justificatif -->
+                <div>
+                    <label for="justificatif" class="block text-sm font-medium text-gray-700">Justificatif</label>
+                    <input type="text" id="justificatif" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Description du versement">
+                </div>
+                <!-- Utilisateur -->
+                <div>
+                    <label for="numero_util" class="block text-sm font-medium text-gray-700">Utilisateur</label>
+                    <select id="numero_util" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">Sélectionnez...</option>
+                    </select>
+                </div>
+            </div>
+            <button id="submitVersement" class="mt-4 w-full bg-indigo-600 text-white p-2 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                Enregistrer le Versement
+            </button>
+        </div>
+
+        <!-- Filtres pour l'historique -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Historique des Versements</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div>
+                    <label for="filter_date" class="block text-sm font-medium text-gray-700">Date</label>
+                    <input type="date" id="filter_date" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div>
+                    <label for="filter_type" class="block text-sm font-medium text-gray-700">Type</label>
+                    <select id="filter_type" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">Tous</option>
+                        <option value="C">Client</option>
+                        <option value="F">Fournisseur</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="filter_numero_cf" class="block text-sm font-medium text-gray-700">Client/Fournisseur</label>
+                    <select id="filter_numero_cf" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">Tous</option>
+                    </select>
+                </div>
+            </div>
+            <button id="applyFilters" class="w-full bg-indigo-600 text-white p-2 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                Appliquer les Filtres
+            </button>
+        </div>
+
+        <!-- Tableaux pour l'historique -->
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client/Fournisseur</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Justificatif</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Utilisateur</th>
+                    </tr>
+                </thead>
+                <tbody id="versementsTable" class="bg-white divide-y divide-gray-200">
+                    <!-- Les données seront insérées dynamiquement -->
+                </tbody>
+            </table>
+            <!-- Pagination -->
+            <div class="mt-4 flex justify-between items-center">
+                <div>
+                    <span id="paginationInfo" class="text-sm text-gray-700"></span>
+                </div>
+                <div class="space-x-2">
+                    <button id="prevPage" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50" disabled>Précédent</button>
+                    <button id="nextPage" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50" disabled>Suivant</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alerte pour messages -->
+        <div id="alert" class="hidden fixed top-4 right-4 p-4 rounded-md shadow-md">
+            <p id="alertMessage" class="text-sm"></p>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://your-api-url.com'; // Remplace par l'URL de ton API
+        const USER_ID = 'your-user-id'; // Remplace par l'ID utilisateur (doit être dynamique dans une vraie app)
+
+        let currentPage = 1;
+        let totalPages = 1;
+        let perPage = 10;
+
+        // Charger les données initiales
+        document.addEventListener('DOMContentLoaded', () => {
+            loadClients();
+            loadFournisseurs();
+            loadUtilisateurs();
+            loadVersements();
+        });
+
+        // Charger les clients
+        async function loadClients() {
+            try {
+                const response = await axios.get(`${API_URL}/liste_clients`, {
+                    headers: { 'X-User-ID': USER_ID }
+                });
+                const clients = response.data;
+                const select = document.getElementById('numero_cf');
+                const filterSelect = document.getElementById('filter_numero_cf');
+                select.innerHTML = '<option value="">Sélectionnez...</option>';
+                filterSelect.innerHTML = '<option value="">Tous</option>';
+                clients.forEach(client => {
+                    const option = document.createElement('option');
+                    option.value = client.numero_clt;
+                    option.textContent = `${client.nom} (Solde: ${client.solde})`;
+                    select.appendChild(option);
+                    filterSelect.appendChild(option.cloneNode(true));
+                });
+            } catch (error) {
+                showAlert('Erreur lors du chargement des clients', 'error');
+            }
+        }
+
+        // Charger les fournisseurs
+        async function loadFournisseurs() {
+            try {
+                const response = await axios.get(`${API_URL}/liste_fournisseurs`, {
+                    headers: { 'X-User-ID': USER_ID }
+                });
+                const fournisseurs = response.data;
+                const select = document.getElementById('numero_cf');
+                const filterSelect = document.getElementById('filter_numero_cf');
+                select.innerHTML = '<option value="">Sélectionnez...</option>';
+                filterSelect.innerHTML = '<option value="">Tous</option>';
+                fournisseurs.forEach(fournisseur => {
+                    const option = document.createElement('option');
+                    option.value = fournisseur.numero_fou;
+                    option.textContent = `${fournisseur.nom} (Solde: ${fournisseur.solde})`;
+                    select.appendChild(option);
+                    filterSelect.appendChild(option.cloneNode(true));
+                });
+            } catch (error) {
+                showAlert('Erreur lors du chargement des fournisseurs', 'error');
+            }
+        }
+
+        // Charger les utilisateurs
+        async function loadUtilisateurs() {
+            try {
+                const response = await axios.get(`${API_URL}/liste_utilisateurs`);
+                const utilisateurs = response.data;
+                const select = document.getElementById('numero_util');
+                select.innerHTML = '<option value="">Sélectionnez...</option>';
+                utilisateurs.forEach(user => {
+                    const option = document.createElement('option');
+                    option.value = user.numero_util;
+                    option.textContent = `${user.nom} (${user.statue})`;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                showAlert('Erreur lors du chargement des utilisateurs', 'error');
+            }
+        }
+
+        // Charger l'historique des versements
+        async function loadVersements() {
+            try {
+                const params = new URLSearchParams({
+                    page: currentPage,
+                    per_page: perPage
+                });
+                const filterDate = document.getElementById('filter_date').value;
+                const filterType = document.getElementById('filter_type').value;
+                const filterNumeroCf = document.getElementById('filter_numero_cf').value;
+                if (filterDate) params.append('date', filterDate);
+                if (filterType) params.append('type', filterType);
+                if (filterNumeroCf) params.append('numero_cf', filterNumeroCf);
+
+                const response = await axios.get(`${API_URL}/historique_versements?${params.toString()}`, {
+                    headers: { 'X-User-ID': USER_ID }
+                });
+                const data = response.data;
+
+                // Mettre à jour la table
+                const table = document.getElementById('versementsTable');
+                table.innerHTML = '';
+                data.versements.forEach(versement => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(versement.date_mc).toLocaleDateString()}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${versement.cf === 'C' ? 'Client' : 'Fournisseur'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${versement.nom_cf}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${versement.montant}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${versement.justificatif}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${versement.utilisateur_nom}</td>
+                    `;
+                    table.appendChild(row);
+                });
+
+                // Mettre à jour la pagination
+                totalPages = data.total_pages;
+                document.getElementById('paginationInfo').textContent = `Page ${data.page} sur ${data.total_pages} (${data.total} versements)`;
+                document.getElementById('prevPage').disabled = currentPage === 1;
+                document.getElementById('nextPage').disabled = currentPage === totalPages;
+            } catch (error) {
+                showAlert('Erreur lors du chargement de l\'historique', 'error');
+            }
+        }
+
+        // Enregistrer un versement
+        document.getElementById('submitVersement').addEventListener('click', async () => {
+            const type = document.getElementById('type').value;
+            const numero_cf = document.getElementById('numero_cf').value;
+            const montant = document.getElementById('montant').value;
+            const justificatif = document.getElementById('justificatif').value;
+            const numero_util = document.getElementById('numero_util').value;
+
+            if (!type || !numero_cf || !montant || !numero_util) {
+                showAlert('Tous les champs obligatoires doivent être remplis', 'error');
+                return;
+            }
+
+            try {
+                const response = await axios.post(`${API_URL}/ajouter_versement`, {
+                    type,
+                    numero_cf,
+                    montant,
+                    justificatif,
+                    numero_util
+                }, {
+                    headers: { 'X-User-ID': USER_ID }
+                });
+                showAlert('Versement enregistré avec succès', 'success');
+                // Réinitialiser le formulaire
+                document.getElementById('type').value = 'C';
+                document.getElementById('numero_cf').value = '';
+                document.getElementById('montant').value = '';
+                document.getElementById('justificatif').value = '';
+                document.getElementById('numero_util').value = '';
+                // Recharger l'historique
+                currentPage = 1;
+                loadVersements();
+            } catch (error) {
+                showAlert(error.response?.data?.erreur || 'Erreur lors de l\'enregistrement', 'error');
+            }
+        });
+
+        // Appliquer les filtres
+        document.getElementById('applyFilters').addEventListener('click', () => {
+            currentPage = 1;
+            loadVersements();
+        });
+
+        // Navigation dans la pagination
+        document.getElementById('prevPage').addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                loadVersements();
+            }
+        });
+
+        document.getElementById('nextPage').addEventListener('click', () => {
+            if (currentPage < totalPages) {
+                currentPage++;
+                loadVersements();
+            }
+        });
+
+        // Mettre à jour la liste des clients/fournisseurs en fonction du type
+        document.getElementById('type').addEventListener('change', () => {
+            const type = document.getElementById('type').value;
+            if (type === 'C') {
+                loadClients();
+            } else {
+                loadFournisseurs();
+            }
+        });
+
+        // Afficher une alerte
+        function showAlert(message, type) {
+            const alert = document.getElementById('alert');
+            const alertMessage = document.getElementById('alertMessage');
+            alertMessage.textContent = message;
+            alert.classList.remove('hidden', 'bg-red-100', 'bg-green-100', 'text-red-700', 'text-green-700');
+            if (type === 'success') {
+                alert.classList.add('bg-green-100', 'text-green-700');
+            } else {
+                alert.classList.add('bg-red-100', 'text-red-700');
+            }
+            setTimeout(() => {
+                alert.classList.add('hidden');
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
