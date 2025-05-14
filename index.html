@@ -26,7 +26,7 @@
         #utilisateursSection { animation-delay: 0.8s; }
         #statsSection { animation-delay: 1.0s; }
         footer { animation-delay: 1.2s; }
-        #scannerPreview { width: 100%; max-width: 300px; height: 200px; border: 2(px solid #e5e7eb; margin-bottom: 1rem; display: none; background: #000; }
+        #scannerPreview { width: 100%; max-width: 300px; height: 200px; border: 2px solid #e5e7eb; margin-bottom: 1rem; display: none; background: #000; }
         .user-anim { animation: userPulse 1.5s infinite ease-in-out; }
         .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
         .small-email { font-size: 0.75rem; line-height: 1rem; }
@@ -50,18 +50,16 @@
         .kpi-card:hover {
             transform: translateY(-2px);
         }
-        /* Styles pour les boutons Vente/Achat fixes */
         .fixed-buttons {
             position: sticky;
-            top: 64px; /* Hauteur de la navbar */
+            top: 64px;
             z-index: 9;
-            background: #f3f4f6; /* bg-gray-100 */
+            background: #f3f4f6;
             padding: 1rem 0;
             margin-bottom: 2rem;
         }
-        /* Styles pour limiter la hauteur des tables à 7 lignes */
         .table-container {
-            max-height: 350px; /* Approx. 7 lignes * 50px par ligne */
+            max-height: 350px;
             overflow-y: auto;
             position: relative;
         }
@@ -71,7 +69,7 @@
         .table-container thead {
             position: sticky;
             top: 0;
-            background: #f9fafb; /* bg-gray-50 */
+            background: #f9fafb;
             z-index: 1;
         }
     </style>
@@ -770,7 +768,7 @@
                 document.getElementById('fournisseurCount').classList.add('hidden');
                 document.getElementById('productCount').classList.add('hidden');
                 document.getElementById('utilisateurCount').classList.add('hidden');
-                document disper.getElementById('totalCA').textContent = '0.00 DA';
+                document.getElementById('totalCA').textContent = '0.00 DA';
                 document.getElementById('totalProfit').textContent = '0.00 DA';
                 document.getElementById('salesCount').textContent = '0';
                 document.getElementById('lowStockItems').textContent = '0';
@@ -1411,74 +1409,75 @@
                 const statue = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
                 if (nom?.includes(searchTerm) || statue?.includes(searchTerm)) {
                     row.style.display = '';
-                } else { row.style.display = 'none';
-            }
-        });
-    });
-
-    // --- Gestion du scanner ---
-    async function startScanner() {
-        if (!('BarcodeDetector' in window)) {
-            showToast('Le scanner de code-barres n\'est pas pris en charge par ce navigateur', true);
-            return;
-        }
-
-        if (isScanning) {
-            showToast('Le scanner est déjà actif', true);
-            return;
-        }
-
-        try {
-            stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'environment' }
+                } else {
+                    row.style.display = 'none';
+                }
             });
-            const video = document.createElement('video');
-            video.srcObject = stream;
-            video.setAttribute('playsinline', true);
-            video.play();
+        });
 
+              // --- Gestion du scanner ---
+        async function startScanner() {
+            if (!('BarcodeDetector' in window)) {
+                showToast('Le scanner de code-barres n\'est pas pris en charge par ce navigateur', true);
+                return;
+            }
+
+            if (isScanning) {
+                showToast('Le scanner est déjà actif', true);
+                return;
+            }
+
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' }
+                });
+                const video = document.createElement('video');
+                video.srcObject = stream;
+                video.setAttribute('playsinline', true);
+                video.play();
+
+                const scannerPreview = document.getElementById('scannerPreview');
+                scannerPreview.innerHTML = '';
+                scannerPreview.appendChild(video);
+                scannerPreview.style.display = 'block';
+
+                barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
+                isScanning = true;
+
+                const scan = async () => {
+                    if (!isScanning) return;
+                    try {
+                        const barcodes = await barcodeDetector.detect(video);
+                        if (barcodes.length > 0) {
+                            const barcode = barcodes[0].rawValue;
+                            document.getElementById('productBar').value = barcode;
+                            showToast(`Code-barres détecté : ${barcode}`);
+                            stopScanner();
+                            return;
+                        }
+                    } catch (error) {
+                        console.error('Erreur de détection de code-barres:', error);
+                    }
+                    requestAnimationFrame(scan);
+                };
+
+                scan();
+            } catch (error) {
+                showToast('Erreur d\'accès à la caméra: ' + error.message, true);
+                console.error('Erreur scanner:', error);
+            }
+        }
+
+        function stopScanner() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
             const scannerPreview = document.getElementById('scannerPreview');
             scannerPreview.innerHTML = '';
-            scannerPreview.appendChild(video);
-            scannerPreview.style.display = 'block';
-
-            barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
-            isScanning = true;
-
-            const scan = async () => {
-                if (!isScanning) return;
-                try {
-                    const barcodes = await barcodeDetector.detect(video);
-                    if (barcodes.length > 0) {
-                        const barcode = barcodes[0].rawValue;
-                        document.getElementById('productBar').value = barcode;
-                        showToast(`Code-barres détecté : ${barcode}`);
-                        stopScanner();
-                        return;
-                    }
-                } catch (error) {
-                    console.error('Erreur de détection de code-barres:', error);
-                }
-                requestAnimationFrame(scan);
-            };
-
-            scan();
-        } catch (error) {
-            showToast('Erreur d\'accès à la caméra: ' + error.message, true);
-            console.error('Erreur scanner:', error);
+            scannerPreview.style.display = 'none';
+            isScanning = false;
         }
-    }
-
-    function stopScanner() {
-        if (stream) {
-            stream.getTracks().forEach(track => track.stop());
-            stream = null;
-        }
-        const scannerPreview = document.getElementById('scannerPreview');
-        scannerPreview.innerHTML = '';
-        scannerPreview.style.display = 'none';
-        isScanning = false;
-    }
-</script>
+    </script>
 </body>
 </html>
