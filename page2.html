@@ -47,7 +47,8 @@
         #dailyPurchasesContent .table-container table {
             width: 100%;
         }
-        #topArticlesContent .chart-container, #profitContent .chart-container {
+        #topArticlesContent .chart-container,
+        #profitContent .chart-container {
             max-width: 500px;
             margin: 0 auto;
         }
@@ -168,7 +169,7 @@
         </div>
 
         <!-- Liste des Ventes -->
-        <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="dailySalesSection">
+        <section class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="dailySalesSection">
             <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('dailySalesSection')">
                 <h2 class="text-xl font-semibold text-gray-800 flex items-center">
                     <i class="fas fa-calendar-day mr-2 text-indigo-500"></i> Liste des Ventes
@@ -227,10 +228,10 @@
                     </div>
                 </div>
             </div>
-        </div>
+        </section>
 
         <!-- Liste des Achats -->
-        <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="dailyPurchasesSection">
+        <section class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="dailyPurchasesSection">
             <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('dailyPurchasesSection')">
                 <h2 class="text-xl font-semibold text-gray-800 flex items-center">
                     <i class="fas fa-truck-loading mr-2 text-indigo-500"></i> Liste des Achats
@@ -267,10 +268,10 @@
                     </div>
                 </div>
             </div>
-        </div>
+        </section>
 
         <!-- Articles les plus vendus -->
-        <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="topArticlesSection">
+        <section class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="topArticlesSection">
             <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('topArticlesSection')">
                 <h2 class="text-xl font-semibold text-gray-800 flex items-center">
                     <i class="fas fa-chart-pie mr-2 text-indigo-500"></i> Articles les Plus Vendus
@@ -288,10 +289,10 @@
                     <canvas id="topArticlesChart" width="400" height="400"></canvas>
                 </div>
             </div>
-        </div>
+        </section>
 
         <!-- Bénéfice -->
-        <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="profitSection">
+        <section class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="profitSection">
             <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('profitSection')">
                 <h2 class="text-xl font-semibold text-gray-800 flex items-center">
                     <i class="fas fa-chart-line mr-2 text-indigo-500"></i> Bénéfice
@@ -309,10 +310,10 @@
                     <canvas id="profitChart" width="400" height="300"></canvas>
                 </div>
             </div>
-        </div>
+        </section>
 
         <!-- Valeur du Stock -->
-        <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="stockValueSection">
+        <section class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="stockValueSection">
             <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('stockValueSection')">
                 <h2 class="text-xl font-semibold text-gray-800 flex items-center">
                     <i class="fas fa-warehouse mr-2 text-indigo-500"></i> Valeur du Stock et Zakat
@@ -343,7 +344,7 @@
                     </div>
                 </div>
             </div>
-        </div>
+        </section>
 
         <!-- Zone d'impression A4 pour les ventes -->
         <div id="printAreaA4" class="hidden">
@@ -923,7 +924,7 @@
                 profitChart = new Chart(ctx, {
                     type: 'bar',
                     data: {
-                        labels: profitCache.map(p => p.designation || 'N/A'),
+                        labels: profitCache.map(p => p.date || 'N/A'),
                         datasets: [{
                             label: 'Bénéfice (DA)',
                             data: profitCache.map(p => parseFloat(p.profit || 0)),
@@ -974,9 +975,10 @@
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 const stock = await response.json();
+                console.log('Stock values:', stock); // Debugging
 
-                document.getElementById('stockValueAchat').textContent = `${parseFloat(stock.value_achat || 0).toFixed(2)} DA`;
-                document.getElementById('stockValueVente').textContent = `${parseFloat(stock.value_vente || 0).toFixed(2)} DA`;
+                document.getElementById('stockValueAchat').textContent = `${parseFloat(stock.valeur_achat || 0).toFixed(2)} DA`;
+                document.getElementById('stockValueVente').textContent = `${parseFloat(stock.valeur_vente || 0).toFixed(2)} DA`;
                 document.getElementById('zakatValue').textContent = `${parseFloat(stock.zakat || 0).toFixed(2)} DA`;
             } catch (error) {
                 console.error('Erreur stock:', error);
@@ -1006,12 +1008,13 @@
             saleDetailsList.innerHTML = '';
 
             data.lignes.forEach(ligne => {
-                const prixUnitaire = type === 'Vente' ? ligne.prixv : ligne.nprix;
+                const quantite = type === 'Vente' ? ligne.quantite : ligne.qtea;
+                const prixUnitaire = type === 'Vente' ? (parseFloat(ligne.prixt) / parseFloat(ligne.quantite)).toFixed(2) : ligne.nprix;
                 const prixTotal = type === 'Vente' ? ligne.prixt : ligne.total_ligne;
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ligne.designation}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ligne.qtea}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${quantite}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(prixUnitaire).toFixed(2)} DA</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(prixTotal).toFixed(2)} DA</td>
                 `;
@@ -1040,11 +1043,12 @@
             const lignesTbody = document.getElementById('ticketLignes');
             lignesTbody.innerHTML = '';
             vente.lignes.forEach(ligne => {
+                const prixUnitaire = (parseFloat(ligne.prixt) / parseFloat(ligne.quantite)).toFixed(2);
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td style="padding: 2mm;">${ligne.designation}</td>
-                    <td style="text-align: center; padding: 2mm;">${ligne.qtea}</td>
-                    <td style="text-align: right; padding: 2mm;">${parseFloat(ligne.prixv).toFixed(2)} DA</td>
+                    <td style="text-align: center; padding: 2mm;">${ligne.quantite}</td>
+                    <td style="text-align: right; padding: 2mm;">${prixUnitaire} DA</td>
                     <td style="text-align: right; padding: 2mm;">${parseFloat(ligne.prixt).toFixed(2)} DA</td>
                 `;
                 lignesTbody.appendChild(tr);
@@ -1147,53 +1151,74 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            flatpickr('#dateFilter', {
-                dateFormat: 'Y-m-d',
-                onChange: (selectedDates, dateStr) => {
-                    const client = document.getElementById('clientFilter').value;
-                    const user = document.getElementById('userFilter').value;
-                    const fournisseur = document.getElementById('fournisseurFilter').value;
-                    chargerVentesJour(dateStr, client, user);
-                    chargerAchatsJour(dateStr, user, fournisseur);
-                    chargerArticlesPlusVendus(dateStr, client, user);
-                    chargerProfit(dateStr, client, user);
-                }
-            });
+          
+        // Initialize Flatpickr with today's date
+        const today = new Date().toISOString().split('T')[0];
+        flatpickr('#dateFilter', {
+            dateFormat: 'Y-m-d',
+            defaultDate: today,
+            onChange: (selectedDates, dateStr) => {
+                console.log('Date selected:', dateStr); // Debugging
+                reloadData();
+            }
+        });
 
-            document.getElementById('clientFilter').addEventListener('change', (e) => {
-                const date = document.getElementById('dateFilter').value;
-                const user = document.getElementById('userFilter').value;
-                chargerVentesJour(date, e.target.value, user);
-                chargerArticlesPlusVendus(date, e.target.value, user);
-                chargerProfit(date, e.target.value, user);
-            });
+        // Event listeners for filters
+        document.getElementById('clientFilter').addEventListener('change', () => {
+            console.log('Client filter changed:', document.getElementById('clientFilter').value);
+            reloadData();
+        });
 
-            document.getElementById('fournisseurFilter').addEventListener('change', (e) => {
-                const date = document.getElementById('dateFilter').value;
-                const user = document.getElementById('userFilter').value;
-                chargerAchatsJour(date, user, e.target.value);
-            });
+        document.getElementById('fournisseurFilter').addEventListener('change', () => {
+            console.log('Fournisseur filter changed:', document.getElementById('fournisseurFilter').value);
+            reloadData();
+        });
 
-            document.getElementById('userFilter').addEventListener('change', (e) => {
-                const date = document.getElementById('dateFilter').value;
-                const client = document.getElementById('clientFilter').value;
-                const fournisseur = document.getElementById('fournisseurFilter').value;
-                chargerVentesJour(date, client, e.target.value);
-                chargerAchatsJour(date, e.target.value, fournisseur);
-                chargerArticlesPlusVendus(date, client, e.target.value);
-                chargerProfit(date, client, e.target.value);
-            });
+        document.getElementById('userFilter').addEventListener('change', () => {
+            console.log('User filter changed:', document.getElementById('userFilter').value);
+            reloadData();
+        });
 
-            // Chargement initial
+        // Function to reload data based on filters
+        function reloadData() {
+            const date = document.getElementById('dateFilter').value;
+            const client = document.getElementById('clientFilter').value;
+            const user = document.getElementById('userFilter').value;
+            const fournisseur = document.getElementById('fournisseurFilter').value;
+
+            // Load sales and related data
+            chargerVentesJour(date, client, user);
+            chargerArticlesPlusVendus(date, client, user);
+            chargerProfit(date, client, user);
+
+            // Load purchases
+            chargerAchatsJour(date, user, fournisseur);
+
+            // Stock value is not filtered by date/client/user/fournisseur, so load it separately
+            chargerStockValue();
+        }
+
+        // Initial data load
+        const userId = localStorage.getItem('userId');
+        if (userId) {
+            // Load initial data for filters
             chargerClients();
             chargerFournisseurs();
             chargerUtilisateurs();
-            chargerVentesJour();
-            chargerAchatsJour();
-            chargerArticlesPlusVendus();
-            chargerProfit();
-            chargerStockValue();
-        });
-    </script>
+
+            // Load initial data for sections
+            reloadData();
+
+            // Display user info
+            const userEmail = localStorage.getItem('userEmail') || 'Utilisateur';
+            document.getElementById('userDisplay').textContent = userEmail;
+            document.getElementById('userDisplay').classList.remove('hidden');
+            document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i> Déconnexion';
+        } else {
+            showToast('Veuillez vous connecter', true);
+            window.location.href = 'index.html';
+        }
+    });
+</script>
 </body>
 </html>
