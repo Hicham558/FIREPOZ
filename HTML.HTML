@@ -25,7 +25,7 @@
         #receptionSection { animation-delay: 0.4s; }
         footer { animation-delay: 1s; }
         .user-anim { animation: userPulse 1.5s infinite ease-in-out; }
-        .count-anim { animation plataformas countPulse 1.5s infinite ease-in-out; }
+        .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
         .small-email { font-size: 0.75rem; line-height: 1rem; }
         .quantity-input { width: 60px; }
         .total-large { font-size: 2.5rem; font-weight: bold; color: #4f46e5; text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1); }
@@ -284,7 +284,7 @@
                     document.getElementById('selectedSellerName').textContent = nom;
                     document.getElementById('sellerPassword').disabled = true;
                     document.getElementById('validateSellerButton').textContent = 'Changer d\'utilisateur';
-                    document.getElementById('validateSellerButton').onclick = clearSeller;
+                    document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
                     document.getElementById('sellerContent').classList.add('hidden');
                     document.getElementById('sellerChevron').classList.add('fa-chevron-down');
                     document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
@@ -381,11 +381,10 @@
             }
         }
 
-        async function validerVendeur() {
+        function validerVendeur() {
             console.log('Validation de l\'utilisateur...');
             const numeroUtil = document.getElementById('sellerSelect').value;
             const password2 = document.getElementById('sellerPassword').value;
-            const userId = localStorage.getItem('userId');
 
             if (numeroUtil === '0') {
                 showToast('Veuillez sélectionner un utilisateur', true);
@@ -397,69 +396,76 @@
                 return;
             }
 
-            try {
-                const testReceptionData = {
-                    numero_four: 0,
-                    numero_util: parseInt(numeroUtil),
-                    password2: password2,
-                    lignes: [{ numero_item: 0, qtea: 0, prixbh: 0 }]
-                };
+            const selectedOption = document.getElementById('sellerSelect').options[document.getElementById('sellerSelect').selectedIndex];
+            const sellerName = selectedOption.text;
 
-                const response = await fetch(`${API_BASE_URL}/valider_reception`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify(testReceptionData)
-                });
+            localStorage.setItem('selectedSeller', JSON.stringify({
+                numero_util: numeroUtil,
+                nom: sellerName
+            }));
+            localStorage.setItem('sellerPassword', password2);
 
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('Erreur validation utilisateur:', errorText);
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
+            document.getElementById('selectedSellerName').textContent = sellerName;
+            document.getElementById('sellerPassword').disabled = true;
+            document.getElementById('validateSellerButton').textContent = 'Changer d\'utilisateur';
+            document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
 
-                const selectedOption = document.getElementById('sellerSelect').options[document.getElementById('sellerSelect').selectedIndex];
-                const sellerName = selectedOption.text;
+            document.getElementById('sellerContent').classList.add('hidden');
+            document.getElementById('sellerChevron').classList.add('fa-chevron-down');
+            document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
 
-                localStorage.setItem('selectedSeller', JSON.stringify({
-                    numero_util: numeroUtil,
-                    nom: sellerName
-                }));
-                localStorage.setItem('sellerPassword', password2);
-
-                document.getElementById('selectedSellerName').textContent = sellerName;
-                document.getElementById('sellerPassword').disabled = true;
-                document.getElementById('validateSellerButton').textContent = 'Changer d\'utilisateur';
-                document.getElementById('validateSellerButton').onclick = clearSeller;
-
-                document.getElementById('sellerContent').classList.add('hidden');
-                document.getElementById('sellerChevron').classList.add('fa-chevron-down');
-                document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
-
-                showToast(`Utilisateur ${sellerName} validé`);
-            } catch (error) {
-                showToast(`Erreur validation utilisateur: ${error.message}`, true);
-                console.error('Erreur validation utilisateur:', error);
-            }
+            showToast(`Utilisateur ${sellerName} validé`);
         }
 
-        function clearSeller() {
-            localStorage.removeItem('selectedSeller');
-            localStorage.removeItem('sellerPassword');
+        function changeAndValidateSeller() {
+            console.log('Changement et validation de l\'utilisateur...');
+            // Réinitialiser l'UI
             document.getElementById('sellerSelect').value = '0';
             document.getElementById('sellerPassword').value = '';
             document.getElementById('sellerPassword').disabled = false;
             document.getElementById('selectedSellerName').textContent = '-';
             document.getElementById('validateSellerButton').textContent = 'Valider';
-            document.getElementById('validateSellerButton').onclick = validerVendeur;
-            
             document.getElementById('sellerContent').classList.remove('hidden');
             document.getElementById('sellerChevron').classList.add('fa-chevron-up');
             document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
 
-            showToast('Utilisateur désélectionné');
+            // Supprimer les anciennes données du localStorage
+            localStorage.removeItem('selectedSeller');
+            localStorage.removeItem('sellerPassword');
+
+            // Valider le nouvel utilisateur
+            const numeroUtil = document.getElementById('sellerSelect').value;
+            const password2 = document.getElementById('sellerPassword').value;
+
+            if (numeroUtil === '0') {
+                showToast('Veuillez sélectionner un utilisateur', true);
+                return;
+            }
+
+            if (!password2) {
+                showToast('Veuillez entrer le mot de passe', true);
+                return;
+            }
+
+            const selectedOption = document.getElementById('sellerSelect').options[document.getElementById('sellerSelect').selectedIndex];
+            const sellerName = selectedOption.text;
+
+            localStorage.setItem('selectedSeller', JSON.stringify({
+                numero_util: numeroUtil,
+                nom: sellerName
+            }));
+            localStorage.setItem('sellerPassword', password2);
+
+            document.getElementById('selectedSellerName').textContent = sellerName;
+            document.getElementById('sellerPassword').disabled = true;
+            document.getElementById('validateSellerButton').textContent = 'Changer d\'utilisateur';
+            document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
+
+            document.getElementById('sellerContent').classList.add('hidden');
+            document.getElementById('sellerChevron').classList.add('fa-chevron-down');
+            document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
+
+            showToast(`Utilisateur ${sellerName} validé`);
         }
 
         async function chargerFournisseurs() {
