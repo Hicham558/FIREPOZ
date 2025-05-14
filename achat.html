@@ -276,23 +276,39 @@
                 document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
                 document.getElementById('userDisplay').classList.remove('hidden');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                chargerUtilisateurs();
-                const storedSeller = localStorage.getItem('selectedSeller');
-                if (storedSeller) {
-                    const { numero_util, nom } = JSON.parse(storedSeller);
-                    document.getElementById('sellerSelect').value = numero_util;
-                    document.getElementById('selectedSellerName').textContent = nom;
-                    document.getElementById('sellerPassword').disabled = true;
-                    document.getElementById('validateSellerButton').textContent = 'Changer d\'utilisateur';
-                    document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
-                    document.getElementById('sellerContent').classList.add('hidden');
-                    document.getElementById('sellerChevron').classList.add('fa-chevron-down');
-                    document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
-                } else {
-                    document.getElementById('sellerContent').classList.remove('hidden');
-                    document.getElementById('sellerChevron').classList.add('fa-chevron-up');
-                    document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
-                }
+                // Désactiver sellerSelect pendant le chargement
+                document.getElementById('sellerSelect').disabled = true;
+                chargerUtilisateurs().then(() => {
+                    const storedSeller = localStorage.getItem('selectedSeller');
+                    if (storedSeller) {
+                        const { numero_util, nom } = JSON.parse(storedSeller);
+                        const sellerSelect = document.getElementById('sellerSelect');
+                        // Vérifier si l'utilisateur existe dans la liste
+                        const optionExists = Array.from(sellerSelect.options).some(option => option.value === numero_util);
+                        if (optionExists) {
+                            sellerSelect.value = numero_util;
+                            document.getElementById('selectedSellerName').textContent = nom;
+                            document.getElementById('sellerPassword').disabled = true;
+                            document.getElementById('validateSellerButton').textContent = 'Changer d\'utilisateur';
+                            document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
+                            document.getElementById('sellerContent').classList.add('hidden');
+                            document.getElementById('sellerChevron').classList.add('fa-chevron-down');
+                            document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
+                        } else {
+                            localStorage.removeItem('selectedSeller');
+                            localStorage.removeItem('sellerPassword');
+                            document.getElementById('sellerContent').classList.remove('hidden');
+                            document.getElementById('sellerChevron').classList.add('fa-chevron-up');
+                            document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
+                        }
+                    } else {
+                        document.getElementById('sellerContent').classList.remove('hidden');
+                        document.getElementById('sellerChevron').classList.add('fa-chevron-up');
+                        document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
+                    }
+                    // Réactiver sellerSelect après chargement
+                    sellerSelect.disabled = false;
+                });
                 chargerFournisseurs();
                 chargerProduits();
             } else {
@@ -355,6 +371,8 @@
             }
 
             try {
+                const sellerSelect = document.getElementById('sellerSelect');
+                const currentSelection = sellerSelect.value; // Préserver la sélection actuelle
                 const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
                     headers: { 'X-User-ID': userId }
                 });
@@ -366,15 +384,20 @@
                 }
                 utilisateursCache = await response.json();
                 console.log('Utilisateurs reçus:', utilisateursCache);
-                const selectElement = document.getElementById('sellerSelect');
 
-                selectElement.innerHTML = '<option value="0">Sélectionner un utilisateur</option>';
+                // Mettre à jour la liste sans réinitialiser si possible
+                sellerSelect.innerHTML = '<option value="0">Sélectionner un utilisateur</option>';
                 utilisateursCache.forEach(utilisateur => {
                     const option = document.createElement('option');
                     option.value = utilisateur.numero_util;
                     option.textContent = utilisateur.nom;
-                    selectElement.appendChild(option);
+                    sellerSelect.appendChild(option);
                 });
+
+                // Restaurer la sélection si elle est valide
+                if (currentSelection !== '0' && utilisateursCache.some(u => u.numero_util === currentSelection)) {
+                    sellerSelect.value = currentSelection;
+                }
             } catch (error) {
                 showToast('Erreur lors du chargement des utilisateurs: ' + error.message, true);
                 console.error('Erreur utilisateurs:', error);
@@ -383,10 +406,13 @@
 
         function validerVendeur() {
             console.log('Validation de l\'utilisateur...');
-            const numeroUtil = document.getElementById('sellerSelect').value;
+            const sellerSelect = document.getElementById('sellerSelect');
+            const numeroUtil = sellerSelect.value;
             const password2 = document.getElementById('sellerPassword').value;
 
-            if (numeroUtil === '0') {
+            console.log('Valeur de sellerSelect:', numeroUtil); // Débogage
+
+            if (!numeroUtil || numeroUtil === '0') {
                 showToast('Veuillez sélectionner un utilisateur', true);
                 return;
             }
@@ -396,7 +422,7 @@
                 return;
             }
 
-            const selectedOption = document.getElementById('sellerSelect').options[document.getElementById('sellerSelect').selectedIndex];
+            const selectedOption = sellerSelect.options[sellerSelect.selectedIndex];
             const sellerName = selectedOption.text;
 
             localStorage.setItem('selectedSeller', JSON.stringify({
@@ -420,7 +446,8 @@
         function changeAndValidateSeller() {
             console.log('Changement et validation de l\'utilisateur...');
             // Réinitialiser l'UI
-            document.getElementById('sellerSelect').value = '0';
+            const sellerSelect = document.getElementById('sellerSelect');
+            sellerSelect.value = '0';
             document.getElementById('sellerPassword').value = '';
             document.getElementById('sellerPassword').disabled = false;
             document.getElementById('selectedSellerName').textContent = '-';
@@ -434,10 +461,12 @@
             localStorage.removeItem('sellerPassword');
 
             // Valider le nouvel utilisateur
-            const numeroUtil = document.getElementById('sellerSelect').value;
+            const numeroUtil = sellerSelect.value;
             const password2 = document.getElementById('sellerPassword').value;
 
-            if (numeroUtil === '0') {
+            console.log('Valeur de sellerSelect dans changeAndValidateSeller:', numeroUtil); // Débogage
+
+            if (!numeroUtil || numeroUtil === '0') {
                 showToast('Veuillez sélectionner un utilisateur', true);
                 return;
             }
@@ -447,7 +476,7 @@
                 return;
             }
 
-            const selectedOption = document.getElementById('sellerSelect').options[document.getElementById('sellerSelect').selectedIndex];
+            const selectedOption = sellerSelect.options[sellerSelect.selectedIndex];
             const sellerName = selectedOption.text;
 
             localStorage.setItem('selectedSeller', JSON.stringify({
