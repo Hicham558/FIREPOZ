@@ -105,253 +105,697 @@
             </div>
         </div>
 
-        <!-- Reste du HTML inchangé (sections produits, réception, footer, toast) -->
-        <!-- ... [Contenu identique à celui fourni, non répété pour brevité] ... -->
+        <div class="mt-8">
+            <header class="mb-8">
+                <h1 class="text-3xl font-bold text-indigo-700">Gestion des Achats</h1>
+                <p class="text-gray-600 flex items-center">
+                    <i class="fas fa-truck mr-2 text-indigo-500"></i> Réceptions de stock en temps réel
+                </p>
+            </header>
 
-        <script>
-            const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
-            let tempReceptionLines = [];
-            let produitsCache = [];
-            let fournisseursCache = [];
-            let utilisateursCache = [];
+            <!-- Section produits -->
+            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="productsSection">
+                <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('productsSection')">
+                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-boxes mr-2 text-indigo-500"></i> Produits Disponibles
+                        <span id="productCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                    </h2>
+                    <button class="text-gray-600 hover:text-gray-800 transition">
+                        <i class="fas fa-chevron-down" id="productsChevron"></i>
+                    </button>
+                </div>
+                <div class="p-6 hidden" id="productsContent">
+                    <div class="mb-4 flex flex-col md:flex-row gap-4">
+                        <div class="relative w-full md:w-1/2">
+                            <input type="text" id="searchProduct" placeholder="Rechercher un produit..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Désignation</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Achat</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productsList" class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td colspan="6" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
 
-            function togglePasswordVisibility() {
-                const passwordInput = document.getElementById('sellerPassword');
-                const toggleIcon = document.getElementById('togglePassword');
-                if (passwordInput.type === 'password') {
-                    passwordInput.type = 'text';
-                    toggleIcon.classList.remove('fa-eye');
-                    toggleIcon.classList.add('fa-eye-slash');
-                } else {
-                    passwordInput.type = 'password';
-                    toggleIcon.classList.remove('fa-eye-slash');
-                    toggleIcon.classList.add('fa-eye');
-                }
+            <!-- Section réception -->
+            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="receptionSection">
+                <div class="p-6 flex justify-between items-center">
+                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-receipt mr-2 text-indigo-500"></i> Réception de Stock
+                        <span id="receptionItemCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                    </h2>
+                </div>
+                <div class="p-6">
+                    <div class="mb-6">
+                        <h3 class="font-medium mb-3">Lignes de la réception en cours</h3>
+                        <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-100 shadow-sm mb-4">
+                            <div class="text-sm text-indigo-600 font-medium">Total Achat</div>
+                            <div id="totalAchat" class="text-3xl font-bold text-indigo-700">0.00 DA</div>
+                        </div>
+                        <div class="mb-4">
+                            <div class="relative">
+                                <span class="text-sm font-medium text-gray-700 mr-2">Fournisseur: </span>
+                                <div class="relative inline-block w-64">
+                                    <select id="receptionFournisseurId" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300">
+                                        <option value="0">Sélectionner un fournisseur</option>
+                                    </select>
+                                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                                        fidèle<i class="fas fa-chevron-down"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité Ajoutée</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Achat</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Prix Achat</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tempReceptionList" class="bg-white divide-y divide-gray-200">
+                                    <tr>
+                                        <td colspan="5" class="text-center py-4 text-gray-500">Aucune ligne ajoutée</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-4 flex justify-end">
+                            <button id="validateReceptionButton" onclick="validerReception()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105" disabled>
+                                <i class="fas fa-check mr-2"></i>Valider la réception
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-gray-700 text-white text-center py-4 animate-fade-in">
+        <p>Développé par Khelladi Hicham</p>
+        <p>Tel: <a href="tel:00213553700900" class="underline hover:text-indigo-300 transition duration-300">00213553700900</a></p>
+        <p>Email: <a href="mailto:Hicham.khelladi@gmail.com" class="underline hover:text-indigo-300 transition duration-300">Hicham.khelladi@gmail.com</a></p>
+    </footer>
+
+    <div id="toast" class="fixed bottom-4 right-4 hidden">
+        <div class="flex items-center px-6 py-3 rounded-md shadow-lg">
+            <i id="toastIcon" class="mr-2"></i>
+            <span id="toastMessage"></span>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
+        let tempReceptionLines = [];
+        let produitsCache = [];
+        let fournisseursCache = [];
+        let utilisateursCache = [];
+
+        function togglePasswordVisibility() {
+            const passwordInput = document.getElementById('sellerPassword');
+            const toggleIcon = document.getElementById('togglePassword');
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.classList.remove('fa-eye');
+                toggleIcon.classList.add('fa-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                toggleIcon.classList.remove('fa-eye-slash');
+                toggleIcon.classList.add('fa-eye');
             }
+        }
 
-            function toggleSection(sectionId) {
-                const section = document.getElementById(sectionId);
-                const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
-                const chevron = document.getElementById(`${sectionId.replace('Section', 'Chevron')}`);
+        function toggleSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
+            const chevron = document.getElementById(`${sectionId.replace('Section', 'Chevron')}`);
 
-                content.classList.toggle('hidden');
-                chevron.classList.toggle('fa-chevron-down');
-                chevron.classList.toggle('fa-chevron-up');
-            }
+            content.classList.toggle('hidden');
+            chevron.classList.toggle('fa-chevron-down');
+            chevron.classList.toggle('fa-chevron-up');
+        }
 
-            function calculerTotalAchat() {
-                const total = tempReceptionLines.reduce((sum, ligne) => {
-                    return sum + (parseFloat(ligne.qtea) * parseFloat(ligne.prixbh));
-                }, 0);
-                
-                document.getElementById('totalAchat').textContent = total.toFixed(2) + ' DA';
-                
-                const totalElement = document.getElementById('totalAchat');
-                totalElement.classList.remove('animate-total-pulse');
-                void totalElement.offsetWidth;
-                totalElement.classList.add('animate-total-pulse');
-            }
+        function calculerTotalAchat() {
+            const total = tempReceptionLines.reduce((sum, ligne) => {
+                return sum + (parseFloat(ligne.qtea) * parseFloat(ligne.prixbh));
+            }, 0);
+            
+            document.getElementById('totalAchat').textContent = total.toFixed(2) + ' DA';
+            
+            const totalElement = document.getElementById('totalAchat');
+            totalElement.classList.remove('animate-total-pulse');
+            void totalElement.offsetWidth;
+            totalElement.classList.add('animate-total-pulse');
+        }
 
-            document.addEventListener('DOMContentLoaded', () => {
-                console.log('Page chargée, vérification utilisateur...');
-                const userId = localStorage.getItem('userId');
-                const userEmail = localStorage.getItem('userEmail');
-                if (userId && userEmail) {
-                    console.log('Utilisateur connecté:', userId, userEmail);
-                    document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
-                    document.getElementById('userDisplay').classList.remove('hidden');
-                    document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                    chargerUtilisateurs();
-                    const storedSeller = localStorage.getItem('selectedSeller');
-                    if (storedSeller) {
-                        const { numero_util, nom } = JSON.parse(storedSeller);
-                        document.getElementById('sellerSelect').value = numero_util;
-                        document.getElementById('selectedSellerName').textContent = nom;
-                        document.getElementById('sellerPassword').disabled = true;
-                        document.getElementById('validateSellerButton').textContent = 'Changer d\'utilisateur';
-                        document.getElementById('validateSellerButton').onclick = clearSeller;
-                        // Garder la section fermée si un utilisateur est sélectionné
-                        document.getElementById('sellerContent').classList.add('hidden');
-                        document.getElementById('sellerChevron').classList.add('fa-chevron-down');
-                        document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
-                    } else {
-                        // Ouvrir la section si aucun utilisateur n'est sélectionné
-                        document.getElementById('sellerContent').classList.remove('hidden');
-                        document.getElementById('sellerChevron').classList.add('fa-chevron-up');
-                        document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
-                    }
-                    chargerFournisseurs();
-                    chargerProduits();
-                } else {
-                    console.log('Aucun utilisateur connecté, redirection vers index.html');
-                    document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                    window.location.href = 'index.html';
-                }
-
-                fetch(`${API_BASE_URL}/`)
-                    .then(response => response.text())
-                    .then(text => console.log('Statut API:', text))
-                    .catch(err => {
-                        console.error('API non disponible:', err);
-                        showToast('Erreur de connexion à l\'API', true);
-                    });
-            });
-
-            function loginLogout() {
-                console.log('Déconnexion en cours...');
-                const userId = localStorage.getItem('userId');
-                if (userId) {
-                    localStorage.removeItem('userId');
-                    localStorage.removeItem('userEmail');
-                    localStorage.removeItem('selectedSeller');
-                    localStorage.removeItem('sellerPassword');
-                    document.getElementById('userDisplay').textContent = '';
-                    document.getElementById('userDisplay').classList.add('hidden');
-                    document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                    window.location.href = 'index.html';
-                }
-            }
-
-            function showToast(message, isError = false) {
-                const toast = document.getElementById('toast');
-                const toastMessage = document.getElementById('toastMessage');
-                const toastIcon = document.getElementById('toastIcon');
-
-                toast.className = isError
-                    ? 'fixed bottom-4 right-4 flex items-center bg-red-500 text-white px-6 py-3 rounded-md shadow-lg'
-                    : 'fixed bottom-4 right-4 flex items-center bg-green-500 text-white px-6 py-3 rounded-md shadow-lg';
-
-                toastIcon.className = isError
-                    ? 'fas fa-exclamation-circle mr-2'
-                    : 'fas fa-check-circle mr-2';
-
-                toastMessage.textContent = message;
-                toast.classList.remove('hidden');
-
-                setTimeout(() => {
-                    toast.classList.add('hidden');
-                }, 3000);
-            }
-
-            async function chargerUtilisateurs() {
-                console.log('Chargement des utilisateurs...');
-                const userId = localStorage.getItem('userId');
-                if (!userId) {
-                    showToast('Veuillez vous connecter pour voir les utilisateurs', true);
-                    return;
-                }
-
-                try {
-                    const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-                        headers: { 'X-User-ID': userId }
-                    });
-                    console.log('Réponse liste_utilisateurs:', response.status, response.statusText);
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        console.error('Erreur texte liste_utilisateurs:', errorText);
-                        throw new Error(`Erreur ${response.status}: ${errorText}`);
-                    }
-                    utilisateursCache = await response.json();
-                    console.log('Utilisateurs reçus:', utilisateursCache);
-                    const selectElement = document.getElementById('sellerSelect');
-
-                    selectElement.innerHTML = '<option value="0">Sélectionner un utilisateur</option>';
-                    utilisateursCache.forEach(utilisateur => {
-                        const option = document.createElement('option');
-                        option.value = utilisateur.numero_util;
-                        option.textContent = utilisateur.nom;
-                        selectElement.appendChild(option);
-                    });
-                } catch (error) {
-                    showToast('Erreur lors du chargement des utilisateurs: ' + error.message, true);
-                    console.error('Erreur utilisateurs:', error);
-                }
-            }
-
-            async function validerVendeur() {
-                console.log('Validation de l\'utilisateur...');
-                const numeroUtil = document.getElementById('sellerSelect').value;
-                const password2 = document.getElementById('sellerPassword').value;
-                const userId = localStorage.getItem('userId');
-
-                if (numeroUtil === '0') {
-                    showToast('Veuillez sélectionner un utilisateur', true);
-                    return;
-                }
-
-                if (!password2) {
-                    showToast('Veuillez entrer le mot de passe', true);
-                    return;
-                }
-
-                try {
-                    const testReceptionData = {
-                        numero_four: 0,
-                        numero_util: parseInt(numeroUtil),
-                        password2: password2,
-                        lignes: [{ numero_item: 0, qtea: 0, prixbh: 0 }]
-                    };
-
-                    const response = await fetch(`${API_BASE_URL}/valider_reception`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-User-ID': userId
-                        },
-                        body: JSON.stringify(testReceptionData)
-                    });
-
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        console.error('Erreur validation utilisateur:', errorText);
-                        throw new Error(`Erreur ${response.status}: ${errorText}`);
-                    }
-
-                    const selectedOption = document.getElementById('sellerSelect').options[document.getElementById('sellerSelect').selectedIndex];
-                    const sellerName = selectedOption.text;
-
-                    localStorage.setItem('selectedSeller', JSON.stringify({
-                        numero_util: numeroUtil,
-                        nom: sellerName
-                    }));
-                    localStorage.setItem('sellerPassword', password2);
-
-                    document.getElementById('selectedSellerName').textContent = sellerName;
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Page chargée, vérification utilisateur...');
+            const userId = localStorage.getItem('userId');
+            const userEmail = localStorage.getItem('userEmail');
+            if (userId && userEmail) {
+                console.log('Utilisateur connecté:', userId, userEmail);
+                document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
+                document.getElementById('userDisplay').classList.remove('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+                chargerUtilisateurs();
+                const storedSeller = localStorage.getItem('selectedSeller');
+                if (storedSeller) {
+                    const { numero_util, nom } = JSON.parse(storedSeller);
+                    document.getElementById('sellerSelect').value = numero_util;
+                    document.getElementById('selectedSellerName').textContent = nom;
                     document.getElementById('sellerPassword').disabled = true;
                     document.getElementById('validateSellerButton').textContent = 'Changer d\'utilisateur';
                     document.getElementById('validateSellerButton').onclick = clearSeller;
-
-                    // Fermer la section après validation
                     document.getElementById('sellerContent').classList.add('hidden');
                     document.getElementById('sellerChevron').classList.add('fa-chevron-down');
                     document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
-
-                    showToast(`Utilisateur ${sellerName} validé`);
-                } catch (error) {
-                    showToast(`Erreur validation utilisateur: ${error.message}`, true);
-                    console.error('Erreur validation utilisateur:', error);
+                } else {
+                    document.getElementById('sellerContent').classList.remove('hidden');
+                    document.getElementById('sellerChevron').classList.add('fa-chevron-up');
+                    document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
                 }
+                chargerFournisseurs();
+                chargerProduits();
+            } else {
+                console.log('Aucun utilisateur connecté, redirection vers index.html');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                window.location.href = 'index.html';
             }
 
-            function clearSeller() {
+            fetch(`${API_BASE_URL}/`)
+                .then(response => response.text())
+                .then(text => console.log('Statut API:', text))
+                .catch(err => {
+                    console.error('API non disponible:', err);
+                    showToast('Erreur de connexion à l\'API', true);
+                });
+        });
+
+        function loginLogout() {
+            console.log('Déconnexion en cours...');
+            const userId = localStorage.getItem('userId');
+            if (userId) {
+                localStorage.removeItem('userId');
+                localStorage.removeItem('userEmail');
                 localStorage.removeItem('selectedSeller');
                 localStorage.removeItem('sellerPassword');
-                document.getElementById('sellerSelect').value = '0';
-                document.getElementById('sellerPassword').value = '';
-                document.getElementById('sellerPassword').disabled = false;
-                document.getElementById('selectedSellerName').textContent = '-';
-                document.getElementById('validateSellerButton').textContent = 'Valider';
-                document.getElementById('validateSellerButton').onclick = validerVendeur;
-                
-                // Ouvrir la section après désélection
-                document.getElementById('sellerContent').classList.remove('hidden');
-                document.getElementById('sellerChevron').classList.add('fa-chevron-up');
-                document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
+                document.getElementById('userDisplay').textContent = '';
+                document.getElementById('userDisplay').classList.add('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                window.location.href = 'index.html';
+            }
+        }
 
-                showToast('Utilisateur désélectionné');
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+
+            toast.className = isError
+                ? 'fixed bottom-4 right-4 flex items-center bg-red-500 text-white px-6 py-3 rounded-md shadow-lg'
+                : 'fixed bottom-4 right-4 flex items-center bg-green-500 text-white px-6 py-3 rounded-md shadow-lg';
+
+            toastIcon.className = isError
+                ? 'fas fa-exclamation-circle mr-2'
+                : 'fas fa-check-circle mr-2';
+
+            toastMessage.textContent = message;
+            toast.classList.remove('hidden');
+
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
+        }
+
+        async function chargerUtilisateurs() {
+            console.log('Chargement des utilisateurs...');
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir les utilisateurs', true);
+                return;
             }
 
-            // ... [Reste du JavaScript inchangé : chargerFournisseurs, chargerProduits, selectProduct, etc.] ...
-        </script>
-    </body>
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                console.log('Réponse liste_utilisateurs:', response.status, response.statusText);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Erreur texte liste_utilisateurs:', errorText);
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                utilisateursCache = await response.json();
+                console.log('Utilisateurs reçus:', utilisateursCache);
+                const selectElement = document.getElementById('sellerSelect');
+
+                selectElement.innerHTML = '<option value="0">Sélectionner un utilisateur</option>';
+                utilisateursCache.forEach(utilisateur => {
+                    const option = document.createElement('option');
+                    option.value = utilisateur.numero_util;
+                    option.textContent = utilisateur.nom;
+                    selectElement.appendChild(option);
+                });
+            } catch (error) {
+                showToast('Erreur lors du chargement des utilisateurs: ' + error.message, true);
+                console.error('Erreur utilisateurs:', error);
+            }
+        }
+
+        async function validerVendeur() {
+            console.log('Validation de l\'utilisateur...');
+            const numeroUtil = document.getElementById('sellerSelect').value;
+            const password2 = document.getElementById('sellerPassword').value;
+            const userId = localStorage.getItem('userId');
+
+            if (numeroUtil === '0') {
+                showToast('Veuillez sélectionner un utilisateur', true);
+                return;
+            }
+
+            if (!password2) {
+                showToast('Veuillez entrer le mot de passe', true);
+                return;
+            }
+
+            try {
+                const testReceptionData = {
+                    numero_four: 0,
+                    numero_util: parseInt(numeroUtil),
+                    password2: password2,
+                    lignes: [{ numero_item: 0, qtea: 0, prixbh: 0 }]
+                };
+
+                const response = await fetch(`${API_BASE_URL}/valider_reception`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify(testReceptionData)
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Erreur validation utilisateur:', errorText);
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+
+                const selectedOption = document.getElementById('sellerSelect').options[document.getElementById('sellerSelect').selectedIndex];
+                const sellerName = selectedOption.text;
+
+                localStorage.setItem('selectedSeller', JSON.stringify({
+                    numero_util: numeroUtil,
+                    nom: sellerName
+                }));
+                localStorage.setItem('sellerPassword', password2);
+
+                document.getElementById('selectedSellerName').textContent = sellerName;
+                document.getElementById('sellerPassword').disabled = true;
+                document.getElementById('validateSellerButton').textContent = 'Changer d\'utilisateur';
+                document.getElementById('validateSellerButton').onclick = clearSeller;
+
+                document.getElementById('sellerContent').classList.add('hidden');
+                document.getElementById('sellerChevron').classList.add('fa-chevron-down');
+                document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
+
+                showToast(`Utilisateur ${sellerName} validé`);
+            } catch (error) {
+                showToast(`Erreur validation utilisateur: ${error.message}`, true);
+                console.error('Erreur validation utilisateur:', error);
+            }
+        }
+
+        function clearSeller() {
+            localStorage.removeItem('selectedSeller');
+            localStorage.removeItem('sellerPassword');
+            document.getElementById('sellerSelect').value = '0';
+            document.getElementById('sellerPassword').value = '';
+            document.getElementById('sellerPassword').disabled = false;
+            document.getElementById('selectedSellerName').textContent = '-';
+            document.getElementById('validateSellerButton').textContent = 'Valider';
+            document.getElementById('validateSellerButton').onclick = validerVendeur;
+            
+            document.getElementById('sellerContent').classList.remove('hidden');
+            document.getElementById('sellerChevron').classList.add('fa-chevron-up');
+            document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
+
+            showToast('Utilisateur désélectionné');
+        }
+
+        async function chargerFournisseurs() {
+            console.log('Chargement des fournisseurs...');
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir les fournisseurs', true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_fournisseurs`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                console.log('Réponse liste_fournisseurs:', response.status, response.statusText);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Erreur texte liste_fournisseurs:', errorText);
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                fournisseursCache = await response.json();
+                console.log('Fournisseurs reçus:', fournisseursCache);
+                const selectElement = document.getElementById('receptionFournisseurId');
+
+                selectElement.innerHTML = '<option value="0">Sélectionner un fournisseur</option>';
+                fournisseursCache.forEach(fournisseur => {
+                    const solde = parseFloat(fournisseur.solde) || 0;
+                    const soldeClass = solde < 0 ? 'solde-negatif' : 'solde-positif';
+                    const option = document.createElement('option');
+                    option.value = fournisseur.numero_fou;
+                    option.innerHTML = `${fournisseur.nom} (ID: ${fournisseur.numero_fou}) <span class="${soldeClass}">[Solde: ${solde.toFixed(2)} DA]</span>`;
+                    selectElement.appendChild(option);
+                });
+            } catch (error) {
+                showToast('Erreur lors du chargement des fournisseurs: ' + error.message, true);
+                console.error('Erreur fournisseurs:', error);
+            }
+        }
+
+        async function chargerProduits() {
+            console.log('Chargement des produits...');
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir les produits', true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                console.log('Réponse liste_produits:', response.status, response.statusText);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Erreur texte liste_produits:', errorText);
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                produitsCache = await response.json();
+                console.log('Produits reçus:', produitsCache);
+                const tbody = document.getElementById('productsList');
+                const countElement = document.getElementById('productCount');
+
+                produitsCache = produitsCache.map(produit => ({
+                    ...produit,
+                    NUMERO_ITEM: parseInt(produit.NUMERO_ITEM),
+                    BAR: parseInt(produit.BAR),
+                    PRIXBA: parseFloat(produit.PRIXBA) || 0.0,
+                    QTE: parseFloat(produit.QTE) || 0
+                }));
+
+                if (produitsCache.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
+                    countElement.textContent = '0';
+                    countElement.classList.remove('hidden');
+                    return;
+                }
+
+                tbody.innerHTML = '';
+                produitsCache.forEach(produit => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-gray-50';
+                    tr.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <button onclick="selectProduct(${produit.NUMERO_ITEM}, ${produit.PRIXBA}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition duration-300">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE.toFixed(2)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.NUMERO_ITEM || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || 0).toFixed(2)}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                countElement.textContent = produitsCache.length;
+                countElement.classList.remove('hidden');
+            } catch (error) {
+                document.getElementById('productsList').innerHTML = `
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-red-500">
+                            Erreur de chargement: ${error.message}
+                        </td>
+                    </tr>
+                `;
+                console.error('Erreur produits:', error);
+                showToast(`Erreur chargement produits: ${error.message}`, true);
+            }
+        }
+
+        function selectProduct(numeroItem, prixba, designation) {
+            console.log('Produit sélectionné:', numeroItem, prixba, designation);
+            const numeroItemInt = parseInt(numeroItem);
+            const prixbaFloat = parseFloat(prixba) || 0;
+            const qtea = 1.0;
+
+            if (isNaN(numeroItemInt) || prixbaFloat < 0) {
+                showToast('Produit invalide ou prix d\'achat incorrect', true);
+                return;
+            }
+
+            const existingLineIndex = tempReceptionLines.findIndex(line => line.numero_item === numeroItemInt);
+
+            if (existingLineIndex >= 0) {
+                tempReceptionLines[existingLineIndex].qtea = (parseFloat(tempReceptionLines[existingLineIndex].qtea) + qtea).toFixed(2);
+            } else {
+                tempReceptionLines.push({
+                    numero_item: numeroItemInt,
+                    designation: designation || 'N/A',
+                    qtea: qtea.toFixed(2),
+                    prixbh: prixbaFloat.toFixed(2)
+                });
+            }
+
+            updateTempReceptionTable();
+            showToast(`Produit ajouté : ${designation}`);
+        }
+
+        function updateTempReceptionTable() {
+            const tbody = document.getElementById('tempReceptionList');
+            const itemCountElement = document.getElementById('receptionItemCount');
+            const validateButton = document.getElementById('validateReceptionButton');
+
+            if (tempReceptionLines.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucune ligne ajoutée</td></tr>';
+                itemCountElement.textContent = '0';
+                itemCountElement.classList.add('hidden');
+                validateButton.disabled = true;
+                document.getElementById('totalAchat').textContent = '0.00 DA';
+                return;
+            }
+
+            tbody.innerHTML = '';
+            let totalItems = 0;
+
+            tempReceptionLines.forEach((ligne, index) => {
+                totalItems += parseFloat(ligne.qtea) || 0;
+                const totalPrixAchat = (parseFloat(ligne.qtea) * parseFloat(ligne.prixbh)).toFixed(2);
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50';
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <button onclick="supprimerLigne(${index})" class="bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-900">${ligne.designation || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div class="flex items-center space-x-2">
+                            <button onclick="modifierQuantite(${index}, -1)" class="bg-gray-300 text-gray-700 px-2 py-1 rounded-md hover:bg-gray-400 transition">-</button>
+                            <input type="number" step="1" min="1" value="${parseFloat(ligne.qtea).toFixed(2)}" onchange="modifierQuantiteDirect(${index}, this.value)" class="quantity-input px-2 py-1 border rounded-md w-16 text-center">
+                            <button onclick="modifierQuantite(${index}, 1)" class="bg-gray-300 text-gray-700 px-2 py-1 rounded-md hover:bg-gray-400 transition">+</button>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <input type="number" step="0.01" value="${parseFloat(ligne.prixbh).toFixed(2)}" onchange="modifierPrix(${index}, this.value)" class="quantity-input px-2 py-1 border rounded-md">
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalPrixAchat} DA</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            itemCountElement.textContent = totalItems.toFixed(2);
+            itemCountElement.classList.remove('hidden');
+            validateButton.disabled = false;
+            calculerTotalAchat();
+        }
+
+        function modifierQuantite(index, delta) {
+            const ligne = tempReceptionLines[index];
+            const newQuantity = parseFloat(ligne.qtea) + delta;
+
+            if (newQuantity <= 0) {
+                supprimerLigne(index);
+                return;
+            }
+
+            ligne.qtea = newQuantity.toFixed(2);
+            updateTempReceptionTable();
+            showToast(`Quantité mise à jour: ${ligne.qtea}`);
+        }
+
+        function modifierQuantiteDirect(index, newQuantity) {
+            const quantity = parseFloat(newQuantity);
+            if (isNaN(quantity) || quantity <= 0) {
+                showToast('Quantité invalide', true);
+                return;
+            }
+
+            tempReceptionLines[index].qtea = quantity.toFixed(2);
+            updateTempReceptionTable();
+            showToast(`Quantité mise à jour: ${tempReceptionLines[index].qtea}`);
+        }
+
+        function modifierPrix(index, newPrice) {
+            const price = parseFloat(newPrice);
+            if (isNaN(price) || price <= 0) {
+                showToast('Prix d\'achat invalide', true);
+                return;
+            }
+
+            tempReceptionLines[index].prixbh = price.toFixed(2);
+            updateTempReceptionTable();
+            showToast('Prix d\'achat mis à jour');
+        }
+
+        function supprimerLigne(index) {
+            const ligne = tempReceptionLines[index];
+            tempReceptionLines.splice(index, 1);
+            updateTempReceptionTable();
+            showToast(`Ligne "${ligne.designation}" supprimée`);
+        }
+
+        async function validerReception() {
+            console.log('Validation réception...');
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour valider la réception', true);
+                return;
+            }
+
+            if (tempReceptionLines.length === 0) {
+                showToast('Aucune ligne à valider', true);
+                return;
+            }
+
+            const storedSeller = localStorage.getItem('selectedSeller');
+            if (!storedSeller) {
+                showToast('Veuillez sélectionner et valider un utilisateur', true);
+                return;
+            }
+
+            const { numero_util } = JSON.parse(storedSeller);
+            const password2 = localStorage.getItem('sellerPassword');
+            const numeroFournisseur = document.getElementById('receptionFournisseurId').value;
+
+            if (numeroFournisseur === '0') {
+                showToast('Veuillez sélectionner un fournisseur', true);
+                return;
+            }
+
+            const receptionData = {
+                numero_four: parseInt(numeroFournisseur),
+                numero_util: parseInt(numero_util),
+                password2: password2,
+                lignes: tempReceptionLines.map(ligne => ({
+                    numero_item: ligne.numero_item,
+                    qtea: parseFloat(ligne.qtea),
+                    prixbh: parseFloat(ligne.prixbh)
+                }))
+            };
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/valider_reception`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify(receptionData)
+                });
+                console.log('Réponse valider_reception:', response.status, response.statusText);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Erreur texte valider_reception:', errorText);
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                const result = await response.json();
+                console.log('Réception validée:', result);
+
+                showToast(`Réception #${result.numero_mouvement} validée avec succès`);
+                tempReceptionLines = [];
+                updateTempReceptionTable();
+                chargerProduits();
+                chargerFournisseurs();
+            } catch (error) {
+                console.error('Erreur validation réception:', error);
+                showToast(`Erreur validation réception: ${error.message}`, true);
+            }
+        }
+
+        document.getElementById('searchProduct').addEventListener('input', function(e) {
+            console.log('Recherche produit:', e.target.value);
+            const searchTerm = e.target.value.toLowerCase();
+            const tbody = document.getElementById('productsList');
+
+            tbody.innerHTML = '';
+            const filteredProducts = produitsCache.filter(produit =>
+                produit.NUMERO_ITEM.toString().includes(searchTerm) ||
+                produit.BAR.toString().includes(searchTerm) ||
+                produit.DESIGNATION.toLowerCase().includes(searchTerm)
+            );
+
+            if (filteredProducts.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
+                return;
+            }
+
+            filteredProducts.forEach(produit => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50';
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <button onclick="selectProduct(${produit.NUMERO_ITEM}, ${produit.PRIXBA}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition duration-300">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE.toFixed(2)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.NUMERO_ITEM || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || 0).toFixed(2)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        });
+    </script>
+</body>
 </html>
