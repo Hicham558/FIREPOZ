@@ -24,10 +24,12 @@
         @keyframes userPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
         @keyframes countPulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
         @keyframes totalPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        @keyframes smoothBlink { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
         .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
         .animate-pulse { animation: pulse 2s infinite ease-in-out; }
         .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
         .animate-total-pulse { animation: totalPulse 1.5s ease-in-out; }
+        .seller-anim { animation: smoothBlink 1.5s infinite ease-in-out; }
         #productsSection { animation-delay: 0.2s; }
         #salesSection { animation-delay: 0.4s; }
         footer { animation-delay: 1s; }
@@ -139,15 +141,21 @@
     <div class="container mx-auto px-4 pt-20">
         <!-- Section vendeur en haut, repliable -->
         <div id="sellerSection" class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8">
-            <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('sellerSection')">
-                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                    <i class="fas fa-user mr-2 text-indigo-500"></i> Sélection du Vendeur
-                </h2>
-                <button class="text-gray-600 hover:text-gray-800 transition">
-                    <i class="fas fa-chevron-down" id="sellerChevron"></i>
-                </button>
+            <div class="p-6 cursor-pointer" onclick="toggleSection('sellerSection')">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-user mr-2 text-indigo-500"></i> Sélection du Vendeur
+                    </h2>
+                    <button class="text-gray-600 hover:text-gray-800 transition">
+                        <i class="fas fa-chevron-down" id="sellerChevron"></i>
+                    </button>
+                </div>
+                <div class="mt-2">
+                    <span class="text-sm font-medium text-gray-700">Vendeur: </span>
+                    <span id="headerSellerName" class="text-sm text-indigo-600 seller-anim">-</span>
+                </div>
             </div>
-            <div class="p-6" id="sellerContent">
+            <div class="p-6 hidden" id="sellerContent">
                 <div class="flex flex-col md:flex-row gap-4 mb-4">
                     <div class="relative w-full md:w-1/3">
                         <span class="text-sm font-medium text-gray-700 mr-2">Vendeur: </span>
@@ -171,7 +179,7 @@
                 </div>
                 <div>
                     <span class="text-sm font-medium text-gray-700">Vendeur sélectionné: </span>
-                    <span id="selectedSellerName" class="text-sm text-indigo-600">-</span>
+                    <span id="selectedSellerName" class="text-sm text-indigo-600 seller-anim">-</span>
                 </div>
             </div>
         </div>
@@ -376,16 +384,40 @@
                 document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
                 document.getElementById('userDisplay').classList.remove('hidden');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                chargerUtilisateurs();
-                const storedSeller = localStorage.getItem('selectedSeller');
-                if (storedSeller) {
-                    const { numero_util, nom } = JSON.parse(storedSeller);
-                    document.getElementById('sellerSelect').value = numero_util;
-                    document.getElementById('selectedSellerName').textContent = nom;
-                    document.getElementById('sellerPassword').disabled = true;
-                    document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
-                    document.getElementById('validateSellerButton').onclick = clearSeller;
-                }
+                // Désactiver sellerSelect pendant le chargement
+                document.getElementById('sellerSelect').disabled = true;
+                chargerUtilisateurs().then(() => {
+                    const storedSeller = localStorage.getItem('selectedSeller');
+                    if (storedSeller) {
+                        const { numero_util, nom } = JSON.parse(storedSeller);
+                        const sellerSelect = document.getElementById('sellerSelect');
+                        // Vérifier si l'utilisateur existe dans la liste
+                        const optionExists = Array.from(sellerSelect.options).some(option => option.value === numero_util);
+                        if (optionExists) {
+                            sellerSelect.value = numero_util;
+                            document.getElementById('selectedSellerName').textContent = nom;
+                            document.getElementById('headerSellerName').textContent = nom;
+                            document.getElementById('sellerPassword').disabled = true;
+                            document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
+                            document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
+                            document.getElementById('sellerContent').classList.add('hidden');
+                            document.getElementById('sellerChevron').classList.add('fa-chevron-down');
+                            document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
+                        } else {
+                            localStorage.removeItem('selectedSeller');
+                            localStorage.removeItem('sellerPassword');
+                            document.getElementById('sellerContent').classList.remove('hidden');
+                            document.getElementById('sellerChevron').classList.add('fa-chevron-up');
+                            document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
+                        }
+                    } else {
+                        document.getElementById('sellerContent').classList.remove('hidden');
+                        document.getElementById('sellerChevron').classList.add('fa-chevron-up');
+                        document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
+                    }
+                    // Réactiver sellerSelect après chargement
+                    sellerSelect.disabled = false;
+                });
                 chargerClients();
                 chargerProduits();
             } else {
@@ -448,6 +480,8 @@
             }
 
             try {
+                const sellerSelect = document.getElementById('sellerSelect');
+                const currentSelection = sellerSelect.value; // Préserver la sélection actuelle
                 const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
                     headers: { 'X-User-ID': userId }
                 });
@@ -459,15 +493,20 @@
                 }
                 utilisateursCache = await response.json();
                 console.log('Utilisateurs reçus:', utilisateursCache);
-                const selectElement = document.getElementById('sellerSelect');
 
-                selectElement.innerHTML = '<option value="0">Sélectionner un vendeur</option>';
+                // Mettre à jour la liste sans réinitialiser si possible
+                sellerSelect.innerHTML = '<option value="0">Sélectionner un vendeur</option>';
                 utilisateursCache.forEach(utilisateur => {
                     const option = document.createElement('option');
                     option.value = utilisateur.numero_util;
                     option.textContent = utilisateur.nom;
-                    selectElement.appendChild(option);
+                    sellerSelect.appendChild(option);
                 });
+
+                // Restaurer la sélection si elle est valide
+                if (currentSelection !== '0' && utilisateursCache.some(u => u.numero_util === currentSelection)) {
+                    sellerSelect.value = currentSelection;
+                }
             } catch (error) {
                 showToast('Erreur lors du chargement des utilisateurs: ' + error.message, true);
                 console.error('Erreur utilisateurs:', error);
@@ -526,9 +565,14 @@
                 localStorage.setItem('sellerPassword', password2);
 
                 document.getElementById('selectedSellerName').textContent = sellerName;
+                document.getElementById('headerSellerName').textContent = sellerName;
                 document.getElementById('sellerPassword').disabled = true;
                 document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
-                document.getElementById('validateSellerButton').onclick = clearSeller;
+                document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
+
+                document.getElementById('sellerContent').classList.add('hidden');
+                document.getElementById('sellerChevron').classList.add('fa-chevron-down');
+                document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
 
                 showToast(`Vendeur ${sellerName} validé`);
             } catch (error) {
@@ -537,16 +581,39 @@
             }
         }
 
-        function clearSeller() {
-            localStorage.removeItem('selectedSeller');
-            localStorage.removeItem('sellerPassword');
-            document.getElementById('sellerSelect').value = '0';
+        function changeAndValidateSeller() {
+            console.log('Changement et validation du vendeur...');
+            // Réinitialiser l'UI
+            const sellerSelect = document.getElementById('sellerSelect');
+            sellerSelect.value = '0';
             document.getElementById('sellerPassword').value = '';
             document.getElementById('sellerPassword').disabled = false;
             document.getElementById('selectedSellerName').textContent = '-';
+            document.getElementById('headerSellerName').textContent = '-';
             document.getElementById('validateSellerButton').textContent = 'Valider';
-            document.getElementById('validateSellerButton').onclick = validerVendeur;
-            showToast('Vendeur désélectionné');
+            document.getElementById('sellerContent').classList.remove('hidden');
+            document.getElementById('sellerChevron').classList.add('fa-chevron-up');
+            document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
+
+            // Supprimer les anciennes données du localStorage
+            localStorage.removeItem('selectedSeller');
+            localStorage.removeItem('sellerPassword');
+
+            // Valider le nouvel utilisateur
+            const numeroUtil = sellerSelect.value;
+            const password2 = document.getElementById('sellerPassword').value;
+
+            if (!numeroUtil || numeroUtil === '0') {
+                showToast('Veuillez sélectionner un vendeur', true);
+                return;
+            }
+
+            if (!password2) {
+                showToast('Veuillez entrer le mot de passe', true);
+                return;
+            }
+
+            validerVendeur();
         }
 
         async function chargerClients() {
@@ -1324,91 +1391,36 @@
             closeButton.addEventListener('click', stopScanner);
 
             try {
-                barcodeDetector = new BarcodeDetector({
-                    formats: ['ean_13', 'code_128', 'upc_a', 'upc_e', 'qr_code']
-                });
-
-                const supportedFormats = await BarcodeDetector.getSupportedFormats();
-                console.log('Formats supportés :', supportedFormats);
-                if (supportedFormats.length === 0) {
-                    throw new Error('Aucun format de code-barres supporté par ce navigateur.');
-                }
-
                 stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
+                    video: { facingMode: 'environment' }
                 });
+                preview.srcObject = stream;
 
-                const video = document.createElement('video');
-                video.srcObject = stream;
-                video.autoplay = true;
-                video.playsinline = true;
-                video.muted = true;
-                video.style.width = '100%';
-                video.style.height = '100%';
-                video.style.objectFit = 'contain';
+                barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a'] });
 
-                preview.innerHTML = '';
-                preview.appendChild(video);
-                preview.appendChild(closeButton);
-
-                video.onloadedmetadata = () => {
-                    console.log('Vidéo prête pour la détection.');
-                    video.play().then(() => {
-                        detectBarcodes(video);
-                    }).catch(err => {
-                        console.error('Erreur lors de la lecture de la vidéo:', err);
-                        showToast('Erreur lors de la lecture de la vidéo: ' + err.message, true);
-                        stopScanner();
-                    });
-                };
-            } catch (err) {
-                console.error('Erreur lors du démarrage du scanner:', err);
-                let errorMessage = 'Erreur lors du démarrage du scanner: ';
-                if (err.name === 'NotAllowedError') {
-                    errorMessage += 'Accès à la caméra refusé. Veuillez autoriser l\'accès.';
-                } else if (err.name === 'NotFoundError') {
-                    errorMessage += 'Aucune caméra trouvée sur cet appareil.';
-                } else {
-                    errorMessage += err.message;
-                }
-                showToast(errorMessage, true);
-                stopScanner();
-            }
-        }
-
-        async function detectBarcodes(video) {
-            if (!isScanning) return;
-
-            try {
-                const barcodes = await barcodeDetector.detect(video);
-                if (barcodes.length > 0) {
-                    const barcode = barcodes[0];
-                    const scannedCode = barcode.rawValue;
-                    console.log('Code-barres détecté:', scannedCode);
-
-                    const produit = produitsCache.find(p => p.BAR === parseInt(scannedCode));
-                    if (!produit) {
-                        showToast(`Produit avec code ${scannedCode} non trouvé`, true);
-                        stopScanner();
-                    } else if (produit.QTE <= 0) {
-                        showToast(`Produit ${produit.DESIGNATION} en rupture de stock`, true);
-                        stopScanner();
-                    } else {
-                        selectProduct(produit.NUMERO_ITEM, produit.BAR, produit.PRIX, produit.PRIXBA, produit.QTE, produit.DESIGNATION);
-                        stopScanner();
+                const scan = async () => {
+                    if (!isScanning) return;
+                    try {
+                        const barcodes = await barcodeDetector.detect(preview);
+                        if (barcodes.length > 0) {
+                            const barcode = barcodes[0].rawValue;
+                            console.log('Code-barres détecté:', barcode);
+                            document.getElementById('productBar').value = barcode;
+                            stopScanner();
+                            selectProductByBarcode(barcode);
+                        }
+                    } catch (err) {
+                        console.error('Erreur détection code-barres:', err);
                     }
-                } else {
-                    requestAnimationFrame(() => detectBarcodes(video));
-                }
+                    if (isScanning) {
+                        requestAnimationFrame(scan);
+                    }
+                };
+
+                scan();
             } catch (err) {
-                console.error('Erreur lors de la détection du code-barres:', err);
-                let errorMessage = 'Erreur lors de la détection du code-barres: ';
-                if (err.name === 'NotReadableError') {
-                    errorMessage += 'Impossible de lire le code-barres. Assurez-vous qu\'il est bien visible.';
-                } else {
-                    errorMessage += err.message;
-                }
-                showToast(errorMessage, true);
+                console.error('Erreur démarrage scanner:', err);
+                showToast('Erreur d\'accès à la caméra: ' + err.message, true);
                 stopScanner();
             }
         }
@@ -1420,37 +1432,55 @@
                 stream.getTracks().forEach(track => track.stop());
                 stream = null;
             }
-            const preview = document.getElementById('scannerPreview');
-            const scanButton = document.getElementById('scanButton');
-            const overlay = document.getElementById('scannerOverlay');
-            preview.style.display = 'none';
-            preview.innerHTML = '';
-            overlay.style.display = 'none';
-            scanButton.disabled = false;
-
+            document.getElementById('scannerPreview').srcObject = null;
+            document.getElementById('scannerPreview').style.display = 'none';
+            document.getElementById('scannerOverlay').style.display = 'none';
             document.getElementById('productsList').classList.remove('hidden');
+            document.getElementById('scanButton').disabled = false;
         }
 
-        document.getElementById('searchProduct').addEventListener('input', function(e) {
-            console.log('Recherche produit:', e.target.value);
-            const searchTerm = e.target.value.toLowerCase();
-            const tbody = document.getElementById('productsList');
-
-            tbody.innerHTML = '';
-            const filteredProducts = produitsCache.filter(produit =>
-                produit.NUMERO_ITEM.toString().includes(searchTerm) ||
-                produit.BAR.toString().includes(searchTerm) ||
-                produit.DESIGNATION.toLowerCase().includes(searchTerm) ||
-                parseFloat(produit.PRIX || 0).toFixed(2).includes(searchTerm) ||
-                parseFloat(produit.PRIXBA || 0).toFixed(2).includes(searchTerm)
+        function selectProductByBarcode(barcode) {
+            const produit = produitsCache.find(p => p.BAR.toString() === barcode);
+            if (!produit) {
+                showToast('Produit non trouvé pour ce code-barres', true);
+                return;
+            }
+            selectProduct(
+                produit.NUMERO_ITEM,
+                produit.BAR,
+                produit.PRIX,
+                produit.PRIXBA,
+                produit.QTE,
+                produit.DESIGNATION
             );
+        }
 
-            if (filteredProducts.length === 0) {
+        document.getElementById('productBar').addEventListener('change', (e) => {
+            const barcode = e.target.value;
+            if (barcode) {
+                selectProductByBarcode(barcode);
+            }
+        });
+
+        document.getElementById('searchProduct').addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const filteredProduits = produitsCache.filter(produit =>
+                produit.DESIGNATION.toLowerCase().includes(searchTerm) ||
+                produit.BAR.toString().includes(searchTerm) ||
+                produit.NUMERO_ITEM.toString().includes(searchTerm)
+            );
+            const tbody = document.getElementById('productsList');
+            const countElement = document.getElementById('productCount');
+
+            if (filteredProduits.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
+                countElement.textContent = '0';
+                countElement.classList.remove('hidden');
                 return;
             }
 
-            filteredProducts.forEach(produit => {
+            tbody.innerHTML = '';
+            filteredProduits.forEach(produit => {
                 const stockStatus = produit.QTE <= 0 ? 'Rupture' : produit.QTE <= 5 ? 'Stock faible' : produit.QTE.toFixed(2);
                 const stockClass = produit.QTE <= 0 ? 'stock-rupture' : produit.QTE <= 5 ? 'stock-faible' : '';
                 const buttonDisabled = produit.QTE <= 0 ? 'btn-disabled' : '';
@@ -1469,11 +1499,14 @@
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.NUMERO_ITEM || 'N/A'}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || 0).toFixed(2)}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-        });
-    </script>
+                               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || 0).toFixed(2)}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    countElement.textContent = filteredProduits.length;
+    countElement.classList.remove('hidden');
+});
+</script>
 </body>
 </html>
