@@ -3,15 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ventes du Jour</title>
+    <title>Gestion des Ventes</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Flatpickr pour le DatePicker -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <!-- Chart.js pour les diagrammes -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        .password-input-container {
+            position: relative;
+            display: inline-block;
+        }
+        .password-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+        }
         @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
@@ -22,90 +28,96 @@
         .animate-pulse { animation: pulse 2s infinite ease-in-out; }
         .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
         .animate-total-pulse { animation: totalPulse 1.5s ease-in-out; }
-        #dailySalesSection { animation-delay: 0.3s; }
-        #topArticlesSection { animation-delay: 0.5s; }
-        #profitSection { animation-delay: 0.7s; }
-        #stockValueSection { animation-delay: 0.9s; }
+        #productsSection { animation-delay: 0.2s; }
+        #salesSection { animation-delay: 0.4s; }
         footer { animation-delay: 1s; }
+        #scannerPreview {
+            width: 300px;
+            height: 200px;
+            border: 2px solid #e5e7eb;
+            background: #000;
+            position: fixed;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        #closeScannerButton {
+            z-index: 1001;
+        }
+        #scannerOverlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+        }
         .user-anim { animation: userPulse 1.5s infinite ease-in-out; }
         .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
         .small-email { font-size: 0.75rem; line-height: 1rem; }
+        .quantity-input { width: 60px; }
         .total-large {
             font-size: 2.5rem;
             font-weight: bold;
             color: #4f46e5;
             text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
         }
-        #dailySalesContent .table-container {
-            max-height: 300px;
+        button i.fas.fa-plus {
+            font-size: 1rem;
+        }
+        select {
+            transition: all 0.3s ease;
+        }
+        select:focus {
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+        }
+        select option {
+            padding: 8px;
+            background: #fff;
+            color: #333;
+        }
+        select option:hover {
+            background: #f3f4f6;
+        }
+        #productsContent .table-container {
+            max-height: 250px;
             overflow-y: auto;
             overflow-x: auto;
         }
-        #dailySalesContent .table-container table {
+        #productsContent .table-container table {
             width: 100%;
         }
-        #topArticlesContent .chart-container, #profitContent .chart-container {
-            max-width: 500px;
-            margin: 0 auto;
+        #paymentForm {
+            transition: all 0.3s ease;
         }
-        /* Amélioration des styles des listes déroulantes */
-        .flatpickr-input, select {
-            border: 1px solid #d1d5db;
-            border-radius: 0.375rem;
-            padding: 0.5rem 2.5rem 0.5rem 0.75rem;
-            width: 100%;
-            background: white;
-            appearance: none;
-            background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke%3D%22%236B7280%22%3E%3Cpath%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%222%22%20d%3D%22M19%209l-7%207-7-7%22%2F%3E%3C%2Fsvg%3E");
-            background-repeat: no-repeat;
-            background-position: right 0.75rem center;
-            background-size: 1.5em;
-            transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        .solde-negatif {
+            color: red;
+            font-size: 0.75rem;
         }
-        .flatpickr-input:focus, select:focus {
-            outline: none;
-            border-color: #4f46e5;
-            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+        .solde-positif {
+            color: black;
+            font-size: 0.75rem;
         }
-        select:disabled {
-            background-color: #f3f4f6;
-            cursor: not-allowed;
+        .stock-rupture {
+            background-color: rgba(255, 0, 0, 0.1);
         }
-        /* Styles pour l'impression A4 */
-        @media print and (min-width: 210mm) {
-            body * { visibility: hidden; }
-            #printAreaA4, #printAreaA4 * { visibility: visible; }
-            #printAreaA4 {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 210mm;
-                font-size: 12pt;
-            }
-            .table-container { max-height: none; overflow: visible; }
-            table { page-break-inside: auto; }
-            tr { page-break-inside: avoid; page-break-after: auto; }
-            .no-print { display: none; }
+        .stock-faible {
+            background-color: rgba(255, 165, 0, 0.1);
         }
-        /* Styles pour l'impression ticket 80mm */
-        @media print and (max-width: 80mm) {
-            body * { visibility: hidden; }
-            #printAreaTicket, #printAreaTicket * { visibility: visible; }
-            #printAreaTicket {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 80mm;
-                font-size: 10pt;
-                line-height: 1.2;
-            }
-            .no-print { display: none; }
+        .btn-disabled {
+            background-color: #d1d5db !important;
+            cursor: not-allowed !important;
         }
     </style>
 </head>
 <body class="bg-gray-100">
-    <!-- Menu de navigation -->
-    <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-slide-in no-print">
+    <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-slide-in">
         <div class="container mx-auto flex justify-between items-center">
             <div class="flex flex-col">
                 <h1 class="text-2xl font-bold flex items-center">
@@ -114,9 +126,6 @@
                 <span id="userDisplay" class="small-email user-anim hidden"></span>
             </div>
             <div class="space-x-4 flex items-center">
-                <a href="vente.html" class="hover:text-indigo-200 transition flex items-center">
-                    <i class="fas fa-shopping-cart mr-1"></i> Ventes
-                </a>
                 <a href="index.html" class="hover:text-indigo-200 transition flex items-center">
                     <i class="fas fa-home mr-1"></i> Accueil
                 </a>
@@ -127,289 +136,287 @@
         </div>
     </nav>
 
-    <!-- Contenu principal -->
-    <div class="container mx-auto px-4 py-16 mt-16">
-        <header class="mb-8">
-            <h1 class="text-3xl font-bold text-indigo-700">Ventes</h1>
-            <p class="text-gray-600 flex items-center">
-                <i class="fas fa-calendar-day mr-2 text-indigo-500"></i> Résumé des ventes
-            </p>
-        </header>
-
-        <!-- Filtres -->
-        <div class="mb-6 flex flex-col md:flex-row gap-4 no-print">
-            <div class="relative w-full md:w-1/4">
-                <label for="dateFilter" class="text-sm font-medium text-gray-700">Date</label>
-                <input type="text" id="dateFilter" placeholder="Sélectionner une date" class="flatpickr-input mt-1" aria-describedby="dateFilterHelp">
-                <p id="dateFilterHelp" class="sr-only">Sélectionnez une date au format AAAA-MM-JJ</p>
-            </div>
-            <div class="relative w-full md:w-1/4">
-                <label for="clientFilter" class="text-sm font-medium text-gray-700">Client</label>
-                <select id="clientFilter" class="mt-1 block w-full" aria-label="Filtrer par client">
-                    <option value="">Tous les clients</option>
-                    <option value="0">Comptoir</option>
-                </select>
-            </div>
-            <div class="relative w-full md:w-1/4">
-                <label for="userFilter" class="text-sm font-medium text-gray-700">Utilisateur</label>
-                <select id="userFilter" class="mt-1 block w-full" aria-label="Filtrer par utilisateur">
-                    <option value="0">Tous les utilisateurs</option>
-                </select>
-            </div>
-            <div class="relative w-full md:w-1/4 flex items-end">
-                <button onclick="printA4()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition w-full">
-                    <i class="fas fa-print mr-1"></i> Imprimer A4
-                </button>
-            </div>
-        </div>
-
-        <!-- Ventes -->
-        <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="dailySalesSection">
-            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('dailySalesSection')">
+    <div class="container mx-auto px-4 pt-20">
+        <!-- Section vendeur en haut, repliable -->
+        <div id="sellerSection" class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8">
+            <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('sellerSection')">
                 <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                    <i class="fas fa-calendar-day mr-2 text-indigo-500"></i> Liste des Ventes
-                    <span id="dailySalesCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                    <i class="fas fa-user mr-2 text-indigo-500"></i> Sélection du Vendeur
                 </h2>
                 <button class="text-gray-600 hover:text-gray-800 transition">
-                    <i class="fas fa-chevron-down" id="dailySalesChevron"></i>
+                    <i class="fas fa-chevron-down" id="sellerChevron"></i>
                 </button>
             </div>
-            <div class="p-6 hidden" id="dailySalesContent">
-                <div class="mb-4">
-                    <h3 class="text-lg font-medium text-gray-700">Total: <span id="dailySalesTotal" class="text-indigo-600 font-bold">0.00 DA</span></h3>
-                </div>
-                <!-- Tickets -->
-                <div class="mb-6">
-                    <h4 class="text-md font-medium text-gray-600 mb-2">Tickets (Ventes Comptoir)</h4>
-                    <div class="table-container">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Commande</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fait par</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody id="ticketsList" class="bg-white divide-y divide-gray-200">
-                                <tr>
-                                    <td colspan="6" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                                </tr>
-                            </tbody>
-                        </table>
+            <div class="p-6" id="sellerContent">
+                <div class="flex flex-col md:flex-row gap-4 mb-4">
+                    <div class="relative w-full md:w-1/3">
+                        <span class="text-sm font-medium text-gray-700 mr-2">Vendeur: </span>
+                        <select id="sellerSelect" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300">
+                            <option value="0">Sélectionner un vendeur</option>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700 top-6">
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                    </div>
+                    <div class="relative w-full md:w-1/3 password-input-container">
+                        <span class="text-sm font-medium text-gray-700 mr-2">Mot de passe: </span>
+                        <input type="password" id="sellerPassword" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Entrez le mot de passe">
+                        <i class="fas fa-eye password-toggle" id="togglePassword" onclick="togglePasswordVisibility()"></i>
+                    </div>
+                    <div class="w-full md:w-1/3">
+                        <button id="validateSellerButton" onclick="validerVendeur()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300">
+                            <i class="fas fa-check mr-2"></i>Valider
+                        </button>
                     </div>
                 </div>
-                <!-- Bons de Livraison -->
                 <div>
-                    <h4 class="text-md font-medium text-gray-600 mb-2">Bons de Livraison</h4>
+                    <span class="text-sm font-medium text-gray-700">Vendeur sélectionné: </span>
+                    <span id="selectedSellerName" class="text-sm text-indigo-600">-</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-8">
+            <header class="mb-8">
+                <h1 class="text-3xl font-bold text-indigo-700">Gestion des Ventes</h1>
+                <p class="text-gray-600 flex items-center">
+                    <i class="fas fa-shopping-cart mr-2 text-indigo-500"></i> Ventes en temps réel
+                </p>
+            </header>
+
+            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="productsSection">
+                <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('productsSection')">
+                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-boxes mr-2 text-indigo-500"></i> Produits Disponibles
+                        <span id="productCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                    </h2>
+                    <button class="text-gray-600 hover:text-gray-800 transition">
+                        <i class="fas fa-chevron-down" id="productsChevron"></i>
+                    </button>
+                </div>
+                <div class="p-6 hidden" id="productsContent">
+                    <div class="mb-4 flex flex-col md:flex-row gap-4">
+                        <div class="relative w-full md:w-1/2">
+                            <input type="text" id="searchProduct" placeholder="Rechercher un produit..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                        </div>
+                        <div class="relative w-full md:w-1/2">
+                            <input type="text" id="productBar" class="w-full px-3 py-2 border rounded-md" placeholder="Scanner ou entrer code-barres" required>
+                            <button id="scanButton" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition duration-300" onclick="startScanner()">
+                                <i class="fas fa-camera"></i> Scanner
+                            </button>
+                        </div>
+                    </div>
                     <div class="table-container">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Commande</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fait par</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Désignation</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Vente</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Achat</th>
                                 </tr>
                             </thead>
-                            <tbody id="bonsList" class="bg-white divide-y divide-gray-200">
+                            <tbody id="productsList" class="bg-white divide-y divide-gray-200">
                                 <tr>
-                                    <td colspan="6" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                                    <td colspan="7" class="text-center py-4 text-gray-500">Chargement en cours...</td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Articles les plus vendus -->
-        <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="topArticlesSection">
-            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('topArticlesSection')">
-                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                    <i class="fas fa-chart-pie mr-2 text-indigo-500"></i> Articles les Plus Vendus
-                    <span id="topArticlesCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                </h2>
-                <button class="text-gray-600 hover:text-gray-800 transition">
-                    <i class="fas fa-chevron-down" id="topArticlesChevron"></i>
-                </button>
-            </div>
-            <div class="p-6 hidden" id="topArticlesContent">
-                <div class="mb-4">
-                    <h3 class="text-lg font-medium text-gray-700">Total Quantité Vendue: <span id="topArticlesTotal" class="text-indigo-600 font-bold">0</span></h3>
+            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="salesSection">
+                <div class="p-6 flex justify-between items-center">
+                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-receipt mr-2 text-indigo-500"></i> Ventes
+                        <span id="saleItemCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                    </h2>
                 </div>
-                <div class="flex justify-center">
-                    <canvas id="topArticlesChart" width="400" height="400"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <!-- Bénéfice -->
-        <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="profitSection">
-            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('profitSection')">
-                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                    <i class="fas fa-chart-line mr-2 text-indigo-500"></i> Bénéfice
-                    <span id="profitCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                </h2>
-                <button class="text-gray-600 hover:text-gray-800 transition">
-                    <i class="fas fa-chevron-down" id="profitChevron"></i>
-                </button>
-            </div>
-            <div class="p-6 hidden" id="profitContent">
-                <div class="mb-4">
-                    <h3 class="text-lg font-medium text-gray-700">Bénéfice Total (Date Sélectionnée): <span id="profitTotal" class="text-indigo-600 font-bold">0.00 DA</span></h3>
-                </div>
-                <div class="flex justify-center">
-                    <canvas id="profitChart" width="400" height="300"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <!-- Valeur du Stock et Zakat -->
-        <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="stockValueSection">
-            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('stockValueSection')">
-                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                    <i class="fas fa-warehouse mr-2 text-indigo-500"></i> Valeur du Stock et Zakat
-                </h2>
-                <button class="text-gray-600 hover:text-gray-800 transition">
-                    <i class="fas fa-chevron-down" id="stockValueChevron"></i>
-                </button>
-            </div>
-            <div class="p-6 hidden" id="stockValueContent">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="bg-gray-50 p-4 rounded-md">
-                        <h3 class="text-lg font-medium text-gray-700">Valeur Stock (Achat)</h3>
-                        <p id="stockValueAchat" class="text-indigo-600 font-bold text-2xl">0.00 DA</p>
-                    </div>
-                    <div class="bg-gray-50 p-4 rounded-md">
-                        <h3 class="text-lg font-medium text-gray-700">Valeur Stock (Vente)</h3>
-                        <p id="stockValueVente" class="text-indigo-600 font-bold text-2xl">0.00 DA</p>
-                    </div>
-                    <div class="bg-gray-50 p-4 rounded-md flex items-center">
-                        <svg class="w-8 h-8 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2-2 4 4"></path>
-                        </svg>
-                        <div>
-                            <h3 class="text-lg font-medium text-gray-700">زكاتي (Zakat)</h3>
-                            <p id="zakatValue" class="text-green-600 font-bold text-2xl">0.00 DA</p>
+                <div class="p-6">
+                    <div class="mb-6">
+                        <h3 class="font-medium mb-3">Lignes de la vente en cours</h3>
+                        <div class="mb-4">
+                            <div class="total-large animate-total-pulse text-center mb-4">
+                                Total: <span id="totalSale">0.00 DA</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <div class="relative">
+                                    <div class="mb-4">
+                                        <span class="text-sm font-medium text-gray-700 mr-2">Mode de paiement: </span>
+                                        <div class="relative inline-block w-64">
+                                            <select id="paymentMode" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300" onchange="togglePaymentForm()">
+                                                <option value="espece" selected>Espèce</option>
+                                                <option value="a_terme">À terme</option>
+                                            </select>
+                                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                                                <i class="fas fa-chevron-down"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div id="paymentForm" class="hidden mb-4">
+                                        <label for="amountPaid" class="text-sm font-medium text-gray-700 mr-2">Montant versé: </label>
+                                        <input type="number" id="amountPaid" step="0.01" min="0" class="w-64 px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0.00 DA">
+                                    </div>
+                                    <span class="text-sm font-medium text-gray-700 mr-2">Client: </span>
+                                    <div class="relative inline-block w-64">
+                                        <select id="saleClientId" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300">
+                                            <option value="0">Vente Comptoir (Sans client)</option>
+                                        </select>
+                                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Unitaire</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tempSalesList" class="bg-white divide-y divide-gray-200">
+                                    <tr>
+                                        <td colspan="6" class="text-center py-4 text-gray-500">Aucune ligne ajoutée</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-4 flex justify-end space-x-2">
+                            <button id="printSaleButton80mm" onclick="imprimerVente80mm()" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition duration-300 transform hover:scale-105" disabled>
+                                <i class="fas fa-print mr-2"></i>Imprimer 80mm
+                            </button>
+                            <button id="printSaleButtonA4" onclick="imprimerVenteA4()" class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition duration-300 transform hover:scale-105" disabled>
+                                <i class="fas fa-file-pdf mr-2"></i>Imprimer A4
+                            </button>
+                            <button id="validateSaleButton" onclick="validerVente()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105" disabled>
+                                <i class="fas fa-check mr-2"></i>Valider la vente
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-
-        <!-- Zone d'impression A4 (cachée par défaut) -->
-        <div id="printAreaA4" class="hidden">
-            <h1 class="text-2xl font-bold mb-4">Rapport des Ventes</h1>
-            <p class="mb-2">Date: <span id="printDate"></span></p>
-            <p class="mb-4">Client: <span id="printClient"></span></p>
-            <h2 class="text-xl font-semibold mb-2">Tickets (Ventes Comptoir)</h2>
-            <table class="min-w-full border-collapse border border-gray-300 mb-6">
-                <thead>
-                    <tr class="bg-gray-100">
-                        <th class="border border-gray-300 px-4 py-2 text-left">N° Commande</th>
-                        <th class="border border-gray-300 px-4 py-2 text-left">Date</th>
-                        <th class="border border-gray-300 px-4 py-2 text-left">Client</th>
-                        <th class="border border-gray-300 px-4 py-2 text-left">Fait par</th>
-                        <th class="border border-gray-300 px-4 py-2 text-left">Total</th>
-                    </tr>
-                </thead>
-                <tbody id="printTicketsList"></tbody>
-            </table>
-            <h2 class="text-xl font-semibold mb-2">Bons de Livraison</h2>
-            <table class="min-w-full border-collapse border border-gray-300 mb-6">
-                <thead>
-                    <tr class="bg-gray-100">
-                        <th class="border border-gray-300 px-4 py-2 text-left">N° Commande</th>
-                        <th class="border border-gray-300 px-4 py-2 text-left">Date</th>
-                        <th class="border border-gray-300 px-4 py-2 text-left">Client</th>
-                        <th class="border border-gray-300 px-4 py-2 text-left">Fait par</th>
-                        <th class="border border-gray-300 px-4 py-2 text-left">Total</th>
-                    </tr>
-                </thead>
-                <tbody id="printBonsList"></tbody>
-            </table>
-            <p class="text-lg font-bold">Total: <span id="printTotal"></span> DA</p>
-        </div>
-
-        <!-- Zone d'impression ticket 80mm (cachée par défaut) -->
-        <div id="printAreaTicket" class="hidden">
-            <div style="width: 80mm; padding: 5mm; font-family: Arial, sans-serif;">
-                <h1 style="text-align: center; font-size: 14pt; margin-bottom: 5mm;">FirePoz</h1>
-                <p style="text-align: center; margin: 2mm 0;">Vente #<span id="ticketNumero"></span></p>
-                <p style="margin: 2mm 0;">Date: <span id="ticketDate"></span></p>
-                <p style="margin: 2mm 0;">Client: <span id="ticketClient"></span></p>
-                <p style="margin: 2mm 0;">Fait par: <span id="ticketUtilisateur"></span></p>
-                <table style="width: 100%; border-collapse: collapse; margin: 5mm 0;">
-                    <thead>
-                        <tr style="border-bottom: 1px solid #000;">
-                            <th style="text-align: left; padding: 2mm;">Produit</th>
-                            <th style="text-align: center; padding: 2mm;">Qté</th>
-                            <th style="text-align: right; padding: 2mm;">Prix</th>
-                            <th style="text-align: right; padding: 2mm;">Total</th>
-                        </tr>
-                    </thead>
-                    <tbody id="ticketLignes"></tbody>
-                </table>
-                <p style="text-align: right; font-weight: bold; margin: 5mm 0;">Total: <span id="ticketTotal"></span> DA</p>
-                <p style="text-align: center; margin: 5mm 0;">Merci de votre visite !</p>
-            </div>
-        </div>
     </div>
 
-    <!-- Footer -->
-    <footer class="bg-gray-700 text-white text-center py-4 animate-fade-in no-print">
+    <div id="scannerPreview" class="relative">
+        <button id="closeScannerButton" class="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition duration-300">
+            <i class="fas fa-times"></i> Fermer
+        </button>
+    </div>
+    <div id="scannerOverlay"></div>
+
+    <footer class="bg-gray-700 text-white text-center py-4 animate-fade-in">
         <p>Développé par Khelladi Hicham</p>
         <p>Tel: <a href="tel:00213553700900" class="underline hover:text-indigo-300 transition duration-300">00213553700900</a></p>
         <p>Email: <a href="mailto:Hicham.khelladi@gmail.com" class="underline hover:text-indigo-300 transition duration-300">Hicham.khelladi@gmail.com</a></p>
     </footer>
 
-    <!-- Toast -->
-    <div id="toast" class="fixed bottom-4 right-4 hidden no-print">
+    <div id="toast" class="fixed bottom-4 right-4 hidden">
         <div class="flex items-center px-6 py-3 rounded-md shadow-lg">
             <i id="toastIcon" class="mr-2"></i>
             <span id="toastMessage"></span>
         </div>
     </div>
 
-    <!-- Modal pour les détails des lignes de vente -->
-    <div id="saleDetailsModal" class="fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center hidden z-50 no-print">
-        <div class="bg-white rounded-lg shadow-lg max-w-2xl w-full p-6">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-semibold text-gray-800">Détails de la Vente #<span id="modalSaleNumber"></span></h3>
-                <button onclick="closeSaleDetailsModal()" class="text-gray-600 hover:text-gray-800">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="table-container max-h-96 overflow-y-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Unitaire</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Total</th>
-                        </tr>
-                    </thead>
-                    <tbody id="saleDetailsList" class="bg-white divide-y divide-gray-200"></tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
     <script>
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
-        let dailySalesCache = { tickets: [], bons: [], total: 0 };
+        let tempSaleLines = [];
+        let produitsCache = [];
         let clientsCache = [];
-        let topArticlesCache = [];
-        let profitCache = [];
-        let topArticlesChart = null;
-        let profitChart = null;
+        let utilisateursCache = [];
+
+        function togglePaymentForm() {
+            const paymentMode = document.getElementById('paymentMode').value;
+            const paymentForm = document.getElementById('paymentForm');
+            paymentForm.classList.toggle('hidden', paymentMode === 'espece');
+        }
+
+        function togglePasswordVisibility() {
+            const passwordInput = document.getElementById('sellerPassword');
+            const toggleIcon = document.getElementById('togglePassword');
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.classList.remove('fa-eye');
+                toggleIcon.classList.add('fa-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                toggleIcon.classList.remove('fa-eye-slash');
+                toggleIcon.classList.add('fa-eye');
+            }
+        }
+
+        function toggleSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
+            const chevron = document.getElementById(`${sectionId.replace('Section', 'Chevron')}`);
+
+            content.classList.toggle('hidden');
+            chevron.classList.toggle('fa-chevron-down');
+            chevron.classList.toggle('fa-chevron-up');
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Page chargée, vérification utilisateur...');
+            const userId = localStorage.getItem('userId');
+            const userEmail = localStorage.getItem('userEmail');
+            if (userId && userEmail) {
+                console.log('Utilisateur connecté:', userId, userEmail);
+                document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
+                document.getElementById('userDisplay').classList.remove('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+                chargerUtilisateurs();
+                const storedSeller = localStorage.getItem('selectedSeller');
+                if (storedSeller) {
+                    const { numero_util, nom } = JSON.parse(storedSeller);
+                    document.getElementById('sellerSelect').value = numero_util;
+                    document.getElementById('selectedSellerName').textContent = nom;
+                    document.getElementById('sellerPassword').disabled = true;
+                    document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
+                    document.getElementById('validateSellerButton').onclick = clearSeller;
+                }
+                chargerClients();
+                chargerProduits();
+            } else {
+                console.log('Aucun utilisateur connecté, redirection vers index.html');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                window.location.href = 'index.html';
+            }
+
+            fetch(`${API_BASE_URL}/`)
+                .then(response => response.text())
+                .then(text => console.log('Statut API:', text))
+                .catch(err => {
+                    console.error('API non disponible:', err);
+                    showToast('Erreur de connexion à l\'API', true);
+                });
+        });
+
+        function loginLogout() {
+            console.log('Déconnexion en cours...');
+            const userId = localStorage.getItem('userId');
+            if (userId) {
+                localStorage.removeItem('userId');
+                localStorage.removeItem('userEmail');
+                localStorage.removeItem('selectedSeller');
+                localStorage.removeItem('sellerPassword');
+                document.getElementById('userDisplay').textContent = '';
+                document.getElementById('userDisplay').classList.add('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                window.location.href = 'index.html';
+            }
+        }
 
         function showToast(message, isError = false) {
             const toast = document.getElementById('toast');
@@ -432,27 +439,114 @@
             }, 3000);
         }
 
-        function toggleSection(sectionId) {
-            const section = document.getElementById(sectionId);
-            const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
-            const chevron = document.getElementById(`${sectionId.replace('Section', 'Chevron')}`);
+        async function chargerUtilisateurs() {
+            console.log('Chargement des utilisateurs...');
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir les utilisateurs', true);
+                return;
+            }
 
-            content.classList.toggle('hidden');
-            chevron.classList.toggle('fa-chevron-down');
-            chevron.classList.toggle('fa-chevron-up');
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                console.log('Réponse liste_utilisateurs:', response.status, response.statusText);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Erreur texte liste_utilisateurs:', errorText);
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                utilisateursCache = await response.json();
+                console.log('Utilisateurs reçus:', utilisateursCache);
+                const selectElement = document.getElementById('sellerSelect');
+
+                selectElement.innerHTML = '<option value="0">Sélectionner un vendeur</option>';
+                utilisateursCache.forEach(utilisateur => {
+                    const option = document.createElement('option');
+                    option.value = utilisateur.numero_util;
+                    option.textContent = utilisateur.nom;
+                    selectElement.appendChild(option);
+                });
+            } catch (error) {
+                showToast('Erreur lors du chargement des utilisateurs: ' + error.message, true);
+                console.error('Erreur utilisateurs:', error);
+            }
         }
 
-        function loginLogout() {
-            console.log('Déconnexion en cours...');
+        async function validerVendeur() {
+            console.log('Validation du vendeur...');
+            const numeroUtil = document.getElementById('sellerSelect').value;
+            const password2 = document.getElementById('sellerPassword').value;
             const userId = localStorage.getItem('userId');
-            if (userId) {
-                localStorage.removeItem('userId');
-                localStorage.removeItem('userEmail');
-                document.getElementById('userDisplay').textContent = '';
-                document.getElementById('userDisplay').classList.add('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                window.location.href = 'index.html';
+
+            if (numeroUtil === '0') {
+                showToast('Veuillez sélectionner un vendeur', true);
+                return;
             }
+
+            if (!password2) {
+                showToast('Veuillez entrer le mot de passe', true);
+                return;
+            }
+
+            try {
+                const testVenteData = {
+                    numero_table: 0,
+                    date_comande: new Date().toISOString(),
+                    payment_mode: 'espece',
+                    amount_paid: 0,
+                    numero_util: parseInt(numeroUtil),
+                    password2: password2,
+                    lignes: [{ numero_item: 0, quantite: 0, prixt: 0, remarque: 'test', prixbh: 0 }]
+                };
+
+                const response = await fetch(`${API_BASE_URL}/valider_vente`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify(testVenteData)
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Erreur validation vendeur:', errorText);
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+
+                const selectedOption = document.getElementById('sellerSelect').options[document.getElementById('sellerSelect').selectedIndex];
+                const sellerName = selectedOption.text;
+
+                localStorage.setItem('selectedSeller', JSON.stringify({
+                    numero_util: numeroUtil,
+                    nom: sellerName
+                }));
+                localStorage.setItem('sellerPassword', password2);
+
+                document.getElementById('selectedSellerName').textContent = sellerName;
+                document.getElementById('sellerPassword').disabled = true;
+                document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
+                document.getElementById('validateSellerButton').onclick = clearSeller;
+
+                showToast(`Vendeur ${sellerName} validé`);
+            } catch (error) {
+                showToast(`Erreur validation vendeur: ${error.message}`, true);
+                console.error('Erreur validation vendeur:', error);
+            }
+        }
+
+        function clearSeller() {
+            localStorage.removeItem('selectedSeller');
+            localStorage.removeItem('sellerPassword');
+            document.getElementById('sellerSelect').value = '0';
+            document.getElementById('sellerPassword').value = '';
+            document.getElementById('sellerPassword').disabled = false;
+            document.getElementById('selectedSellerName').textContent = '-';
+            document.getElementById('validateSellerButton').textContent = 'Valider';
+            document.getElementById('validateSellerButton').onclick = validerVendeur;
+            showToast('Vendeur désélectionné');
         }
 
         async function chargerClients() {
@@ -467,21 +561,26 @@
                 const response = await fetch(`${API_BASE_URL}/liste_clients`, {
                     headers: { 'X-User-ID': userId }
                 });
+                console.log('Réponse liste_clients:', response.status, response.statusText);
                 if (!response.ok) {
                     const errorText = await response.text();
+                    console.error('Erreur texte liste_clients:', errorText);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 clientsCache = await response.json();
-                const selectElement = document.getElementById('clientFilter');
+                console.log('Clients reçus:', clientsCache);
+                const selectElement = document.getElementById('saleClientId');
 
-                selectElement.innerHTML = `
-                    <option value="">Tous les clients</option>
-                    <option value="0">Comptoir</option>
-                `;
+                selectElement.innerHTML = '<option value="0">Vente Comptoir (Sans client)</option>';
+
+                await chargerSoldesClients();
+
                 clientsCache.forEach(client => {
+                    const solde = parseFloat(client.solde) || 0;
+                    const soldeClass = solde < 0 ? 'solde-negatif' : 'solde-positif';
                     const option = document.createElement('option');
                     option.value = client.numero_clt;
-                    option.textContent = `${client.nom} (ID: ${client.numero_clt})`;
+                    option.innerHTML = `${client.nom} (ID: ${client.numero_clt}) <span class="${soldeClass}">[Solde: ${solde.toFixed(2)} DA]</span>`;
                     selectElement.appendChild(option);
                 });
             } catch (error) {
@@ -490,519 +589,890 @@
             }
         }
 
-        async function chargerUtilisateurs() {
-            console.log('Chargement des utilisateurs...');
+        async function chargerSoldesClients() {
+            console.log('Chargement des soldes des clients...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Veuillez vous connecter pour voir les utilisateurs', true);
                 return;
             }
 
             try {
-                const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+                const response = await fetch(`${API_BASE_URL}/client_solde`, {
                     headers: { 'X-User-ID': userId }
                 });
                 if (!response.ok) {
                     const errorText = await response.text();
+                    console.error('Erreur texte client_solde:', errorText);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
-                const utilisateurs = await response.json();
-                const selectElement = document.getElementById('userFilter');
+                const soldes = await response.json();
+                console.log('Soldes reçus:', soldes);
 
-                selectElement.innerHTML = `<option value="0">Tous les utilisateurs</option>`;
-                utilisateurs.forEach(user => {
-                    const option = document.createElement('option');
-                    option.value = user.numero_util;
-                    option.textContent = `${user.nom} (${user.statue})`;
-                    selectElement.appendChild(option);
+                clientsCache.forEach(client => {
+                    const soldeData = soldes.find(s => s.numero_clt === client.numero_clt);
+                    client.solde = soldeData ? soldeData.solde : '0.00';
                 });
             } catch (error) {
-                showToast('Erreur lors du chargement des utilisateurs: ' + error.message, true);
-                console.error('Erreur utilisateurs:', error);
+                console.error('Erreur chargement soldes:', error);
+                showToast('Erreur lors du chargement des soldes: ' + error.message, true);
             }
         }
 
-        async function chargerVentesJour(date = '', numeroClt = '', numeroUtil = '0') {
-            console.log('Chargement des ventes...', { date, numeroClt, numeroUtil });
+        async function chargerProduits() {
+            console.log('Chargement des produits...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Veuillez vous connecter pour voir les ventes', true);
-                window.location.href = 'index.html';
+                showToast('Veuillez vous connecter pour voir les produits', true);
                 return;
             }
 
             try {
-                const params = new URLSearchParams();
-                if (date) params.append('date', date);
-                if (numeroClt) params.append('numero_clt', numeroClt);
-                if (numeroUtil && numeroUtil !== '0') params.append('numero_util', numeroUtil);
-                const url = `${API_BASE_URL}/ventes_jour?${params.toString()}`;
-
-                const response = await fetch(url, {
+                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
                     headers: { 'X-User-ID': userId }
                 });
+                console.log('Réponse liste_produits:', response.status, response.statusText);
                 if (!response.ok) {
                     const errorText = await response.text();
+                    console.error('Erreur texte liste_produits:', errorText);
+                    showToast(`Erreur chargement produits: ${errorText}`, true);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
-                dailySalesCache = await response.json();
+                produitsCache = await response.json();
+                console.log('Produits reçus:', produitsCache);
+                const tbody = document.getElementById('productsList');
+                const countElement = document.getElementById('productCount');
 
-                const ticketsTbody = document.getElementById('ticketsList');
-                const bonsTbody = document.getElementById('bonsList');
-                const countElement = document.getElementById('dailySalesCount');
-                const totalElement = document.getElementById('dailySalesTotal');
+                produitsCache = produitsCache.map(produit => ({
+                    ...produit,
+                    NUMERO_ITEM: parseInt(produit.NUMERO_ITEM),
+                    BAR: parseInt(produit.BAR),
+                    PRIXBA: parseFloat(produit.PRIXBA) || 0.0,
+                    QTE: parseFloat(produit.QTE) || 0
+                }));
 
-                if (dailySalesCache.tickets.length === 0) {
-                    ticketsTbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun ticket</td></tr>';
-                } else {
-                    ticketsTbody.innerHTML = '';
-                    dailySalesCache.tickets.forEach(vente => {
-                        const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
-                        const tr = document.createElement('tr');
-                        tr.className = 'hover:bg-gray-50';
-                        tr.innerHTML = `
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                <button onclick="showSaleDetails(${vente.numero_comande}, '${vente.nature}')" class="bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition mr-2">
-                                    <i class="fas fa-eye"></i> Voir
-                                </button>
-                                <button onclick="printTicket(${vente.numero_comande}, '${vente.nature}')" class="bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition">
-                                    <i class="fas fa-print"></i> Ticket
-                                </button>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${vente.numero_comande}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.client_nom || 'Comptoir'}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.utilisateur_nom || 'N/A'}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalVente.toFixed(2)} DA</td>
-                        `;
-                        ticketsTbody.appendChild(tr);
-                    });
+                if (produitsCache.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
+                    countElement.textContent = '0';
+                    countElement.classList.remove('hidden');
+                    return;
                 }
 
-                if (dailySalesCache.bons.length === 0) {
-                    bonsTbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun bon de livraison</td></tr>';
-                } else {
-                    bonsTbody.innerHTML = '';
-                    dailySalesCache.bons.forEach(vente => {
-                        const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
-                        const tr = document.createElement('tr');
-                        tr.className = 'hover:bg-gray-50';
-                        tr.innerHTML = `
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                <button onclick="showSaleDetails(${vente.numero_comande}, '${vente.nature}')" class="bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition mr-2">
-                                    <i class="fas fa-eye"></i> Voir
-                                </button>
-                                <button onclick="printTicket(${vente.numero_comande}, '${vente.nature}')" class="bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition">
-                                    <i class="fas fa-print"></i> Ticket
-                                </button>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${vente.numero_comande}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.client_nom || 'Comptoir'}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.utilisateur_nom || 'N/A'}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalVente.toFixed(2)} DA</td>
-                        `;
-                        bonsTbody.appendChild(tr);
-                    });
-                }
+                tbody.innerHTML = '';
+                produitsCache.forEach(produit => {
+                    console.log('Rendu produit:', produit);
+                    const stockStatus = produit.QTE <= 0 ? 'Rupture' : produit.QTE <= 5 ? 'Stock faible' : produit.QTE.toFixed(2);
+                    const stockClass = produit.QTE <= 0 ? 'stock-rupture' : produit.QTE <= 5 ? 'stock-faible' : '';
+                    const buttonDisabled = produit.QTE <= 0 ? 'btn-disabled' : '';
+                    const buttonAttrs = produit.QTE <= 0 ? 'disabled' : '';
 
-                countElement.textContent = dailySalesCache.tickets.length + dailySalesCache.bons.length;
+                    const tr = document.createElement('tr');
+                    tr.className = `hover:bg-gray-50 ${stockClass}`;
+                    tr.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <button onclick="selectProduct(${produit.NUMERO_ITEM}, ${produit.BAR}, ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition duration-300 ${buttonDisabled}" ${buttonAttrs}>
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stockStatus}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.NUMERO_ITEM || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || 0).toFixed(2)}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                countElement.textContent = produitsCache.length;
                 countElement.classList.remove('hidden');
-                totalElement.textContent = `${parseFloat(dailySalesCache.total).toFixed(2)} DA`;
             } catch (error) {
-                document.getElementById('ticketsList').innerHTML = `
-                    <tr><td colspan="6" class="text-center py-4 text-red-500">Erreur de chargement: ${error.message}</td></tr>
+                document.getElementById('productsList').innerHTML = `
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-red-500">
+                            Erreur de chargement: ${error.message}
+                        </td>
+                    </tr>
                 `;
-                document.getElementById('bonsList').innerHTML = `
-                    <tr><td colspan="6" class="text-center py-4 text-red-500">Erreur de chargement: ${error.message}</td></tr>
-                `;
-                console.error('Erreur ventes:', error);
-                showToast(`Erreur chargement ventes: ${error.message}`, true);
+                console.error('Erreur produits:', error);
+                showToast(`Erreur chargement produits: ${error.message}`, true);
             }
         }
 
-        async function chargerArticlesPlusVendus(date = '', numeroClt = '', numeroUtil = '0') {
-            console.log('Chargement des articles les plus vendus...', { date, numeroClt, numeroUtil });
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les articles', true);
+        function selectProduct(numeroItem, bar, prix, prixba, stock, designation) {
+            console.log('Produit sélectionné:', numeroItem, bar, prix, prixba, stock, designation);
+            const numeroItemInt = parseInt(numeroItem);
+            const barInt = parseInt(bar);
+            const unitPrice = parseFloat(prix) || 0;
+            const pricePurchase = parseFloat(prixba) || 0;
+            const quantity = 1.0;
+
+            if (isNaN(numeroItemInt) || isNaN(barInt) || unitPrice <= 0) {
+                showToast('Produit invalide ou prix incorrect', true);
                 return;
             }
 
-            try {
-                const params = new URLSearchParams();
-                if (date) params.append('date', date);
-                if (numeroClt) params.append('numero_clt', numeroClt);
-                if (numeroUtil && numeroUtil !== '0') params.append('numero_util', numeroUtil);
-                const url = `${API_BASE_URL}/articles_plus_vendus?${params.toString()}`;
-
-                const response = await fetch(url, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                topArticlesCache = await response.json();
-
-                const countElement = document.getElementById('topArticlesCount');
-                const totalElement = document.getElementById('topArticlesTotal');
-
-                const totalQuantite = topArticlesCache.reduce((sum, article) => sum + parseInt(article.quantite || 0), 0);
-
-                countElement.textContent = topArticlesCache.length;
-                countElement.classList.remove('hidden');
-                totalElement.textContent = totalQuantite;
-
-                const labels = topArticlesCache.map(article => article.designation || 'N/A');
-                const quantites = topArticlesCache.map(article => parseInt(article.quantite || 0));
-
-                const backgroundColors = quantites.map((_, index) => `hsl(${(index * 360) / quantites.length}, 70%, 60%)`);
-                const borderColors = quantites.map((_, index) => `hsl(${(index * 360) / quantites.length}, 70%, 40%)`);
-
-                if (topArticlesChart) {
-                    topArticlesChart.destroy();
-                }
-
-                const ctx = document.getElementById('topArticlesChart').getContext('2d');
-                topArticlesChart = new Chart(ctx, {
-                    type: 'pie',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            data: quantites,
-                            backgroundColor: backgroundColors,
-                            borderColor: borderColors,
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: {
-                            legend: { position: 'top' },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        const label = context.label || '';
-                                        const value = context.raw || 0;
-                                        return `${label}: ${value} unités`;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-            } catch (error) {
-                console.error('Erreur articles:', error);
-                showToast(`Erreur chargement articles: ${error.message}`, true);
-                document.getElementById('topArticlesTotal').textContent = '0';
-                document.getElementById('topArticlesCount').classList.add('hidden');
+            if (stock <= 0) {
+                showToast('Stock insuffisant pour ce produit', true);
+                return;
             }
+
+            const produit = produitsCache.find(p => p.NUMERO_ITEM === numeroItemInt);
+            const existingLine = tempSaleLines.find(line => line.numero_item === numeroItemInt);
+            const totalQuantity = existingLine ? (parseFloat(existingLine.quantite) + quantity) : quantity;
+
+            if (produit && totalQuantity > produit.QTE) {
+                showToast('Quantité demandée supérieure au stock disponible', true);
+                return;
+            }
+
+            const priceTotal = quantity * unitPrice;
+            const existingLineIndex = tempSaleLines.findIndex(line => line.numero_item === numeroItemInt);
+
+            if (existingLineIndex >= 0) {
+                tempSaleLines[existingLineIndex].quantite = totalQuantity.toFixed(2);
+                tempSaleLines[existingLineIndex].prixt = (totalQuantity * unitPrice).toFixed(2);
+                tempSaleLines[existingLineIndex].remarque = unitPrice.toFixed(2);
+            } else {
+                tempSaleLines.push({
+                    numero_item: numeroItemInt,
+                    produit_bar: barInt.toString(),
+                    designation: designation || 'N/A',
+                    quantite: quantity.toFixed(2),
+                    prixt: priceTotal.toFixed(2),
+                    remarque: unitPrice.toFixed(2),
+                    prixbh: pricePurchase
+                });
+            }
+
+            updateTempSalesTable();
+            showToast(`Produit ajouté : ${designation}`);
         }
 
-        async function chargerProfit(date = '', numeroClt = '', numeroUtil = '0') {
-            console.log('Chargement du bénéfice...', { date, numeroClt, numeroUtil });
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir le bénéfice', true);
+        function updateTempSalesTable() {
+            const tbody = document.getElementById('tempSalesList');
+            const totalElement = document.getElementById('totalSale');
+            const itemCountElement = document.getElementById('saleItemCount');
+            const validateButton = document.getElementById('validateSaleButton');
+            const printButton80mm = document.getElementById('printSaleButton80mm');
+            const printButtonA4 = document.getElementById('printSaleButtonA4');
+
+            if (tempSaleLines.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucune ligne ajoutée</td></tr>';
+                totalElement.textContent = '0.00 DA';
+                itemCountElement.textContent = '0';
+                itemCountElement.classList.add('hidden');
+                validateButton.disabled = true;
+                printButton80mm.disabled = true;
+                printButtonA4.disabled = true;
                 return;
             }
 
-            try {
-                const params = new URLSearchParams();
-                if (date) params.append('date', date);
-                if (numeroClt) params.append('numero_clt', numeroClt);
-                if (numeroUtil && numeroUtil !== '0') params.append('numero_util', numeroUtil);
-                const url = `${API_BASE_URL}/profit_by_date?${params.toString()}`;
+            tbody.innerHTML = '';
+            let total = 0;
+            let totalItems = 0;
 
-                const response = await fetch(url, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                profitCache = await response.json();
+            tempSaleLines.forEach((ligne, index) => {
+                console.log('Ligne:', ligne);
+                const lineTotal = parseFloat(ligne.prixt) || 0;
+                total += lineTotal;
+                totalItems += parseFloat(ligne.quantite) || 0;
 
-                const countElement = document.getElementById('profitCount');
-                const totalElement = document.getElementById('profitTotal');
-
-                const selectedDateProfit = profitCache.find(p => p.date === date)?.profit || 0;
-                const totalDays = profitCache.length;
-
-                countElement.textContent = totalDays;
-                countElement.classList.remove('hidden');
-                totalElement.textContent = `${parseFloat(selectedDateProfit).toFixed(2)} DA`;
-
-                const labels = profitCache.map(p => new Date(p.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }));
-                const profits = profitCache.map(p => parseFloat(p.profit));
-
-                if (profitChart) {
-                    profitChart.destroy();
-                }
-
-                const ctx = document.getElementById('profitChart').getContext('2d');
-                profitChart = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'Bénéfice (DA)',
-                            data: profits,
-                            borderColor: '#4f46e5',
-                            backgroundColor: 'rgba(79, 70, 229, 0.2)',
-                            fill: true,
-                            tension: 0.4
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                title: { display: true, text: 'Bénéfice (DA)' }
-                            },
-                            x: {
-                                title: { display: true, text: 'Date' }
-                            }
-                        },
-                        plugins: {
-                            legend: { display: true, position: 'top' },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        const value = context.raw || 0;
-                                        return `Bénéfice: ${value.toFixed(2)} DA`;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-            } catch (error) {
-                console.error('Erreur bénéfice:', error);
-                showToast(`Erreur chargement bénéfice: ${error.message}`, true);
-                document.getElementById('profitTotal').textContent = '0.00 DA';
-                document.getElementById('profitCount').classList.add('hidden');
-            }
-        }
-
-        async function chargerValeurStock() {
-            console.log('Chargement des valeurs de stock et zakat...');
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les valeurs de stock', true);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/valeur_stock`, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                const data = await response.json();
-
-                document.getElementById('stockValueAchat').textContent = `${parseFloat(data.valeur_achat).toFixed(2)} DA`;
-                document.getElementById('stockValueVente').textContent = `${parseFloat(data.valeur_vente).toFixed(2)} DA`;
-                document.getElementById('zakatValue').textContent = `${parseFloat(data.zakat).toFixed(2)} DA`;
-            } catch (error) {
-                console.error('Erreur stock:', error);
-                showToast(`Erreur chargement valeurs stock: ${error.message}`, true);
-                document.getElementById('stockValueAchat').textContent = '0.00 DA';
-                document.getElementById('stockValueVente').textContent = '0.00 DA';
-                document.getElementById('zakatValue').textContent = '0.00 DA';
-            }
-        }
-
-        function showSaleDetails(numeroComande, nature) {
-            const vente = [...dailySalesCache.tickets, ...dailySalesCache.bons].find(v => v.numero_comande === numeroComande);
-            if (!vente) {
-                showToast('Vente non trouvée', true);
-                return;
-            }
-
-            const modal = document.getElementById('saleDetailsModal');
-            const modalSaleNumber = document.getElementById('modalSaleNumber');
-            const saleDetailsList = document.getElementById('saleDetailsList');
-
-            modalSaleNumber.textContent = numeroComande;
-            saleDetailsList.innerHTML = '';
-
-            vente.lignes.forEach(ligne => {
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-gray-50';
                 tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <button onclick="supprimerLigne(${index})" class="bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
                     <td class="px-6 py-4 text-sm text-gray-900">${ligne.designation || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ligne.quantite || 0}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(ligne.remarque || 0).toFixed(2)} DA</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(ligne.prixt || 0).toFixed(2)} DA</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div class="flex items-center space-x-2">
+                            <button onclick="modifierQuantite(${index}, -0.1)" class="bg-gray-300 text-gray-700 px-2 py-1 rounded-md hover:bg-gray-400 transition">-</button>
+                            <input type="number" step="0.01" min="0.01" value="${parseFloat(ligne.quantite).toFixed(2)}" onchange="modifierQuantiteDirect(${index}, this.value)" class="quantity-input px-2 py-1 border rounded-md w-16 text-center">
+                            <button onclick="modifierQuantite(${index}, 0.1)" class="bg-gray-300 text-gray-700 px-2 py-1 rounded-md hover:bg-gray-400 transition">+</button>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ligne.numero_item}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <input type="number" step="0.01" value="${parseFloat(ligne.remarque).toFixed(2)}" onchange="modifierPrix(${index}, this.value)" class="quantity-input px-2 py-1 border rounded-md">
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${lineTotal.toFixed(2)}</td>
                 `;
-                saleDetailsList.appendChild(tr);
+                tbody.appendChild(tr);
             });
 
-            modal.classList.remove('hidden');
+            totalElement.textContent = `${total.toFixed(2)} DA`;
+            totalElement.classList.add('animate-total-pulse');
+            setTimeout(() => totalElement.classList.remove('animate-total-pulse'), 1500);
+            itemCountElement.textContent = totalItems.toFixed(2);
+            itemCountElement.classList.remove('hidden');
+            validateButton.disabled = false;
+            printButton80mm.disabled = false;
+            printButtonA4.disabled = false;
         }
 
-        function closeSaleDetailsModal() {
-            const modal = document.getElementById('saleDetailsModal');
-            modal.classList.add('hidden');
-        }
+        function modifierQuantite(index, delta) {
+            const ligne = tempSaleLines[index];
+            const produit = produitsCache.find(p => p.NUMERO_ITEM === ligne.numero_item);
+            const newQuantity = parseFloat(ligne.quantite) + delta;
 
-        function printA4() {
-            const printArea = document.getElementById('printAreaA4');
-            const printTicketsList = document.getElementById('printTicketsList');
-            const printBonsList = document.getElementById('printBonsList');
-            const printTotal = document.getElementById('printTotal');
-            const printDate = document.getElementById('printDate');
-            const printClient = document.getElementById('printClient');
-
-            const dateFilter = document.getElementById('dateFilter').value || new Date().toISOString().split('T')[0];
-            const clientFilter = document.getElementById('clientFilter');
-            const clientText = clientFilter.options[clientFilter.selectedIndex]?.text || 'Tous les clients';
-            printDate.textContent = dateFilter;
-            printClient.textContent = clientText;
-
-            printTicketsList.innerHTML = '';
-            dailySalesCache.tickets.forEach(vente => {
-                const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="border border-gray-300 px-4 py-2">${vente.numero_comande}</td>
-                    <td class="border border-gray-300 px-4 py-2">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
-                    <td class="border border-gray-300 px-4 py-2">${vente.client_nom || 'Comptoir'}</td>
-                    <td class="border border-gray-300 px-4 py-2">${vente.utilisateur_nom || 'N/A'}</td>
-                    <td class="border border-gray-300 px-4 py-2">${totalVente.toFixed(2)} DA</td>
-                `;
-                printTicketsList.appendChild(tr);
-            });
-
-            printBonsList.innerHTML = '';
-            dailySalesCache.bons.forEach(vente => {
-                const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="border border-gray-300 px-4 py-2">${vente.numero_comande}</td>
-                    <td class="border border-gray-300 px-4 py-2">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
-                    <td class="border border-gray-300 px-4 py-2">${vente.client_nom || 'Comptoir'}</td>
-                    <td class="border border-gray-300 px-4 py-2">${vente.utilisateur_nom || 'N/A'}</td>
-                    <td class="border border-gray-300 px-4 py-2">${totalVente.toFixed(2)} DA</td>
-                `;
-                printBonsList.appendChild(tr);
-            });
-
-            printTotal.textContent = parseFloat(dailySalesCache.total).toFixed(2);
-
-            printArea.classList.remove('hidden');
-            window.print();
-            printArea.classList.add('hidden');
-        }
-
-        function printTicket(numeroComande, nature) {
-            const vente = [...dailySalesCache.tickets, ...dailySalesCache.bons].find(v => v.numero_comande === numeroComande);
-            if (!vente) {
-                showToast('Vente non trouvée', true);
+            if (newQuantity <= 0) {
+                supprimerLigne(index);
                 return;
             }
 
-            const printArea = document.getElementById('printAreaTicket');
-            const ticketNumero = document.getElementById('ticketNumero');
-            const ticketDate = document.getElementById('ticketDate');
-            const ticketClient = document.getElementById('ticketClient');
-            const ticketUtilisateur = document.getElementById('ticketUtilisateur');
-            const ticketLignes = document.getElementById('ticketLignes');
-            const ticketTotal = document.getElementById('ticketTotal');
-
-            ticketNumero.textContent = vente.numero_comande;
-            ticketDate.textContent = new Date(vente.date_comande).toLocaleString('fr-FR');
-            ticketClient.textContent = vente.client_nom || 'Comptoir';
-            ticketUtilisateur.textContent = vente.utilisateur_nom || 'N/A';
-            ticketLignes.innerHTML = '';
-            vente.lignes.forEach(ligne => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td style="padding: 2mm;">${ligne.designation || 'N/A'}</td>
-                    <td style="text-align: center; padding: 2mm;">${ligne.quantite || 0}</td>
-                    <td style="text-align: right; padding: 2mm;">${parseFloat(ligne.remarque || 0).toFixed(2)}</td>
-                    <td style="text-align: right; padding: 2mm;">${parseFloat(ligne.prixt || 0).toFixed(2)}</td>
-                `;
-                ticketLignes.appendChild(tr);
-            });
-            const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
-            ticketTotal.textContent = totalVente.toFixed(2);
-
-            printArea.classList.remove('hidden');
-            window.print();
-            printArea.classList.add('hidden');
-        }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log('Page chargée, vérification utilisateur...');
-            const userId = localStorage.getItem('userId');
-            const userEmail = localStorage.getItem('userEmail');
-            if (userId && userEmail) {
-                console.log('Utilisateur connecté:', userId, userEmail);
-                document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
-                document.getElementById('userDisplay').classList.remove('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-
-                // Charger les données initiales
-                const today = new Date().toISOString().split('T')[0]; // Date par défaut
-                const numeroClt = ''; // Tous les clients par défaut
-                const numeroUtil = '0'; // Tous les utilisateurs par défaut
-
-                // Charger les clients et utilisateurs avant les données
-                Promise.all([chargerClients(), chargerUtilisateurs()]).then(() => {
-                    chargerVentesJour(today, numeroClt, numeroUtil);
-                    chargerArticlesPlusVendus(today, numeroClt, numeroUtil);
-                    chargerProfit(today, numeroClt, numeroUtil);
-                    chargerValeurStock();
-                });
-            } else {
-                console.log('Aucun utilisateur connecté, redirection vers index.html');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                window.location.href = 'index.html';
+            if (produit && newQuantity > produit.QTE) {
+                showToast('Quantité demandée supérieure au stock disponible', true);
+                return;
             }
 
-            flatpickr('#dateFilter', {
-                dateFormat: 'Y-m-d',
-                defaultDate: new Date(),
-                onChange: (selectedDates, dateStr) => {
-                    const clientFilter = document.getElementById('clientFilter').value || '';
-                    const userFilter = document.getElementById('userFilter').value || '0';
-                    chargerVentesJour(dateStr, clientFilter, userFilter);
-                    chargerArticlesPlusVendus(dateStr, clientFilter, userFilter);
-                    chargerProfit(dateStr, clientFilter, userFilter);
-                }
-            });
+            ligne.quantite = newQuantity.toFixed(2);
+            ligne.prixt = (newQuantity * parseFloat(ligne.remarque)).toFixed(2);
+            updateTempSalesTable();
+            showToast(`Quantité mise à jour: ${ligne.quantite}`);
+        }
 
-            document.getElementById('clientFilter').addEventListener('change', (e) => {
-                const dateFilter = document.getElementById('dateFilter').value || new Date().toISOString().split('T')[0];
-                const clientFilter = e.target.value || '';
-                const userFilter = document.getElementById('userFilter').value || '0';
-                chargerVentesJour(dateFilter, clientFilter, userFilter);
-                chargerArticlesPlusVendus(dateFilter, clientFilter, userFilter);
-                chargerProfit(dateFilter, clientFilter, userFilter);
-            });
+        function modifierQuantiteDirect(index, newQuantity) {
+            const quantity = parseFloat(newQuantity);
+            if (isNaN(quantity) || quantity <= 0) {
+                showToast('Quantité invalide', true);
+                return;
+            }
 
-            document.getElementById('userFilter').addEventListener('change', (e) => {
-                const dateFilter = document.getElementById('dateFilter').value || new Date().toISOString().split('T')[0];
-                const clientFilter = document.getElementById('clientFilter').value || '';
-                const userFilter = e.target.value || '0';
-                chargerVentesJour(dateFilter, clientFilter, userFilter);
-                chargerArticlesPlusVendus(dateFilter, clientFilter, userFilter);
-                chargerProfit(dateFilter, clientFilter, userFilter);
-            });
+            const ligne = tempSaleLines[index];
+            const produit = produitsCache.find(p => p.NUMERO_ITEM === ligne.numero_item);
 
-            fetch(`${API_BASE_URL}/`)
-                .then(response => response.text())
-                .then(text => console.log('Statut API:', text))
-                .catch(err => {
-                    console.error('API non disponible:', err);
-                    showToast('Erreur de connexion à l\'API', true);
+            if (produit && quantity > produit.QTE) {
+                showToast('Quantité demandée supérieure au stock disponible', true);
+                return;
+            }
+
+            ligne.quantite = quantity.toFixed(2);
+            ligne.prixt = (quantity * parseFloat(ligne.remarque)).toFixed(2);
+            updateTempSalesTable();
+            showToast(`Quantité mise à jour: ${ligne.quantite}`);
+        }
+
+        function modifierPrix(index, newPrice) {
+            const price = parseFloat(newPrice);
+            if (isNaN(price) || price <= 0) {
+                showToast('Prix unitaire invalide', true);
+                return;
+            }
+
+            const ligne = tempSaleLines[index];
+            ligne.remarque = price.toFixed(2);
+            ligne.prixt = (parseFloat(ligne.quantite) * price).toFixed(2);
+            updateTempSalesTable();
+            showToast('Prix unitaire mis à jour');
+        }
+
+        function supprimerLigne(index) {
+            const ligne = tempSaleLines[index];
+            tempSaleLines.splice(index, 1);
+            updateTempSalesTable();
+            showToast(`Ligne "${ligne.designation}" supprimée`);
+        }
+
+        async function validerVente() {
+            console.log('Validation vente...');
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour valider la vente', true);
+                return;
+            }
+
+            if (tempSaleLines.length === 0) {
+                showToast('Aucune ligne à valider', true);
+                return;
+            }
+
+            const storedSeller = localStorage.getItem('selectedSeller');
+            if (!storedSeller) {
+                showToast('Veuillez sélectionner et valider un vendeur', true);
+                return;
+            }
+
+            const { numero_util } = JSON.parse(storedSeller);
+            const password2 = localStorage.getItem('sellerPassword');
+
+            const paymentMode = document.getElementById('paymentMode').value;
+            const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
+            const numeroTable = parseInt(document.getElementById('saleClientId').value) || 0;
+
+            if (paymentMode === 'a_terme' && numeroTable === 0) {
+                showToast('Veuillez sélectionner un client pour une vente à terme', true);
+                return;
+            }
+
+            if (paymentMode === 'a_terme' && amountPaid < 0) {
+                showToast('Le montant versé ne peut pas être négatif', true);
+                return;
+            }
+
+            const venteData = {
+                numero_table: numeroTable,
+                date_comande: new Date().toISOString(),
+                payment_mode: paymentMode,
+                amount_paid: amountPaid,
+                numero_util: parseInt(numero_util),
+                password2: password2,
+                lignes: tempSaleLines.map(ligne => ({
+                    numero_item: ligne.numero_item,
+                    quantite: parseFloat(ligne.quantite),
+                    prixt: parseFloat(ligne.prixt),
+                    remarque: ligne.remarque,
+                    prixbh: ligne.prixbh
+                }))
+            };
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/valider_vente`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify(venteData)
                 });
+                console.log('Réponse valider_vente:', response.status, response.statusText);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Erreur texte valider_vente:', errorText);
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                const result = await response.json();
+                console.log('Vente validée:', result);
+
+                showToast(`Vente #${result.numero_comande} validée avec succès`);
+                tempSaleLines = [];
+                document.getElementById('paymentMode').value = 'espece';
+                document.getElementById('amountPaid').value = '';
+                togglePaymentForm();
+                updateTempSalesTable();
+                chargerProduits();
+                chargerClients();
+            } catch (error) {
+                console.error('Erreur validation vente:', error);
+                showToast(`Erreur validation vente: ${error.message}`, true);
+            }
+        }
+
+        function imprimerVente80mm() {
+            console.log('Génération de l\'aperçu d\'impression 80mm...');
+            if (tempSaleLines.length === 0) {
+                showToast('Aucune ligne à imprimer', true);
+                return;
+            }
+
+            const clientSelect = document.getElementById('saleClientId');
+            const clientValue = clientSelect.value;
+            const clientText = clientValue === '0' ? 'Vente Comptoir' : clientSelect.options[clientSelect.selectedIndex].text.replace(/<span.*<\/span>/, '');
+            const paymentMode = document.getElementById('paymentMode').value;
+            const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
+            const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0).toFixed(2);
+            const storedSeller = localStorage.getItem('selectedSeller');
+            const sellerName = storedSeller ? JSON.parse(storedSeller).nom : 'Non spécifié';
+            let soldeContent = '';
+
+            if (paymentMode === 'a_terme' && clientValue !== '0') {
+                const client = clientsCache.find(c => c.numero_clt === parseInt(clientValue));
+                const soldeAvant = client ? parseFloat(client.solde) || 0 : 0;
+                const soldeApres = soldeAvant + (amountPaid - parseFloat(total));
+                soldeContent = `
+                    <p>Solde avant vente: ${soldeAvant.toFixed(2)} DA</p>
+                    <p>Solde après vente: ${soldeApres.toFixed(2)} DA</p>
+                `;
+            }
+
+            let ticketContent = `
+                <div class="printable">
+                    <h1>FirePoz</h1>
+                    <p>Date: ${new Date().toLocaleString('fr-FR')}</p>
+                    <p>Vendeur: ${sellerName}</p>
+                    <p>Client: ${clientText}</p>
+                    <p>Mode de paiement: ${paymentMode === 'espece' ? 'Espèce' : 'À terme'}</p>
+                    ${paymentMode === 'a_terme' ? `<p>Montant versé: ${amountPaid.toFixed(2)} DA</p>` : ''}
+                    ${soldeContent}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Produit</th>
+                                <th>Qté</th>
+                                <th>Prix U.</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            tempSaleLines.forEach(ligne => {
+                ticketContent += `
+                    <tr>
+                        <td>${ligne.numero_item || 'N/A'}</td>
+                        <td>${ligne.designation || 'N/A'}</td>
+                        <td>${parseFloat(ligne.quantite).toFixed(2)}</td>
+                        <td>${parseFloat(ligne.remarque || 0).toFixed(2)}</td>
+                        <td>${parseFloat(ligne.prixt || 0).toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+
+            ticketContent += `
+                        </tbody>
+                    </table>
+                    <p class="total">Total: ${total} DA</p>
+                    <p style="text-align: center; margin-top: 3mm;">Merci de votre achat !</p>
+                </div>
+            `;
+
+            const printWindow = window.open('', '_blank', 'width=320,height=480');
+            if (!printWindow) {
+                showToast('Impossible d\'ouvrir l\'aperçu. Veuillez désactiver votre bloqueur de pop-up.', true);
+                return;
+            }
+
+            printWindow.document.write(`
+                <html>
+                    <head>
+                        <title>Aperçu Impression 80mm - FirePoz</title>
+                        <style>
+                            body {
+                                margin: 0;
+                                padding: 10mm;
+                                background: #fff;
+                                display: flex;
+                                justify-content: center;
+                                align-items: center;
+                                min-height: 100vh;
+                            }
+                            .printable {
+                                width: 80mm;
+                                font-family: Arial, sans-serif;
+                                font-size: 10pt;
+                                line-height: 1.2;
+                                color: #000;
+                                box-shadow: 0 0 5mm rgba(0, 0, 0, 0.1);
+                            }
+                            .printable h1 {
+                                font-size: 14pt;
+                                text-align: center;
+                                margin-bottom: 5mm;
+                            }
+                            .printable p, .printable table {
+                                margin-bottom: 3mm;
+                            }
+                            .printable table {
+                                width: 100%;
+                                border-collapse: collapse;
+                            }
+                            .printable th, .printable td {
+                                border: 0.5mm solid #000;
+                                padding: 1mm;
+                                font-size: 8pt;
+                                text-align: left;
+                            }
+                            .printable .total {
+                                font-weight: bold;
+                                font-size: 10pt;
+                                text-align: right;
+                            }
+                            .print-controls {
+                                text-align: center;
+                                margin-top: 10mm;
+                            }
+                            .print-controls button {
+                                padding: 5mm 10mm;
+                                margin: 0 5mm;
+                                font-size: 10pt;
+                                cursor: pointer;
+                            }
+                            @media print {
+                                body {
+                                    margin: 0;
+                                    padding: 0;
+                                }
+                                .print-controls {
+                                    display: none;
+                                }
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        ${ticketContent}
+                        <div class="print-controls">
+                            <button onclick="window.print(); window.close();" style="background-color: #4CAF50; color: white; border: none; border-radius: 5mm;">Imprimer</button>
+                            <button onclick="window.close();" style="background-color: #f44336; color: white; border: none; border-radius: 5mm;">Annuler</button>
+                        </div>
+                    </body>
+                </html>
+            `);
+            printWindow.document.close();
+        }
+
+        function imprimerVenteA4() {
+            console.log('Génération de l\'aperçu d\'impression A4...');
+            if (tempSaleLines.length === 0) {
+                showToast('Aucune ligne à imprimer', true);
+                return;
+            }
+
+            const clientSelect = document.getElementById('saleClientId');
+            const clientValue = clientSelect.value;
+            const clientText = clientValue === '0' ? 'Vente Comptoir' : clientSelect.options[clientSelect.selectedIndex].text.replace(/<span.*<\/span>/, '');
+            const paymentMode = document.getElementById('paymentMode').value;
+            const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
+            const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0).toFixed(2);
+            const userEmail = localStorage.getItem('userEmail') || 'Utilisateur inconnu';
+            const storedSeller = localStorage.getItem('selectedSeller');
+            const sellerName = storedSeller ? JSON.parse(storedSeller).nom : 'Non spécifié';
+            let soldeContent = '';
+
+            if (paymentMode === 'a_terme' && clientValue !== '0') {
+                const client = clientsCache.find(c => c.numero_clt === parseInt(clientValue));
+                const soldeAvant = client ? parseFloat(client.solde) || 0 : 0;
+                const soldeApres = soldeAvant + (amountPaid - parseFloat(total));
+                soldeContent = `
+                    <p><strong>Solde avant vente :</strong> ${soldeAvant.toFixed(2)} DA</p>
+                    <p><strong>Solde après vente :</strong> ${soldeApres.toFixed(2)} DA</p>
+                `;
+            }
+
+            let ticketContent = `
+                <div class="printable">
+                    <header>
+                        <h1>FirePoz - Bon de Livraison</h1>
+                        <p><strong>Émis par :</strong> ${userEmail}</p>
+                        <p><strong>Vendeur :</strong> ${sellerName}</p>
+                        <p><strong>Date :</strong> ${new Date().toLocaleString('fr-FR')}</p>
+                        <p><strong>Client :</strong> ${clientText}</p>
+                        <p><strong>Mode de paiement :</strong> ${paymentMode === 'espece' ? 'Espèce' : 'À terme'}</p>
+                        ${paymentMode === 'a_terme' ? `<p><strong>Montant versé :</strong> ${amountPaid.toFixed(2)} DA</p>` : ''}
+                        ${soldeContent}
+                    </header>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Produit</th>
+                                <th>Quantité</th>
+                                <th>Prix Unitaire</th>
+                                <th>Prix Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            tempSaleLines.forEach(ligne => {
+                ticketContent += `
+                    <tr>
+                        <td>${ligne.numero_item || 'N/A'}</td>
+                        <td>${ligne.designation || 'N/A'}</td>
+                        <td>${parseFloat(ligne.quantite).toFixed(2)}</td>
+                        <td>${parseFloat(ligne.remarque || 0).toFixed(2)} DA</td>
+                        <td>${parseFloat(ligne.prixt || 0).toFixed(2)} DA</td>
+                    </tr>
+                `;
+            });
+
+            ticketContent += `
+                        </tbody>
+                    </table>
+                    <div class="total-section">
+                        <p><strong>Total :</strong> ${total} DA</p>
+                    </div>
+                    <footer>
+                        <p>Merci de votre achat !</p>
+                        <p>Contact : Hicham Khelladi | Tel : 00213553700900 | Email : Hicham.khelladi@gmail.com</p>
+                    </footer>
+                </div>
+            `;
+
+            const printWindow = window.open('', '_blank', 'width=800,height=600');
+            if (!printWindow) {
+                showToast('Impossible d\'ouvrir l\'aperçu. Veuillez désactiver votre bloqueur de pop-up.', true);
+                return;
+            }
+
+            printWindow.document.write(`
+                <html>
+                    <head>
+                        <title>Bon de Livraison A4 - FirePoz</title>
+                        <style>
+                            @page { size: A4; margin: 20mm; }
+                            body {
+                                margin: 0;
+                                padding: 0;
+                                font-family: Arial, sans-serif;
+                                color: #333;
+                            }
+                            .printable {
+                                width: 190mm;
+                                margin: 0 auto;
+                                padding: 10mm;
+                                background: #fff;
+                                border: 1mm solid #ddd;
+                                box-shadow: 0 0 5mm rgba(0,0,0,0.1);
+                            }
+                            header {
+                                text-align: center;
+                                margin-bottom: 10mm;
+                                border-bottom: 1mm solid #ddd;
+                                padding-bottom: 5mm;
+                            }
+                            header h1 {
+                                font-size: 24pt;
+                                color: #4f46e5;
+                                margin: 0;
+                            }
+                            header p {
+                                font-size: 10pt;
+                                margin: 2mm 0;
+                            }
+                            table {
+                                width: 100%;
+                                border-collapse: collapse;
+                                margin-bottom: 10mm;
+                            }
+                            th, td {
+                                border: 0.5mm solid #ddd;
+                                padding: 3mm;
+                                font-size: 10pt;
+                                text-align: left;
+                            }
+                            th {
+                                background: #f3f4f6;
+                                font-weight: bold;
+                                color: #333;
+                            }
+                            .total-section {
+                                text-align: right;
+                                font-size: 14pt;
+                                font-weight: bold;
+                                margin-top: 5mm;
+                                padding-top: 5mm;
+                                border-top: 1mm solid #ddd;
+                            }
+                            footer {
+                                text-align: center;
+                                font-size: 9pt;
+                                margin-top: 10mm;
+                                border-top: 1mm solid #ddd;
+                                padding-top: 5mm;
+                            }
+                            footer p {
+                                margin: 2mm 0;
+                            }
+                            .print-controls {
+                                text-align: center;
+                                margin-top: 10mm;
+                            }
+                            .print-controls button {
+                                padding: 5mm 10mm;
+                                margin: 0 5mm;
+                                font-size: 10pt;
+                                cursor: pointer;
+                                border: none;
+                                border-radius: 5mm;
+                            }
+                            @media print {
+                                body { margin: 0; }
+                                .print-controls { display: none; }
+                                .printable { box-shadow: none; border: none; }
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        ${ticketContent}
+                        <div class="print-controls">
+                            <button onclick="window.print(); window.close();" style="background-color: #4CAF50; color: white;">Imprimer</button>
+                            <button onclick="window.close();" style="background-color: #f44336; color: white;">Annuler</button>
+                        </div>
+                    </body>
+                </html>
+            `);
+            printWindow.document.close();
+        }
+
+        let stream = null;
+        let barcodeDetector = null;
+        let isScanning = false;
+
+        async function startScanner() {
+            console.log('Démarrage du scanner...');
+            if (!('BarcodeDetector' in window)) {
+                showToast('Le scanner de code-barres n\'est pas supporté par ce navigateur. Utilisez Chrome ou Edge.', true);
+                return;
+            }
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                showToast('L\'accès à la caméra n\'est pas supporté par ce navigateur.', true);
+                return;
+            }
+
+            document.getElementById('productsList').classList.add('hidden');
+            document.getElementById('scannerOverlay').style.display = 'block';
+            document.getElementById('scannerPreview').style.display = 'block';
+
+            const preview = document.getElementById('scannerPreview');
+            const scanButton = document.getElementById('scanButton');
+            const closeButton = document.getElementById('closeScannerButton');
+            scanButton.disabled = true;
+            isScanning = true;
+
+            closeButton.addEventListener('click', stopScanner);
+
+            try {
+                barcodeDetector = new BarcodeDetector({
+                    formats: ['ean_13', 'code_128', 'upc_a', 'upc_e', 'qr_code']
+                });
+
+                const supportedFormats = await BarcodeDetector.getSupportedFormats();
+                console.log('Formats supportés :', supportedFormats);
+                if (supportedFormats.length === 0) {
+                    throw new Error('Aucun format de code-barres supporté par ce navigateur.');
+                }
+
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
+                });
+
+                const video = document.createElement('video');
+                video.srcObject = stream;
+                video.autoplay = true;
+                video.playsinline = true;
+                video.muted = true;
+                video.style.width = '100%';
+                video.style.height = '100%';
+                video.style.objectFit = 'contain';
+
+                preview.innerHTML = '';
+                preview.appendChild(video);
+                preview.appendChild(closeButton);
+
+                video.onloadedmetadata = () => {
+                    console.log('Vidéo prête pour la détection.');
+                    video.play().then(() => {
+                        detectBarcodes(video);
+                    }).catch(err => {
+                        console.error('Erreur lors de la lecture de la vidéo:', err);
+                        showToast('Erreur lors de la lecture de la vidéo: ' + err.message, true);
+                        stopScanner();
+                    });
+                };
+            } catch (err) {
+                console.error('Erreur lors du démarrage du scanner:', err);
+                let errorMessage = 'Erreur lors du démarrage du scanner: ';
+                if (err.name === 'NotAllowedError') {
+                    errorMessage += 'Accès à la caméra refusé. Veuillez autoriser l\'accès.';
+                } else if (err.name === 'NotFoundError') {
+                    errorMessage += 'Aucune caméra trouvée sur cet appareil.';
+                } else {
+                    errorMessage += err.message;
+                }
+                showToast(errorMessage, true);
+                stopScanner();
+            }
+        }
+
+        async function detectBarcodes(video) {
+            if (!isScanning) return;
+
+            try {
+                const barcodes = await barcodeDetector.detect(video);
+                if (barcodes.length > 0) {
+                    const barcode = barcodes[0];
+                    const scannedCode = barcode.rawValue;
+                    console.log('Code-barres détecté:', scannedCode);
+
+                    const produit = produitsCache.find(p => p.BAR === parseInt(scannedCode));
+                    if (!produit) {
+                        showToast(`Produit avec code ${scannedCode} non trouvé`, true);
+                        stopScanner();
+                    } else if (produit.QTE <= 0) {
+                        showToast(`Produit ${produit.DESIGNATION} en rupture de stock`, true);
+                        stopScanner();
+                    } else {
+                        selectProduct(produit.NUMERO_ITEM, produit.BAR, produit.PRIX, produit.PRIXBA, produit.QTE, produit.DESIGNATION);
+                        stopScanner();
+                    }
+                } else {
+                    requestAnimationFrame(() => detectBarcodes(video));
+                }
+            } catch (err) {
+                console.error('Erreur lors de la détection du code-barres:', err);
+                let errorMessage = 'Erreur lors de la détection du code-barres: ';
+                if (err.name === 'NotReadableError') {
+                    errorMessage += 'Impossible de lire le code-barres. Assurez-vous qu\'il est bien visible.';
+                } else {
+                    errorMessage += err.message;
+                }
+                showToast(errorMessage, true);
+                stopScanner();
+            }
+        }
+
+        function stopScanner() {
+            console.log('Arrêt du scanner...');
+            isScanning = false;
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+            const preview = document.getElementById('scannerPreview');
+            const scanButton = document.getElementById('scanButton');
+            const overlay = document.getElementById('scannerOverlay');
+            preview.style.display = 'none';
+            preview.innerHTML = '';
+            overlay.style.display = 'none';
+            scanButton.disabled = false;
+
+            document.getElementById('productsList').classList.remove('hidden');
+        }
+
+        document.getElementById('searchProduct').addEventListener('input', function(e) {
+            console.log('Recherche produit:', e.target.value);
+            const searchTerm = e.target.value.toLowerCase();
+            const tbody = document.getElementById('productsList');
+
+            tbody.innerHTML = '';
+            const filteredProducts = produitsCache.filter(produit =>
+                produit.NUMERO_ITEM.toString().includes(searchTerm) ||
+                produit.BAR.toString().includes(searchTerm) ||
+                produit.DESIGNATION.toLowerCase().includes(searchTerm) ||
+                parseFloat(produit.PRIX || 0).toFixed(2).includes(searchTerm) ||
+                parseFloat(produit.PRIXBA || 0).toFixed(2).includes(searchTerm)
+            );
+
+            if (filteredProducts.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
+                return;
+            }
+
+            filteredProducts.forEach(produit => {
+                const stockStatus = produit.QTE <= 0 ? 'Rupture' : produit.QTE <= 5 ? 'Stock faible' : produit.QTE.toFixed(2);
+                const stockClass = produit.QTE <= 0 ? 'stock-rupture' : produit.QTE <= 5 ? 'stock-faible' : '';
+                const buttonDisabled = produit.QTE <= 0 ? 'btn-disabled' : '';
+                const buttonAttrs = produit.QTE <= 0 ? 'disabled' : '';
+
+                const tr = document.createElement('tr');
+                tr.className = `hover:bg-gray-50 ${stockClass}`;
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <button onclick="selectProduct(${produit.NUMERO_ITEM}, ${produit.BAR}, ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition duration-300 ${buttonDisabled}" ${buttonAttrs}>
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stockStatus}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.NUMERO_ITEM || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || 0).toFixed(2)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
         });
     </script>
 </body>
