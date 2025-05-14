@@ -3,12 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion des Achats</title>
+    <title>Gestion des Ventes</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        .password-input-container { position: relative; display: inline-block; }
-        .password-toggle { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; }
+        .password-input-container {
+            position: relative;
+            display: inline-block;
+        }
+        .password-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+        }
         @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
@@ -22,27 +31,94 @@
         .animate-total-pulse { animation: totalPulse 1.5s ease-in-out; }
         .seller-anim { animation: smoothBlink 1.5s infinite ease-in-out; }
         #productsSection { animation-delay: 0.2s; }
-        #receptionSection { animation-delay: 0.4s; }
+        #salesSection { animation-delay: 0.4s; }
         footer { animation-delay: 1s; }
+        #scannerPreview {
+            width: 300px;
+            height: 200px;
+            border: 2px solid #e5e7eb;
+            background: #000;
+            position: fixed;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        #closeScannerButton {
+            z-index: 1001;
+        }
+        #scannerOverlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+        }
         .user-anim { animation: userPulse 1.5s infinite ease-in-out; }
         .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
         .small-email { font-size: 0.75rem; line-height: 1rem; }
         .quantity-input { width: 60px; }
-        .total-large { font-size: 2.5rem; font-weight: bold; color: #4f46e5; text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1); }
-        button i.fas.fa-plus { font-size: 1rem; }
-        select { transition: all 0.3s ease; }
-        select:focus { box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2); }
-        select option { padding: 8px; background: #fff; color: #333; }
-        select option:hover { background: #f3f4f6; }
-        #productsContent .table-container { max-height: 250px; overflow-y: auto; overflow-x: auto; }
-        #productsContent .table-container table { width: 100%; }
-        .btn-disabled { background-color: #d1d5db !important; cursor: not-allowed !important; }
-        .solde-negatif { color: #ef4444; }
-        .solde-positif { color: #10b981; }
+        .total-large {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #4f46e5;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+        }
+        button i.fas.fa-plus {
+            font-size: 1rem;
+        }
+        select {
+            transition: all 0.3s ease;
+        }
+        select:focus {
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+        }
+        select option {
+            padding: 8px;
+            background: #fff;
+            color: #333;
+        }
+        select option:hover {
+            background: #f3f4f6;
+        }
+        #productsContent .table-container {
+            max-height: 250px;
+            overflow-y: auto;
+            overflow-x: auto;
+        }
+        #productsContent .table-container table {
+            width: 100%;
+        }
+        #paymentForm {
+            transition: all 0.3s ease;
+        }
+        .solde-negatif {
+            color: red;
+            font-size: 0.75rem;
+        }
+        .solde-positif {
+            color: black;
+            font-size: 0.75rem;
+        }
+        .stock-rupture {
+            background-color: rgba(255, 0, 0, 0.1);
+        }
+        .stock-faible {
+            background-color: rgba(255, 165, 0, 0.1);
+        }
+        .btn-disabled {
+            background-color: #d1d5db !important;
+            cursor: not-allowed !important;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
-    <!-- Barre de navigation -->
     <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-slide-in">
         <div class="container mx-auto flex justify-between items-center">
             <div class="flex flex-col">
@@ -55,9 +131,6 @@
                 <a href="index.html" class="hover:text-indigo-200 transition flex items-center">
                     <i class="fas fa-home mr-1"></i> Accueil
                 </a>
-                <a href="ventes.html" class="hover:text-indigo-200 transition flex items-center">
-                    <i class="fas fa-shopping-cart mr-1"></i> Ventes
-                </a>
                 <button id="loginLogoutButton" onclick="loginLogout()" class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition flex items-center">
                     <i class="fas fa-sign-out-alt mr-1"></i>Déconnexion
                 </button>
@@ -66,22 +139,28 @@
     </nav>
 
     <div class="container mx-auto px-4 pt-20">
-        <!-- Section utilisateur -->
+        <!-- Section vendeur en haut, repliable -->
         <div id="sellerSection" class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8">
-            <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('sellerSection')">
-                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                    <i class="fas fa-user mr-2 text-indigo-500"></i> Sélection de l'Utilisateur
-                </h2>
-                <button class="text-gray-600 hover:text-gray-800 transition">
-                    <i class="fas fa-chevron-down" id="sellerChevron"></i>
-                </button>
+            <div class="p-6 cursor-pointer" onclick="toggleSection('sellerSection')">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-user mr-2 text-indigo-500"></i> Sélection du Vendeur
+                    </h2>
+                    <button class="text-gray-600 hover:text-gray-800 transition">
+                        <i class="fas fa-chevron-down" id="sellerChevron"></i>
+                    </button>
+                </div>
+                <div class="mt-2">
+                    <span class="text-sm font-medium text-gray-700">Vendeur: </span>
+                    <span id="headerSellerName" class="text-sm text-indigo-600 seller-anim">-</span>
+                </div>
             </div>
             <div class="p-6 hidden" id="sellerContent">
                 <div class="flex flex-col md:flex-row gap-4 mb-4">
                     <div class="relative w-full md:w-1/3">
-                        <span class="text-sm font-medium text-gray-700 mr-2">Utilisateur: </span>
+                        <span class="text-sm font-medium text-gray-700 mr-2">Vendeur: </span>
                         <select id="sellerSelect" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300">
-                            <option value="0">Sélectionner un utilisateur</option>
+                            <option value="0">Sélectionner un vendeur</option>
                         </select>
                         <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700 top-6">
                             <i class="fas fa-chevron-down"></i>
@@ -99,7 +178,7 @@
                     </div>
                 </div>
                 <div>
-                    <span class="text-sm font-medium text-gray-700">Utilisateur sélectionné: </span>
+                    <span class="text-sm font-medium text-gray-700">Vendeur sélectionné: </span>
                     <span id="selectedSellerName" class="text-sm text-indigo-600 seller-anim">-</span>
                 </div>
             </div>
@@ -107,13 +186,12 @@
 
         <div class="mt-8">
             <header class="mb-8">
-                <h1 class="text-3xl font-bold text-indigo-700">Gestion des Achats</h1>
+                <h1 class="text-3xl font-bold text-indigo-700">Gestion des Ventes</h1>
                 <p class="text-gray-600 flex items-center">
-                    <i class="fas fa-truck mr-2 text-indigo-500"></i> Réceptions de stock en temps réel
+                    <i class="fas fa-shopping-cart mr-2 text-indigo-500"></i> Ventes en temps réel
                 </p>
             </header>
 
-            <!-- Section produits -->
             <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="productsSection">
                 <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('productsSection')">
                     <h2 class="text-xl font-semibold text-gray-800 flex items-center">
@@ -130,6 +208,12 @@
                             <input type="text" id="searchProduct" placeholder="Rechercher un produit..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
                             <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
                         </div>
+                        <div class="relative w-full md:w-1/2">
+                            <input type="text" id="productBar" class="w-full px-3 py-2 border rounded-md" placeholder="Scanner ou entrer code-barres" required>
+                            <button id="scanButton" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition duration-300" onclick="startScanner()">
+                                <i class="fas fa-camera"></i> Scanner
+                            </button>
+                        </div>
                     </div>
                     <div class="table-container">
                         <table class="min-w-full divide-y divide-gray-200">
@@ -140,12 +224,13 @@
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Vente</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Achat</th>
                                 </tr>
                             </thead>
                             <tbody id="productsList" class="bg-white divide-y divide-gray-200">
                                 <tr>
-                                    <td colspan="6" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                                    <td colspan="7" class="text-center py-4 text-gray-500">Chargement en cours...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -153,30 +238,46 @@
                 </div>
             </div>
 
-            <!-- Section réception -->
-            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="receptionSection">
+            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="salesSection">
                 <div class="p-6 flex justify-between items-center">
                     <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-receipt mr-2 text-indigo-500"></i> Réception de Stock
-                        <span id="receptionItemCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                        <i class="fas fa-receipt mr-2 text-indigo-500"></i> Ventes
+                        <span id="saleItemCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
                     </h2>
                 </div>
                 <div class="p-6">
                     <div class="mb-6">
-                        <h3 class="font-medium mb-3">Lignes de la réception en cours</h3>
-                        <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-100 shadow-sm mb-4">
-                            <div class="text-sm text-indigo-600 font-medium">Total Achat</div>
-                            <div id="totalAchat" class="text-3xl font-bold text-indigo-700">0.00 DA</div>
-                        </div>
+                        <h3 class="font-medium mb-3">Lignes de la vente en cours</h3>
                         <div class="mb-4">
-                            <div class="relative">
-                                <span class="text-sm font-medium text-gray-700 mr-2">Fournisseur: </span>
-                                <div class="relative inline-block w-64">
-                                    <select id="receptionFournisseurId" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300">
-                                        <option value="0">Sélectionner un fournisseur</option>
-                                    </select>
-                                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
-                                        <i class="fas fa-chevron-down"></i>
+                            <div class="total-large animate-total-pulse text-center mb-4">
+                                Total: <span id="totalSale">0.00 DA</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <div class="relative">
+                                    <div class="mb-4">
+                                        <span class="text-sm font-medium text-gray-700 mr-2">Mode de paiement: </span>
+                                        <div class="relative inline-block w-64">
+                                            <select id="paymentMode" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300" onchange="togglePaymentForm()">
+                                                <option value="espece" selected>Espèce</option>
+                                                <option value="a_terme">À terme</option>
+                                            </select>
+                                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                                                <i class="fas fa-chevron-down"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div id="paymentForm" class="hidden mb-4">
+                                        <label for="amountPaid" class="text-sm font-medium text-gray-700 mr-2">Montant versé: </label>
+                                        <input type="number" id="amountPaid" step="0.01" min="0" class="w-64 px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0.00 DA">
+                                    </div>
+                                    <span class="text-sm font-medium text-gray-700 mr-2">Client: </span>
+                                    <div class="relative inline-block w-64">
+                                        <select id="saleClientId" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300">
+                                            <option value="0">Vente Comptoir (Sans client)</option>
+                                        </select>
+                                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -187,21 +288,28 @@
                                     <tr>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité Ajoutée</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Achat</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Prix Achat</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Unitaire</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Total</th>
                                     </tr>
                                 </thead>
-                                <tbody id="tempReceptionList" class="bg-white divide-y divide-gray-200">
+                                <tbody id="tempSalesList" class="bg-white divide-y divide-gray-200">
                                     <tr>
-                                        <td colspan="5" class="text-center py-4 text-gray-500">Aucune ligne ajoutée</td>
+                                        <td colspan="6" class="text-center py-4 text-gray-500">Aucune ligne ajoutée</td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
-                        <div class="mt-4 flex justify-end">
-                            <button id="validateReceptionButton" onclick="validerReception()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105" disabled>
-                                <i class="fas fa-check mr-2"></i>Valider la réception
+                        <div class="mt-4 flex justify-end space-x-2">
+                            <button id="printSaleButton80mm" onclick="imprimerVente80mm()" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition duration-300 transform hover:scale-105" disabled>
+                                <i class="fas fa-print mr-2"></i>Imprimer 80mm
+                            </button>
+                            <button id="printSaleButtonA4" onclick="imprimerVenteA4()" class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition duration-300 transform hover:scale-105" disabled>
+                                <i class="fas fa-file-pdf mr-2"></i>Imprimer A4
+                            </button>
+                            <button id="validateSaleButton" onclick="validerVente()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105" disabled>
+                                <i class="fas fa-check mr-2"></i>Valider la vente
                             </button>
                         </div>
                     </div>
@@ -209,6 +317,13 @@
             </div>
         </div>
     </div>
+
+    <div id="scannerPreview" class="relative">
+        <button id="closeScannerButton" class="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition duration-300">
+            <i class="fas fa-times"></i> Fermer
+        </button>
+    </div>
+    <div id="scannerOverlay"></div>
 
     <footer class="bg-gray-700 text-white text-center py-4 animate-fade-in">
         <p>Développé par Khelladi Hicham</p>
@@ -225,10 +340,16 @@
 
     <script>
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
-        let tempReceptionLines = [];
+        let tempSaleLines = [];
         let produitsCache = [];
-        let fournisseursCache = [];
+        let clientsCache = [];
         let utilisateursCache = [];
+
+        function togglePaymentForm() {
+            const paymentMode = document.getElementById('paymentMode').value;
+            const paymentForm = document.getElementById('paymentForm');
+            paymentForm.classList.toggle('hidden', paymentMode === 'espece');
+        }
 
         function togglePasswordVisibility() {
             const passwordInput = document.getElementById('sellerPassword');
@@ -254,19 +375,6 @@
             chevron.classList.toggle('fa-chevron-up');
         }
 
-        function calculerTotalAchat() {
-            const total = tempReceptionLines.reduce((sum, ligne) => {
-                return sum + (parseFloat(ligne.qtea) * parseFloat(ligne.prixbh));
-            }, 0);
-            
-            document.getElementById('totalAchat').textContent = total.toFixed(2) + ' DA';
-            
-            const totalElement = document.getElementById('totalAchat');
-            totalElement.classList.remove('animate-total-pulse');
-            void totalElement.offsetWidth;
-            totalElement.classList.add('animate-total-pulse');
-        }
-
         document.addEventListener('DOMContentLoaded', () => {
             console.log('Page chargée, vérification utilisateur...');
             const userId = localStorage.getItem('userId');
@@ -288,8 +396,9 @@
                         if (optionExists) {
                             sellerSelect.value = numero_util;
                             document.getElementById('selectedSellerName').textContent = nom;
+                            document.getElementById('headerSellerName').textContent = nom;
                             document.getElementById('sellerPassword').disabled = true;
-                            document.getElementById('validateSellerButton').textContent = 'Changer d\'utilisateur';
+                            document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
                             document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
                             document.getElementById('sellerContent').classList.add('hidden');
                             document.getElementById('sellerChevron').classList.add('fa-chevron-down');
@@ -309,7 +418,7 @@
                     // Réactiver sellerSelect après chargement
                     sellerSelect.disabled = false;
                 });
-                chargerFournisseurs();
+                chargerClients();
                 chargerProduits();
             } else {
                 console.log('Aucun utilisateur connecté, redirection vers index.html');
@@ -386,7 +495,7 @@
                 console.log('Utilisateurs reçus:', utilisateursCache);
 
                 // Mettre à jour la liste sans réinitialiser si possible
-                sellerSelect.innerHTML = '<option value="0">Sélectionner un utilisateur</option>';
+                sellerSelect.innerHTML = '<option value="0">Sélectionner un vendeur</option>';
                 utilisateursCache.forEach(utilisateur => {
                     const option = document.createElement('option');
                     option.value = utilisateur.numero_util;
@@ -404,16 +513,14 @@
             }
         }
 
-        function validerVendeur() {
-            console.log('Validation de l\'utilisateur...');
-            const sellerSelect = document.getElementById('sellerSelect');
-            const numeroUtil = sellerSelect.value;
+        async function validerVendeur() {
+            console.log('Validation du vendeur...');
+            const numeroUtil = document.getElementById('sellerSelect').value;
             const password2 = document.getElementById('sellerPassword').value;
+            const userId = localStorage.getItem('userId');
 
-            console.log('Valeur de sellerSelect:', numeroUtil); // Débogage
-
-            if (!numeroUtil || numeroUtil === '0') {
-                showToast('Veuillez sélectionner un utilisateur', true);
+            if (numeroUtil === '0') {
+                showToast('Veuillez sélectionner un vendeur', true);
                 return;
             }
 
@@ -422,35 +529,67 @@
                 return;
             }
 
-            const selectedOption = sellerSelect.options[sellerSelect.selectedIndex];
-            const sellerName = selectedOption.text;
+            try {
+                const testVenteData = {
+                    numero_table: 0,
+                    date_comande: new Date().toISOString(),
+                    payment_mode: 'espece',
+                    amount_paid: 0,
+                    numero_util: parseInt(numeroUtil),
+                    password2: password2,
+                    lignes: [{ numero_item: 0, quantite: 0, prixt: 0, remarque: 'test', prixbh: 0 }]
+                };
 
-            localStorage.setItem('selectedSeller', JSON.stringify({
-                numero_util: numeroUtil,
-                nom: sellerName
-            }));
-            localStorage.setItem('sellerPassword', password2);
+                const response = await fetch(`${API_BASE_URL}/valider_vente`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify(testVenteData)
+                });
 
-            document.getElementById('selectedSellerName').textContent = sellerName;
-            document.getElementById('sellerPassword').disabled = true;
-            document.getElementById('validateSellerButton').textContent = 'Changer d\'utilisateur';
-            document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Erreur validation vendeur:', errorText);
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
 
-            document.getElementById('sellerContent').classList.add('hidden');
-            document.getElementById('sellerChevron').classList.add('fa-chevron-down');
-            document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
+                const selectedOption = document.getElementById('sellerSelect').options[document.getElementById('sellerSelect').selectedIndex];
+                const sellerName = selectedOption.text;
 
-            showToast(`Utilisateur ${sellerName} validé`);
+                localStorage.setItem('selectedSeller', JSON.stringify({
+                    numero_util: numeroUtil,
+                    nom: sellerName
+                }));
+                localStorage.setItem('sellerPassword', password2);
+
+                document.getElementById('selectedSellerName').textContent = sellerName;
+                document.getElementById('headerSellerName').textContent = sellerName;
+                document.getElementById('sellerPassword').disabled = true;
+                document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
+                document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
+
+                document.getElementById('sellerContent').classList.add('hidden');
+                document.getElementById('sellerChevron').classList.add('fa-chevron-down');
+                document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
+
+                showToast(`Vendeur ${sellerName} validé`);
+            } catch (error) {
+                showToast(`Erreur validation vendeur: ${error.message}`, true);
+                console.error('Erreur validation vendeur:', error);
+            }
         }
 
         function changeAndValidateSeller() {
-            console.log('Changement et validation de l\'utilisateur...');
+            console.log('Changement et validation du vendeur...');
             // Réinitialiser l'UI
             const sellerSelect = document.getElementById('sellerSelect');
             sellerSelect.value = '0';
             document.getElementById('sellerPassword').value = '';
             document.getElementById('sellerPassword').disabled = false;
             document.getElementById('selectedSellerName').textContent = '-';
+            document.getElementById('headerSellerName').textContent = '-';
             document.getElementById('validateSellerButton').textContent = 'Valider';
             document.getElementById('sellerContent').classList.remove('hidden');
             document.getElementById('sellerChevron').classList.add('fa-chevron-up');
@@ -464,10 +603,8 @@
             const numeroUtil = sellerSelect.value;
             const password2 = document.getElementById('sellerPassword').value;
 
-            console.log('Valeur de sellerSelect dans changeAndValidateSeller:', numeroUtil); // Débogage
-
             if (!numeroUtil || numeroUtil === '0') {
-                showToast('Veuillez sélectionner un utilisateur', true);
+                showToast('Veuillez sélectionner un vendeur', true);
                 return;
             }
 
@@ -476,61 +613,75 @@
                 return;
             }
 
-            const selectedOption = sellerSelect.options[sellerSelect.selectedIndex];
-            const sellerName = selectedOption.text;
-
-            localStorage.setItem('selectedSeller', JSON.stringify({
-                numero_util: numeroUtil,
-                nom: sellerName
-            }));
-            localStorage.setItem('sellerPassword', password2);
-
-            document.getElementById('selectedSellerName').textContent = sellerName;
-            document.getElementById('sellerPassword').disabled = true;
-            document.getElementById('validateSellerButton').textContent = 'Changer d\'utilisateur';
-            document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
-
-            document.getElementById('sellerContent').classList.add('hidden');
-            document.getElementById('sellerChevron').classList.add('fa-chevron-down');
-            document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
-
-            showToast(`Utilisateur ${sellerName} validé`);
+            validerVendeur();
         }
 
-        async function chargerFournisseurs() {
-            console.log('Chargement des fournisseurs...');
+        async function chargerClients() {
+            console.log('Chargement des clients...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Veuillez vous connecter pour voir les fournisseurs', true);
+                showToast('Veuillez vous connecter pour voir les clients', true);
                 return;
             }
 
             try {
-                const response = await fetch(`${API_BASE_URL}/liste_fournisseurs`, {
+                const response = await fetch(`${API_BASE_URL}/liste_clients`, {
                     headers: { 'X-User-ID': userId }
                 });
-                console.log('Réponse liste_fournisseurs:', response.status, response.statusText);
+                console.log('Réponse liste_clients:', response.status, response.statusText);
                 if (!response.ok) {
                     const errorText = await response.text();
-                    console.error('Erreur texte liste_fournisseurs:', errorText);
+                    console.error('Erreur texte liste_clients:', errorText);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
-                fournisseursCache = await response.json();
-                console.log('Fournisseurs reçus:', fournisseursCache);
-                const selectElement = document.getElementById('receptionFournisseurId');
+                clientsCache = await response.json();
+                console.log('Clients reçus:', clientsCache);
+                const selectElement = document.getElementById('saleClientId');
 
-                selectElement.innerHTML = '<option value="0">Sélectionner un fournisseur</option>';
-                fournisseursCache.forEach(fournisseur => {
-                    const solde = parseFloat(fournisseur.solde) || 0;
+                selectElement.innerHTML = '<option value="0">Vente Comptoir (Sans client)</option>';
+
+                await chargerSoldesClients();
+
+                clientsCache.forEach(client => {
+                    const solde = parseFloat(client.solde) || 0;
                     const soldeClass = solde < 0 ? 'solde-negatif' : 'solde-positif';
                     const option = document.createElement('option');
-                    option.value = fournisseur.numero_fou;
-                    option.innerHTML = `${fournisseur.nom} (ID: ${fournisseur.numero_fou}) <span class="${soldeClass}">[Solde: ${solde.toFixed(2)} DA]</span>`;
+                    option.value = client.numero_clt;
+                    option.innerHTML = `${client.nom} (ID: ${client.numero_clt}) <span class="${soldeClass}">[Solde: ${solde.toFixed(2)} DA]</span>`;
                     selectElement.appendChild(option);
                 });
             } catch (error) {
-                showToast('Erreur lors du chargement des fournisseurs: ' + error.message, true);
-                console.error('Erreur fournisseurs:', error);
+                showToast('Erreur lors du chargement des clients: ' + error.message, true);
+                console.error('Erreur clients:', error);
+            }
+        }
+
+        async function chargerSoldesClients() {
+            console.log('Chargement des soldes des clients...');
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/client_solde`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Erreur texte client_solde:', errorText);
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                const soldes = await response.json();
+                console.log('Soldes reçus:', soldes);
+
+                clientsCache.forEach(client => {
+                    const soldeData = soldes.find(s => s.numero_clt === client.numero_clt);
+                    client.solde = soldeData ? soldeData.solde : '0.00';
+                });
+            } catch (error) {
+                console.error('Erreur chargement soldes:', error);
+                showToast('Erreur lors du chargement des soldes: ' + error.message, true);
             }
         }
 
@@ -550,6 +701,7 @@
                 if (!response.ok) {
                     const errorText = await response.text();
                     console.error('Erreur texte liste_produits:', errorText);
+                    showToast(`Erreur chargement produits: ${errorText}`, true);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 produitsCache = await response.json();
@@ -566,7 +718,7 @@
                 }));
 
                 if (produitsCache.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
                     countElement.textContent = '0';
                     countElement.classList.remove('hidden');
                     return;
@@ -574,18 +726,25 @@
 
                 tbody.innerHTML = '';
                 produitsCache.forEach(produit => {
+                    console.log('Rendu produit:', produit);
+                    const stockStatus = produit.QTE <= 0 ? 'Rupture' : produit.QTE <= 5 ? 'Stock faible' : produit.QTE.toFixed(2);
+                    const stockClass = produit.QTE <= 0 ? 'stock-rupture' : produit.QTE <= 5 ? 'stock-faible' : '';
+                    const buttonDisabled = produit.QTE <= 0 ? 'btn-disabled' : '';
+                    const buttonAttrs = produit.QTE <= 0 ? 'disabled' : '';
+
                     const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
+                    tr.className = `hover:bg-gray-50 ${stockClass}`;
                     tr.innerHTML = `
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <button onclick="selectProduct(${produit.NUMERO_ITEM}, ${produit.PRIXBA}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition duration-300">
+                            <button onclick="selectProduct(${produit.NUMERO_ITEM}, ${produit.BAR}, ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition duration-300 ${buttonDisabled}" ${buttonAttrs}>
                                 <i class="fas fa-plus"></i>
                             </button>
                         </td>
                         <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE.toFixed(2)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stockStatus}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.NUMERO_ITEM || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || 0).toFixed(2)}</td>
                     `;
                     tbody.appendChild(tr);
@@ -595,7 +754,7 @@
             } catch (error) {
                 document.getElementById('productsList').innerHTML = `
                     <tr>
-                        <td colspan="6" class="text-center py-4 text-red-500">
+                        <td colspan="7" class="text-center py-4 text-red-500">
                             Erreur de chargement: ${error.message}
                         </td>
                     </tr>
@@ -605,54 +764,85 @@
             }
         }
 
-        function selectProduct(numeroItem, prixba, designation) {
-            console.log('Produit sélectionné:', numeroItem, prixba, designation);
+        function selectProduct(numeroItem, bar, prix, prixba, stock, designation) {
+            console.log('Produit sélectionné:', numeroItem, bar, prix, prixba, stock, designation);
             const numeroItemInt = parseInt(numeroItem);
-            const prixbaFloat = parseFloat(prixba) || 0;
-            const qtea = 1.0;
+            const barInt = parseInt(bar);
+            const unitPrice = parseFloat(prix) || 0;
+            const pricePurchase = parseFloat(prixba) || 0;
+            const quantity = 1.0;
 
-            if (isNaN(numeroItemInt) || prixbaFloat < 0) {
-                showToast('Produit invalide ou prix d\'achat incorrect', true);
+            if (isNaN(numeroItemInt) || isNaN(barInt) || unitPrice <= 0) {
+                showToast('Produit invalide ou prix incorrect', true);
                 return;
             }
 
-            const existingLineIndex = tempReceptionLines.findIndex(line => line.numero_item === numeroItemInt);
+            if (stock <= 0) {
+                showToast('Stock insuffisant pour ce produit', true);
+                return;
+            }
+
+            const produit = produitsCache.find(p => p.NUMERO_ITEM === numeroItemInt);
+            const existingLine = tempSaleLines.find(line => line.numero_item === numeroItemInt);
+            const totalQuantity = existingLine ? (parseFloat(existingLine.quantite) + quantity) : quantity;
+
+            if (produit && totalQuantity > produit.QTE) {
+                showToast('Quantité demandée supérieure au stock disponible', true);
+                return;
+            }
+
+            const priceTotal = quantity * unitPrice;
+            const existingLineIndex = tempSaleLines.findIndex(line => line.numero_item === numeroItemInt);
 
             if (existingLineIndex >= 0) {
-                tempReceptionLines[existingLineIndex].qtea = (parseFloat(tempReceptionLines[existingLineIndex].qtea) + qtea).toFixed(2);
+                tempSaleLines[existingLineIndex].quantite = totalQuantity.toFixed(2);
+                tempSaleLines[existingLineIndex].prixt = (totalQuantity * unitPrice).toFixed(2);
+                tempSaleLines[existingLineIndex].remarque = unitPrice.toFixed(2);
             } else {
-                tempReceptionLines.push({
+                tempSaleLines.push({
                     numero_item: numeroItemInt,
+                    produit_bar: barInt.toString(),
                     designation: designation || 'N/A',
-                    qtea: qtea.toFixed(2),
-                    prixbh: prixbaFloat.toFixed(2)
+                    quantite: quantity.toFixed(2),
+                    prixt: priceTotal.toFixed(2),
+                    remarque: unitPrice.toFixed(2),
+                    prixbh: pricePurchase
                 });
             }
 
-            updateTempReceptionTable();
+            updateTempSalesTable();
             showToast(`Produit ajouté : ${designation}`);
         }
 
-        function updateTempReceptionTable() {
-            const tbody = document.getElementById('tempReceptionList');
-            const itemCountElement = document.getElementById('receptionItemCount');
-            const validateButton = document.getElementById('validateReceptionButton');
+        function updateTempSalesTable() {
+            const tbody = document.getElementById('tempSalesList');
+            const totalElement = document.getElementById('totalSale');
+            const itemCountElement = document.getElementById('saleItemCount');
+            const validateButton = document.getElementById('validateSaleButton');
+            const printButton80mm = document.getElementById('printSaleButton80mm');
+            const printButtonA4 = document.getElementById('printSaleButtonA4');
 
-            if (tempReceptionLines.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucune ligne ajoutée</td></tr>';
+            if (tempSaleLines.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucune ligne ajoutée</td></tr>';
+                totalElement.textContent = '0.00 DA';
                 itemCountElement.textContent = '0';
                 itemCountElement.classList.add('hidden');
                 validateButton.disabled = true;
-                document.getElementById('totalAchat').textContent = '0.00 DA';
+                printButton80mm.disabled = true;
+                printButtonA4.disabled = true;
                 return;
             }
 
             tbody.innerHTML = '';
+            let total = 0;
             let totalItems = 0;
 
-            tempReceptionLines.forEach((ligne, index) => {
-                totalItems += parseFloat(ligne.qtea) || 0;
-                const totalPrixAchat = (parseFloat(ligne.qtea) * parseFloat(ligne.prixbh)).toFixed(2);
+            tempSaleLines.forEach((ligne, index) => {
+                console.log('Ligne:', ligne);
+                const lineTotal = parseFloat(ligne.prixt) || 0;
+                total += lineTotal;
+                totalItems += parseFloat(ligne.quantite) || 0;
+
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-gray-50';
                 tr.innerHTML = `
@@ -664,37 +854,49 @@
                     <td class="px-6 py-4 text-sm text-gray-900">${ligne.designation || 'N/A'}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <div class="flex items-center space-x-2">
-                            <button onclick="modifierQuantite(${index}, -1)" class="bg-gray-300 text-gray-700 px-2 py-1 rounded-md hover:bg-gray-400 transition">-</button>
-                            <input type="number" step="1" min="1" value="${parseFloat(ligne.qtea).toFixed(2)}" onchange="modifierQuantiteDirect(${index}, this.value)" class="quantity-input px-2 py-1 border rounded-md w-16 text-center">
-                            <button onclick="modifierQuantite(${index}, 1)" class="bg-gray-300 text-gray-700 px-2 py-1 rounded-md hover:bg-gray-400 transition">+</button>
+                            <button onclick="modifierQuantite(${index}, -0.1)" class="bg-gray-300 text-gray-700 px-2 py-1 rounded-md hover:bg-gray-400 transition">-</button>
+                            <input type="number" step="0.01" min="0.01" value="${parseFloat(ligne.quantite).toFixed(2)}" onchange="modifierQuantiteDirect(${index}, this.value)" class="quantity-input px-2 py-1 border rounded-md w-16 text-center">
+                            <button onclick="modifierQuantite(${index}, 0.1)" class="bg-gray-300 text-gray-700 px-2 py-1 rounded-md hover:bg-gray-400 transition">+</button>
                         </div>
                     </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ligne.numero_item}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <input type="number" step="0.01" value="${parseFloat(ligne.prixbh).toFixed(2)}" onchange="modifierPrix(${index}, this.value)" class="quantity-input px-2 py-1 border rounded-md">
+                        <input type="number" step="0.01" value="${parseFloat(ligne.remarque).toFixed(2)}" onchange="modifierPrix(${index}, this.value)" class="quantity-input px-2 py-1 border rounded-md">
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalPrixAchat} DA</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${lineTotal.toFixed(2)}</td>
                 `;
                 tbody.appendChild(tr);
             });
 
+            totalElement.textContent = `${total.toFixed(2)} DA`;
+            totalElement.classList.add('animate-total-pulse');
+            setTimeout(() => totalElement.classList.remove('animate-total-pulse'), 1500);
             itemCountElement.textContent = totalItems.toFixed(2);
             itemCountElement.classList.remove('hidden');
             validateButton.disabled = false;
-            calculerTotalAchat();
+            printButton80mm.disabled = false;
+            printButtonA4.disabled = false;
         }
 
         function modifierQuantite(index, delta) {
-            const ligne = tempReceptionLines[index];
-            const newQuantity = parseFloat(ligne.qtea) + delta;
+            const ligne = tempSaleLines[index];
+            const produit = produitsCache.find(p => p.NUMERO_ITEM === ligne.numero_item);
+            const newQuantity = parseFloat(ligne.quantite) + delta;
 
             if (newQuantity <= 0) {
                 supprimerLigne(index);
                 return;
             }
 
-            ligne.qtea = newQuantity.toFixed(2);
-            updateTempReceptionTable();
-            showToast(`Quantité mise à jour: ${ligne.qtea}`);
+            if (produit && newQuantity > produit.QTE) {
+                showToast('Quantité demandée supérieure au stock disponible', true);
+                return;
+            }
+
+            ligne.quantite = newQuantity.toFixed(2);
+            ligne.prixt = (newQuantity * parseFloat(ligne.remarque)).toFixed(2);
+            updateTempSalesTable();
+            showToast(`Quantité mise à jour: ${ligne.quantite}`);
         }
 
         function modifierQuantiteDirect(index, newQuantity) {
@@ -704,133 +906,607 @@
                 return;
             }
 
-            tempReceptionLines[index].qtea = quantity.toFixed(2);
-            updateTempReceptionTable();
-            showToast(`Quantité mise à jour: ${tempReceptionLines[index].qtea}`);
+            const ligne = tempSaleLines[index];
+            const produit = produitsCache.find(p => p.NUMERO_ITEM === ligne.numero_item);
+
+            if (produit && quantity > produit.QTE) {
+                showToast('Quantité demandée supérieure au stock disponible', true);
+                return;
+            }
+
+            ligne.quantite = quantity.toFixed(2);
+            ligne.prixt = (quantity * parseFloat(ligne.remarque)).toFixed(2);
+            updateTempSalesTable();
+            showToast(`Quantité mise à jour: ${ligne.quantite}`);
         }
 
         function modifierPrix(index, newPrice) {
             const price = parseFloat(newPrice);
             if (isNaN(price) || price <= 0) {
-                showToast('Prix d\'achat invalide', true);
+                showToast('Prix unitaire invalide', true);
                 return;
             }
 
-            tempReceptionLines[index].prixbh = price.toFixed(2);
-            updateTempReceptionTable();
-            showToast('Prix d\'achat mis à jour');
+            const ligne = tempSaleLines[index];
+            ligne.remarque = price.toFixed(2);
+            ligne.prixt = (parseFloat(ligne.quantite) * price).toFixed(2);
+            updateTempSalesTable();
+            showToast('Prix unitaire mis à jour');
         }
 
         function supprimerLigne(index) {
-            const ligne = tempReceptionLines[index];
-            tempReceptionLines.splice(index, 1);
-            updateTempReceptionTable();
+            const ligne = tempSaleLines[index];
+            tempSaleLines.splice(index, 1);
+            updateTempSalesTable();
             showToast(`Ligne "${ligne.designation}" supprimée`);
         }
 
-        async function validerReception() {
-            console.log('Validation réception...');
+        async function validerVente() {
+            console.log('Validation vente...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Veuillez vous connecter pour valider la réception', true);
+                showToast('Veuillez vous connecter pour valider la vente', true);
                 return;
             }
 
-            if (tempReceptionLines.length === 0) {
+            if (tempSaleLines.length === 0) {
                 showToast('Aucune ligne à valider', true);
                 return;
             }
 
             const storedSeller = localStorage.getItem('selectedSeller');
             if (!storedSeller) {
-                showToast('Veuillez sélectionner et valider un utilisateur', true);
+                showToast('Veuillez sélectionner et valider un vendeur', true);
                 return;
             }
 
             const { numero_util } = JSON.parse(storedSeller);
             const password2 = localStorage.getItem('sellerPassword');
-            const numeroFournisseur = document.getElementById('receptionFournisseurId').value;
 
-            if (numeroFournisseur === '0') {
-                showToast('Veuillez sélectionner un fournisseur', true);
+            const paymentMode = document.getElementById('paymentMode').value;
+            const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
+            const numeroTable = parseInt(document.getElementById('saleClientId').value) || 0;
+
+            if (paymentMode === 'a_terme' && numeroTable === 0) {
+                showToast('Veuillez sélectionner un client pour une vente à terme', true);
                 return;
             }
 
-            const receptionData = {
-                numero_four: parseInt(numeroFournisseur),
+            if (paymentMode === 'a_terme' && amountPaid < 0) {
+                showToast('Le montant versé ne peut pas être négatif', true);
+                return;
+            }
+
+            const venteData = {
+                numero_table: numeroTable,
+                date_comande: new Date().toISOString(),
+                payment_mode: paymentMode,
+                amount_paid: amountPaid,
                 numero_util: parseInt(numero_util),
                 password2: password2,
-                lignes: tempReceptionLines.map(ligne => ({
+                lignes: tempSaleLines.map(ligne => ({
                     numero_item: ligne.numero_item,
-                    qtea: parseFloat(ligne.qtea),
-                    prixbh: parseFloat(ligne.prixbh)
+                    quantite: parseFloat(ligne.quantite),
+                    prixt: parseFloat(ligne.prixt),
+                    remarque: ligne.remarque,
+                    prixbh: ligne.prixbh
                 }))
             };
 
             try {
-                const response = await fetch(`${API_BASE_URL}/valider_reception`, {
+                const response = await fetch(`${API_BASE_URL}/valider_vente`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-User-ID': userId
                     },
-                    body: JSON.stringify(receptionData)
+                    body: JSON.stringify(venteData)
                 });
-                console.log('Réponse valider_reception:', response.status, response.statusText);
+                console.log('Réponse valider_vente:', response.status, response.statusText);
                 if (!response.ok) {
                     const errorText = await response.text();
-                    console.error('Erreur texte valider_reception:', errorText);
+                    console.error('Erreur texte valider_vente:', errorText);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 const result = await response.json();
-                console.log('Réception validée:', result);
+                console.log('Vente validée:', result);
 
-                showToast(`Réception #${result.numero_mouvement} validée avec succès`);
-                tempReceptionLines = [];
-                updateTempReceptionTable();
+                showToast(`Vente #${result.numero_comande} validée avec succès`);
+                tempSaleLines = [];
+                document.getElementById('paymentMode').value = 'espece';
+                document.getElementById('amountPaid').value = '';
+                togglePaymentForm();
+                updateTempSalesTable();
                 chargerProduits();
-                chargerFournisseurs();
+                chargerClients();
             } catch (error) {
-                console.error('Erreur validation réception:', error);
-                showToast(`Erreur validation réception: ${error.message}`, true);
+                console.error('Erreur validation vente:', error);
+                showToast(`Erreur validation vente: ${error.message}`, true);
             }
         }
 
-        document.getElementById('searchProduct').addEventListener('input', function(e) {
-            console.log('Recherche produit:', e.target.value);
-            const searchTerm = e.target.value.toLowerCase();
-            const tbody = document.getElementById('productsList');
-
-            tbody.innerHTML = '';
-            const filteredProducts = produitsCache.filter(produit =>
-                produit.NUMERO_ITEM.toString().includes(searchTerm) ||
-                produit.BAR.toString().includes(searchTerm) ||
-                produit.DESIGNATION.toLowerCase().includes(searchTerm)
-            );
-
-            if (filteredProducts.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
+        function imprimerVente80mm() {
+            console.log('Génération de l\'aperçu d\'impression 80mm...');
+            if (tempSaleLines.length === 0) {
+                showToast('Aucune ligne à imprimer', true);
                 return;
             }
 
-            filteredProducts.forEach(produit => {
+            const clientSelect = document.getElementById('saleClientId');
+            const clientValue = clientSelect.value;
+            const clientText = clientValue === '0' ? 'Vente Comptoir' : clientSelect.options[clientSelect.selectedIndex].text.replace(/<span.*<\/span>/, '');
+            const paymentMode = document.getElementById('paymentMode').value;
+            const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
+            const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0).toFixed(2);
+            const storedSeller = localStorage.getItem('selectedSeller');
+            const sellerName = storedSeller ? JSON.parse(storedSeller).nom : 'Non spécifié';
+            let soldeContent = '';
+
+            if (paymentMode === 'a_terme' && clientValue !== '0') {
+                const client = clientsCache.find(c => c.numero_clt === parseInt(clientValue));
+                const soldeAvant = client ? parseFloat(client.solde) || 0 : 0;
+                const soldeApres = soldeAvant + (amountPaid - parseFloat(total));
+                soldeContent = `
+                    <p>Solde avant vente: ${soldeAvant.toFixed(2)} DA</p>
+                    <p>Solde après vente: ${soldeApres.toFixed(2)} DA</p>
+                `;
+            }
+
+            let ticketContent = `
+                <div class="printable">
+                    <h1>FirePoz</h1>
+                    <p>Date: ${new Date().toLocaleString('fr-FR')}</p>
+                    <p>Vendeur: ${sellerName}</p>
+                    <p>Client: ${clientText}</p>
+                    <p>Mode de paiement: ${paymentMode === 'espece' ? 'Espèce' : 'À terme'}</p>
+                    ${paymentMode === 'a_terme' ? `<p>Montant versé: ${amountPaid.toFixed(2)} DA</p>` : ''}
+                    ${soldeContent}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Produit</th>
+                                <th>Qté</th>
+                                <th>Prix U.</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            tempSaleLines.forEach(ligne => {
+                ticketContent += `
+                    <tr>
+                        <td>${ligne.numero_item || 'N/A'}</td>
+                        <td>${ligne.designation || 'N/A'}</td>
+                        <td>${parseFloat(ligne.quantite).toFixed(2)}</td>
+                        <td>${parseFloat(ligne.remarque || 0).toFixed(2)}</td>
+                        <td>${parseFloat(ligne.prixt || 0).toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+
+            ticketContent += `
+                        </tbody>
+                    </table>
+                    <p class="total">Total: ${total} DA</p>
+                    <p style="text-align: center; margin-top: 3mm;">Merci de votre achat !</p>
+                </div>
+            `;
+
+            const printWindow = window.open('', '_blank', 'width=320,height=480');
+            if (!printWindow) {
+                showToast('Impossible d\'ouvrir l\'aperçu. Veuillez désactiver votre bloqueur de pop-up.', true);
+                return;
+            }
+
+            printWindow.document.write(`
+                <html>
+                    <head>
+                        <title>Aperçu Impression 80mm - FirePoz</title>
+                        <style>
+                            body {
+                                margin: 0;
+                                padding: 10mm;
+                                background: #fff;
+                                display: flex;
+                                justify-content: center;
+                                align-items: center;
+                                min-height: 100vh;
+                            }
+                            .printable {
+                                width: 80mm;
+                                font-family: Arial, sans-serif;
+                                font-size: 10pt;
+                                line-height: 1.2;
+                                color: #000;
+                                box-shadow: 0 0 5mm rgba(0, 0, 0, 0.1);
+                            }
+                            .printable h1 {
+                                font-size: 14pt;
+                                text-align: center;
+                                margin-bottom: 5mm;
+                            }
+                            .printable p, .printable table {
+                                margin-bottom: 3mm;
+                            }
+                            .printable table {
+                                width: 100%;
+                                border-collapse: collapse;
+                            }
+                            .printable th, .printable td {
+                                border: 0.5mm solid #000;
+                                padding: 1mm;
+                                font-size: 8pt;
+                                text-align: left;
+                            }
+                            .printable .total {
+                                font-weight: bold;
+                                font-size: 10pt;
+                                text-align: right;
+                            }
+                            .print-controls {
+                                text-align: center;
+                                margin-top: 10mm;
+                            }
+                            .print-controls button {
+                                padding: 5mm 10mm;
+                                margin: 0 5mm;
+                                font-size: 10pt;
+                                cursor: pointer;
+                            }
+                            @media print {
+                                body {
+                                    margin: 0;
+                                    padding: 0;
+                                }
+                                .print-controls {
+                                    display: none;
+                                }
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        ${ticketContent}
+                        <div class="print-controls">
+                            <button onclick="window.print(); window.close();" style="background-color: #4CAF50; color: white; border: none; border-radius: 5mm;">Imprimer</button>
+                            <button onclick="window.close();" style="background-color: #f44336; color: white; border: none; border-radius: 5mm;">Annuler</button>
+                        </div>
+                    </body>
+                </html>
+            `);
+            printWindow.document.close();
+        }
+
+        function imprimerVenteA4() {
+            console.log('Génération de l\'aperçu d\'impression A4...');
+            if (tempSaleLines.length === 0) {
+                showToast('Aucune ligne à imprimer', true);
+                return;
+            }
+
+            const clientSelect = document.getElementById('saleClientId');
+            const clientValue = clientSelect.value;
+            const clientText = clientValue === '0' ? 'Vente Comptoir' : clientSelect.options[clientSelect.selectedIndex].text.replace(/<span.*<\/span>/, '');
+            const paymentMode = document.getElementById('paymentMode').value;
+            const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
+            const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0).toFixed(2);
+            const userEmail = localStorage.getItem('userEmail') || 'Utilisateur inconnu';
+            const storedSeller = localStorage.getItem('selectedSeller');
+            const sellerName = storedSeller ? JSON.parse(storedSeller).nom : 'Non spécifié';
+            let soldeContent = '';
+
+            if (paymentMode === 'a_terme' && clientValue !== '0') {
+                const client = clientsCache.find(c => c.numero_clt === parseInt(clientValue));
+                const soldeAvant = client ? parseFloat(client.solde) || 0 : 0;
+                const soldeApres = soldeAvant + (amountPaid - parseFloat(total));
+                soldeContent = `
+                    <p><strong>Solde avant vente :</strong> ${soldeAvant.toFixed(2)} DA</p>
+                    <p><strong>Solde après vente :</strong> ${soldeApres.toFixed(2)} DA</p>
+                `;
+            }
+
+            let ticketContent = `
+                <div class="printable">
+                    <header>
+                        <h1>FirePoz - Bon de Livraison</h1>
+                        <p><strong>Émis par :</strong> ${userEmail}</p>
+                        <p><strong>Vendeur :</strong> ${sellerName}</p>
+                        <p><strong>Date :</strong> ${new Date().toLocaleString('fr-FR')}</p>
+                        <p><strong>Client :</strong> ${clientText}</p>
+                        <p><strong>Mode de paiement :</strong> ${paymentMode === 'espece' ? 'Espèce' : 'À terme'}</p>
+                        ${paymentMode === 'a_terme' ? `<p><strong>Montant versé :</strong> ${amountPaid.toFixed(2)} DA</p>` : ''}
+                        ${soldeContent}
+                    </header>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Produit</th>
+                                <th>Quantité</th>
+                                <th>Prix Unitaire</th>
+                                <th>Prix Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            tempSaleLines.forEach(ligne => {
+                ticketContent += `
+                    <tr>
+                        <td>${ligne.numero_item || 'N/A'}</td>
+                        <td>${ligne.designation || 'N/A'}</td>
+                        <td>${parseFloat(ligne.quantite).toFixed(2)}</td>
+                        <td>${parseFloat(ligne.remarque || 0).toFixed(2)} DA</td>
+                        <td>${parseFloat(ligne.prixt || 0).toFixed(2)} DA</td>
+                    </tr>
+                `;
+            });
+
+            ticketContent += `
+                        </tbody>
+                    </table>
+                    <div class="total-section">
+                        <p><strong>Total :</strong> ${total} DA</p>
+                    </div>
+                    <footer>
+                        <p>Merci de votre achat !</p>
+                        <p>Contact : Hicham Khelladi | Tel : 00213553700900 | Email : Hicham.khelladi@gmail.com</p>
+                    </footer>
+                </div>
+            `;
+
+            const printWindow = window.open('', '_blank', 'width=800,height=600');
+            if (!printWindow) {
+                showToast('Impossible d\'ouvrir l\'aperçu. Veuillez désactiver votre bloqueur de pop-up.', true);
+                return;
+            }
+
+            printWindow.document.write(`
+                <html>
+                    <head>
+                        <title>Bon de Livraison A4 - FirePoz</title>
+                        <style>
+                            @page { size: A4; margin: 20mm; }
+                            body {
+                                margin: 0;
+                                padding: 0;
+                                font-family: Arial, sans-serif;
+                                color: #333;
+                            }
+                            .printable {
+                                width: 190mm;
+                                margin: 0 auto;
+                                padding: 10mm;
+                                background: #fff;
+                                border: 1mm solid #ddd;
+                                box-shadow: 0 0 5mm rgba(0,0,0,0.1);
+                            }
+                            header {
+                                text-align: center;
+                                margin-bottom: 10mm;
+                                border-bottom: 1mm solid #ddd;
+                                padding-bottom: 5mm;
+                            }
+                            header h1 {
+                                font-size: 24pt;
+                                color: #4f46e5;
+                                margin: 0;
+                            }
+                            header p {
+                                font-size: 10pt;
+                                margin: 2mm 0;
+                            }
+                            table {
+                                width: 100%;
+                                border-collapse: collapse;
+                                margin-bottom: 10mm;
+                            }
+                            th, td {
+                                border: 0.5mm solid #ddd;
+                                padding: 3mm;
+                                font-size: 10pt;
+                                text-align: left;
+                            }
+                            th {
+                                background: #f3f4f6;
+                                font-weight: bold;
+                                color: #333;
+                            }
+                            .total-section {
+                                text-align: right;
+                                font-size: 14pt;
+                                font-weight: bold;
+                                margin-top: 5mm;
+                                padding-top: 5mm;
+                                border-top: 1mm solid #ddd;
+                            }
+                            footer {
+                                text-align: center;
+                                font-size: 9pt;
+                                margin-top: 10mm;
+                                border-top: 1mm solid #ddd;
+                                padding-top: 5mm;
+                            }
+                            footer p {
+                                margin: 2mm 0;
+                            }
+                            .print-controls {
+                                text-align: center;
+                                margin-top: 10mm;
+                            }
+                            .print-controls button {
+                                padding: 5mm 10mm;
+                                margin: 0 5mm;
+                                font-size: 10pt;
+                                cursor: pointer;
+                                border: none;
+                                border-radius: 5mm;
+                            }
+                            @media print {
+                                body { margin: 0; }
+                                .print-controls { display: none; }
+                                .printable { box-shadow: none; border: none; }
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        ${ticketContent}
+                        <div class="print-controls">
+                            <button onclick="window.print(); window.close();" style="background-color: #4CAF50; color: white;">Imprimer</button>
+                            <button onclick="window.close();" style="background-color: #f44336; color: white;">Annuler</button>
+                        </div>
+                    </body>
+                </html>
+            `);
+            printWindow.document.close();
+        }
+
+        let stream = null;
+        let barcodeDetector = null;
+        let isScanning = false;
+
+        async function startScanner() {
+            console.log('Démarrage du scanner...');
+            if (!('BarcodeDetector' in window)) {
+                showToast('Le scanner de code-barres n\'est pas supporté par ce navigateur. Utilisez Chrome ou Edge.', true);
+                return;
+            }
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                showToast('L\'accès à la caméra n\'est pas supporté par ce navigateur.', true);
+                return;
+            }
+
+            document.getElementById('productsList').classList.add('hidden');
+            document.getElementById('scannerOverlay').style.display = 'block';
+            document.getElementById('scannerPreview').style.display = 'block';
+
+            const preview = document.getElementById('scannerPreview');
+            const scanButton = document.getElementById('scanButton');
+            const closeButton = document.getElementById('closeScannerButton');
+            scanButton.disabled = true;
+            isScanning = true;
+
+            closeButton.addEventListener('click', stopScanner);
+
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' }
+                });
+                preview.srcObject = stream;
+
+                barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a'] });
+
+                const scan = async () => {
+                    if (!isScanning) return;
+                    try {
+                        const barcodes = await barcodeDetector.detect(preview);
+                        if (barcodes.length > 0) {
+                            const barcode = barcodes[0].rawValue;
+                            console.log('Code-barres détecté:', barcode);
+                            document.getElementById('productBar').value = barcode;
+                            stopScanner();
+                            selectProductByBarcode(barcode);
+                        }
+                    } catch (err) {
+                        console.error('Erreur détection code-barres:', err);
+                    }
+                    if (isScanning) {
+                        requestAnimationFrame(scan);
+                    }
+                };
+
+                scan();
+            } catch (err) {
+                console.error('Erreur démarrage scanner:', err);
+                showToast('Erreur d\'accès à la caméra: ' + err.message, true);
+                stopScanner();
+            }
+        }
+
+        function stopScanner() {
+            console.log('Arrêt du scanner...');
+            isScanning = false;
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+            document.getElementById('scannerPreview').srcObject = null;
+            document.getElementById('scannerPreview').style.display = 'none';
+            document.getElementById('scannerOverlay').style.display = 'none';
+            document.getElementById('productsList').classList.remove('hidden');
+            document.getElementById('scanButton').disabled = false;
+        }
+
+        function selectProductByBarcode(barcode) {
+            const produit = produitsCache.find(p => p.BAR.toString() === barcode);
+            if (!produit) {
+                showToast('Produit non trouvé pour ce code-barres', true);
+                return;
+            }
+            selectProduct(
+                produit.NUMERO_ITEM,
+                produit.BAR,
+                produit.PRIX,
+                produit.PRIXBA,
+                produit.QTE,
+                produit.DESIGNATION
+            );
+        }
+
+        document.getElementById('productBar').addEventListener('change', (e) => {
+            const barcode = e.target.value;
+            if (barcode) {
+                selectProductByBarcode(barcode);
+            }
+        });
+
+        document.getElementById('searchProduct').addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const filteredProduits = produitsCache.filter(produit =>
+                produit.DESIGNATION.toLowerCase().includes(searchTerm) ||
+                produit.BAR.toString().includes(searchTerm) ||
+                produit.NUMERO_ITEM.toString().includes(searchTerm)
+            );
+            const tbody = document.getElementById('productsList');
+            const countElement = document.getElementById('productCount');
+
+            if (filteredProduits.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
+                countElement.textContent = '0';
+                countElement.classList.remove('hidden');
+                return;
+            }
+
+            tbody.innerHTML = '';
+            filteredProduits.forEach(produit => {
+                const stockStatus = produit.QTE <= 0 ? 'Rupture' : produit.QTE <= 5 ? 'Stock faible' : produit.QTE.toFixed(2);
+                const stockClass = produit.QTE <= 0 ? 'stock-rupture' : produit.QTE <= 5 ? 'stock-faible' : '';
+                const buttonDisabled = produit.QTE <= 0 ? 'btn-disabled' : '';
+                const buttonAttrs = produit.QTE <= 0 ? 'disabled' : '';
+
                 const tr = document.createElement('tr');
-                tr.className = 'hover:bg-gray-50';
+                tr.className = `hover:bg-gray-50 ${stockClass}`;
                 tr.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <button onclick="selectProduct(${produit.NUMERO_ITEM}, ${produit.PRIXBA}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition duration-300">
+                        <button onclick="selectProduct(${produit.NUMERO_ITEM}, ${produit.BAR}, ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition duration-300 ${buttonDisabled}" ${buttonAttrs}>
                             <i class="fas fa-plus"></i>
                         </button>
                     </td>
                     <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE.toFixed(2)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stockStatus}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.NUMERO_ITEM || 'N/A'}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || 0).toFixed(2)}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-        });
-    </script>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
+                               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || 0).toFixed(2)}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    countElement.textContent = filteredProduits.length;
+    countElement.classList.remove('hidden');
+});
+</script>
 </body>
 </html>
