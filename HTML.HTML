@@ -36,7 +36,6 @@
         .kpi-updated { animation: pulse 0.5s ease-in-out; }
         .dynamic-icon { transition: color 0.3s ease; }
         .chart-container { animation-delay: 1s; }
-        /* Styles spécifiques pour le panneau KPI amélioré */
         #kpiSection {
             border-bottom: 2px solid #e5e7eb;
             transition: all 0.3s ease;
@@ -50,6 +49,28 @@
         }
         .kpi-card:hover {
             transform: translateY(-2px);
+        }
+        .fixed-buttons {
+            position: sticky;
+            top: 64px;
+            z-index: 9;
+            background: #f3f4f6;
+            padding: 1rem 0;
+            margin-bottom: 2rem;
+        }
+        .table-container {
+            max-height: 350px;
+            overflow-y: auto;
+            position: relative;
+        }
+        .table-container table {
+            width: 100%;
+        }
+        .table-container thead {
+            position: sticky;
+            top: 0;
+            background: #f9fafb;
+            z-index: 1;
         }
     </style>
 </head>
@@ -104,6 +125,18 @@
             </p>
         </header>
 
+        <!-- Boutons Vente et Achat fixés -->
+        <div class="fixed-buttons flex">
+            <a href="vente.html" class="w-1/2 bg-green-600 text-white py-6 flex items-center justify-center hover:bg-green-700 transition-all duration-300 transform hover:scale-105 animate-pulse">
+                <i class="fas fa-shopping-cart text-4xl mr-3"></i>
+                <span class="text-2xl font-semibold">Vente</span>
+            </a>
+            <a href="achat.html" class="w-1/2 bg-blue-600 text-white py-6 flex items-center justify-center hover:bg-blue-700 transition-all duration-300 transform hover:scale-105 animate-pulse">
+                <i class="fas fa-box-open text-4xl mr-3"></i>
+                <span class="text-2xl font-semibold">Achat</span>
+            </a>
+        </div>
+
         <!-- Section KPI améliorée -->
         <div id="kpiSection" class="w-full bg-gradient-to-r from-indigo-100 to-white shadow-lg rounded-lg p-4 mb-8 z-10 animate-fade-in">
             <div class="flex justify-between items-center mb-4">
@@ -115,7 +148,6 @@
                     <option value="week">Cette Semaine</option>
                 </select>
             </div>
-            <!-- Grille des KPI (4 par ligne, compact) -->
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24">
                     <h3 class="text-xs font-medium text-gray-600 flex items-center">
@@ -157,18 +189,6 @@
                 <i class="fas fa-chart-area mr-2 text-indigo-500"></i> Évolution du Chiffre d'Affaires
             </h3>
             <canvas id="caChart" height="100"></canvas>
-        </div>
-
-        <!-- Boutons Vente et Achat -->
-        <div class="flex mb-8 mt-8">
-            <a href="vente.html" class="w-1/2 bg-green-600 text-white py-6 flex items-center justify-center hover:bg-green-700 transition-all duration-300 transform hover:scale-105 animate-pulse">
-                <i class="fas fa-shopping-cart text-4xl mr-3"></i>
-                <span class="text-2xl font-semibold">Vente</span>
-            </a>
-            <a href="achat.html" class="w-1/2 bg-blue-600 text-white py-6 flex items-center justify-center hover:bg-blue-700 transition-all duration-300 transform hover:scale-105 animate-pulse">
-                <i class="fas fa-box-open text-4xl mr-3"></i>
-                <span class="text-2xl font-semibold">Achat</span>
-            </a>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
@@ -230,7 +250,7 @@
                         </div>
                     </div>
 
-                    <div class="overflow-x-auto">
+                    <div class="table-container">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
@@ -310,7 +330,7 @@
                         </div>
                     </div>
 
-                    <div class="overflow-x-auto">
+                    <div class="table-container">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
@@ -397,7 +417,7 @@
                         </div>
                     </div>
 
-                    <div class="overflow-x-auto">
+                    <div class="table-container">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
@@ -471,7 +491,7 @@
                         </div>
                     </div>
 
-                    <div class="overflow-x-auto">
+                    <div class="table-container">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
@@ -1395,78 +1415,56 @@
             });
         });
 
-        // --- Scanner de code-barres avec Barcode Detection API ---
+              // --- Gestion du scanner ---
         async function startScanner() {
             if (!('BarcodeDetector' in window)) {
-                showToast('Le scanner de code-barres n\'est pas supporté par ce navigateur. Utilisez Chrome ou Edge.', true);
+                showToast('Le scanner de code-barres n\'est pas pris en charge par ce navigateur', true);
                 return;
             }
 
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                showToast('L\'accès à la caméra n\'est pas supporté par ce navigateur.', true);
+            if (isScanning) {
+                showToast('Le scanner est déjà actif', true);
                 return;
             }
-
-            const preview = document.getElementById('scannerPreview');
-         
-            const scanButton = document.getElementById('scanButton');
-
-            preview.style.display = 'block';
-            scanButton.disabled = true;
-            isScanning = true;
 
             try {
-                barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
-
                 stream = await navigator.mediaDevices.getUserMedia({
                     video: { facingMode: 'environment' }
                 });
-
                 const video = document.createElement('video');
                 video.srcObject = stream;
-                video.setAttribute('playsinline', 'true');
-                video.setAttribute('autoplay', 'true');
-                preview.innerHTML = '';
-                preview.appendChild(video);
+                video.setAttribute('playsinline', true);
+                video.play();
 
-                await video.play().catch(err => {
-                    console.error('Erreur lors de la lecture de la vidéo:', err);
-                    showToast('Erreur lors du démarrage de la caméra.', true);
-                    stopScanner();
-                });
+                const scannerPreview = document.getElementById('scannerPreview');
+                scannerPreview.innerHTML = '';
+                scannerPreview.appendChild(video);
+                scannerPreview.style.display = 'block';
 
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
+                barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
+                isScanning = true;
 
-                const detectBarcode = async () => {
+                const scan = async () => {
                     if (!isScanning) return;
-
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
                     try {
-                        const barcodes = await barcodeDetector.detect(canvas);
-                        if (barcodes && barcodes.length > 0) {
+                        const barcodes = await barcodeDetector.detect(video);
+                        if (barcodes.length > 0) {
                             const barcode = barcodes[0].rawValue;
                             document.getElementById('productBar').value = barcode;
-                            showToast('Code-barres détecté avec succès !');
+                            showToast(`Code-barres détecté : ${barcode}`);
                             stopScanner();
                             return;
                         }
-                    } catch (err) {
-                        console.error('Erreur lors de la détection du code-barres:', err);
-                        showToast('Erreur lors de la détection du code-barres.', true);
+                    } catch (error) {
+                        console.error('Erreur de détection de code-barres:', error);
                     }
-
-                    requestAnimationFrame(detectBarcode);
+                    requestAnimationFrame(scan);
                 };
 
-                detectBarcode();
+                scan();
             } catch (error) {
-                console.error('Erreur démarrage scanner:', error);
-                showToast('Erreur lors de l\'accès à la caméra: ' + error.message, true);
-                stopScanner();
+                showToast('Erreur d\'accès à la caméra: ' + error.message, true);
+                console.error('Erreur scanner:', error);
             }
         }
 
@@ -1475,18 +1473,11 @@
                 stream.getTracks().forEach(track => track.stop());
                 stream = null;
             }
-            const preview = document.getElementById('scannerPreview');
-            preview.style.display = 'none';
-            preview.innerHTML = '';
-            document.getElementById('scanButton').disabled = false;
+            const scannerPreview = document.getElementById('scannerPreview');
+            scannerPreview.innerHTML = '';
+            scannerPreview.style.display = 'none';
             isScanning = false;
         }
-
-        // Gestion des erreurs globales
-        window.onerror = function(message, source, lineno, colno, error) {
-            console.error('Erreur globale:', message, 'à', source, 'ligne', lineno);
-            showToast('Une erreur inattendue s\'est produite.', true);
-        };
     </script>
 </body>
-</html>  
+</html>
