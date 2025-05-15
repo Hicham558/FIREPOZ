@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
+
 <link rel="manifest" href="manifest.json">
 <script>
   if ('serviceWorker' in navigator) {
@@ -9,6 +10,7 @@
     });
   }
 </script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestion Commerciale</title>
@@ -87,7 +89,7 @@
     <div id="loginModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-20 hidden">
         <form id="loginForm" class="bg-white rounded-lg p-6 w-full max-w-md">
             <h2 class="text-xl font-semibold mb-4">Connexion</h2>
-            <p class="text-sm text-red-500 mb-4">?? Le mot de passe ne doit pas être celui de votre email.</p>
+            <p class="text-sm text-red-500 mb-4">⚠️ Le mot de passe ne doit pas être celui de votre email.</p>
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Adresse Email*</label>
                 <input type="email" id="userEmail" name="username" autocomplete="username" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre email" required>
@@ -217,13 +219,10 @@
                             <input type="text" id="searchClient" placeholder="Rechercher des clients..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
                             <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
                         </div>
-                        <div class="flex justify-end mt-2 space-x-2">
+                        <div class="flex justify-end mt-2">
                             <button onclick="toggleClientForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
                                 <i class="fas fa-plus mr-2"></i>Ajouter
                             </button>
-                            <a href="HISTO.html" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-money-check-alt mr-2"></i>Versement
-                            </a>
                         </div>
                     </div>
 
@@ -300,13 +299,10 @@
                             <input type="text" id="searchFournisseur" placeholder="Rechercher des fournisseurs..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
                             <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
                         </div>
-                        <div class="flex justify-end mt-2 space-x-2">
+                        <div class="flex justify-end mt-2">
                             <button onclick="toggleFournisseurForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
                                 <i class="fas fa-plus mr-2"></i>Ajouter
                             </button>
-                            <a href="HISTO.html" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-money-check-alt mr-2"></i>Versement
-                            </a>
                         </div>
                     </div>
 
@@ -1395,8 +1391,7 @@
                     throw new Error(result.erreur || 'Erreur lors de la suppression');
                 }
 
-              
-              showToast('Utilisateur supprimé avec succès');
+                showToast('Utilisateur supprimé avec succès');
                 chargerUtilisateurs();
             } catch (error) {
                 showToast(error.message, true);
@@ -1421,8 +1416,8 @@
 
             rows.forEach(row => {
                 const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-                const statut = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
-                if (nom?.includes(searchTerm) || statut?.includes(searchTerm)) {
+                const statue = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
+                if (nom?.includes(searchTerm) || statue?.includes(searchTerm)) {
                     row.style.display = '';
                 } else {
                     row.style.display = 'none';
@@ -1430,63 +1425,56 @@
             });
         });
 
-        // --- Gestion du scanner de code-barres ---
+          // --- Gestion du scanner ---
         async function startScanner() {
-            if (isScanning) return;
+            if (!('BarcodeDetector' in window)) {
+                showToast('Le scanner de code-barres n\'est pas pris en charge par ce navigateur', true);
+                return;
+            }
+
+            if (isScanning) {
+                showToast('Le scanner est déjà actif', true);
+                return;
+            }
 
             try {
-                // Vérifier si BarcodeDetector est supporté
-                if (!('BarcodeDetector' in window)) {
-                    showToast('Le scan de code-barres n\'est pas supporté par ce navigateur', true);
-                    return;
-                }
-
-                // Initialiser le détecteur de code-barres
-                barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
-
-                // Accéder à la caméra
                 stream = await navigator.mediaDevices.getUserMedia({
                     video: { facingMode: 'environment' }
                 });
-
                 const video = document.createElement('video');
                 video.srcObject = stream;
-                video.autoplay = true;
-                video.playsinline = true;
+                video.setAttribute('playsinline', true);
+                video.play();
 
                 const scannerPreview = document.getElementById('scannerPreview');
                 scannerPreview.innerHTML = '';
                 scannerPreview.appendChild(video);
                 scannerPreview.style.display = 'block';
 
+                barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
                 isScanning = true;
-                document.getElementById('scanButton').innerHTML = '<i class="fas fa-camera"></i> Scanning...';
 
-                // Détection continue des codes-barres
-                const detectBarcodes = async () => {
+                const scan = async () => {
                     if (!isScanning) return;
-
                     try {
                         const barcodes = await barcodeDetector.detect(video);
                         if (barcodes.length > 0) {
                             const barcode = barcodes[0].rawValue;
                             document.getElementById('productBar').value = barcode;
-                            showToast('Code-barres détecté: ' + barcode);
+                            showToast(`Code-barres détecté : ${barcode}`);
                             stopScanner();
                             return;
                         }
                     } catch (error) {
-                        console.error('Erreur détection code-barres:', error);
+                        console.error('Erreur de détection de code-barres:', error);
                     }
-
-                    requestAnimationFrame(detectBarcodes);
+                    requestAnimationFrame(scan);
                 };
 
-                detectBarcodes();
+                scan();
             } catch (error) {
-                showToast('Erreur lors du démarrage du scanner: ' + error.message, true);
+                showToast('Erreur d\'accès à la caméra: ' + error.message, true);
                 console.error('Erreur scanner:', error);
-                stopScanner();
             }
         }
 
@@ -1495,56 +1483,11 @@
                 stream.getTracks().forEach(track => track.stop());
                 stream = null;
             }
-            isScanning = false;
             const scannerPreview = document.getElementById('scannerPreview');
             scannerPreview.innerHTML = '';
             scannerPreview.style.display = 'none';
-            document.getElementById('scanButton').innerHTML = '<i class="fas fa-camera"></i> Scanner';
+            isScanning = false;
         }
-
-        // Gestion des erreurs globales
-        window.addEventListener('unhandledrejection', event => {
-            console.error('Erreur non gérée:', event.reason);
-            showToast('Une erreur inattendue s\'est produite', true);
-        });
-
-        // Gestion de la mise hors ligne
-        window.addEventListener('offline', () => {
-            showToast('Vous êtes hors ligne. Certaines fonctionnalités peuvent être limitées.', true);
-        });
-
-        window.addEventListener('online', () => {
-            showToast('Connexion rétablie.');
-            const userId = localStorage.getItem('userId');
-            if (userId) {
-                chargerClients();
-                chargerFournisseurs();
-                chargerProduits();
-                chargerUtilisateurs();
-                chargerKPI();
-            }
-        });
-
-        // Prévenir le rechargement accidentel pendant le scan
-        window.addEventListener('beforeunload', (event) => {
-            if (isScanning) {
-                event.preventDefault();
-                event.returnValue = 'Le scanner est actif. Voulez-vous vraiment quitter ?';
-            }
-        });
-
-        // Gestion de l'impression (si nécessaire)
-        function printPage() {
-            window.print();
-        }
-
-        // Gestion des raccourcis clavier (optionnel)
-        document.addEventListener('keydown', (event) => {
-            if (event.ctrlKey && event.key === 'p') {
-                event.preventDefault();
-                printPage();
-            }
-        });
     </script>
 </body>
 </html>
