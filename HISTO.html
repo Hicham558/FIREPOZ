@@ -47,7 +47,6 @@
         .table-container table {
             width: 100%;
         }
-        /* Modal Styles */
         .modal {
             display: none;
             position: fixed;
@@ -98,7 +97,7 @@
                     <h2 class="text-xl font-semibold text-gray-800 flex items-center">
                         <i class="fas fa-user mr-2 text-indigo-500"></i> Sélection du Vendeur
                     </h2>
-                    <button class="text-graypam-600 hover:text-gray-800 transition">
+                    <button class="text-gray-600 hover:text-gray-800 transition">
                         <i class="fas fa-chevron-down" id="sellerChevron"></i>
                     </button>
                 </div>
@@ -177,7 +176,7 @@
                         <div>
                             <label class="text-sm font-medium text-gray-700">Montant (positif/négatif)</label>
                             <input type="number" id="montant" step="0.01" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Ex: 100.00 ou -100.00">
-                        </´s
+                        </div>
                         <div>
                             <label class="text-sm font-medium text-gray-700">Justificatif</label>
                             <input type="text" id="justificatif" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Ex: Paiement facture">
@@ -237,8 +236,8 @@
                     <label class="text-sm font-medium text-gray-700">Client/Fournisseur</label>
                     <input type="text" id="edit_numero_cf_name" class="w-full px-4 py-2 border rounded-md bg-gray-100" disabled>
                     <input type="hidden" id="edit_numero_mc">
-                    <input type="hidden" id="edit_numero_cf">
                     <input type="hidden" id="edit_type">
+                    <input type="hidden" id="edit_numero_cf">
                 </div>
                 <div>
                     <label class="text-sm font-medium text-gray-700">Montant (positif/négatif)</label>
@@ -383,7 +382,33 @@
                 return;
             }
             if (!password2) {
-                showToast('Veuillez entrer_structure = document.getElementById('sellerSelect').options[document.getElementById('sellerSelect').selectedIndex];
+                showToast('Veuillez entrer le mot de passe', true);
+                return;
+            }
+
+            try {
+                const testVenteData = {
+                    numero_table: 0,
+                    date_comande: new Date().toISOString(),
+                    payment_mode: 'espece',
+                    amount_paid: 0,
+                    numero_util: parseInt(numeroUtil),
+                    password2: password2,
+                    lignes: [{ numero_item: 0, quantite: 0, prixt: 0, remarque: 'test', prixbh: 0 }]
+                };
+                const response = await fetch(`${API_BASE_URL}/valider_vente`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify(testVenteData)
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                const selectedOption = document.getElementById('sellerSelect').options[document.getElementById('sellerSelect').selectedIndex];
                 const sellerName = selectedOption.text;
                 localStorage.setItem('selectedSeller', JSON.stringify({
                     numero_util: numeroUtil,
@@ -510,7 +535,7 @@
                         <td class="px-6 py-4 text-sm text-gray-500">${v.justificatif || '-'}</td>
                         <td class="px-6 py-4 text-sm text-gray-500">${v.utilisateur_nom || 'N/A'}</td>
                         <td class="px-6 py-4 text-sm">
-                            <button onclick="openEditModal(${v.numero_mc}, '${v.type}', '${v.numero_cf}', '${v.nom_cf}', ${v.montant}, '${v.justificatif}')" class="text-blue-600 hover:text-blue-800">
+                            <button onclick="openEditModal(${v.numero_mc}, '${v.type}', '${v.numero_cf}', '${v.nom_cf || 'N/A'}', ${v.montant}, '${v.justificatif || ''}')" class="text-blue-600 hover:text-blue-800">
                                 <i class="fas fa-edit"></i>
                             </button>
                         </td>
@@ -583,11 +608,11 @@
 
         function openEditModal(numero_mc, type, numero_cf, nom_cf, montant, justificatif) {
             document.getElementById('edit_numero_mc').value = numero_mc;
-            document.getElementById('edit_type').value = type === 'Client' ? 'C' : 'F';
+            document.getElementById('edit_type').value = type;
             document.getElementById('edit_numero_cf').value = numero_cf;
-            document.getElementById('edit_numero_cf_name').value = nom_cf || 'N/A';
+            document.getElementById('edit_numero_cf_name').value = nom_cf;
             document.getElementById('edit_montant').value = montant;
-            document.getElementById('edit_justificatif').value = justificatif || '';
+            document.getElementById('edit_justificatif').value = justificatif;
             document.getElementById('edit_password2').value = '';
             document.getElementById('edit-message').classList.add('hidden');
             document.getElementById('editVersementModal').style.display = 'flex';
@@ -633,8 +658,8 @@
                     body: JSON.stringify({ numero_mc, type, numero_cf, montant, justificatif, numero_util, password2 })
                 });
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(`Erreur ${response.status}: ${errorData.error || 'Erreur inconnue'}`);
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 closeEditModal();
                 loadHistorique(document.getElementById('filter-date').value, type);
@@ -664,7 +689,6 @@
             }
             const { numero_util } = JSON.parse(storedSeller);
             const password2 = localStorage.getItem('sellerPassword');
-            const actualType = type === 'Client' ? 'C' : 'F';
 
             try {
                 const response = await fetch(`${API_BASE_URL}/annuler_versement`, {
@@ -673,15 +697,15 @@
                         'Content-Type': 'application/json',
                         'X-User-ID': userId
                     },
-                    body: JSON.stringify({ numero_mc, type: actualType, numero_cf, numero_util, password2 })
+                    body: JSON.stringify({ numero_mc, type, numero_cf, numero_util, password2 })
                 });
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(`Erreur ${response.status}: ${errorData.error || 'Erreur inconnue'}`);
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
-                loadHistorique(document.getElementById('filter-date').value, actualType);
+                loadHistorique(document.getElementById('filter-date').value, type);
                 showToast('Versement annulé avec succès');
-                actualType === 'C' ? chargerClients() : chargerFournisseurs();
+                type === 'C' ? chargerClients() : chargerFournisseurs();
             } catch (error) {
                 showToast(`Erreur annulation versement: ${error.message}`, true);
                 console.error('Erreur annulation versement:', error);
@@ -773,7 +797,6 @@
                 window.location.href = 'index.html';
             }
 
-            // Modal event listeners
             document.getElementById('cancelEditButton').addEventListener('click', closeEditModal);
             document.getElementById('submitEditButton').addEventListener('click', modifierVersement);
         });
