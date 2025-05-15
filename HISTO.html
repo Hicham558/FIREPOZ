@@ -239,7 +239,6 @@
 
         function toggleSection(sectionId) {
             console.log(`Toggle section: ${sectionId}`);
-            const section = document.getElementById(sectionId);
             const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
             const chevron = document.getElementById(`${sectionId.replace('Section', 'Chevron')}`);
             content.classList.toggle('hidden');
@@ -264,7 +263,7 @@
         }
 
         function loginLogout() {
-            console.log('Login/Logout triggered');
+            console.log('Login/Logout');
             const userId = localStorage.getItem('userId');
             if (userId) {
                 localStorage.removeItem('userId');
@@ -279,23 +278,24 @@
         }
 
         async function chargerUtilisateurs() {
-            console.log('Chargement des utilisateurs...');
+            console.log('Chargement utilisateurs...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
+                console.log('Aucun userId, impossible de charger utilisateurs');
                 showToast('Veuillez vous connecter pour voir les utilisateurs', true);
-                return;
+                return false;
             }
             try {
                 const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
                     headers: { 'X-User-ID': userId }
                 });
-                console.log('Réponse API /liste_utilisateurs:', response.status);
+                console.log('Réponse /liste_utilisateurs:', response.status, response.statusText);
                 if (!response.ok) {
                     const errorText = await response.text();
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 const utilisateurs = await response.json();
-                console.log('Utilisateurs reçus:', utilisateurs);
+                console.log('Utilisateurs:', utilisateurs);
                 const userSelect = document.getElementById('userSelect');
                 userSelect.innerHTML = '<option value="0">Sélectionner un utilisateur</option>';
                 utilisateurs.forEach(u => {
@@ -304,9 +304,11 @@
                     option.textContent = u.nom;
                     userSelect.appendChild(option);
                 });
+                return true;
             } catch (error) {
-                showToast('Erreur chargement utilisateurs: ' + error.message, true);
                 console.error('Erreur chargement utilisateurs:', error);
+                showToast(`Erreur chargement utilisateurs: ${error.message}`, true);
+                return false;
             }
         }
 
@@ -315,6 +317,12 @@
             const numeroUtil = document.getElementById('userSelect').value;
             const password2 = document.getElementById('userPassword').value;
             const userId = localStorage.getItem('userId');
+            console.log('numeroUtil:', numeroUtil, 'password2:', password2 ? '***' : 'vide', 'userId:', userId);
+
+            if (!userId) {
+                showToast('Veuillez vous connecter', true);
+                return;
+            }
             if (numeroUtil === '0') {
                 showToast('Veuillez sélectionner un utilisateur', true);
                 return;
@@ -323,6 +331,7 @@
                 showToast('Veuillez entrer le mot de passe', true);
                 return;
             }
+
             try {
                 const testVersement = {
                     type: 'C',
@@ -332,6 +341,7 @@
                     numero_util: parseInt(numeroUtil),
                     password2: password2
                 };
+                console.log('Envoi test versement:', testVersement);
                 const response = await fetch(`${API_BASE_URL}/ajouter_versement`, {
                     method: 'POST',
                     headers: {
@@ -340,13 +350,15 @@
                     },
                     body: JSON.stringify(testVersement)
                 });
-                console.log('Réponse API /ajouter_versement:', response.status);
+                console.log('Réponse /ajouter_versement:', response.status, response.statusText);
                 if (!response.ok) {
                     const errorText = await response.text();
+                    console.error('Erreur texte:', errorText);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 const selectedOption = document.getElementById('userSelect').options[document.getElementById('userSelect').selectedIndex];
                 const userName = selectedOption.text;
+                console.log('Utilisateur validé:', userName);
                 localStorage.setItem('selectedUser', JSON.stringify({
                     numero_util: numeroUtil,
                     nom: userName
@@ -362,8 +374,8 @@
                 document.getElementById('userChevron').classList.remove('fa-chevron-up');
                 showToast(`Utilisateur ${userName} validé`);
             } catch (error) {
-                showToast(`Erreur validation utilisateur: ${error.message}`, true);
-                console.error('Erreur validation utilisateur:', error);
+                console.error('Erreur validation:', error);
+                showToast(`Erreur validation: ${error.message}`, true);
             }
         }
 
@@ -394,7 +406,7 @@
                 const response = await fetch(`${API_BASE_URL}/liste_clients`, {
                     headers: { 'X-User-ID': userId }
                 });
-                console.log('Réponse API /liste_clients:', response.status);
+                console.log('Réponse /liste_clients:', response.status);
                 if (!response.ok) {
                     const errorText = await response.text();
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
@@ -402,8 +414,8 @@
                 clientsCache = await response.json();
                 updateCFSelect('clients');
             } catch (error) {
-                showToast('Erreur chargement clients: ' + error.message, true);
-                console.error('Erreur chargement clients:', error);
+                console.error('Erreur clients:', error);
+                showToast(`Erreur chargement clients: ${error.message}`, true);
             }
         }
 
@@ -418,7 +430,7 @@
                 const response = await fetch(`${API_BASE_URL}/liste_fournisseurs`, {
                     headers: { 'X-User-ID': userId }
                 });
-                console.log('Réponse API /liste_fournisseurs:', response.status);
+                console.log('Réponse /liste_fournisseurs:', response.status);
                 if (!response.ok) {
                     const errorText = await response.text();
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
@@ -426,13 +438,13 @@
                 fournisseursCache = await response.json();
                 updateCFSelect('fournisseurs');
             } catch (error) {
-                showToast('Erreur chargement fournisseurs: ' + error.message, true);
-                console.error('Erreur chargement fournisseurs:', error);
+                console.error('Erreur fournisseurs:', error);
+                showToast(`Erreur chargement fournisseurs: ${error.message}`, true);
             }
         }
 
         function updateCFSelect(type) {
-            console.log(`Mise à jour select ${type}...`);
+            console.log(`Mise à jour select ${type}`);
             const select = document.getElementById('numero_cf');
             select.innerHTML = '<option value="">Sélectionner...</option>';
             const data = type === 'clients' ? clientsCache : fournisseursCache;
@@ -459,7 +471,7 @@
                 const response = await fetch(url, {
                     headers: { 'X-User-ID': userId }
                 });
-                console.log('Réponse API /historique_versements:', response.status);
+                console.log('Réponse /historique_versements:', response.status);
                 if (!response.ok) {
                     const errorText = await response.text();
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
@@ -483,8 +495,8 @@
                     tbody.appendChild(tr);
                 });
             } catch (error) {
-                showToast('Erreur chargement historique: ' + error.message, true);
-                console.error('Erreur chargement historique:', error);
+                console.error('Erreur historique:', error);
+                showToast(`Erreur chargement historique: ${error.message}`, true);
             }
         }
 
@@ -521,7 +533,7 @@
                     },
                     body: JSON.stringify({ type, numero_cf, montant, justificatif, numero_util, password2 })
                 });
-                console.log('Réponse API /ajouter_versement:', response.status);
+                console.log('Réponse /ajouter_versement:', response.status);
                 if (!response.ok) {
                     const errorText = await response.text();
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
@@ -536,10 +548,10 @@
                 showToast('Versement ajouté avec succès');
                 type === 'C' ? chargerClients() : chargerFournisseurs();
             } catch (error) {
+                console.error('Erreur ajout versement:', error);
                 message.textContent = error.message;
                 message.classList.remove('hidden');
-                showToast('Erreur ajout versement: ' + error.message, true);
-                console.error('Erreur ajout versement:', error);
+                showToast(`Erreur ajout versement: ${error.message}`, true);
             }
         }
 
@@ -577,68 +589,80 @@
             console.log('userId:', userId);
             console.log('userEmail:', userEmail);
             console.log('selectedUser:', storedUser);
-            console.log('userPassword:', storedPassword ? 'Présent' : 'Absent');
+            console.log('userPassword:', storedPassword ? '***' : 'vide');
 
-            if (userId && userEmail) {
-                document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
-                document.getElementById('userDisplay').classList.remove('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+            if (!userId || !userEmail) {
+                console.log('Aucun userId/userEmail, redirection vers index.html');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                window.location.href = 'index.html';
+                return;
+            }
 
-                // Charger les utilisateurs et vérifier selectedUser
-                chargerUtilisateurs().then(() => {
-                    console.log('Utilisateurs chargés, vérification selectedUser...');
-                    if (storedUser) {
-                        try {
-                            const { numero_util, nom } = JSON.parse(storedUser);
-                            const userSelect = document.getElementById('userSelect');
-                            const optionExists = Array.from(userSelect.options).some(option => option.value === numero_util);
-                            console.log('Option existe pour numero_util', numero_util, ':', optionExists);
-                            if (optionExists) {
-                                userSelect.value = numero_util;
-                                document.getElementById('selectedUserName').textContent = nom;
-                                document.getElementById('headerUserName').textContent = nom;
-                                document.getElementById('userPassword').disabled = true;
-                                document.getElementById('validateUserButton').textContent = 'Changer d’utilisateur';
-                                document.getElementById('validateUserButton').onclick = changeAndValidateUser;
-                                document.getElementById('userContent').classList.add('hidden');
-                                document.getElementById('userChevron').classList.add('fa-chevron-down');
-                                document.getElementById('userChevron').classList.remove('fa-chevron-up');
-                                console.log('Utilisateur chargé depuis localStorage:', nom);
-                            } else {
-                                console.log('selectedUser invalide, suppression...');
-                                localStorage.removeItem('selectedUser');
-                                localStorage.removeItem('userPassword');
-                                document.getElementById('userContent').classList.remove('hidden');
-                                document.getElementById('userChevron').classList.add('fa-chevron-up');
-                                document.getElementById('userChevron').classList.remove('fa-chevron-down');
-                                showToast('Utilisateur précédent non trouvé, veuillez en sélectionner un nouveau', true);
-                            }
-                        } catch (error) {
-                            console.error('Erreur parsing selectedUser:', error);
+            // Mettre à jour l'interface pour l'utilisateur connecté
+            document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
+            document.getElementById('userDisplay').classList.remove('hidden');
+            document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+
+            // Charger les utilisateurs et vérifier selectedUser
+            chargerUtilisateurs().then((success) => {
+                console.log('Chargement utilisateurs terminé, succès:', success);
+                if (!success) {
+                    console.log('Échec chargement utilisateurs, panneau reste ouvert');
+                    document.getElementById('userContent').classList.remove('hidden');
+                    document.getElementById('userChevron').classList.add('fa-chevron-up');
+                    document.getElementById('userChevron').classList.remove('fa-chevron-down');
+                    return;
+                }
+
+                if (storedUser) {
+                    try {
+                        const { numero_util, nom } = JSON.parse(storedUser);
+                        console.log('selectedUser trouvé:', { numero_util, nom });
+                        const userSelect = document.getElementById('userSelect');
+                        const optionExists = Array.from(userSelect.options).some(option => option.value === numero_util);
+                        console.log('Option existe:', optionExists);
+
+                        if (optionExists && storedPassword) {
+                            userSelect.value = numero_util;
+                            document.getElementById('selectedUserName').textContent = nom;
+                            document.getElementById('headerUserName').textContent = nom;
+                            document.getElementById('userPassword').disabled = true;
+                            document.getElementById('validateUserButton').textContent = 'Changer d’utilisateur';
+                            document.getElementById('validateUserButton').onclick = changeAndValidateUser;
+                            document.getElementById('userContent').classList.add('hidden');
+                            document.getElementById('userChevron').classList.add('fa-chevron-down');
+                            document.getElementById('userChevron').classList.remove('fa-chevron-up');
+                            console.log('Utilisateur chargé depuis localStorage:', nom);
+                        } else {
+                            console.log('selectedUser invalide ou userPassword absent, nettoyage localStorage');
                             localStorage.removeItem('selectedUser');
                             localStorage.removeItem('userPassword');
                             document.getElementById('userContent').classList.remove('hidden');
                             document.getElementById('userChevron').classList.add('fa-chevron-up');
                             document.getElementById('userChevron').classList.remove('fa-chevron-down');
-                            showToast('Erreur chargement utilisateur, veuillez en sélectionner un nouveau', true);
+                            showToast('Utilisateur précédent non valide, veuillez sélectionner un utilisateur', true);
                         }
-                    } else {
-                        console.log('Aucun selectedUser, ouverture section utilisateur');
+                    } catch (error) {
+                        console.error('Erreur parsing selectedUser:', error);
+                        localStorage.removeItem('selectedUser');
+                        localStorage.removeItem('userPassword');
                         document.getElementById('userContent').classList.remove('hidden');
                         document.getElementById('userChevron').classList.add('fa-chevron-up');
                         document.getElementById('userChevron').classList.remove('fa-chevron-down');
+                        showToast('Erreur chargement utilisateur, veuillez sélectionner un utilisateur', true);
                     }
-                });
+                } else {
+                    console.log('Aucun selectedUser, ouverture panneau');
+                    document.getElementById('userContent').classList.remove('hidden');
+                    document.getElementById('userChevron').classList.add('fa-chevron-up');
+                    document.getElementById('userChevron').classList.remove('fa-chevron-down');
+                }
+            });
 
-                // Charger les autres données
-                chargerClients();
-                chargerFournisseurs();
-                loadHistorique('', 'C');
-            } else {
-                console.log('Aucun userId/userEmail, redirection vers index.html');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                window.location.href = 'index.html';
-            }
+            // Charger les autres données
+            chargerClients();
+            chargerFournisseurs();
+            loadHistorique('', 'C');
         });
 
         document.getElementById('tab-clients').addEventListener('click', () => switchTab('clients'));
