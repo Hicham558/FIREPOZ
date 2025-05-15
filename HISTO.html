@@ -10,6 +10,9 @@
     <div class="container mx-auto p-4">
         <h1 class="text-2xl font-bold mb-4">Gestion des Versements</h1>
 
+        <!-- Message d'erreur global -->
+        <p id="global-error" class="text-red-600 hidden mb-4"></p>
+
         <!-- Onglets -->
         <div class="mb-4">
             <ul class="flex border-b">
@@ -29,7 +32,7 @@
                 <div>
                     <label class="block text-sm font-medium">Client/Fournisseur</label>
                     <select id="numero_cf" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
-                        <option value="">Sélectionner...</option>
+                        <option value="">Chargement...</option>
                     </select>
                 </div>
                 <div>
@@ -43,7 +46,7 @@
                 <div>
                     <label class="block text-sm font-medium">Utilisateur</label>
                     <select id="numero_util" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
-                        <option value="">Sélectionner...</option>
+                        <option value="">Chargement...</option>
                     </select>
                 </div>
                 <div>
@@ -79,22 +82,49 @@
     </div>
 
     <script>
-        const API_URL = 'https://your-api-url.com'; // Remplacer par ton URL d'API
-        const USER_ID = 'your-user-id'; // Remplacer par l'ID utilisateur
+        // Configuration
+        const API_URL = 'https://your-api-url.com'; // Remplacer par l'URL de ton API (ex: https://your-railway-app.up.railway.app)
+        const USER_ID = 'your-user-id'; // Remplacer par ton user_id réel
 
-        // Charger les clients, fournisseurs et utilisateurs au démarrage
+        // Afficher les erreurs globales
+        function showGlobalError(message) {
+            const error = document.getElementById('global-error');
+            error.textContent = message;
+            error.classList.remove('hidden');
+        }
+
+        // Charger les clients, fournisseurs et utilisateurs
         async function loadData() {
             try {
                 const [clientsRes, fournisseursRes, utilisateursRes] = await Promise.all([
-                    fetch(`${API_URL}/liste_clients`, { headers: { 'X-User-ID': USER_ID } }),
-                    fetch(`${API_URL}/liste_fournisseurs`, { headers: { 'X-User-ID': USER_ID } }),
-                    fetch(`${API_URL}/liste_utilisateurs`)
+                    fetch(`${API_URL}/liste_clients`, {
+                        headers: { 'X-User-ID': USER_ID }
+                    }).then(res => {
+                        console.log('Réponse /liste_clients:', res.status, res.statusText);
+                        return res;
+                    }),
+                    fetch(`${API_URL}/liste_fournisseurs`, {
+                        headers: { 'X-User-ID': USER_ID }
+                    }).then(res => {
+                        console.log('Réponse /liste_fournisseurs:', res.status, res.statusText);
+                        return res;
+                    }),
+                    fetch(`${API_URL}/liste_utilisateurs`).then(res => {
+                        console.log('Réponse /liste_utilisateurs:', res.status, res.statusText);
+                        return res;
+                    })
                 ]);
+
+                if (!clientsRes.ok) throw new Error(`Erreur clients: ${clientsRes.statusText}`);
+                if (!fournisseursRes.ok) throw new Error(`Erreur fournisseurs: ${fournisseursRes.statusText}`);
+                if (!utilisateursRes.ok) throw new Error(`Erreur utilisateurs: ${utilisateursRes.statusText}`);
+
                 const clients = await clientsRes.json();
                 const fournisseurs = await fournisseursRes.json();
                 const utilisateurs = await utilisateursRes.json();
 
                 const clientSelect = document.getElementById('numero_cf');
+                clientSelect.innerHTML = '<option value="">Sélectionner...</option>';
                 clients.forEach(c => {
                     const option = document.createElement('option');
                     option.value = c.numero_clt;
@@ -103,6 +133,7 @@
                 });
 
                 const utilisateurSelect = document.getElementById('numero_util');
+                utilisateurSelect.innerHTML = '<option value="">Sélectionner...</option>';
                 utilisateurs.forEach(u => {
                     const option = document.createElement('option');
                     option.value = u.numero_util;
@@ -110,10 +141,11 @@
                     utilisateurSelect.appendChild(option);
                 });
 
-                // Stocker fournisseurs pour l'onglet Fournisseurs
                 window.fournisseurs = fournisseurs;
+                console.log('Données chargées:', clients.length, 'clients,', fournisseurs.length, 'fournisseurs,', utilisateurs.length, 'utilisateurs');
             } catch (error) {
                 console.error('Erreur chargement données:', error);
+                showGlobalError(`Erreur de chargement des données: ${error.message}. Vérifiez l'URL de l'API et l'ID utilisateur.`);
             }
         }
 
@@ -122,7 +154,13 @@
             try {
                 let url = `${API_URL}/historique_versements?type=${type}`;
                 if (date) url += `&date=${date}`;
-                const res = await fetch(url, { headers: { 'X-User-ID': USER_ID } });
+                const res = await fetch(url, {
+                    headers: { 'X-User-ID': USER_ID }
+                }).then(res => {
+                    console.log('Réponse /historique_versements:', res.status, res.statusText);
+                    return res;
+                });
+                if (!res.ok) throw new Error(`Erreur historique: ${res.statusText}`);
                 const versements = await res.json();
                 const tableBody = document.getElementById('versements-table');
                 tableBody.innerHTML = '';
@@ -138,8 +176,10 @@
                     `;
                     tableBody.appendChild(row);
                 });
+                console.log('Historique chargé:', versements.length, 'versements');
             } catch (error) {
                 console.error('Erreur chargement historique:', error);
+                showGlobalError(`Erreur chargement historique: ${error.message}`);
             }
         }
 
@@ -167,6 +207,9 @@
                         'X-User-ID': USER_ID
                     },
                     body: JSON.stringify({ type, numero_cf, montant, justificatif, numero_util, password2 })
+                }).then(res => {
+                    console.log('Réponse /ajouter_versement:', res.status, res.statusText);
+                    return res;
                 });
                 const data = await res.json();
                 if (res.ok) {
@@ -184,7 +227,8 @@
                     message.classList.remove('hidden');
                 }
             } catch (error) {
-                message.textContent = 'Erreur réseau';
+                console.error('Erreur ajout versement:', error);
+                message.textContent = `Erreur réseau: ${error.message}`;
                 message.classList.remove('hidden');
             }
         }
@@ -203,8 +247,9 @@
                 fournisseurTab.classList.remove('text-blue-600', 'border-blue-600');
                 fournisseurTab.classList.add('text-gray-600');
                 formTitle.textContent = 'Ajouter un Versement (Client)';
-                fetch(`${API_URL}/liste_clients`, { headers: { 'X-User-ID': USER_ID } })
-                    .then(res => res.json())
+                fetch(`${API_URL}/liste_clients`, {
+                    headers: { 'X-User: 'YOUR_USER_ID' }
+                    }).then(res => res.json())
                     .then(clients => {
                         clients.forEach(c => {
                             const option = document.createElement('option');
@@ -212,6 +257,9 @@
                             option.textContent = `${c.nom} (Solde: ${c.solde})`;
                             clientSelect.appendChild(option);
                         });
+                    }).catch(error => {
+                        console.error('Erreur chargement clients:', error);
+                        showGlobalError('Erreur chargement clients');
                     });
                 loadHistorique(document.getElementById('filter-date').value, 'C');
             } else {
