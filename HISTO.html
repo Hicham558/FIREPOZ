@@ -101,7 +101,7 @@
                         <span class="text-sm font-medium text-gray-700 mr-2">Mot de passe: </span>
                         <input type="password" id="sellerPassword" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Entrez le mot de passe">
                         <i class="fas fa-eye password-toggle" id="togglePassword" onclick="togglePasswordVisibility()"></i>
-                    </ bouton Valider
+                    </div>
                     <div class="w-full md:w-1/3">
                         <button id="validateSellerButton" onclick="validerVendeur()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300">
                             <i class="fas fa-check mr-2"></i>Valider
@@ -277,7 +277,7 @@
             } else {
                 passwordInput.type = 'password';
                 toggleIcon.classList.remove('fa-eye-slash');
-                toggleIcon.classList.add('fa                toggleIcon.classList.add('fa-eye');
+                toggleIcon.classList.add('fa-eye');
             }
         }
 
@@ -340,10 +340,11 @@
                     headers: { 'X-User-ID': userId }
                 });
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                    const errorData = await response.json();
+                    throw new Error(`Erreur ${response.status}: ${errorData.erreur || 'Erreur inconnue'}`);
                 }
                 const utilisateurs = await response.json();
+                console.log('Utilisateurs chargés:', utilisateurs);
                 const sellerSelect = document.getElementById('sellerSelect');
                 sellerSelect.innerHTML = '<option value="0">Sélectionner un vendeur</option>';
                 utilisateurs.forEach(utilisateur => {
@@ -375,6 +376,7 @@
             }
 
             try {
+                // Appel simplifié à /valider_vente pour tester le mot de passe
                 const testVenteData = {
                     numero_table: 0,
                     date_comande: new Date().toISOString(),
@@ -393,8 +395,8 @@
                     body: JSON.stringify(testVenteData)
                 });
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                    const errorData = await response.json();
+                    throw new Error(`Erreur ${response.status}: ${errorData.error || 'Erreur inconnue'}`);
                 }
                 const selectedOption = document.getElementById('sellerSelect').options[document.getElementById('sellerSelect').selectedIndex];
                 const sellerName = selectedOption.text;
@@ -444,10 +446,11 @@
                     headers: { 'X-User-ID': userId }
                 });
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                    const errorData = await response.json();
+                    throw new Error(`Erreur ${response.status}: ${errorData.erreur || 'Erreur inconnue'}`);
                 }
                 clientsCache = await response.json();
+                console.log('Clients chargés:', clientsCache);
                 updateCFSelect('clients');
             } catch (error) {
                 showToast(`Erreur chargement clients: ${error.message}`, true);
@@ -466,10 +469,11 @@
                     headers: { 'X-User-ID': userId }
                 });
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                    const errorData = await response.json();
+                    throw new Error(`Erreur ${response.status}: ${errorData.erreur || 'Erreur inconnue'}`);
                 }
                 fournisseursCache = await response.json();
+                console.log('Fournisseurs chargés:', fournisseursCache);
                 updateCFSelect('fournisseurs');
             } catch (error) {
                 showToast(`Erreur chargement fournisseurs: ${error.message}`, true);
@@ -504,10 +508,11 @@
                     headers: { 'X-User-ID': userId }
                 });
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                    const errorData = await response.json();
+                    throw new Error(`Erreur ${response.status}: ${errorData.erreur || 'Erreur inconnue'}`);
                 }
                 const versements = await response.json();
+                console.log('Historique chargé:', versements);
                 const tbody = document.getElementById('versements-table');
                 tbody.innerHTML = versements.length === 0
                     ? '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun versement trouvé</td></tr>'
@@ -523,10 +528,10 @@
                         <td class="px-6 py-4 text-sm text-gray-500">${v.justificatif || '-'}</td>
                         <td class="px-6 py-4 text-sm text-gray-500">${v.utilisateur_nom || 'N/A'}</td>
                         <td class="px-6 py-4 text-sm text-gray-500">
-                            <button onclick="openEditModal('${v.numero_mc}', '${v.type}', '${v.numero_cf}', '${v.montant}', '${v.justificatif}')" class="text-indigo-600 hover:text-indigo-800 mr-2">
+                            <button onclick="openEditModal('${v.numero_mc}', '${v.type === 'Client' ? 'C' : 'F'}', '${v.numero_cf}', '${v.montant}', '${v.justificatif}')" class="text-indigo-600 hover:text-indigo-800 mr-2">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <button onclick="openCancelModal('${v.numero_mc}', '${v.type}', '${v.numero_cf}')" class="text-red-600 hover:text-red-800">
+                            <button onclick="openCancelModal('${v.numero_mc}', '${v.type === 'Client' ? 'C' : 'F'}', '${v.numero_cf}')" class="text-red-600 hover:text-red-800">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </td>
@@ -572,8 +577,8 @@
                     body: JSON.stringify({ type, numero_cf, montant, justificatif, numero_util, password2 })
                 });
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                    const errorData = await response.json();
+                    throw new Error(`Erreur ${response.status}: ${errorData.error || 'Erreur inconnue'}`);
                 }
                 message.textContent = 'Versement ajouté avec succès';
                 message.classList.remove('text-red-600', 'hidden');
@@ -646,8 +651,8 @@
                     body: JSON.stringify({ numero_mc, type, numero_cf, numero_util, password2 })
                 });
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                    const errorData = await response.json();
+                    throw new Error(`Erreur ${response.status}: ${errorData.error || 'Erreur inconnue'}`);
                 }
                 document.getElementById('cancelModal').classList.add('hidden');
                 showToast('Versement annulé avec succès');
@@ -687,8 +692,8 @@
                     body: JSON.stringify({ numero_mc, type, numero_cf, montant, justificatif, numero_util, password2 })
                 });
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                    const errorData = await response.json();
+                    throw new Error(`Erreur ${response.status}: ${errorData.error || 'Erreur inconnue'}`);
                 }
                 document.getElementById('editModal').classList.add('hidden');
                 showToast('Versement modifié avec succès');
