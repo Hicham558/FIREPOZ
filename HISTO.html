@@ -5,262 +5,512 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestion des Versements</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .password-input-container {
+            position: relative;
+            display: inline-block;
+        }
+        .password-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+        }
+        @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes smoothBlink { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
+        .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
+        .user-anim { animation: smoothBlink 1.5s infinite ease-in-out; }
+        .small-email { font-size: 0.75rem; line-height: 1rem; }
+        .solde-negatif { color: red; font-size: 0.75rem; }
+        .solde-positif { color: black; font-size: 0.75rem; }
+        select {
+            transition: all 0.3s ease;
+        }
+        select:focus {
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+        }
+        select option {
+            padding: 8px;
+            background: #fff;
+            color: #333;
+        }
+        .table-container {
+            max-height: 300px;
+            overflow-y: auto;
+            overflow-x: auto;
+        }
+        .table-container table {
+            width: 100%;
+        }
+    </style>
 </head>
 <body class="bg-gray-100">
-    <div class="container mx-auto p-4">
-        <h1 class="text-2xl font-bold mb-4">Gestion des Versements</h1>
-
-        <!-- Message d'erreur global -->
-        <p id="global-error" class="text-red-600 hidden mb-4"></p>
-
-        <!-- Onglets -->
-        <div class="mb-4">
-            <ul class="flex border-b">
-                <li class="mr-1">
-                    <button id="tab-clients" class="bg-white inline-block py-2 px-4 text-blue-600 font-semibold border-b-2 border-blue-600">Clients</button>
-                </li>
-                <li class="mr-1">
-                    <button id="tab-fournisseurs" class="bg-white inline-block py-2 px-4 text-gray-600 font-semibold">Fournisseurs</button>
-                </li>
-            </ul>
+    <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-slide-in">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex flex-col">
+                <h1 class="text-2xl font-bold flex items-center">
+                    <i class="fas fa-fire mr-2 text-amber-400"></i> FirePoz
+                </h1>
+                <span id="userDisplay" class="small-email user-anim hidden"></span>
+            </div>
+            <div class="space-x-4 flex items-center">
+                <a href="index.html" class="hover:text-indigo-200 transition flex items-center">
+                    <i class="fas fa-home mr-1"></i> Accueil
+                </a>
+                <button id="loginLogoutButton" onclick="loginLogout()" class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition flex items-center">
+                    <i class="fas fa-sign-out-alt mr-1"></i>Déconnexion
+                </button>
+            </div>
         </div>
+    </nav>
 
-        <!-- Formulaire Versement -->
-        <div class="bg-white p-4 rounded shadow mb-4">
-            <h2 id="form-title" class="text-xl font-semibold mb-4">Ajouter un Versement (Client)</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-sm font-medium">Client/Fournisseur</label>
-                    <select id="numero_cf" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
-                        <option value="">Chargement...</option>
-                    </select>
+    <div class="container mx-auto px-4 pt-20">
+        <!-- Section utilisateur -->
+        <div id="userSection" class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8">
+            <div class="p-6 cursor-pointer" onclick="toggleSection('userSection')">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-user mr-2 text-indigo-500"></i> Sélection de l'Utilisateur
+                    </h2>
+                    <button class="text-gray-600 hover:text-gray-800 transition">
+                        <i class="fas fa-chevron-down" id="userChevron"></i>
+                    </button>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium">Montant (positif/négatif)</label>
-                    <input type="number" id="montant" step="0.01" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="Ex: 100.00 ou -100.00">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium">Justificatif</label>
-                    <input type="text" id="justificatif" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="Ex: Paiement facture">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium">Utilisateur</label>
-                    <select id="numero_util" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
-                        <option value="">Chargement...</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium">Mot de passe</label>
-                    <input type="password" id="password2" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                <div class="mt-2">
+                    <span class="text-sm font-medium text-gray-700">Utilisateur: </span>
+                    <span id="headerUserName" class="text-sm text-indigo-600 user-anim">-</span>
                 </div>
             </div>
-            <button id="submit-versement" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Ajouter Versement</button>
-            <p id="form-message" class="mt-2 text-red-600 hidden"></p>
+            <div class="p-6 hidden" id="userContent">
+                <div class="flex flex-col md:flex-row gap-4 mb-4">
+                    <div class="relative w-full md:w-1/3">
+                        <span class="text-sm font-medium text-gray-700 mr-2">Utilisateur: </span>
+                        <select id="userSelect" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300">
+                            <option value="0">Sélectionner un utilisateur</option>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700 top-6">
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                    </div>
+                    <div class="relative w-full md:w-1/3 password-input-container">
+                        <span class="text-sm font-medium text-gray-700 mr-2">Mot de passe: </span>
+                        <input type="password" id="userPassword" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Entrez le mot de passe">
+                        <i class="fas fa-eye password-toggle" id="togglePassword" onclick="togglePasswordVisibility()"></i>
+                    </div>
+                    <div class="w-full md:w-1/3">
+                        <button id="validateUserButton" onclick="validerUtilisateur()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300">
+                            <i class="fas fa-check mr-2"></i>Valider
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <span class="text-sm font-medium text-gray-700">Utilisateur sélectionné: </span>
+                    <span id="selectedUserName" class="text-sm text-indigo-600 user-anim">-</span>
+                </div>
+            </div>
         </div>
 
-        <!-- Historique -->
-        <div class="bg-white p-4 rounded shadow">
-            <h2 class="text-xl font-semibold mb-4">Historique des Versements</h2>
+        <div class="mt-8">
+            <header class="mb-8">
+                <h1 class="text-3xl font-bold text-indigo-700">Gestion des Versements</h1>
+                <p class="text-gray-600 flex items-center">
+                    <i class="fas fa-money-bill-wave mr-2 text-indigo-500"></i> Versements en temps réel
+                </p>
+            </header>
+
+            <!-- Onglets -->
             <div class="mb-4">
-                <label class="block text-sm font-medium">Filtrer par date</label>
-                <input type="date" id="filter-date" class="mt-1 block w-full md:w-1/4 border-gray-300 rounded-md shadow-sm">
+                <ul class="flex border-b">
+                    <li class="mr-1">
+                        <button id="tab-clients" class="bg-white inline-block py-2 px-4 text-blue-600 font-semibold border-b-2 border-blue-600">Clients</button>
+                    </li>
+                    <li class="mr-1">
+                        <button id="tab-fournisseurs" class="bg-white inline-block py-2 px-4 text-gray-600 font-semibold">Fournisseurs</button>
+                    </li>
+                </ul>
             </div>
-            <table class="w-full text-left border-collapse">
-                <thead>
-                    <tr class="bg-gray-200">
-                        <th class="p-2">Date</th>
-                        <th class="p-2">Type</th>
-                        <th class="p-2">Nom</th>
-                        <th class="p-2">Montant</th>
-                        <th class="p-2">Justificatif</th>
-                        <th class="p-2">Fait par</th>
-                    </tr>
-                </thead>
-                <tbody id="versements-table"></tbody>
-            </table>
+
+            <!-- Formulaire Versement -->
+            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8">
+                <div class="p-6">
+                    <h2 id="form-title" class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-plus-circle mr-2 text-indigo-500"></i> Ajouter un Versement
+                    </h2>
+                </div>
+                <div class="p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="relative">
+                            <label class="text-sm font-medium text-gray-700">Client/Fournisseur</label>
+                            <select id="numero_cf" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300">
+                                <option value="">Sélectionner...</option>
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700 top-8">
+                                <i class="fas fa-chevron-down"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-gray-700">Montant (positif/négatif)</label>
+                            <input type="number" id="montant" step="0.01" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Ex: 100.00 ou -100.00">
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-gray-700">Justificatif</label>
+                            <input type="text" id="justificatif" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Ex: Paiement facture">
+                        </div>
+                    </div>
+                    <button id="submit-versement" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition duration-300">
+                        <i class="fas fa-check mr-2"></i>Ajouter Versement
+                    </button>
+                    <p id="form-message" class="mt-2 text-red-600 hidden"></p>
+                </div>
+            </div>
+
+            <!-- Historique -->
+            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in">
+                <div class="p-6 flex justify-between items-center">
+                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-history mr-2 text-indigo-500"></i> Historique des Versements
+                    </h2>
+                </div>
+                <div class="p-6">
+                    <div class="mb-4">
+                        <label class="text-sm font-medium text-gray-700">Filtrer par date</label>
+                        <input type="date" id="filter-date" class="w-full md:w-1/4 px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div class="table-container">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Justificatif</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fait par</th>
+                                </tr>
+                            </thead>
+                            <tbody id="versements-table" class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td colspan="6" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-gray-700 text-white text-center py-4 animate-fade-in">
+        <p>Développé par Khelladi Hicham</p>
+        <p>Tel: <a href="tel:00213553700900" class="underline hover:text-indigo-300 transition duration-300">00213553700900</a></p>
+        <p>Email: <a href="mailto:Hicham.khelladi@gmail.com" class="underline hover:text-indigo-300 transition duration-300">Hicham.khelladi@gmail.com</a></p>
+    </footer>
+
+    <div id="toast" class="fixed bottom-4 right-4 hidden">
+        <div class="flex items-center px-6 py-3 rounded-md shadow-lg">
+            <i id="toastIcon" class="mr-2"></i>
+            <span id="toastMessage"></span>
         </div>
     </div>
 
     <script>
-        // Configuration
-        const API_URL = 'https://your-api-url.com'; // Remplacer par l'URL de ton API (ex: https://your-railway-app.up.railway.app)
-        const USER_ID = 'your-user-id'; // Remplacer par ton user_id réel
+        const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
+        let clientsCache = [];
+        let fournisseursCache = [];
 
-        // Afficher les erreurs globales
-        function showGlobalError(message) {
-            const error = document.getElementById('global-error');
-            error.textContent = message;
-            error.classList.remove('hidden');
+        function togglePasswordVisibility() {
+            const passwordInput = document.getElementById('userPassword');
+            const toggleIcon = document.getElementById('togglePassword');
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.classList.remove('fa-eye');
+                toggleIcon.classList.add('fa-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                toggleIcon.classList.remove('fa-eye-slash');
+                toggleIcon.classList.add('fa-eye');
+            }
         }
 
-        // Charger les clients, fournisseurs et utilisateurs
-        async function loadData() {
+        function toggleSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
+            const chevron = document.getElementById(`${sectionId.replace('Section', 'Chevron')}`);
+            content.classList.toggle('hidden');
+            chevron.classList.toggle('fa-chevron-down');
+            chevron.classList.toggle('fa-chevron-up');
+        }
+
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+            toast.className = isError
+                ? 'fixed bottom-4 right-4 flex items-center bg-red-500 text-white px-6 py-3 rounded-md shadow-lg'
+                : 'fixed bottom-4 right-4 flex items-center bg-green-500 text-white px-6 py-3 rounded-md shadow-lg';
+            toastIcon.className = isError
+                ? 'fas fa-exclamation-circle mr-2'
+                : 'fas fa-check-circle mr-2';
+            toastMessage.textContent = message;
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 3000);
+        }
+
+        function loginLogout() {
+            const userId = localStorage.getItem('userId');
+            if (userId) {
+                localStorage.removeItem('userId');
+                localStorage.removeItem('userEmail');
+                localStorage.removeItem('selectedUser');
+                localStorage.removeItem('userPassword');
+                document.getElementById('userDisplay').textContent = '';
+                document.getElementById('userDisplay').classList.add('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                window.location.href = 'index.html';
+            }
+        }
+
+        async function chargerUtilisateurs() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir les utilisateurs', true);
+                return;
+            }
             try {
-                const [clientsRes, fournisseursRes, utilisateursRes] = await Promise.all([
-                    fetch(`${API_URL}/liste_clients`, {
-                        headers: { 'X-User-ID': USER_ID }
-                    }).then(res => {
-                        console.log('Réponse /liste_clients:', res.status, res.statusText);
-                        return res;
-                    }),
-                    fetch(`${API_URL}/liste_fournisseurs`, {
-                        headers: { 'X-User-ID': USER_ID }
-                    }).then(res => {
-                        console.log('Réponse /liste_fournisseurs:', res.status, res.statusText);
-                        return res;
-                    }),
-                    fetch(`${API_URL}/liste_utilisateurs`).then(res => {
-                        console.log('Réponse /liste_utilisateurs:', res.status, res.statusText);
-                        return res;
-                    })
-                ]);
-
-                if (!clientsRes.ok) throw new Error(`Erreur clients: ${clientsRes.statusText}`);
-                if (!fournisseursRes.ok) throw new Error(`Erreur fournisseurs: ${fournisseursRes.statusText}`);
-                if (!utilisateursRes.ok) throw new Error(`Erreur utilisateurs: ${utilisateursRes.statusText}`);
-
-                const clients = await clientsRes.json();
-                const fournisseurs = await fournisseursRes.json();
-                const utilisateurs = await utilisateursRes.json();
-
-                const clientSelect = document.getElementById('numero_cf');
-                clientSelect.innerHTML = '<option value="">Sélectionner...</option>';
-                clients.forEach(c => {
-                    const option = document.createElement('option');
-                    option.value = c.numero_clt;
-                    option.textContent = `${c.nom} (Solde: ${c.solde})`;
-                    clientSelect.appendChild(option);
+                const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+                    headers: { 'X-User-ID': userId }
                 });
-
-                const utilisateurSelect = document.getElementById('numero_util');
-                utilisateurSelect.innerHTML = '<option value="">Sélectionner...</option>';
+                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
+                const utilisateurs = await response.json();
+                const userSelect = document.getElementById('userSelect');
+                userSelect.innerHTML = '<option value="0">Sélectionner un utilisateur</option>';
                 utilisateurs.forEach(u => {
                     const option = document.createElement('option');
                     option.value = u.numero_util;
                     option.textContent = u.nom;
-                    utilisateurSelect.appendChild(option);
+                    userSelect.appendChild(option);
                 });
-
-                window.fournisseurs = fournisseurs;
-                console.log('Données chargées:', clients.length, 'clients,', fournisseurs.length, 'fournisseurs,', utilisateurs.length, 'utilisateurs');
             } catch (error) {
-                console.error('Erreur chargement données:', error);
-                showGlobalError(`Erreur de chargement des données: ${error.message}. Vérifiez l'URL de l'API et l'ID utilisateur.`);
+                showToast('Erreur chargement utilisateurs: ' + error.message, true);
+                console.error('Erreur utilisateurs:', error);
             }
         }
 
-        // Charger l'historique des versements
-        async function loadHistorique(date = '', type = 'C') {
+        async function validerUtilisateur() {
+            const numeroUtil = document.getElementById('userSelect').value;
+            const password2 = document.getElementById('userPassword').value;
+            const userId = localStorage.getItem('userId');
+            if (numeroUtil === '0') {
+                showToast('Veuillez sélectionner un utilisateur', true);
+                return;
+            }
+            if (!password2) {
+                showToast('Veuillez entrer le mot de passe', true);
+                return;
+            }
             try {
-                let url = `${API_URL}/historique_versements?type=${type}`;
-                if (date) url += `&date=${date}`;
-                const res = await fetch(url, {
-                    headers: { 'X-User-ID': USER_ID }
-                }).then(res => {
-                    console.log('Réponse /historique_versements:', res.status, res.statusText);
-                    return res;
+                const testVersement = {
+                    type: 'C',
+                    numero_cf: 1,
+                    montant: 0,
+                    justificatif: 'test',
+                    numero_util: parseInt(numeroUtil),
+                    password2: password2
+                };
+                const response = await fetch(`${API_BASE_URL}/ajouter_versement`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify(testVersement)
                 });
-                if (!res.ok) throw new Error(`Erreur historique: ${res.statusText}`);
-                const versements = await res.json();
-                const tableBody = document.getElementById('versements-table');
-                tableBody.innerHTML = '';
-                versements.forEach(v => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td class="p-2">${v.date_mc}</td>
-                        <td class="p-2">${v.type}</td>
-                        <td class="p-2">${v.nom_cf}</td>
-                        <td class="p-2 ${parseFloat(v.montant) < 0 ? 'text-red-600' : 'text-green-600'}">${v.montant}</td>
-                        <td class="p-2">${v.justificatif}</td>
-                        <td class="p-2">${v.utilisateur_nom}</td>
-                    `;
-                    tableBody.appendChild(row);
-                });
-                console.log('Historique chargé:', versements.length, 'versements');
+                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
+                const selectedOption = document.getElementById('userSelect').options[document.getElementById('userSelect').selectedIndex];
+                const userName = selectedOption.text;
+                localStorage.setItem('selectedUser', JSON.stringify({
+                    numero_util: numeroUtil,
+                    nom: userName
+                }));
+                localStorage.setItem('userPassword', password2);
+                document.getElementById('selectedUserName').textContent = userName;
+                document.getElementById('headerUserName').textContent = userName;
+                document.getElementById('userPassword').disabled = true;
+                document.getElementById('validateUserButton').textContent = 'Changer d’utilisateur';
+                document.getElementById('validateUserButton').onclick = changeAndValidateUser;
+                document.getElementById('userContent').classList.add('hidden');
+                document.getElementById('userChevron').classList.add('fa-chevron-down');
+                document.getElementById('userChevron').classList.remove('fa-chevron-up');
+                showToast(`Utilisateur ${userName} validé`);
             } catch (error) {
-                console.error('Erreur chargement historique:', error);
-                showGlobalError(`Erreur chargement historique: ${error.message}`);
+                showToast(`Erreur validation utilisateur: ${error.message}`, true);
+                console.error('Erreur validation utilisateur:', error);
             }
         }
 
-        // Soumettre un versement
+        function changeAndValidateUser() {
+            const userSelect = document.getElementById('userSelect');
+            userSelect.value = '0';
+            document.getElementById('userPassword').value = '';
+            document.getElementById('userPassword').disabled = false;
+            document.getElementById('selectedUserName').textContent = '-';
+            document.getElementById('headerUserName').textContent = '-';
+            document.getElementById('validateUserButton').textContent = 'Valider';
+            document.getElementById('validateUserButton').onclick = validerUtilisateur;
+            document.getElementById('userContent').classList.remove('hidden');
+            document.getElementById('userChevron').classList.add('fa-chevron-up');
+            document.getElementById('userChevron').classList.remove('fa-chevron-down');
+            localStorage.removeItem('selectedUser');
+            localStorage.removeItem('userPassword');
+            validerUtilisateur();
+        }
+
+        async function chargerClients() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) return;
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_clients`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) throw new Error(`Erreur ${response.status}`);
+                clientsCache = await response.json();
+                updateCFSelect('clients');
+            } catch (error) {
+                showToast('Erreur chargement clients: ' + error.message, true);
+                console.error('Erreur clients:', error);
+            }
+        }
+
+        async function chargerFournisseurs() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) return;
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_fournisseurs`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) throw new Error(`Erreur ${response.status}`);
+                fournisseursCache = await response.json();
+                updateCFSelect('fournisseurs');
+            } catch (error) {
+                showToast('Erreur chargement fournisseurs: ' + error.message, true);
+                console.error('Erreur fournisseurs:', error);
+            }
+        }
+
+        function updateCFSelect(type) {
+            const select = document.getElementById('numero_cf');
+            select.innerHTML = '<option value="">Sélectionner...</option>';
+            const data = type === 'clients' ? clientsCache : fournisseursCache;
+            data.forEach(item => {
+                const solde = parseFloat(item.solde) || 0;
+                const soldeClass = solde < 0 ? 'solde-negatif' : 'solde-positif';
+                const option = document.createElement('option');
+                option.value = type === 'clients' ? item.numero_clt : item.numero_fou;
+                option.innerHTML = `${item.nom} <span class="${soldeClass}">[Solde: ${solde.toFixed(2)} DA]</span>`;
+                select.appendChild(option);
+            });
+        }
+
+        async function loadHistorique(date = '', type = 'C') {
+            const userId = localStorage.getItem('userId');
+            if (!userId) return;
+            try {
+                let url = `${API_BASE_URL}/historique_versements?type=${type}`;
+                if (date) url += `&date=${date}`;
+                const response = await fetch(url, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) throw new Error(`Erreur ${response.status}`);
+                const versements = await response.json();
+                const tbody = document.getElementById('versements-table');
+                tbody.innerHTML = versements.length === 0
+                    ? '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun versement trouvé</td></tr>'
+                    : '';
+                versements.forEach(v => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-gray-50';
+                    tr.innerHTML = `
+                        <td class="px-6 py-4 text-sm text-gray-900">${v.date_mc}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${v.type}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">${v.nom_cf || 'N/A'}</td>
+                        <td class="px-6 py-4 text-sm ${parseFloat(v.montant) < 0 ? 'text-red-600' : 'text-green-600'}">${v.montant}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${v.justificatif || '-'}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${v.utilisateur_nom || 'N/A'}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (error) {
+                showToast('Erreur chargement historique: ' + error.message, true);
+                console.error('Erreur historique:', error);
+            }
+        }
+
         async function submitVersement() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter', true);
+                return;
+            }
+            const storedUser = localStorage.getItem('selectedUser');
+            if (!storedUser) {
+                showToast('Veuillez sélectionner et valider un utilisateur', true);
+                return;
+            }
+            const { numero_util } = JSON.parse(storedUser);
+            const password2 = localStorage.getItem('userPassword');
             const type = document.getElementById('tab-clients').classList.contains('border-blue-600') ? 'C' : 'F';
             const numero_cf = document.getElementById('numero_cf').value;
             const montant = document.getElementById('montant').value;
             const justificatif = document.getElementById('justificatif').value;
-            const numero_util = document.getElementById('numero_util').value;
-            const password2 = document.getElementById('password2').value;
             const message = document.getElementById('form-message');
-
-            if (!numero_cf || !montant || !numero_util || !password2) {
-                message.textContent = 'Tous les champs obligatoires doivent être remplis';
+            if (!numero_cf || !montant) {
+                message.textContent = 'Client/Fournisseur et montant sont requis';
                 message.classList.remove('hidden');
                 return;
             }
-
             try {
-                const res = await fetch(`${API_URL}/ajouter_versement`, {
+                const response = await fetch(`${API_BASE_URL}/ajouter_versement`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-User-ID': USER_ID
+                        'X-User-ID': userId
                     },
                     body: JSON.stringify({ type, numero_cf, montant, justificatif, numero_util, password2 })
-                }).then(res => {
-                    console.log('Réponse /ajouter_versement:', res.status, res.statusText);
-                    return res;
                 });
-                const data = await res.json();
-                if (res.ok) {
-                    message.textContent = 'Versement ajouté avec succès';
-                    message.classList.remove('text-red-600', 'hidden');
-                    message.classList.add('text-green-600');
-                    document.getElementById('numero_cf').value = '';
-                    document.getElementById('montant').value = '';
-                    document.getElementById('justificatif').value = '';
-                    document.getElementById('numero_util').value = '';
-                    document.getElementById('password2').value = '';
-                    loadHistorique(document.getElementById('filter-date').value, type);
-                } else {
-                    message.textContent = data.error || 'Erreur lors de l\'ajout';
-                    message.classList.remove('hidden');
-                }
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || `Erreur ${response.status}`);
+                message.textContent = 'Versement ajouté avec succès';
+                message.classList.remove('text-red-600', 'hidden');
+                message.classList.add('text-green-600');
+                document.getElementById('numero_cf').value = '';
+                document.getElementById('montant').value = '';
+                document.getElementById('justificatif').value = '';
+                loadHistorique(document.getElementById('filter-date').value, type);
+                showToast('Versement ajouté avec succès');
+                type === 'C' ? chargerClients() : chargerFournisseurs();
             } catch (error) {
-                console.error('Erreur ajout versement:', error);
-                message.textContent = `Erreur réseau: ${error.message}`;
+                message.textContent = error.message;
                 message.classList.remove('hidden');
+                showToast('Erreur ajout versement: ' + error.message, true);
+                console.error('Erreur ajout versement:', error);
             }
         }
 
-        // Gestion des onglets
         function switchTab(tab) {
             const clientTab = document.getElementById('tab-clients');
             const fournisseurTab = document.getElementById('tab-fournisseurs');
-            const clientSelect = document.getElementById('numero_cf');
             const formTitle = document.getElementById('form-title');
-
-            clientSelect.innerHTML = '<option value="">Sélectionner...</option>';
             if (tab === 'clients') {
                 clientTab.classList.add('text-blue-600', 'border-blue-600');
                 clientTab.classList.remove('text-gray-600');
                 fournisseurTab.classList.remove('text-blue-600', 'border-blue-600');
                 fournisseurTab.classList.add('text-gray-600');
                 formTitle.textContent = 'Ajouter un Versement (Client)';
-                fetch(`${API_URL}/liste_clients`, {
-                    headers: { 'X-User: 'YOUR_USER_ID' }
-                    }).then(res => res.json())
-                    .then(clients => {
-                        clients.forEach(c => {
-                            const option = document.createElement('option');
-                            option.value = c.numero_clt;
-                            option.textContent = `${c.nom} (Solde: ${c.solde})`;
-                            clientSelect.appendChild(option);
-                        });
-                    }).catch(error => {
-                        console.error('Erreur chargement clients:', error);
-                        showGlobalError('Erreur chargement clients');
-                    });
+                updateCFSelect('clients');
                 loadHistorique(document.getElementById('filter-date').value, 'C');
             } else {
                 fournisseurTab.classList.add('text-blue-600', 'border-blue-600');
@@ -268,17 +518,56 @@
                 clientTab.classList.remove('text-blue-600', 'border-blue-600');
                 clientTab.classList.add('text-gray-600');
                 formTitle.textContent = 'Ajouter un Versement (Fournisseur)';
-                window.fournisseurs.forEach(f => {
-                    const option = document.createElement('option');
-                    option.value = f.numero_fou;
-                    option.textContent = `${f.nom} (Solde: ${f.solde})`;
-                    clientSelect.appendChild(option);
-                });
+                updateCFSelect('fournisseurs');
                 loadHistorique(document.getElementById('filter-date').value, 'F');
             }
         }
 
-        // Événements
+        document.addEventListener('DOMContentLoaded', () => {
+            const userId = localStorage.getItem('userId');
+            const userEmail = localStorage.getItem('userEmail');
+            if (userId && userEmail) {
+                document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
+                document.getElementById('userDisplay').classList.remove('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+                chargerUtilisateurs().then(() => {
+                    const storedUser = localStorage.getItem('selectedUser');
+                    if (storedUser) {
+                        const { numero_util, nom } = JSON.parse(storedUser);
+                        const userSelect = document.getElementById('userSelect');
+                        const optionExists = Array.from(userSelect.options).some(o => o.value === numero_util);
+                        if (optionExists) {
+                            userSelect.value = numero_util;
+                            document.getElementById('selectedUserName').textContent = nom;
+                            document.getElementById('headerUserName').textContent = nom;
+                            document.getElementById('userPassword').disabled = true;
+                            document.getElementById('validateUserButton').textContent = 'Changer d’utilisateur';
+                            document.getElementById('validateUserButton').onclick = changeAndValidateUser;
+                            document.getElementById('userContent').classList.add('hidden');
+                            document.getElementById('userChevron').classList.add('fa-chevron-down');
+                            document.getElementById('userChevron').classList.remove('fa-chevron-up');
+                        } else {
+                            localStorage.removeItem('selectedUser');
+                            localStorage.removeItem('userPassword');
+                            document.getElementById('userContent').classList.remove('hidden');
+                            document.getElementById('userChevron').classList.add('fa-chevron-up');
+                            document.getElementById('userChevron').classList.remove('fa-chevron-down');
+                        }
+                    } else {
+                        document.getElementById('userContent').classList.remove('hidden');
+                        document.getElementById('userChevron').classList.add('fa-chevron-up');
+                        document.getElementById('userChevron').classList.remove('fa-chevron-down');
+                    }
+                });
+                chargerClients();
+                chargerFournisseurs();
+                loadHistorique('', 'C');
+            } else {
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                window.location.href = 'index.html';
+            }
+        });
+
         document.getElementById('tab-clients').addEventListener('click', () => switchTab('clients'));
         document.getElementById('tab-fournisseurs').addEventListener('click', () => switchTab('fournisseurs'));
         document.getElementById('submit-versement').addEventListener('click', submitVersement);
@@ -286,10 +575,6 @@
             const type = document.getElementById('tab-clients').classList.contains('border-blue-600') ? 'C' : 'F';
             loadHistorique(e.target.value, type);
         });
-
-        // Initialisation
-        loadData();
-        switchTab('clients');
     </script>
 </body>
 </html>
