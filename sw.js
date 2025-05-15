@@ -8,6 +8,9 @@ self.addEventListener('install', event => {
         './vente.html',
         './page1.html',
         './page2.html',
+        './HISTO.html',
+        './PARAM.html',
+        './HELP.html',
         './manifest.json',
         './icon.png'
       ]);
