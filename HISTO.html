@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion des Ventes</title>
+    <title>Gestion des Versements</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -26,16 +26,26 @@
         .seller-anim { animation: smoothBlink 1.5s infinite ease-in-out; }
         .user-anim { animation: smoothBlink 1.5s infinite ease-in-out; }
         .small-email { font-size: 0.75rem; line-height: 1rem; }
-        select {
+        .solde-negatif { color: red; font-size: 0.75rem; }
+        .solde-positif { color: black; font-size: 0.75rem; }
+        select, input {
             transition: all 0.3s ease;
         }
-        select:focus {
+        select:focus, input:focus {
             box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
         }
         select option {
             padding: 8px;
             background: #fff;
             color: #333;
+        }
+        .table-container {
+            max-height: 300px;
+            overflow-y: auto;
+            overflow-x: auto;
+        }
+        .table-container table {
+            width: 100%;
         }
     </style>
 </head>
@@ -60,7 +70,7 @@
     </nav>
 
     <div class="container mx-auto px-4 pt-20">
-        <!-- Section vendeur en haut, repliable -->
+        <!-- Section vendeur -->
         <div id="sellerSection" class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8">
             <div class="p-6 cursor-pointer" onclick="toggleSection('sellerSection')">
                 <div class="flex justify-between items-center">
@@ -104,6 +114,95 @@
                 </div>
             </div>
         </div>
+
+        <div class="mt-8">
+            <header class="mb-8">
+                <h1 class="text-3xl font-bold text-indigo-700">Gestion des Versements</h1>
+                <p class="text-gray-600 flex items-center">
+                    <i class="fas fa-money-bill-wave mr-2 text-indigo-500"></i> Versements en temps réel
+                </p>
+            </header>
+
+            <!-- Onglets -->
+            <div class="mb-4">
+                <ul class="flex border-b">
+                    <li class="mr-1">
+                        <button id="tab-clients" class="bg-white inline-block py-2 px-4 text-blue-600 font-semibold border-b-2 border-blue-600">Clients</button>
+                    </li>
+                    <li class="mr-1">
+                        <button id="tab-fournisseurs" class="bg-white inline-block py-2 px-4 text-gray-600 font-semibold">Fournisseurs</button>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Formulaire Versement -->
+            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8">
+                <div class="p-6">
+                    <h2 id="form-title" class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-plus-circle mr-2 text-indigo-500"></i> Ajouter un Versement
+                    </h2>
+                </div>
+                <div class="p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="relative">
+                            <label class="text-sm font-medium text-gray-700">Client/Fournisseur</label>
+                            <select id="numero_cf" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300">
+                                <option value="">Sélectionner...</option>
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700 top-8">
+                                <i class="fas fa-chevron-down"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-gray-700">Montant (positif/négatif)</label>
+                            <input type="number" id="montant" step="0.01" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Ex: 100.00 ou -100.00">
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-gray-700">Justificatif</label>
+                            <input type="text" id="justificatif" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Ex: Paiement facture">
+                        </div>
+                    </div>
+                    <button id="submit-versement" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition duration-300">
+                        <i class="fas fa-check mr-2"></i>Ajouter Versement
+                    </button>
+                    <p id="form-message" class="mt-2 text-red-600 hidden"></p>
+                </div>
+            </div>
+
+            <!-- Historique -->
+            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in">
+                <div class="p-6 flex justify-between items-center">
+                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-history mr-2 text-indigo-500"></i> Historique des Versements
+                    </h2>
+                </div>
+                <div class="p-6">
+                    <div class="mb-4">
+                        <label class="text-sm font-medium text-gray-700">Filtrer par date</label>
+                        <input type="date" id="filter-date" class="w-full md:w-1/4 px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div class="table-container">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Justificatif</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fait par</th>
+                                </tr>
+                            </thead>
+                            <tbody id="versements-table" class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td colspan="6" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <footer class="bg-gray-700 text-white text-center py-4 animate-fade-in">
@@ -121,6 +220,8 @@
 
     <script>
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
+        let clientsCache = [];
+        let fournisseursCache = [];
 
         function togglePasswordVisibility() {
             const passwordInput = document.getElementById('sellerPassword');
@@ -174,7 +275,7 @@
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter', true);
-                return;
+                return false;
             }
             try {
                 const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
@@ -193,9 +294,11 @@
                     option.textContent = utilisateur.nom;
                     sellerSelect.appendChild(option);
                 });
+                return true;
             } catch (error) {
                 showToast(`Erreur chargement utilisateurs: ${error.message}`, true);
                 console.error('Erreur utilisateurs:', error);
+                return false;
             }
         }
 
@@ -272,6 +375,180 @@
             localStorage.removeItem('sellerPassword');
         }
 
+        async function chargerClients() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter', true);
+                return;
+            }
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_clients`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                clientsCache = await response.json();
+                updateCFSelect('clients');
+            } catch (error) {
+                showToast(`Erreur chargement clients: ${error.message}`, true);
+                console.error('Erreur clients:', error);
+            }
+        }
+
+        async function chargerFournisseurs() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter', true);
+                return;
+            }
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_fournisseurs`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                fournisseursCache = await response.json();
+                updateCFSelect('fournisseurs');
+            } catch (error) {
+                showToast(`Erreur chargement fournisseurs: ${error.message}`, true);
+                console.error('Erreur fournisseurs:', error);
+            }
+        }
+
+        function updateCFSelect(type) {
+            const select = document.getElementById('numero_cf');
+            select.innerHTML = '<option value="">Sélectionner...</option>';
+            const data = type === 'clients' ? clientsCache : fournisseursCache;
+            data.forEach(item => {
+                const solde = parseFloat(item.solde) || 0;
+                const soldeClass = solde < 0 ? 'solde-negatif' : 'solde-positif';
+                const option = document.createElement('option');
+                option.value = type === 'clients' ? item.numero_clt : item.numero_fou;
+                option.innerHTML = `${item.nom} <span class="${soldeClass}">[Solde: ${solde.toFixed(2)} DA]</span>`;
+                select.appendChild(option);
+            });
+        }
+
+        async function loadHistorique(date = '', type = 'C') {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter', true);
+                return;
+            }
+            try {
+                let url = `${API_BASE_URL}/historique_versements?type=${type}`;
+                if (date) url += `&date=${date}`;
+                const response = await fetch(url, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                const versements = await response.json();
+                const tbody = document.getElementById('versements-table');
+                tbody.innerHTML = versements.length === 0
+                    ? '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun versement trouvé</td></tr>'
+                    : '';
+                versements.forEach(v => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-gray-50';
+                    tr.innerHTML = `
+                        <td class="px-6 py-4 text-sm text-gray-900">${v.date_mc}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${v.type}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">${v.nom_cf || 'N/A'}</td>
+                        <td class="px-6 py-4 text-sm ${parseFloat(v.montant) < 0 ? 'text-red-600' : 'text-green-600'}">${v.montant}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${v.justificatif || '-'}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${v.utilisateur_nom || 'N/A'}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (error) {
+                showToast(`Erreur chargement historique: ${error.message}`, true);
+                console.error('Erreur historique:', error);
+            }
+        }
+
+        async function submitVersement() {
+            const userId = localStorage.getItem('userId');
+            const storedSeller = localStorage.getItem('selectedSeller');
+            if (!userId) {
+                showToast('Veuillez vous connecter', true);
+                return;
+            }
+            if (!storedSeller) {
+                showToast('Veuillez sélectionner un vendeur', true);
+                return;
+            }
+            const { numero_util } = JSON.parse(storedSeller);
+            const password2 = localStorage.getItem('sellerPassword');
+            const type = document.getElementById('tab-clients').classList.contains('border-blue-600') ? 'C' : 'F';
+            const numero_cf = document.getElementById('numero_cf').value;
+            const montant = document.getElementById('montant').value;
+            const justificatif = document.getElementById('justificatif').value;
+            const message = document.getElementById('form-message');
+            if (!numero_cf || !montant) {
+                message.textContent = 'Client/Fournisseur et montant requis';
+                message.classList.remove('hidden');
+                return;
+            }
+            try {
+                const response = await fetch(`${API_BASE_URL}/ajouter_versement`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify({ type, numero_cf, montant, justificatif, numero_util, password2 })
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                message.textContent = 'Versement ajouté avec succès';
+                message.classList.remove('text-red-600', 'hidden');
+                message.classList.add('text-green-600');
+                document.getElementById('numero_cf').value = '';
+                document.getElementById('montant').value = '';
+                document.getElementById('justificatif').value = '';
+                loadHistorique(document.getElementById('filter-date').value, type);
+                showToast('Versement ajouté avec succès');
+                type === 'C' ? chargerClients() : chargerFournisseurs();
+            } catch (error) {
+                message.textContent = error.message;
+                message.classList.remove('hidden');
+                showToast(`Erreur ajout versement: ${error.message}`, true);
+                console.error('Erreur ajout versement:', error);
+            }
+        }
+
+        function switchTab(tab) {
+            const clientTab = document.getElementById('tab-clients');
+            const fournisseurTab = document.getElementById('tab-fournisseurs');
+            const formTitle = document.getElementById('form-title');
+            if (tab === 'clients') {
+                clientTab.classList.add('text-blue-600', 'border-blue-600');
+                clientTab.classList.remove('text-gray-600');
+                fournisseurTab.classList.remove('text-blue-600', 'border-blue-600');
+                fournisseurTab.classList.add('text-gray-600');
+                formTitle.textContent = 'Ajouter un Versement (Client)';
+                updateCFSelect('clients');
+                loadHistorique(document.getElementById('filter-date').value, 'C');
+            } else {
+                fournisseurTab.classList.add('text-blue-600', 'border-blue-600');
+                fournisseurTab.classList.remove('text-gray-600');
+                clientTab.classList.remove('text-blue-600', 'border-blue-600');
+                clientTab.classList.add('text-gray-600');
+                formTitle.textContent = 'Ajouter un Versement (Fournisseur)';
+                updateCFSelect('fournisseurs');
+                loadHistorique(document.getElementById('filter-date').value, 'F');
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             const userId = localStorage.getItem('userId');
             const userEmail = localStorage.getItem('userEmail');
@@ -280,28 +557,44 @@
                 document.getElementById('userDisplay').classList.remove('hidden');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
                 document.getElementById('sellerSelect').disabled = true;
-                chargerUtilisateurs().then(() => {
+                chargerUtilisateurs().then((success) => {
+                    if (!success) {
+                        document.getElementById('sellerContent').classList.remove('hidden');
+                        document.getElementById('sellerChevron').classList.add('fa-chevron-up');
+                        document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
+                        return;
+                    }
                     const storedSeller = localStorage.getItem('selectedSeller');
                     if (storedSeller) {
-                        const { numero_util, nom } = JSON.parse(storedSeller);
-                        const sellerSelect = document.getElementById('sellerSelect');
-                        const optionExists = Array.from(sellerSelect.options).some(option => option.value === numero_util);
-                        if (optionExists) {
-                            sellerSelect.value = numero_util;
-                            document.getElementById('selectedSellerName').textContent = nom;
-                            document.getElementById('headerSellerName').textContent = nom;
-                            document.getElementById('sellerPassword').disabled = true;
-                            document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
-                            document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
-                            document.getElementById('sellerContent').classList.add('hidden');
-                            document.getElementById('sellerChevron').classList.add('fa-chevron-down');
-                            document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
-                        } else {
+                        try {
+                            const { numero_util, nom } = JSON.parse(storedSeller);
+                            const sellerSelect = document.getElementById('sellerSelect');
+                            const optionExists = Array.from(sellerSelect.options).some(option => option.value === numero_util);
+                            if (optionExists) {
+                                sellerSelect.value = numero_util;
+                                document.getElementById('selectedSellerName').textContent = nom;
+                                document.getElementById('headerSellerName').textContent = nom;
+                                document.getElementById('sellerPassword').disabled = true;
+                                document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
+                                document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
+                                document.getElementById('sellerContent').classList.add('hidden');
+                                document.getElementById('sellerChevron').classList.add('fa-chevron-down');
+                                document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
+                            } else {
+                                localStorage.removeItem('selectedSeller');
+                                localStorage.removeItem('sellerPassword');
+                                document.getElementById('sellerContent').classList.remove('hidden');
+                                document.getElementById('sellerChevron').classList.add('fa-chevron-up');
+                                document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
+                                showToast('Vendeur non valide, veuillez sélectionner un vendeur', true);
+                            }
+                        } catch (error) {
                             localStorage.removeItem('selectedSeller');
                             localStorage.removeItem('sellerPassword');
                             document.getElementById('sellerContent').classList.remove('hidden');
                             document.getElementById('sellerChevron').classList.add('fa-chevron-up');
                             document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
+                            showToast('Erreur chargement vendeur', true);
                         }
                     } else {
                         document.getElementById('sellerContent').classList.remove('hidden');
@@ -310,10 +603,21 @@
                     }
                     document.getElementById('sellerSelect').disabled = false;
                 });
+                chargerClients();
+                chargerFournisseurs();
+                loadHistorique('', 'C');
             } else {
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
                 window.location.href = 'index.html';
             }
+        });
+
+        document.getElementById('tab-clients').addEventListener('click', () => switchTab('clients'));
+        document.getElementById('tab-fournisseurs').addEventListener('click', () => switchTab('fournisseurs'));
+        document.getElementById('submit-versement').addEventListener('click', submitVersement);
+        document.getElementById('filter-date').addEventListener('change', (e) => {
+            const type = document.getElementById('tab-clients').classList.contains('border-blue-600') ? 'C' : 'F';
+            loadHistorique(e.target.value, type);
         });
     </script>
 </body>
