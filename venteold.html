@@ -3,1222 +3,534 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ventes & Achats</title>
+    <title>Paramètres - Firepoz</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes userPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
-        @keyframes countPulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
-        @keyframes totalPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
-        @keyframes smoothBlink { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        .toast { transition: opacity 0.5s; }
+        .hidden { opacity: 0; display: none; }
+        .kpi-card { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .kpi-card:hover { transform: scale(1.03); box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1); }
+        body { font-family: 'Inter', sans-serif; }
         .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
-        .animate-pulse { animation: pulse 2s infinite ease-in-out; }
-        .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
-        .animate-total-pulse { animation: totalPulse 1.5s ease-in-out; }
-        #dailySalesSection { animation-delay: 0.3s; }
-        #dailyPurchasesSection { animation-delay: 0.4s; }
-        #topArticlesSection { animation-delay: 0.5s; }
-        #profitSection { animation-delay: 0.7s; }
-        #stockValueSection { animation-delay: 0.9s; }
-        footer { animation-delay: 1s; }
-        .user-anim { animation: userPulse 1.5s infinite ease-in-out; }
-        .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
-        .seller-anim { animation: smoothBlink 1.5s infinite ease-in-out; }
         .small-email { font-size: 0.75rem; line-height: 1rem; }
-        .total-large {
-            font-size: 2.5rem;
-            font-weight: bold;
-            color: #4f46e5;
-            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
-        }
-        #dailySalesContent .table-container,
-        #dailyPurchasesContent .table-container {
-            max-height: 300px;
-            overflow-y: auto;
-            overflow-x: auto;
-        }
-        #dailySalesContent .table-container table,
-        #dailyPurchasesContent .table-container table {
-            width: 100%;
-        }
-        #topArticlesContent .chart-container,
-        #profitContent .chart-container {
-            max-width: 500px;
-            margin: 0 auto;
-        }
-        .flatpickr-input, select {
-            border: 1px solid #d1d5db;
-            border-radius: 0.375rem;
-            padding: 0.5rem 2.5rem 0.5rem 0.75rem;
-            width: 100%;
-            background: white;
-            appearance: none;
-            background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke%3D%22%236B7280%22%3E%3Cpath%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%222%22%20d%3D%22M19%209l-7%207-7-7%22%2F%3E%3C%2Fsvg%3E");
-            background-repeat: no-repeat;
-            background-position: right 0.75rem center;
-            background-size: 1.5em;
-            transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-        }
-        .flatpickr-input:focus, select:focus {
-            outline: none;
-            border-color: #4f46e5;
-            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
-        }
-        select:disabled {
-            background-color: #f3f4f6;
-            cursor: not-allowed;
-        }
-        @media print and (min-width: 210mm) {
-            body * { visibility: hidden; }
-            #printAreaA4, #printAreaA4 *, #printAreaPurchasesA4, #printAreaPurchasesA4 * { visibility: visible; }
-            #printAreaA4, #printAreaPurchasesA4 {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 210mm;
-                font-size: 12pt;
-            }
-            .table-container { max-height: none; overflow: visible; }
-            table { page-break-inside: auto; }
-            tr { page-break-inside: avoid; page-break-after: auto; }
-            .no-print { display: none; }
-        }
-        @media print and (max-width: 80mm) {
-            body * { visibility: hidden; }
-            #printAreaTicket, #printAreaTicket *, #printAreaPurchaseTicket, #printAreaPurchaseTicket * { visibility: visible; }
-            #printAreaTicket, #printAreaPurchaseTicket {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 80mm;
-                font-size: 10pt;
-                line-height: 1.2;
-            }
-            .no-print { display: none; }
-        }
+        .user-anim { animation: userPulse 1.5s infinite ease-in-out; }
+        @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes userPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
     </style>
 </head>
-<body class="bg-gray-100">
-    <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-slide-in no-print">
+<body class="bg-gray-100 min-h-screen">
+    <!-- Barre de navigation -->
+    <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-slide-in">
         <div class="container mx-auto flex justify-between items-center">
             <div class="flex flex-col">
                 <h1 class="text-2xl font-bold flex items-center">
-                    <i class="fas fa-fire mr-2 text-amber-400 animate-pulse"></i> FirePoz
+                    <i class="fas fa-fire mr-2 text-amber-400 animate-pulse"></i> Firepoz - Paramètres
                 </h1>
                 <span id="userDisplay" class="small-email user-anim hidden"></span>
-                <span id="selectedSellerDisplay" class="small-email hidden"></span>
             </div>
             <div class="space-x-4 flex items-center">
-                <a href="vente.html" class="hover:text-indigo-200 transition flex items-center">
-                    <i class="fas fa-shopping-cart mr-1"></i> Ventes
-                </a>
-                <a href="index.html" class="hover:text-indigo-200 transition flex items-center">
+                <a href="/FIREPOZ/index.html" class="hover:text-indigo-200 transition flex items-center">
                     <i class="fas fa-home mr-1"></i> Accueil
                 </a>
-                <button id="loginLogoutButton" onclick="loginLogout()" class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition flex items-center">
+                <a href="/FIREPOZ/HISTO.html" class="hover:text-indigo-200 transition flex items-center">
+                    <i class="fas fa-money-check-alt mr-1"></i> Versement
+                </a>
+                <a href="/FIREPOZ/HELP.html" class="hover:text-indigo-200 transition flex items-center">
+                    <i class="fas fa-question-circle mr-1"></i> Aide
+                </a>
+                <button id="logoutButton" class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition flex items-center">
                     <i class="fas fa-sign-out-alt mr-1"></i> Déconnexion
                 </button>
             </div>
         </div>
     </nav>
 
-    <div class="container mx-auto px-4 py-16 mt-16">
-        <header class="mb-8">
-            <h1 class="text-3xl font-bold text-indigo-700">Ventes & Achats</h1>
-            <p class="text-gray-600 flex items-center">
-                <i class="fas fa-calendar-day mr-2 text-indigo-500"></i> Résumé des ventes et achats
-            </p>
-        </header>
+    <!-- Contenu principal -->
+    <main class="container mx-auto px-4 py-16 mt-16">
+        <h2 class="text-3xl font-semibold mb-6 text-indigo-700 text-center">Paramètres Avancés</h2>
 
-        <div class="mb-6 flex flex-col md:flex-row gap-4 no-print">
-            <div class="relative w-full md:w-1/5">
-                <label for="dateFilter" class="text-sm font-medium text-gray-700">Date</label>
-                <input type="text" id="dateFilter" placeholder="Sélectionner une date" class="flatpickr-input mt-1" aria-describedby="dateFilterHelp">
-                <p id="dateFilterHelp" class="sr-only">Sélectionnez une date au format AAAA-MM-JJ</p>
-            </div>
-            <div class="relative w-full md:w-1/5">
-                <label for="clientFilter" class="text-sm font-medium text-gray-700">Client</label>
-                <select id="clientFilter" class="mt-1 block w-full" aria-label="Filtrer par client">
-                    <option value="">Tous les clients</option>
-                    <option value="0">Comptoir</option>
-                </select>
-            </div>
-            <div class="relative w-full md:w-1/5">
-                <label for="fournisseurFilter" class="text-sm font-medium text-gray-700">Fournisseur</label>
-                <select id="fournisseurFilter" class="mt-1 block w-full" aria-label="Filtrer par fournisseur">
-                    <option value="">Tous les fournisseurs</option>
-                </select>
-            </div>
-            <div class="relative w-full md:w-1/5">
-                <label for="userFilter" class="text-sm font-medium text-gray-700">Utilisateur</label>
-                <select id="userFilter" class="mt-1 block w-full" aria-label="Filtrer par utilisateur">
-                    <option value="0">Tous les utilisateurs</option>
-                </select>
-            </div>
-            <div class="relative w-full md:w-1/5 flex items-end">
-                <button onclick="printA4()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition w-full">
-                    <i class="fas fa-print mr-1"></i> Imprimer A4
-                </button>
-            </div>
-        </div>
-
-        <!-- Liste des Ventes -->
-        <section class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="dailySalesSection">
-            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('dailySalesSection')">
-                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                    <i class="fas fa-calendar-day mr-2 text-indigo-500"></i> Liste des Ventes
-                    <span id="dailySalesCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                </h2>
-                <button class="text-gray-600 hover:text-gray-800 transition">
-                    <i class="fas fa-chevron-down" id="dailySalesChevron"></i>
-                </button>
-            </div>
-            <div class="p-6 hidden" id="dailySalesContent">
-                <div class="mb-4">
-                    <h3 class="text-lg font-medium text-gray-700">Total: <span id="dailySalesTotal" class="text-indigo-600 font-bold">0.00 DA</span></h3>
-                </div>
-                <div class="mb-6">
-                    <h4 class="text-md font-medium text-gray-600 mb-2">Tickets (Ventes Comptoir)</h4>
-                    <div class="table-container">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Commande</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fait par</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody id="ticketsList" class="bg-white divide-y divide-gray-200">
-                                <tr>
-                                    <td colspan="6" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+        <!-- Paramètres généraux -->
+        <div class="kpi-card bg-white shadow-md rounded-lg p-6 mb-6">
+            <h3 class="text-xl font-semibold mb-4 text-gray-800">Paramètres Généraux</h3>
+            <form id="generalSettingsForm" class="space-y-4">
+                <div>
+                    <label for="companyName" class="block text-sm font-medium text-gray-700">Nom de l'Entreprise</label>
+                    <input id="companyName" type="text" name="companyName" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="Nom de l'entreprise">
                 </div>
                 <div>
-                    <h4 class="text-md font-medium text-gray-600 mb-2">Bons de Livraison</h4>
-                    <div class="table-container">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Commande</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fait par</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody id="bonsList" class="bg-white divide-y divide-gray-200">
-                                <tr>
-                                    <td colspan="6" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                    <label for="companyAddress" class="block text-sm font-medium text-gray-700">Adresse</label>
+                    <input id="companyAddress" type="text" name="companyAddress" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="Adresse de l'entreprise">
                 </div>
-            </div>
-        </section>
-
-        <!-- Liste des Achats -->
-        <section class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="dailyPurchasesSection">
-            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('dailyPurchasesSection')">
-                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                    <i class="fas fa-truck-loading mr-2 text-indigo-500"></i> Liste des Achats
-                    <span id="dailyPurchasesCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                </h2>
-                <button class="text-gray-600 hover:text-gray-800 transition">
-                    <i class="fas fa-chevron-down" id="dailyPurchasesChevron"></i>
-                </button>
-            </div>
-            <div class="p-6 hidden" id="dailyPurchasesContent">
-                <div class="mb-4">
-                    <h3 class="text-lg font-medium text-gray-700">Total: <span id="dailyPurchasesTotal" class="text-indigo-600 font-bold">0.00 DA</span></h3>
+                <div>
+                    <label for="companyPhone" class="block text-sm font-medium text-gray-700">Téléphone</label>
+                    <input id="companyPhone" type="tel" name="companyPhone" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="+213...">
                 </div>
-                <div class="mb-6">
-                    <h4 class="text-md font-medium text-gray-600 mb-2">Bons de Réception</h4>
-                    <div class="table-container">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Réception</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fournisseur</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fait par</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody id="receptionsList" class="bg-white divide-y divide-gray-200">
-                                <tr>
-                                    <td colspan="6" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                <div>
+                    <label for="companyLogo" class="block text-sm font-medium text-gray-700">Logo de l'Entreprise</label>
+                    <input id="companyLogo" type="file" accept="image/*" name="companyLogo" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    <img id="logoPreview" class="mt-2 max-w-[150px] hidden" alt="Prévisualisation du logo">
                 </div>
-            </div>
-        </section>
-
-        <!-- Articles les plus vendus -->
-        <section class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="topArticlesSection">
-            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('topArticlesSection')">
-                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                    <i class="fas fa-chart-pie mr-2 text-indigo-500"></i> Articles les Plus Vendus
-                    <span id="topArticlesCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                </h2>
-                <button class="text-gray-600 hover:text-gray-800 transition">
-                    <i class="fas fa-chevron-down" id="topArticlesChevron"></i>
-                </button>
-            </div>
-            <div class="p-6 hidden" id="topArticlesContent">
-                <div class="mb-4">
-                    <h3 class="text-lg font-medium text-gray-700">Total Quantité Vendue: <span id="topArticlesTotal" class="text-indigo-600 font-bold">0</span></h3>
+                <div>
+                    <label for="theme" class="block text-sm font-medium text-gray-700">Thème</label>
+                    <select id="theme" name="theme" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="light">Clair</option>
+                        <option value="dark">Sombre</option>
+                        <option value="twilight">Twilight</option>
+                    </select>
                 </div>
-                <div class="flex justify-center">
-                    <canvas id="topArticlesChart" width="400" height="400"></canvas>
+                <div>
+                    <label for="currency" class="block text-sm font-medium text-gray-700">Devise</label>
+                    <select id="currency" name="currency" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="DZD">DZD</option>
+                        <option value="USD">USD</option>
+                        <option value="EUR">EUR</option>
+                    </select>
                 </div>
-            </div>
-        </section>
-
-        <!-- Bénéfice -->
-        <section class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="profitSection">
-            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('profitSection')">
-                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                    <i class="fas fa-chart-line mr-2 text-indigo-500"></i> Bénéfice
-                    <span id="profitCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                </h2>
-                <button class="text-gray-600 hover:text-gray-800 transition">
-                    <i class="fas fa-chevron-down" id="profitChevron"></i>
-                </button>
-            </div>
-            <div class="p-6 hidden" id="profitContent">
-                <div class="mb-4">
-                    <h3 class="text-lg font-medium text-gray-700">Bénéfice Total (Date Sélectionnée): <span id="profitTotal" class="text-indigo-600 font-bold">0.00 DA</span></h3>
+                <div>
+                    <label for="language" class="block text-sm font-medium text-gray-700">Langue</label>
+                    <select id="language" name="language" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="fr">Français</option>
+                        <option value="en">English</option>
+                        <option value="ar">العربية</option>
+                    </select>
                 </div>
-                <div class="flex justify-center">
-                    <canvas id="profitChart" width="400" height="300"></canvas>
-                </div>
-            </div>
-        </section>
-
-        <!-- Valeur du Stock -->
-        <section class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="stockValueSection">
-            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('stockValueSection')">
-                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                    <i class="fas fa-warehouse mr-2 text-indigo-500"></i> Valeur du Stock et Zakat
-                </h2>
-                <button class="text-gray-600 hover:text-gray-800 transition">
-                    <i class="fas fa-chevron-down" id="stockValueChevron"></i>
-                </button>
-            </div>
-            <div class="p-6 hidden" id="stockValueContent">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="bg-gray-50 p-4 rounded-md">
-                        <h3 class="text-lg font-medium text-gray-700">Valeur Stock (Achat)</h3>
-                        <p id="stockValueAchat" class="text-indigo-600 font-bold text-2xl">0.00 DA</p>
-                    </div>
-                    <div class="bg-gray-50 p-4 rounded-md">
-                        <h3 class="text-lg font-medium text-gray-700">Valeur Stock (Vente)</h3>
-                        <p id="stockValueVente" class="text-indigo-600 font-bold text-2xl">0.00 DA</p>
-                    </div>
-                    <div class="bg-gray-50 p-4 rounded-md flex items-center">
-                        <svg class="w-8 h-8 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2-2 4 4"></path>
-                        </svg>
-                        <div>
-                            <h3 class="text-lg font-medium text-gray-700">زكاتي (Zakat)</h3>
-                            <p id="zakatValue" class="text-green-600 font-bold text-2xl">0.00 DA</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Zone d'impression A4 pour les ventes -->
-        <div id="printAreaA4" class="hidden">
-            <h1 class="text-2xl font-bold mb-4">Rapport des Ventes</h1>
-            <p class="mb-2">Date: <span id="printDate"></span></p>
-            <p class="mb-4">Client: <span id="printClient"></span></p>
-            <h2 class="text-xl font-semibold mb-2">Tickets (Ventes Comptoir)</h2>
-            <table class="min-w-full border-collapse border border-gray-300 mb-6">
-                <thead>
-                    <tr class="bg-gray-100">
-                        <th class="border border-gray-300 px-4 py-2 text-left">N° Commande</th>
-                        <th class="border border-gray-300 px-4 py-2 text-left">Date</th>
-                        <th class="border border-gray-300 px-4 py-2 text-left">Client</th>
-                        <th class="border border-gray-300 px-4 py-2 text-left">Fait par</th>
-                        <th class="border border-gray-300 px-4 py-2 text-left">Total</th>
-                    </tr>
-                </thead>
-                <tbody id="printTicketsList"></tbody>
-            </table>
-            <h2 class="text-xl font-semibold mb-2">Bons de Livraison</h2>
-            <table class="min-w-full border-collapse border border-gray-300 mb-6">
-                <thead>
-                    <tr class="bg-gray-100">
-                        <th class="border border-gray-300 px-4 py-2 text-left">N° Commande</th>
-                        <th class="border border-gray-300 px-4 py-2 text-left">Date</th>
-                        <th class="border border-gray-300 px-4 py-2 text-left">Client</th>
-                        <th class="border border-gray-300 px-4 py-2 text-left">Fait par</th>
-                        <th class="border border-gray-300 px-4 py-2 text-left">Total</th>
-                    </tr>
-                </thead>
-                <tbody id="printBonsList"></tbody>
-            </table>
-            <p class="text-lg font-bold">Total: <span id="printTotal"></span> DA</p>
+            </form>
         </div>
 
-        <!-- Zone d'impression A4 pour les achats -->
-        <div id="printAreaPurchasesA4" class="hidden">
-            <h1 class="text-2xl font-bold mb-4">Rapport des Achats</h1>
-            <p class="mb-2">Date: <span id="printPurchasesDate"></span></p>
-            <h2 class="text-xl font-semibold mb-2">Bons de Réception</h2>
-            <table class="min-w-full border-collapse border border-gray-300 mb-6">
-                <thead>
-                    <tr class="bg-gray-100">
-                        <th class="border border-gray-300 px-4 py-2 text-left">N° Réception</th>
-                        <th class="border border-gray-300 px-4 py-2 text-left">Date</th>
-                        <th class="border border-gray-300 px-4 py-2 text-left">Fournisseur</th>
-                        <th class="border border-gray-300 px-4 py-2 text-left">Fait par</th>
-                        <th class="border border-gray-300 px-4 py-2 text-left">Total</th>
-                    </tr>
-                </thead>
-                <tbody id="printReceptionsList"></tbody>
-            </table>
-            <p class="text-lg font-bold">Total: <span id="printPurchasesTotal"></span> DA</p>
+        <!-- Paramètres caméra -->
+        <div class="kpi-card bg-white shadow-md rounded-lg p-6 mb-6">
+            <h3 class="text-xl font-semibold mb-4 text-gray-800">Paramètres Caméra</h3>
+            <form id="cameraSettingsForm" class="space-y-4">
+                <div>
+                    <label for="cameraResolution" class="block text-sm font-medium text-gray-700">Résolution Caméra</label>
+                    <select id="cameraResolution" name="cameraResolution" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="low">Basse (480p)</option>
+                        <option value="medium">Moyenne (720p)</option>
+                        <option value="high">Haute (1080p)</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="cameraFacing" class="block text-sm font-medium text-gray-700">Orientation Caméra</label>
+                    <select id="cameraFacing" name="cameraFacing" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="environment">Arrière</option>
+                        <option value="user">Avant</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">
+                        <input id="autoScan" type="checkbox" class="mr-2 text-indigo-500 focus:ring-indigo-500"> Scan Automatique
+                    </label>
+                </div>
+                <button type="button" id="testCamera" class="w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700 transition mt-2">Tester Caméra</button>
+            </form>
+            <div id="cameraPreview" class="hidden mt-4 w-full max-w-[300px] h-[200px] border-2 border-gray-200 bg-black"></div>
         </div>
 
-        <!-- Zone d'impression ticket 80mm pour les ventes -->
-        <div id="printAreaTicket" class="hidden">
-            <div style="width: 80mm; padding: 5mm; font-family: Arial, sans-serif;">
-                <h1 style="text-align: center; font-size: 14pt; margin-bottom: 5mm;">FirePoz</h1>
-                <p style="text-align: center; margin: 2mm 0;">Vente #<span id="ticketNumero"></span></p>
-                <p style="margin: 2mm 0;">Date: <span id="ticketDate"></span></p>
-                <p style="margin: 2mm 0;">Client: <span id="ticketClient"></span></p>
-                <p style="margin: 2mm 0;">Fait par: <span id="ticketUtilisateur"></span></p>
-                <table style="width: 100%; border-collapse: collapse; margin: 5mm 0;">
-                    <thead>
-                        <tr style="border-bottom: 1px solid #000;">
-                            <th style="text-align: left; padding: 2mm;">Produit</th>
-                            <th style="text-align: center; padding: 2mm;">Qté</th>
-                            <th style="text-align: right; padding: 2mm;">Prix</th>
-                            <th style="text-align: right; padding: 2mm;">Total</th>
-                        </tr>
-                    </thead>
-                    <tbody id="ticketLignes"></tbody>
-                </table>
-                <p style="text-align: right; font-weight: bold; margin: 5mm 0;">Total: <span id="ticketTotal"></span> DA</p>
-                <p style="text-align: center; margin: 5mm 0;">Merci de votre visite !</p>
-            </div>
+        <!-- Paramètres notifications -->
+        <div class="kpi-card bg-white shadow-md rounded-lg p-6 mb-6">
+            <h3 class="text-xl font-semibold mb-4 text-gray-800">Notifications</h3>
+            <form id="notificationSettingsForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">
+                        <input id="emailNotifications" type="checkbox" class="mr-2 text-indigo-500 focus:ring-indigo-500"> Notifications par Email
+                    </label>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">
+                        <input id="appNotifications" type="checkbox" class="mr-2 text-indigo-500 focus:ring-indigo-500"> Notifications In-App
+                    </label>
+                </div>
+                <div>
+                    <label for="notificationEmail" class="block text-sm font-medium text-gray-700">Email pour Notifications</label>
+                    <input id="notificationEmail" type="email" name="notificationEmail" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="exemple@domaine.com">
+                </div>
+            </form>
         </div>
 
-        <!-- Zone d'impression ticket 80mm pour les achats -->
-        <div id="printAreaPurchaseTicket" class="hidden">
-            <div style="width: 80mm; padding: 5mm; font-family: Arial, sans-serif;">
-                <h1 style="text-align: center; font-size: 14pt; margin-bottom: 5mm;">FirePoz</h1>
-                <p style="text-align: center; margin: 2mm 0;">Réception #<span id="purchaseTicketNumero"></span></p>
-                <p style="margin: 2mm 0;">Date: <span id="purchaseTicketDate"></span></p>
-                <p style="margin: 2mm 0;">Fournisseur: <span id="purchaseTicketFournisseur"></span></p>
-                <p style="margin: 2mm 0;">Fait par: <span id="purchaseTicketUtilisateur"></span></p>
-                <table style="width: 100%; border-collapse: collapse; margin: 5mm 0;">
-                    <thead>
-                        <tr style="border-bottom: 1px solid #000;">
-                            <th style="text-align: left; padding: 2mm;">Produit</th>
-                            <th style="text-align: center; padding: 2mm;">Qté</th>
-                            <th style="text-align: right; padding: 2mm;">Prix</th>
-                            <th style="text-align: right; padding: 2mm;">Total</th>
-                        </tr>
-                    </thead>
-                    <tbody id="purchaseTicketLignes"></tbody>
-                </table>
-                <p style="text-align: right; font-weight: bold; margin: 5mm 0;">Total: <span id="purchaseTicketTotal"></span> DA</p>
-                <p style="text-align: center; margin: 5mm 0;">Merci à notre fournisseur !</p>
-            </div>
+        <!-- Paramètres stock -->
+        <div class="kpi-card bg-white shadow-md rounded-lg p-6 mb-6">
+            <h3 class="text-xl font-semibold mb-4 text-gray-800">Gestion du Stock</h3>
+            <form id="stockSettingsForm" class="space-y-4">
+                <div>
+                    <label for="lowStockThreshold" class="block text-sm font-medium text-gray-700">Seuil de Stock Faible</label>
+                    <input id="lowStockThreshold" type="number" name="lowStockThreshold" min="0" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="10">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">
+                        <input id="autoReorder" type="checkbox" class="mr-2 text-indigo-500 focus:ring-indigo-500"> Réapprovisionnement Automatique
+                    </label>
+                </div>
+                <div>
+                    <label for="reorderQuantity" class="block text-sm font-medium text-gray-700">Quantité de Réapprovisionnement</label>
+                    <input id="reorderQuantity" type="number" name="reorderQuantity" min="0" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="50">
+                </div>
+            </form>
         </div>
-    </div>
 
-    <footer class="bg-gray-700 text-white text-center py-4 animate-fade-in no-print">
-        <p>Développé par Khelladi Hicham</p>
-        <p>Tel: <a href="tel:00213553700900" class="underline hover:text-indigo-300 transition duration-300">00213553700900</a></p>
-        <p>Email: <a href="mailto:Hicham.khelladi@gmail.com" class="underline hover:text-indigo-300 transition duration-300">Hicham.khelladi@gmail.com</a></p>
-    </footer>
+        <!-- Paramètres rapports -->
+        <div class="kpi-card bg-white shadow-md rounded-lg p-6 mb-6">
+            <h3 class="text-xl font-semibold mb-4 text-gray-800">Rapports</h3>
+            <form id="reportSettingsForm" class="space-y-4">
+                <div>
+                    <label for="reportFormat" class="block text-sm font-medium text-gray-700">Format des Rapports</label>
+                    <select id="reportFormat" name="reportFormat" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="pdf">PDF</option>
+                        <option value="excel">Excel</option>
+                        <option value="csv">CSV</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="reportFrequency" class="block text-sm font-medium text-gray-700">Fréquence des Rapports</label>
+                    <select id="reportFrequency" name="reportFrequency" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="daily">Quotidien</option>
+                        <option value="weekly">Hebdomadaire</option>
+                        <option value="monthly">Mensuel</option>
+                    </select>
+                </div>
+            </form>
+        </div>
 
-    <div id="toast" class="fixed bottom-4 right-4 hidden no-print">
+        <!-- Paramètres performance -->
+        <div class="kpi-card bg-white shadow-md rounded-lg p-6 mb-6">
+            <h3 class="text-xl font-semibold mb-4 text-gray-800">Performance</h3>
+            <form id="performanceSettingsForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">
+                        <input id="enableCache" type="checkbox" class="mr-2 text-indigo-500 focus:ring-indigo-500"> Activer le Cache
+                    </label>
+                </div>
+                <div>
+                    <label for="syncInterval" class="block text-sm font-medium text-gray-700">Intervalle de Synchronisation (minutes)</label>
+                    <input id="syncInterval" type="number" name="syncInterval" min="1" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="30">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">
+                        <input id="offlineMode" type="checkbox" class="mr-2 text-indigo-500 focus:ring-indigo-500"> Mode Hors-Ligne
+                    </label>
+                </div>
+            </form>
+        </div>
+    </main>
+
+    <!-- Toast notification -->
+    <div id="toast" class="fixed bottom-4 right-4 hidden">
         <div class="flex items-center px-6 py-3 rounded-md shadow-lg">
             <i id="toastIcon" class="mr-2"></i>
             <span id="toastMessage"></span>
         </div>
     </div>
 
-    <div id="saleDetailsModal" class="fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center hidden z-50 no-print">
-        <div class="bg-white rounded-lg shadow-lg max-w-2xl w-full p-6">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-semibold text-gray-800">Détails <span id="modalTitle"></span> #<span id="modalSaleNumber"></span></h3>
-                <button onclick="closeSaleDetailsModal()" class="text-gray-600 hover:text-gray-800">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="table-container max-h-96 overflow-y-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Unitaire</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Total</th>
-                        </tr>
-                    </thead>
-                    <tbody id="saleDetailsList" class="bg-white divide-y divide-gray-200"></tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
     <script>
-        const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
-        let dailySalesCache = { tickets: [], bons: [], total: 0 };
-        let dailyPurchasesCache = { receptions: [], total: 0 };
-        let clientsCache = [];
-        let topArticlesCache = [];
-        let profitCache = [];
-        let topArticlesChart = null;
-        let profitChart = null;
+        let stream = null;
 
+        // Afficher une notification toast
         function showToast(message, isError = false) {
             const toast = document.getElementById('toast');
             const toastMessage = document.getElementById('toastMessage');
             const toastIcon = document.getElementById('toastIcon');
 
-            toast.className = isError
-                ? 'fixed bottom-4 right-4 flex items-center bg-red-500 text-white px-6 py-3 rounded-md shadow-lg'
-                : 'fixed bottom-4 right-4 flex items-center bg-green-500 text-white px-6 py-3 rounded-md shadow-lg';
+            if (!toast || !toastMessage || !toastIcon) {
+                console.error('Éléments toast non trouvés');
+                return;
+            }
 
-            toastIcon.className = isError
-                ? 'fas fa-exclamation-circle mr-2'
-                : 'fas fa-check-circle mr-2';
-
+            toast.className = `fixed bottom-4 right-4 flex items-center px-6 py-3 rounded-md shadow-lg ${
+                isError ? 'bg-red-500 text-white' : 'bg-green-500 text-white'
+            }`;
+            toastIcon.className = `fas ${isError ? 'fa-exclamation-circle' : 'fa-check-circle'} mr-2`;
             toastMessage.textContent = message;
             toast.classList.remove('hidden');
 
-            setTimeout(() => {
-                toast.classList.add('hidden');
-            }, 3000);
+            setTimeout(() => toast.classList.add('hidden'), 3000);
         }
 
-        function toggleSection(sectionId) {
-            const section = document.getElementById(sectionId);
-            const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
-            const chevron = document.getElementById(`${sectionId.replace('Section', 'Chevron')}`);
-
-            content.classList.toggle('hidden');
-            chevron.classList.toggle('fa-chevron-down');
-            chevron.classList.toggle('fa-chevron-up');
-        }
-
-        function loginLogout() {
-            console.log('Déconnexion en cours...');
-            const userId = localStorage.getItem('userId');
-            if (userId) {
-                localStorage.removeItem('userId');
-                localStorage.removeItem('userEmail');
-                document.getElementById('userDisplay').textContent = '';
-                document.getElementById('userDisplay').classList.add('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                window.location.href = 'index.html';
-            }
-        }
-
-        async function chargerClients() {
-            console.log('Chargement des clients...');
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les clients', true);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_clients`, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                clientsCache = await response.json();
-                const selectElement = document.getElementById('clientFilter');
-
-                selectElement.innerHTML = `
-                    <option value="">Tous les clients</option>
-                    <option value="0">Comptoir</option>
-                `;
-                clientsCache.forEach(client => {
-                    const option = document.createElement('option');
-                    option.value = client.numero_clt;
-                    option.textContent = `${client.nom} (ID: ${client.numero_clt})`;
-                    selectElement.appendChild(option);
-                });
-            } catch (error) {
-                showToast('Erreur lors du chargement des clients: ' + error.message, true);
-                console.error('Erreur clients:', error);
-            }
-        }
-
-        async function chargerFournisseurs() {
-            console.log('Chargement des fournisseurs...');
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les fournisseurs', true);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_fournisseurs`, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                const fournisseurs = await response.json();
-                const selectElement = document.getElementById('fournisseurFilter');
-
-                selectElement.innerHTML = `<option value="">Tous les fournisseurs</option>`;
-                fournisseurs.forEach(fournisseur => {
-                    const option = document.createElement('option');
-                    option.value = fournisseur.numero_fou;
-                    option.textContent = `${fournisseur.nom} (ID: ${fournisseur.numero_fou})`;
-                    selectElement.appendChild(option);
-                });
-            } catch (error) {
-                showToast('Erreur lors du chargement des fournisseurs: ' + error.message, true);
-                console.error('Erreur fournisseurs:', error);
-            }
-        }
-
-        async function chargerUtilisateurs() {
-            console.log('Chargement des utilisateurs...');
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les utilisateurs', true);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                const utilisateurs = await response.json();
-                const selectElement = document.getElementById('userFilter');
-
-                selectElement.innerHTML = `<option value="0">Tous les utilisateurs</option>`;
-                utilisateurs.forEach(user => {
-                    const option = document.createElement('option');
-                    option.value = user.numero_util;
-                    option.textContent = `${user.nom} (${user.statue})`;
-                    selectElement.appendChild(option);
-                });
-            } catch (error) {
-                showToast('Erreur lors du chargement des utilisateurs: ' + error.message, true);
-                console.error('Erreur utilisateurs:', error);
-            }
-        }
-
-        async function chargerVentesJour(date = '', numeroClt = '', numeroUtil = '0') {
-            console.log('Chargement des ventes...', { date, numeroClt, numeroUtil });
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les ventes', true);
-                window.location.href = 'index.html';
-                return;
-            }
-
-            try {
-                const params = new URLSearchParams();
-                if (date) params.append('date', date);
-                if (numeroClt) params.append('numero_clt', numeroClt);
-                if (numeroUtil && numeroUtil !== '0') params.append('numero_util', numeroUtil);
-                const url = `${API_BASE_URL}/ventes_jour?${params.toString()}`;
-
-                const response = await fetch(url, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                dailySalesCache = await response.json();
-
-                const ticketsTbody = document.getElementById('ticketsList');
-                const bonsTbody = document.getElementById('bonsList');
-                const countElement = document.getElementById('dailySalesCount');
-                const totalElement = document.getElementById('dailySalesTotal');
-
-                if (dailySalesCache.tickets.length === 0) {
-                    ticketsTbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun ticket</td></tr>';
-                } else {
-                    ticketsTbody.innerHTML = '';
-                    dailySalesCache.tickets.forEach(vente => {
-                        const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
-                        const tr = document.createElement('tr');
-                        tr.className = 'hover:bg-gray-50';
-                        tr.innerHTML = `
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                <button onclick="showSaleDetails(${vente.numero_comande}, '${vente.nature}', 'Vente')" class="bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition mr-2">
-                                    <i class="fas fa-eye"></i> Voir
-                                </button>
-                                <button onclick="printTicket(${vente.numero_comande}, '${vente.nature}')" class="bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition">
-                                    <i class="fas fa-print"></i> Ticket
-                                </button>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${vente.numero_comande}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.client_nom || 'Comptoir'}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.utilisateur_nom || 'N/A'}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalVente.toFixed(2)} DA</td>
-                        `;
-                        ticketsTbody.appendChild(tr);
+        // Appliquer le thème depuis localStorage
+        function applyTheme(themeValue) {
+            const theme = themeValue || localStorage.getItem('theme') || 'light';
+            console.log('Application du thème:', theme);
+            if (theme === 'dark') {
+                document.body.classList.remove('bg-gray-100');
+                document.body.classList.add('bg-gray-800');
+                document.querySelectorAll('.kpi-card').forEach(card => {
+                    card.classList.remove('bg-white');
+                    card.classList.add('bg-gray-900');
+                    card.querySelectorAll('label').forEach(label => {
+                        label.classList.remove('text-gray-700');
+                        label.classList.add('text-gray-200');
                     });
-                }
-
-                if (dailySalesCache.bons.length === 0) {
-                    bonsTbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun bon de livraison</td></tr>';
-                } else {
-                    bonsTbody.innerHTML = '';
-                    dailySalesCache.bons.forEach(vente => {
-                        const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
-                        const tr = document.createElement('tr');
-                        tr.className = 'hover:bg-gray-50';
-                        tr.innerHTML = `
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                <button onclick="showSaleDetails(${vente.numero_comande}, '${vente.nature}', 'Vente')" class="bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition mr-2">
-                                    <i class="fas fa-eye"></i> Voir
-                                </button>
-                                <button onclick="printTicket(${vente.numero_comande}, '${vente.nature}')" class="bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition">
-                                    <i class="fas fa-print"></i> Ticket
-                                </button>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${vente.numero_comande}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.client_nom || 'Comptoir'}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.utilisateur_nom || 'N/A'}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalVente.toFixed(2)} DA</td>
-                        `;
-                        bonsTbody.appendChild(tr);
+                    card.querySelectorAll('select, input').forEach(input => {
+                        input.classList.remove('bg-white', 'text-gray-800', 'border-gray-300');
+                        input.classList.add('bg-gray-800', 'text-gray-200', 'border-gray-700');
                     });
-                }
-
-                countElement.textContent = dailySalesCache.tickets.length + dailySalesCache.bons.length;
-                countElement.classList.remove('hidden');
-                totalElement.textContent = `${parseFloat(dailySalesCache.total).toFixed(2)} DA`;
-            } catch (error) {
-                document.getElementById('ticketsList').innerHTML = `
-                    <tr><td colspan="6" class="text-center py-4 text-red-500">Erreur de chargement: ${error.message}</td></tr>
-                `;
-                document.getElementById('bonsList').innerHTML = `
-                    <tr><td colspan="6" class="text-center py-4 text-red-500">Erreur de chargement: ${error.message}</td></tr>
-                `;
-                console.error('Erreur ventes:', error);
-                showToast(`Erreur chargement ventes: ${error.message}`, true);
+                });
+            } else if (theme === 'twilight') {
+                document.body.classList.remove('bg-gray-100');
+                document.body.classList.add('bg-gradient-to-br', 'from-gray-800', 'to-gray-900');
+                document.querySelectorAll('.kpi-card').forEach(card => {
+                    card.classList.remove('bg-white');
+                    card.classList.add('bg-gray-800');
+                    card.querySelectorAll('label').forEach(label => {
+                        label.classList.remove('text-gray-700');
+                        label.classList.add('text-gray-300');
+                    });
+                    card.querySelectorAll('select, input').forEach(input => {
+                        input.classList.remove('bg-white', 'text-gray-800', 'border-gray-300');
+                        input.classList.add('bg-gray-700', 'text-gray-200', 'border-gray-600');
+                    });
+                });
+            } else {
+                document.body.classList.add('bg-gray-100');
+                document.querySelectorAll('.kpi-card').forEach(card => {
+                    card.classList.add('bg-white');
+                    card.querySelectorAll('label').forEach(label => {
+                        label.classList.add('text-gray-700');
+                    });
+                    card.querySelectorAll('select, input').forEach(input => {
+                        input.classList.add('bg-white', 'text-gray-800', 'border-gray-300');
+                    });
+                });
             }
+            const themeElement = document.getElementById('theme');
+            if (themeElement) themeElement.value = theme;
         }
 
-        async function chargerAchatsJour(date = '', numeroUtil = '0', numeroFour = '') {
-            console.log('Chargement des achats...', { date, numeroUtil, numeroFour });
+        // Vérifier l'état de connexion
+        function checkLoginStatus() {
             const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les achats', true);
-                window.location.href = 'index.html';
-                return;
+            const userEmail = localStorage.getItem('userEmail');
+            if (!userId || !userEmail) {
+                console.log('userId ou userEmail manquant, redirection vers index.html');
+                showToast('Veuillez vous connecter', true);
+                setTimeout(() => window.location.href = '/FIREPOZ/index.html', 2000);
+                return false;
             }
-
-            try {
-                const params = new URLSearchParams();
-                if (date) params.append('date', date);
-                if (numeroUtil && numeroUtil !== '0') params.append('numero_util', numeroUtil);
-                if (numeroFour && numeroFour !== '') params.append('numero_four', numeroFour);
-                const url = `${API_BASE_URL}/receptions_jour?${params.toString()}`;
-
-                const response = await fetch(url, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                dailyPurchasesCache = await response.json();
-
-                const receptionsTbody = document.getElementById('receptionsList');
-                const countElement = document.getElementById('dailyPurchasesCount');
-                const totalElement = document.getElementById('dailyPurchasesTotal');
-
-                if (dailyPurchasesCache.receptions.length === 0) {
-                    receptionsTbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun bon de réception</td></tr>';
-                } else {
-                    receptionsTbody.innerHTML = '';
-                    dailyPurchasesCache.receptions.forEach(reception => {
-                        const totalReception = reception.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.total_ligne || 0), 0);
-                        const tr = document.createElement('tr');
-                        tr.className = 'hover:bg-gray-50';
-                        tr.innerHTML = `
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                <button onclick="showSaleDetails(${reception.numero_mouvement}, '${reception.nature}', 'Réception')" class="bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition mr-2">
-                                    <i class="fas fa-eye"></i> Voir
-                                </button>
-                                <button onclick="printPurchaseTicket(${reception.numero_mouvement}, '${reception.nature}')" class="bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition">
-                                    <i class="fas fa-print"></i> Ticket
-                                </button>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${reception.numero_mouvement}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(reception.date_m).toLocaleString('fr-FR')}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${reception.fournisseur_nom || 'N/A'}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${reception.utilisateur_nom || 'N/A'}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalReception.toFixed(2)} DA</td>
-                        `;
-                        receptionsTbody.appendChild(tr);
-                    });
-                }
-
-                countElement.textContent = dailyPurchasesCache.receptions.length;
-                countElement.classList.remove('hidden');
-                totalElement.textContent = `${parseFloat(dailyPurchasesCache.total).toFixed(2)} DA`;
-            } catch (error) {
-                document.getElementById('receptionsList').innerHTML = `
-                    <tr><td colspan="6" class="text-center py-4 text-red-500">Erreur de chargement: ${error.message}</td></tr>
-                `;
-                console.error('Erreur achats:', error);
-                showToast(`Erreur chargement achats: ${error.message}`, true);
+            const userDisplay = document.getElementById('userDisplay');
+            if (userDisplay) {
+                userDisplay.textContent = userEmail.toLowerCase();
+                userDisplay.classList.remove('hidden');
             }
+            console.log('Connexion OK:', { userId, userEmail });
+            return true;
         }
 
-        async function chargerArticlesPlusVendus(date = '', numeroClt = '', numeroUtil = '0') {
-            console.log('Chargement des articles les plus vendus...', { date, numeroClt, numeroUtil });
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les articles', true);
-                return;
-            }
+        // Collecter tous les paramètres
+        function collectAllSettings() {
+            const settings = {
+                companyName: (document.getElementById('companyName')?.value || ''),
+                companyAddress: (document.getElementById('companyAddress')?.value || ''),
+                companyPhone: (document.getElementById('companyPhone')?.value || ''),
+                companyLogo: (document.getElementById('logoPreview')?.src || ''),
+                theme: (document.getElementById('theme')?.value || 'light'),
+                currency: (document.getElementById('currency')?.value || 'DZD'),
+                language: (document.getElementById('language')?.value || 'fr'),
+                cameraResolution: (document.getElementById('cameraResolution')?.value || 'medium'),
+                cameraFacing: (document.getElementById('cameraFacing')?.value || 'environment'),
+                autoScan: document.getElementById('autoScan')?.checked || false,
+                emailNotifications: document.getElementById('emailNotifications')?.checked || false,
+                appNotifications: document.getElementById('appNotifications')?.checked || false,
+                notificationEmail: (document.getElementById('notificationEmail')?.value || ''),
+                lowStockThreshold: parseInt(document.getElementById('lowStockThreshold')?.value) || 10,
+                autoReorder: document.getElementById('autoReorder')?.checked || false,
+                reorderQuantity: parseInt(document.getElementById('reorderQuantity')?.value) || 50,
+                reportFormat: (document.getElementById('reportFormat')?.value || 'pdf'),
+                reportFrequency: (document.getElementById('reportFrequency')?.value || 'weekly'),
+                enableCache: document.getElementById('enableCache')?.checked || false,
+                syncInterval: parseInt(document.getElementById('syncInterval')?.value) || 30,
+                offlineMode: document.getElementById('offlineMode')?.checked || false
+            };
+            console.log('Paramètres collectés:', settings);
+            return settings;
+        }
 
-            try {
-                const params = new URLSearchParams();
-                if (date) params.append('date', date);
-                if (numeroClt) params.append('numero_clt', numeroClt);
-                if (numeroUtil && numeroUtil !== '0') params.append('numero_util', numeroUtil);
-                const url = `${API_BASE_URL}/articles_plus_vendus?${params.toString()}`;
-
-                const response = await fetch(url, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                topArticlesCache = await response.json();
-
-                const countElement = document.getElementById('topArticlesCount');
-                const totalElement = document.getElementById('topArticlesTotal');
-
-                const totalQuantite = topArticlesCache.reduce((sum, article) => sum + parseInt(article.quantite || 0), 0);
-
-                countElement.textContent = topArticlesCache.length;
-                countElement.classList.remove('hidden');
-                totalElement.textContent = totalQuantite;
-
-                const labels = topArticlesCache.map(article => article.designation || 'N/A');
-                const quantites = topArticlesCache.map(article => parseInt(article.quantite || 0));
-
-                const backgroundColors = quantites.map((_, index) => `hsl(${(index * 360) / quantites.length}, 70%, 60%)`);
-                const borderColors = quantites.map((_, index) => `hsl(${(index * 360) / quantites.length}, 70%, 40%)`);
-
-                if (topArticlesChart) {
-                    topArticlesChart.destroy();
-                }
-
-                const ctx = document.getElementById('topArticlesChart').getContext('2d');
-                topArticlesChart = new Chart(ctx, {
-                    type: 'pie',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            data: quantites,
-                            backgroundColor: backgroundColors,
-                            borderColor: borderColors,
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: {
-                            legend: { position: 'top' },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        const label = context.label || '';
-                                        const value = context.raw || 0;
-                                        return `${label}: ${value} unités`;
-                                    }
-                                }
-                            }
-                        }
+        // Charger les paramètres depuis localStorage
+        function loadSettings() {
+            if (!checkLoginStatus()) return;
+            console.log('Chargement des paramètres depuis localStorage');
+            const settings = JSON.parse(localStorage.getItem('settings')) || {};
+            const fields = [
+                { id: 'companyName', default: '' },
+                { id: 'companyAddress', default: '' },
+                { id: 'companyPhone', default: '' },
+                { id: 'theme', default: 'light' },
+                { id: 'currency', default: 'DZD' },
+                { id: 'language', default: 'fr' },
+                { id: 'cameraResolution', default: 'medium' },
+                { id: 'cameraFacing', default: 'environment' },
+                { id: 'autoScan', default: false, type: 'checked' },
+                { id: 'emailNotifications', default: false, type: 'checked' },
+                { id: 'appNotifications', default: false, type: 'checked' },
+                { id: 'notificationEmail', default: '' },
+                { id: 'lowStockThreshold', default: 10 },
+                { id: 'autoReorder', default: false, type: 'checked' },
+                { id: 'reorderQuantity', default: 50 },
+                { id: 'reportFormat', default: 'pdf' },
+                { id: 'reportFrequency', default: 'weekly' },
+                { id: 'enableCache', default: false, type: 'checked' },
+                { id: 'syncInterval', default: 30 },
+                { id: 'offlineMode', default: false, type: 'checked' }
+            ];
+            fields.forEach(({ id, default: defaultValue, type }) => {
+                const element = document.getElementById(id);
+                if (element) {
+                    if (type === 'checked') {
+                        element.checked = settings[id] !== undefined ? settings[id] : defaultValue;
+                    } else {
+                        element.value = settings[id] !== undefined ? settings[id] : defaultValue;
                     }
-                });
-            } catch (error) {
-                console.error('Erreur articles:', error);
-                showToast(`Erreur chargement articles: ${error.message}`, true);
-                document.getElementById('topArticlesTotal').textContent = '0';
-                document.getElementById('topArticlesCount').classList.add('hidden');
+                } else {
+                    console.warn(`Élément ${id} non trouvé lors du chargement`);
+                }
+            });
+            // Charger le logo
+            if (settings.companyLogo) {
+                const logoPreview = document.getElementById('logoPreview');
+                logoPreview.src = settings.companyLogo;
+                logoPreview.classList.remove('hidden');
+            }
+            applyTheme(settings.theme);
+        }
+
+        // Enregistrer les paramètres dans localStorage
+        function saveSettings(formId) {
+            if (!checkLoginStatus()) {
+                console.log('Sauvegarde annulée: utilisateur non connecté');
+                return;
+            }
+            const settings = collectAllSettings();
+            console.log(`Sauvegarde des paramètres pour ${formId}:`, settings);
+            localStorage.setItem('settings', JSON.stringify(settings));
+            showToast(`Paramètres ${formId.replace('SettingsForm', '').toLowerCase()} sauvegardés`);
+        }
+
+        // Gérer le téléchargement du logo
+        function handleLogoUpload(event) {
+            const file = event.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const logoPreview = document.getElementById('logoPreview');
+                    logoPreview.src = reader.result;
+                    logoPreview.classList.remove('hidden');
+                    saveSettings('generalSettingsForm');
+                };
+                reader.readAsDataURL(file);
+            } else {
+                showToast('Veuillez sélectionner une image valide', true);
             }
         }
 
-        async function chargerProfit(date = '', numeroClt = '', numeroUtil = '0') {
-            console.log('Chargement du bénéfice...', { date, numeroClt, numeroUtil });
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir le bénéfice', true);
+        // Tester la caméra
+        async function testCamera() {
+            if (!('BarcodeDetector' in window)) {
+                showToast('Le détecteur de codes-barres n\'est pas pris en charge', true);
                 return;
             }
-
             try {
-                const params = new URLSearchParams();
-                if (date) params.append('date', date);
-                if (numeroClt) params.append('numero_clt', numeroClt);
-                if (numeroUtil && numeroUtil !== '0') params.append('numero_util', numeroUtil);
-                const url = `${API_BASE_URL}/profit_by_date?${params.toString()}`;
-
-                const response = await fetch(url, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                profitCache = await response.json();
-
-                const countElement = document.getElementById('profitCount');
-                const totalElement = document.getElementById('profitTotal');
-
-                countElement.textContent = profitCache.length;
-                countElement.classList.remove('hidden');
-                totalElement.textContent = `${parseFloat(profitCache.reduce((sum, p) => sum + parseFloat(p.profit || 0), 0)).toFixed(2)} DA`;
-
-                if (profitChart) {
-                    profitChart.destroy();
-                }
-
-                const ctx = document.getElementById('profitChart').getContext('2d');
-                profitChart = new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: profitCache.map(p => p.date || 'N/A'),
-                        datasets: [{
-                            label: 'Bénéfice (DA)',
-                            data: profitCache.map(p => parseFloat(p.profit || 0)),
-                            backgroundColor: 'rgba(79, 70, 229, 0.6)',
-                            borderColor: 'rgba(79, 70, 229, 1)',
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        scales: {
-                            y: { beginAtZero: true }
-                        },
-                        plugins: {
-                            legend: { display: false },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        return `${context.dataset.label}: ${context.raw.toFixed(2)} DA`;
-                                    }
-                                }
-                            }
-                        }
+                const resolution = document.getElementById('cameraResolution').value;
+                const facingMode = document.getElementById('cameraFacing').value;
+                const constraints = {
+                    video: {
+                        facingMode: facingMode,
+                        width: { ideal: resolution === 'high' ? 1920 : resolution === 'medium' ? 1280 : 640 },
+                        height: { ideal: resolution === 'high' ? 1080 : resolution === 'medium' ? 720 : 480 }
                     }
-                });
+                };
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                const video = document.createElement('video');
+                video.srcObject = stream;
+                video.setAttribute('playsinline', '');
+                video.play();
+                const cameraPreview = document.getElementById('cameraPreview');
+                cameraPreview.innerHTML = '';
+                cameraPreview.appendChild(video);
+                cameraPreview.style.display = 'block';
+                setTimeout(() => stopCamera(), 5000);
+                showToast('Caméra testée avec succès');
             } catch (error) {
-                console.error('Erreur bénéfice:', error);
-                showToast(`Erreur chargement bénéfice: ${error.message}`, true);
-                document.getElementById('profitTotal').textContent = '0.00 DA';
-                document.getElementById('profitCount').classList.add('hidden');
+                showToast(`Erreur d'accès à la caméra: ${error.message}`, true);
+                console.error('Erreur caméra:', error);
             }
         }
 
-        async function chargerStockValue() {
-            console.log('Chargement de la valeur du stock...');
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir la valeur du stock', true);
-                return;
+        // Arrêter la caméra
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
             }
+            const cameraPreview = document.getElementById('cameraPreview');
+            cameraPreview.innerHTML = '';
+            cameraPreview.style.display = 'none';
+        }
 
-            try {
-                const response = await fetch(`${API_BASE_URL}/stock_value`, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+        // Déconnexion
+        function logout() {
+            localStorage.removeItem('userId');
+            localStorage.removeItem('userEmail');
+            showToast('Déconnexion réussie');
+            setTimeout(() => window.location.href = '/FIREPOZ/index.html', 1000);
+        }
+
+        // Gestion des changements automatiques
+        function setupAutoSave() {
+            const settingsFields = [
+                { id: 'companyName', form: 'generalSettingsForm', type: 'input' },
+                { id: 'companyAddress', form: 'generalSettingsForm', type: 'input' },
+                { id: 'companyPhone', form: 'generalSettingsForm', type: 'input' },
+                { id: 'companyLogo', form: 'generalSettingsForm', type: 'change' },
+                { id: 'theme', form: 'generalSettingsForm', type: 'change' },
+                { id: 'currency', form: 'generalSettingsForm', type: 'change' },
+                { id: 'language', form: 'generalSettingsForm', type: 'change' },
+                { id: 'cameraResolution', form: 'cameraSettingsForm', type: 'change' },
+                { id: 'cameraFacing', form: 'cameraSettingsForm', type: 'change' },
+                { id: 'autoScan', form: 'cameraSettingsForm', type: 'change' },
+                { id: 'emailNotifications', form: 'notificationSettingsForm', type: 'change' },
+                { id: 'appNotifications', form: 'notificationSettingsForm', type: 'change' },
+                { id: 'notificationEmail', form: 'notificationSettingsForm', type: 'input' },
+                { id: 'lowStockThreshold', form: 'stockSettingsForm', type: 'input' },
+                { id: 'autoReorder', form: 'stockSettingsForm', type: 'change' },
+                { id: 'reorderQuantity', form: 'stockSettingsForm', type: 'input' },
+                { id: 'reportFormat', form: 'reportSettingsForm', type: 'change' },
+                { id: 'reportFrequency', form: 'reportSettingsForm', type: 'change' },
+                { id: 'enableCache', form: 'performanceSettingsForm', type: 'change' },
+                { id: 'syncInterval', form: 'performanceSettingsForm', type: 'input' },
+                { id: 'offlineMode', form: 'performanceSettingsForm', type: 'change' }
+            ];
+
+            settingsFields.forEach(({ id, form, type }) => {
+                const element = document.getElementById(id);
+                if (!element) {
+                    console.warn(`Élément ${id} non trouvé`);
+                    return;
                 }
-                const stock = await response.json();
-                console.log('Stock values:', stock); // Debugging
+                element.addEventListener(type, () => {
+                    console.log(`Changement détecté pour ${id} (form: ${form})`);
+                    if (id === 'theme') {
+                        localStorage.setItem('theme', element.value);
+                        applyTheme(element.value);
+                    }
+                    if (id !== 'companyLogo') saveSettings(form);
+                });
+            });
+            console.log('Écouteurs auto-save configurés pour', settingsFields.length, 'champs');
 
-                document.getElementById('stockValueAchat').textContent = `${parseFloat(stock.valeur_achat || 0).toFixed(2)} DA`;
-                document.getElementById('stockValueVente').textContent = `${parseFloat(stock.valeur_vente || 0).toFixed(2)} DA`;
-                document.getElementById('zakatValue').textContent = `${parseFloat(stock.zakat || 0).toFixed(2)} DA`;
-            } catch (error) {
-                console.error('Erreur stock:', error);
-                showToast(`Erreur chargement stock: ${error.message}`, true);
-                document.getElementById('stockValueAchat').textContent = '0.00 DA';
-                document.getElementById('stockValueVente').textContent = '0.00 DA';
-                document.getElementById('zakatValue').textContent = '0.00 DA';
-            }
+            // Écouteur spécifique pour le logo
+            const logoInput = document.getElementById('companyLogo');
+            if (logoInput) logoInput.addEventListener('change', handleLogoUpload);
         }
 
-        function showSaleDetails(numero, nature, type) {
-            let data;
-            if (type === 'Vente') {
-                data = [...dailySalesCache.tickets, ...dailySalesCache.bons].find(v => v.numero_comande === numero && v.nature === nature);
-            } else if (type === 'Réception') {
-                data = dailyPurchasesCache.receptions.find(r => r.numero_mouvement === numero && r.nature === nature);
-            }
-
-            if (!data) {
-                showToast(`${type} non trouvée`, true);
-                return;
-            }
-
-            document.getElementById('modalTitle').textContent = type;
-            document.getElementById('modalSaleNumber').textContent = type === 'Vente' ? data.numero_comande : data.numero_mouvement;
-            const saleDetailsList = document.getElementById('saleDetailsList');
-            saleDetailsList.innerHTML = '';
-
-            data.lignes.forEach(ligne => {
-                const quantite = type === 'Vente' ? ligne.quantite : ligne.qtea;
-                const prixUnitaire = type === 'Vente' ? (parseFloat(ligne.prixt) / parseFloat(ligne.quantite)).toFixed(2) : ligne.nprix;
-                const prixTotal = type === 'Vente' ? ligne.prixt : ligne.total_ligne;
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ligne.designation}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${quantite}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(prixUnitaire).toFixed(2)} DA</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(prixTotal).toFixed(2)} DA</td>
-                `;
-                saleDetailsList.appendChild(tr);
-            });
-
-            document.getElementById('saleDetailsModal').classList.remove('hidden');
-        }
-
-        function closeSaleDetailsModal() {
-            document.getElementById('saleDetailsModal').classList.add('hidden');
-        }
-
-        function printTicket(numeroComande, nature) {
-            const vente = [...dailySalesCache.tickets, ...dailySalesCache.bons].find(v => v.numero_comande === numeroComande && v.nature === nature);
-            if (!vente) {
-                showToast('Vente non trouvée', true);
-                return;
-            }
-
-            document.getElementById('ticketNumero').textContent = vente.numero_comande;
-            document.getElementById('ticketDate').textContent = new Date(vente.date_comande).toLocaleString('fr-FR');
-            document.getElementById('ticketClient').textContent = vente.client_nom || 'Comptoir';
-            document.getElementById('ticketUtilisateur').textContent = vente.utilisateur_nom || 'N/A';
-
-            const lignesTbody = document.getElementById('ticketLignes');
-            lignesTbody.innerHTML = '';
-            vente.lignes.forEach(ligne => {
-                const prixUnitaire = (parseFloat(ligne.prixt) / parseFloat(ligne.quantite)).toFixed(2);
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td style="padding: 2mm;">${ligne.designation}</td>
-                    <td style="text-align: center; padding: 2mm;">${ligne.quantite}</td>
-                    <td style="text-align: right; padding: 2mm;">${prixUnitaire} DA</td>
-                    <td style="text-align: right; padding: 2mm;">${parseFloat(ligne.prixt).toFixed(2)} DA</td>
-                `;
-                lignesTbody.appendChild(tr);
-            });
-
-            const total = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
-            document.getElementById('ticketTotal').textContent = total.toFixed(2);
-
-            window.print();
-        }
-
-        function printPurchaseTicket(numeroMouvement, nature) {
-            const reception = dailyPurchasesCache.receptions.find(r => r.numero_mouvement === numeroMouvement && r.nature === nature);
-            if (!reception) {
-                showToast('Réception non trouvée', true);
-                return;
-            }
-
-            document.getElementById('purchaseTicketNumero').textContent = reception.numero_mouvement;
-            document.getElementById('purchaseTicketDate').textContent = new Date(reception.date_m).toLocaleString('fr-FR');
-            document.getElementById('purchaseTicketFournisseur').textContent = reception.fournisseur_nom || 'N/A';
-            document.getElementById('purchaseTicketUtilisateur').textContent = reception.utilisateur_nom || 'N/A';
-
-            const lignesTbody = document.getElementById('purchaseTicketLignes');
-            lignesTbody.innerHTML = '';
-            reception.lignes.forEach(ligne => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td style="padding: 2mm;">${ligne.designation}</td>
-                    <td style="text-align: center; padding: 2mm;">${ligne.qtea}</td>
-                    <td style="text-align: right; padding: 2mm;">${parseFloat(ligne.nprix).toFixed(2)} DA</td>
-                    <td style="text-align: right; padding: 2mm;">${parseFloat(ligne.total_ligne).toFixed(2)} DA</td>
-                `;
-                lignesTbody.appendChild(tr);
-            });
-
-            const total = reception.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.total_ligne || 0), 0);
-            document.getElementById('purchaseTicketTotal').textContent = total.toFixed(2);
-
-            window.print();
-        }
-
-        function printA4() {
-            const date = document.getElementById('dateFilter').value || new Date().toISOString().split('T')[0];
-            const client = document.getElementById('clientFilter').value;
-            const clientText = document.getElementById('clientFilter').options[document.getElementById('clientFilter').selectedIndex]?.text || 'Tous';
-
-            // Ventes
-            document.getElementById('printDate').textContent = date;
-            document.getElementById('printClient').textContent = clientText;
-            const printTicketsList = document.getElementById('printTicketsList');
-            const printBonsList = document.getElementById('printBonsList');
-            printTicketsList.innerHTML = '';
-            printBonsList.innerHTML = '';
-            dailySalesCache.tickets.forEach(vente => {
-                const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="border border-gray-300 px-4 py-2">${vente.numero_comande}</td>
-                    <td class="border border-gray-300 px-4 py-2">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
-                    <td class="border border-gray-300 px-4 py-2">${vente.client_nom || 'Comptoir'}</td>
-                    <td class="border border-gray-300 px-4 py-2">${vente.utilisateur_nom || 'N/A'}</td>
-                    <td class="border border-gray-300 px-4 py-2">${totalVente.toFixed(2)} DA</td>
-                `;
-                printTicketsList.appendChild(tr);
-            });
-            dailySalesCache.bons.forEach(vente => {
-                const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="border border-gray-300 px-4 py-2">${vente.numero_comande}</td>
-                    <td class="border border-gray-300 px-4 py-2">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
-                    <td class="border border-gray-300 px-4 py-2">${vente.client_nom || 'Comptoir'}</td>
-                    <td class="border border-gray-300 px-4 py-2">${vente.utilisateur_nom || 'N/A'}</td>
-                    <td class="border border-gray-300 px-4 py-2">${totalVente.toFixed(2)} DA</td>
-                `;
-                printBonsList.appendChild(tr);
-            });
-            document.getElementById('printTotal').textContent = parseFloat(dailySalesCache.total).toFixed(2);
-
-            // Achats
-            document.getElementById('printPurchasesDate').textContent = date;
-            const printReceptionsList = document.getElementById('printReceptionsList');
-            printReceptionsList.innerHTML = '';
-            dailyPurchasesCache.receptions.forEach(reception => {
-                const totalReception = reception.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.total_ligne || 0), 0);
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="border border-gray-300 px-4 py-2">${reception.numero_mouvement}</td>
-                    <td class="border border-gray-300 px-4 py-2">${new Date(reception.date_m).toLocaleString('fr-FR')}</td>
-                    <td class="border border-gray-300 px-4 py-2">${reception.fournisseur_nom || 'N/A'}</td>
-                    <td class="border border-gray-300 px-4 py-2">${reception.utilisateur_nom || 'N/A'}</td>
-                    <td class="border border-gray-300 px-4 py-2">${totalReception.toFixed(2)} DA</td>
-                `;
-                printReceptionsList.appendChild(tr);
-            });
-            document.getElementById('printPurchasesTotal').textContent = parseFloat(dailyPurchasesCache.total).toFixed(2);
-
-            window.print();
-        }
-
+        // Initialisation
         document.addEventListener('DOMContentLoaded', () => {
-          
-        // Initialize Flatpickr with today's date
-        const today = new Date().toISOString().split('T')[0];
-        flatpickr('#dateFilter', {
-            dateFormat: 'Y-m-d',
-            defaultDate: today,
-            onChange: (selectedDates, dateStr) => {
-                console.log('Date selected:', dateStr); // Debugging
-                reloadData();
-            }
+            console.log('Initialisation de la page');
+            applyTheme();
+            loadSettings();
+            setupAutoSave();
+            const testCameraButton = document.getElementById('testCamera');
+            const logoutButton = document.getElementById('logoutButton');
+            if (testCameraButton) testCameraButton.addEventListener('click', testCamera);
+            if (logoutButton) logoutButton.addEventListener('click', logout);
         });
-
-        // Event listeners for filters
-        document.getElementById('clientFilter').addEventListener('change', () => {
-            console.log('Client filter changed:', document.getElementById('clientFilter').value);
-            reloadData();
-        });
-
-        document.getElementById('fournisseurFilter').addEventListener('change', () => {
-            console.log('Fournisseur filter changed:', document.getElementById('fournisseurFilter').value);
-            reloadData();
-        });
-
-        document.getElementById('userFilter').addEventListener('change', () => {
-            console.log('User filter changed:', document.getElementById('userFilter').value);
-            reloadData();
-        });
-
-        // Function to reload data based on filters
-        function reloadData() {
-            const date = document.getElementById('dateFilter').value;
-            const client = document.getElementById('clientFilter').value;
-            const user = document.getElementById('userFilter').value;
-            const fournisseur = document.getElementById('fournisseurFilter').value;
-
-            // Load sales and related data
-            chargerVentesJour(date, client, user);
-            chargerArticlesPlusVendus(date, client, user);
-            chargerProfit(date, client, user);
-
-            // Load purchases
-            chargerAchatsJour(date, user, fournisseur);
-
-            // Stock value is not filtered by date/client/user/fournisseur, so load it separately
-            chargerStockValue();
-        }
-
-        // Initial data load
-        const userId = localStorage.getItem('userId');
-        if (userId) {
-            // Load initial data for filters
-            chargerClients();
-            chargerFournisseurs();
-            chargerUtilisateurs();
-
-            // Load initial data for sections
-            reloadData();
-
-            // Display user info
-            const userEmail = localStorage.getItem('userEmail') || 'Utilisateur';
-            document.getElementById('userDisplay').textContent = userEmail;
-            document.getElementById('userDisplay').classList.remove('hidden');
-            document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i> Déconnexion';
-        } else {
-            showToast('Veuillez vous connecter', true);
-            window.location.href = 'index.html';
-        }
-    });
-</script>
+    </script>
 </body>
 </html>
