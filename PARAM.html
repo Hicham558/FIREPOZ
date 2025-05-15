@@ -156,7 +156,7 @@
             <h3 class="text-xl font-semibold mb-4 text-gray-800">Rapports</h3>
             <form id="reportSettingsForm" class="space-y-4">
                 <div>
-                    <label for="reportFormat" class="block text-sm font-medium text-gray-700">Format des Rapports</label>
+                    <label for="reportFormat" class="block text-sm font-medium text-gray allusions-gray-700">Format des Rapports</label>
                     <select id="reportFormat" name="reportFormat" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
                         <option value="pdf">PDF</option>
                         <option value="excel">Excel</option>
@@ -207,6 +207,7 @@
     <script>
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
         let stream = null;
+        let currentSettings = {};
 
         // Afficher une notification toast
         function showToast(message, isError = false) {
@@ -286,6 +287,29 @@
             return true;
         }
 
+        // Collecter tous les paramètres
+        function collectAllSettings() {
+            return {
+                theme: document.getElementById('theme').value || 'light',
+                currency: document.getElementById('currency').value || 'DZD',
+                language: document.getElementById('language').value || 'fr',
+                cameraResolution: document.getElementById('cameraResolution').value || 'medium',
+                cameraFacing: document.getElementById('cameraFacing').value || 'environment',
+                autoScan: document.getElementById('autoScan').checked,
+                emailNotifications: document.getElementById('emailNotifications').checked,
+                appNotifications: document.getElementById('appNotifications').checked,
+                notificationEmail: document.getElementById('notificationEmail').value || '',
+                lowStockThreshold: parseInt(document.getElementById('lowStockThreshold').value) || 10,
+                autoReorder: document.getElementById('autoReorder').checked,
+                reorderQuantity: parseInt(document.getElementById('reorderQuantity').value) || 50,
+                reportFormat: document.getElementById('reportFormat').value || 'pdf',
+                reportFrequency: document.getElementById('reportFrequency').value || 'weekly',
+                enableCache: document.getElementById('enableCache').checked,
+                syncInterval: parseInt(document.getElementById('syncInterval').value) || 30,
+                offlineMode: document.getElementById('offlineMode').checked
+            };
+        }
+
         // Charger les paramètres
         async function loadSettings() {
             if (!checkLoginStatus()) return;
@@ -296,38 +320,41 @@
                 });
                 const data = await response.json();
                 if (!response.ok) {
-                    console.error('Erreur API:', data, 'Statut:', response.status);
+                    console.error('Erreur API GET:', data, 'Statut:', response.status);
                     throw new Error(data.erreur || `Erreur serveur (${response.status})`);
                 }
-                const settings = data;
-                document.getElementById('theme').value = settings.theme || 'light';
-                document.getElementById('currency').value = settings.currency || 'DZD';
-                document.getElementById('language').value = settings.language || 'fr';
-                document.getElementById('cameraResolution').value = settings.cameraResolution || 'medium';
-                document.getElementById('cameraFacing').value = settings.cameraFacing || 'environment';
-                document.getElementById('autoScan').checked = settings.autoScan || false;
-                document.getElementById('emailNotifications').checked = settings.emailNotifications || false;
-                document.getElementById('appNotifications').checked = settings.appNotifications || false;
-                document.getElementById('notificationEmail').value = settings.notificationEmail || '';
-                document.getElementById('lowStockThreshold').value = settings.lowStockThreshold || 10;
-                document.getElementById('autoReorder').checked = settings.autoReorder || false;
-                document.getElementById('reorderQuantity').value = settings.reorderQuantity || 50;
-                document.getElementById('reportFormat').value = settings.reportFormat || 'pdf';
-                document.getElementById('reportFrequency').value = settings.reportFrequency || 'weekly';
-                document.getElementById('enableCache').checked = settings.enableCache || false;
-                document.getElementById('syncInterval').value = settings.syncInterval || 30;
-                document.getElementById('offlineMode').checked = settings.offlineMode || false;
+                currentSettings = data || {};
+                document.getElementById('theme').value = currentSettings.theme || 'light';
+                document.getElementById('currency').value = currentSettings.currency || 'DZD';
+                document.getElementById('language').value = currentSettings.language || 'fr';
+                document.getElementById('cameraResolution').value = currentSettings.cameraResolution || 'medium';
+                document.getElementById('cameraFacing').value = currentSettings.cameraFacing || 'environment';
+                document.getElementById('autoScan').checked = currentSettings.autoScan || false;
+                document.getElementById('emailNotifications').checked = currentSettings.emailNotifications || false;
+                document.getElementById('appNotifications').checked = currentSettings.appNotifications || false;
+                document.getElementById('notificationEmail').value = currentSettings.notificationEmail || '';
+                document.getElementById('lowStockThreshold').value = currentSettings.lowStockThreshold || 10;
+                document.getElementById('autoReorder').checked = currentSettings.autoReorder || false;
+                document.getElementById('reorderQuantity').value = currentSettings.reorderQuantity || 50;
+                document.getElementById('reportFormat').value = currentSettings.reportFormat || 'pdf';
+                document.getElementById('reportFrequency').value = currentSettings.reportFrequency || 'weekly';
+                document.getElementById('enableCache').checked = currentSettings.enableCache || false;
+                document.getElementById('syncInterval').value = currentSettings.syncInterval || 30;
+                document.getElementById('offlineMode').checked = currentSettings.offlineMode || false;
+                localStorage.setItem('theme', currentSettings.theme || 'light');
                 applyTheme();
             } catch (error) {
-                console.error('Erreur fetch:', error);
+                console.error('Erreur fetch GET:', error);
                 showToast(`Erreur de chargement des paramètres: ${error.message}`, true);
             }
         }
 
         // Enregistrer les paramètres
-        async function saveSettings(formId, settings) {
+        async function saveSettings(formId) {
             if (!checkLoginStatus()) return;
             const userId = localStorage.getItem('userId');
+            const settings = collectAllSettings();
+            console.log(`Sauvegarde ${formId}:`, settings); // Log pour débogage
             try {
                 const response = await fetch(`${API_BASE_URL}/parametres`, {
                     method: 'PUT',
@@ -339,12 +366,14 @@
                 });
                 const data = await response.json();
                 if (!response.ok) {
-                    console.error('Erreur API:', data, 'Statut:', response.status);
+                    console.error('Erreur API PUT:', data, 'Statut:', response.status);
                     throw new Error(data.erreur || `Erreur serveur (${response.status})`);
                 }
+                currentSettings = settings;
+                console.log('Succès:', data); // Log pour débogage
                 showToast(`Paramètres ${formId.replace('SettingsForm', '').toLowerCase()} sauvegardés`);
             } catch (error) {
-                console.error('Erreur fetch:', error);
+                console.error('Erreur fetch PUT:', error);
                 showToast(`Erreur de sauvegarde: ${error.message}`, true);
             }
         }
@@ -403,92 +432,39 @@
 
         // Gestion des changements automatiques
         function setupAutoSave() {
-            // Paramètres généraux
-            const generalSettings = ['theme', 'currency', 'language'];
-            generalSettings.forEach(id => {
-                const element = document.getElementById(id);
-                element.addEventListener('change', () => {
-                    const settings = {
-                        theme: document.getElementById('theme').value,
-                        currency: document.getElementById('currency').value,
-                        language: document.getElementById('language').value
-                    };
-                    localStorage.setItem('theme', settings.theme);
-                    applyTheme();
-                    saveSettings('generalSettingsForm', settings);
-                });
-            });
+            const allSettings = [
+                { id: 'theme', form: 'generalSettingsForm', type: 'change' },
+                { id: 'currency', form: 'generalSettingsForm', type: 'change' },
+                { id: 'language', form: 'generalSettingsForm', type: 'change' },
+                { id: 'cameraResolution', form: 'cameraSettingsForm', type: 'change' },
+                { id: 'cameraFacing', form: 'cameraSettingsForm', type: 'change' },
+                { id: 'autoScan', form: 'cameraSettingsForm', type: 'change' },
+                { id: 'emailNotifications', form: 'notificationSettingsForm', type: 'change' },
+                { id: 'appNotifications', form: 'notificationSettingsForm', type: 'change' },
+                { id: 'notificationEmail', form: 'notificationSettingsForm', type: 'input' },
+                { id: 'lowStockThreshold', form: 'stockSettingsForm', type: 'input' },
+                { id: 'autoReorder', form: 'stockSettingsForm', type: 'change' },
+                { id: 'reorderQuantity', form: 'stockSettingsForm', type: 'input' },
+                { id: 'reportFormat', form: 'reportSettingsForm', type: 'change' },
+                { id: 'reportFrequency', form: 'reportSettingsForm', type: 'change' },
+                { id: 'enableCache', form: 'performanceSettingsForm', type: 'change' },
+                { id: 'syncInterval', form: 'performanceSettingsForm', type: 'input' },
+                { id: 'offlineMode', form: 'performanceSettingsForm', type: 'change' }
+            ];
 
-            // Paramètres caméra
-            const cameraSettings = ['cameraResolution', 'cameraFacing', 'autoScan'];
-            cameraSettings.forEach(id => {
+            allSettings.forEach(({ id, form, type }) => {
                 const element = document.getElementById(id);
-                element.addEventListener('change', () => {
-                    const settings = {
-                        cameraResolution: document.getElementById('cameraResolution').value,
-                        cameraFacing: document.getElementById('cameraFacing').value,
-                        autoScan: document.getElementById('autoScan').checked
-                    };
-                    saveSettings('cameraSettingsForm', settings);
-                });
-            });
-
-            // Paramètres notifications
-            const notificationSettings = ['emailNotifications', 'appNotifications', 'notificationEmail'];
-            notificationSettings.forEach(id => {
-                const element = document.getElementById(id);
-                const eventType = id === 'notificationEmail' ? 'input' : 'change';
-                element.addEventListener(eventType, () => {
-                    const settings = {
-                        emailNotifications: document.getElementById('emailNotifications').checked,
-                        appNotifications: document.getElementById('appNotifications').checked,
-                        notificationEmail: document.getElementById('notificationEmail').value
-                    };
-                    saveSettings('notificationSettingsForm', settings);
-                });
-            });
-
-            // Paramètres stock
-            const stockSettings = ['lowStockThreshold', 'autoReorder', 'reorderQuantity'];
-            stockSettings.forEach(id => {
-                const element = document.getElementById(id);
-                const eventType = ['lowStockThreshold', 'reorderQuantity'].includes(id) ? 'input' : 'change';
-                element.addEventListener(eventType, () => {
-                    const settings = {
-                        lowStockThreshold: parseInt(document.getElementById('lowStockThreshold').value) || 10,
-                        autoReorder: document.getElementById('autoReorder').checked,
-                        reorderQuantity: parseInt(document.getElementById('reorderQuantity').value) || 50
-                    };
-                    saveSettings('stockSettingsForm', settings);
-                });
-            });
-
-            // Paramètres rapports
-            const reportSettings = ['reportFormat', 'reportFrequency'];
-            reportSettings.forEach(id => {
-                const element = document.getElementById(id);
-                element.addEventListener('change', () => {
-                    const settings = {
-                        reportFormat: document.getElementById('reportFormat').value,
-                        reportFrequency: document.getElementById('reportFrequency').value
-                    };
-                    saveSettings('reportSettingsForm', settings);
-                });
-            });
-
-            // Paramètres performance
-            const performanceSettings = ['enableCache', 'syncInterval', 'offlineMode'];
-            performanceSettings.forEach(id => {
-                const element = document.getElementById(id);
-                const eventType = id === 'syncInterval' ? 'input' : 'change';
-                element.addEventListener(eventType, () => {
-                    const settings = {
-                        enableCache: document.getElementById('enableCache').checked,
-                        syncInterval: parseInt(document.getElementById('syncInterval').value) || 30,
-                        offlineMode: document.getElementById('offlineMode').checked
-                    };
-                    saveSettings('performanceSettingsForm', settings);
-                });
+                if (element) {
+                    element.addEventListener(type, () => {
+                        if (id === 'theme') {
+                            localStorage.setItem('theme', element.value);
+                            applyTheme();
+                        }
+                        saveSettings(form);
+                    });
+                } else {
+                    console.warn(`Élément ${id} non trouvé`);
+                }
             });
         }
 
