@@ -67,6 +67,11 @@
                     <input id="companyPhone" type="tel" name="companyPhone" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="+213...">
                 </div>
                 <div>
+                    <label for="companyLogo" class="block text-sm font-medium text-gray-700">Logo de l'Entreprise</label>
+                    <input id="companyLogo" type="file" accept="image/*" name="companyLogo" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    <img id="logoPreview" class="mt-2 max-w-[150px] hidden" alt="Prévisualisation du logo">
+                </div>
+                <div>
                     <label for="theme" class="block text-sm font-medium text-gray-700">Thème</label>
                     <select id="theme" name="theme" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
                         <option value="light">Clair</option>
@@ -80,7 +85,7 @@
                         <option value="DZD">DZD</option>
                         <option value="USD">USD</option>
                         <option value="EUR">EUR</option>
-                    </select  </select>
+                    </select>
                 </div>
                 <div>
                     <label for="language" class="block text-sm font-medium text-gray-700">Langue</label>
@@ -316,6 +321,7 @@
                 companyName: (document.getElementById('companyName')?.value || ''),
                 companyAddress: (document.getElementById('companyAddress')?.value || ''),
                 companyPhone: (document.getElementById('companyPhone')?.value || ''),
+                companyLogo: (document.getElementById('logoPreview')?.src || ''),
                 theme: (document.getElementById('theme')?.value || 'light'),
                 currency: (document.getElementById('currency')?.value || 'DZD'),
                 language: (document.getElementById('language')?.value || 'fr'),
@@ -330,7 +336,7 @@
                 reorderQuantity: parseInt(document.getElementById('reorderQuantity')?.value) || 50,
                 reportFormat: (document.getElementById('reportFormat')?.value || 'pdf'),
                 reportFrequency: (document.getElementById('reportFrequency')?.value || 'weekly'),
-                enableCache: document.getElement żadnegoCache')?.checked || false,
+                enableCache: document.getElementById('enableCache')?.checked || false,
                 syncInterval: parseInt(document.getElementById('syncInterval')?.value) || 30,
                 offlineMode: document.getElementById('offlineMode')?.checked || false
             };
@@ -346,7 +352,7 @@
             try {
                 const response = await fetch(`${API_BASE_URL}/parametres`, {
                     method: 'GET',
-                    headers: { 'X-User-ID': userId }
+ дисцип        headers: { 'X-User-ID': userId }
                 });
                 console.log('Réponse GET /parametres:', { status: response.status, ok: response.ok });
                 const data = await response.json();
@@ -359,12 +365,18 @@
                 const fields = [
                     { id: 'companyName', default: '' },
                     { id: 'companyAddress', default: '' },
-                    { id: 'companyPhone', default: '' }
+                    { id: 'companyPhone', default: '' },
+                    { id: 'companyLogo', default: '', isLogo: true }
                 ];
-                fields.forEach(({ id, default: defaultValue }) => {
-                    const element = document.getElementById(id);
+                fields.forEach(({ id, default: defaultValue, isLogo }) => {
+                    const element = isLogo ? document.getElementById('logoPreview') : document.getElementById(id);
                     if (element) {
-                        element.value = settings[id] !== undefined ? settings[id] : defaultValue;
+                        if (isLogo && settings[id]) {
+                            element.src = settings[id];
+                            element.classList.remove('hidden');
+                        } else if (!isLogo) {
+                            element.value = settings[id] !== undefined ? settings[id] : defaultValue;
+                        }
                     } else {
                         console.warn(`Élément ${id} non trouvé lors du chargement`);
                     }
@@ -427,7 +439,8 @@
             const settings = {
                 companyName: document.getElementById('companyName')?.value || '',
                 companyAddress: document.getElementById('companyAddress')?.value || '',
-                companyPhone: document.getElementById('companyPhone')?.value || ''
+                companyPhone: document.getElementById('companyPhone')?.value || '',
+                companyLogo: document.getElementById('logoPreview')?.src || ''
             };
             console.log('Sauvegarde des paramètres entreprise:', settings);
             try {
@@ -460,9 +473,27 @@
             delete localSettings.companyName;
             delete localSettings.companyAddress;
             delete localSettings.companyPhone;
+            delete localSettings.companyLogo;
             console.log(`Sauvegarde des paramètres locaux pour ${formId}:`, localSettings);
             localStorage.setItem('settings', JSON.stringify(localSettings));
             showToast(`Paramètres ${formId.replace('SettingsForm', '').toLowerCase()} sauvegardés`);
+        }
+
+        // Gérer le téléchargement du logo
+        function handleLogoUpload(event) {
+            const file = event.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const logoPreview = document.getElementById('logoPreview');
+                    logoPreview.src = reader.result;
+                    logoPreview.classList.remove('hidden');
+                    saveCompanySettings();
+                };
+                reader.readAsDataURL(file);
+            } else {
+                showToast('Veuillez sélectionner une image valide', true);
+            }
         }
 
         // Tester la caméra
@@ -523,6 +554,7 @@
                 { id: 'companyName', form: 'generalSettingsForm', type: 'input', isCompany: true },
                 { id: 'companyAddress', form: 'generalSettingsForm', type: 'input', isCompany: true },
                 { id: 'companyPhone', form: 'generalSettingsForm', type: 'input', isCompany: true },
+                { id: 'companyLogo', form: 'generalSettingsForm', type: 'change', isCompany: true },
                 { id: 'theme', form: 'generalSettingsForm', type: 'change' },
                 { id: 'currency', form: 'generalSettingsForm', type: 'change' },
                 { id: 'language', form: 'generalSettingsForm', type: 'change' },
@@ -554,14 +586,18 @@
                         localStorage.setItem('theme', element.value);
                         applyTheme(element.value);
                     }
-                    if (isCompany) {
+                    if (isCompany && id !== 'companyLogo') {
                         saveCompanySettings();
-                    } else {
+                    } else if (!isCompany) {
                         saveLocalSettings(form);
                     }
                 });
             });
             console.log('Écouteurs auto-save configurés pour', settingsFields.length, 'champs');
+
+            // Écouteur spécifique pour le logo
+            const logoInput = document.getElementById('companyLogo');
+            if (logoInput) logoInput.addEventListener('change', handleLogoUpload);
         }
 
         // Initialisation
