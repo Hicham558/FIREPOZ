@@ -222,7 +222,6 @@
     </div>
 
     <script>
-        const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
         let stream = null;
 
         // Afficher une notification toast
@@ -344,53 +343,15 @@
             return settings;
         }
 
-        // Charger les paramètres entreprise depuis l'API
-        async function loadCompanySettings() {
+        // Charger les paramètres depuis localStorage
+        function loadSettings() {
             if (!checkLoginStatus()) return;
-            const userId = localStorage.getItem('userId');
-            console.log('Chargement des paramètres entreprise pour userId:', userId);
-            try {
-                const response = await fetch(`${API_BASE_URL}/parametres`, {
-                    method: 'GET',
- дисцип        headers: { 'X-User-ID': userId }
-                });
-                console.log('Réponse GET /parametres:', { status: response.status, ok: response.ok });
-                const data = await response.json();
-                if (!response.ok) {
-                    console.error('Erreur API GET:', { data, status: response.status });
-                    throw new Error(data.erreur || `Erreur serveur (${response.status})`);
-                }
-                console.log('Paramètres entreprise chargés:', data);
-                const settings = data || {};
-                const fields = [
-                    { id: 'companyName', default: '' },
-                    { id: 'companyAddress', default: '' },
-                    { id: 'companyPhone', default: '' },
-                    { id: 'companyLogo', default: '', isLogo: true }
-                ];
-                fields.forEach(({ id, default: defaultValue, isLogo }) => {
-                    const element = isLogo ? document.getElementById('logoPreview') : document.getElementById(id);
-                    if (element) {
-                        if (isLogo && settings[id]) {
-                            element.src = settings[id];
-                            element.classList.remove('hidden');
-                        } else if (!isLogo) {
-                            element.value = settings[id] !== undefined ? settings[id] : defaultValue;
-                        }
-                    } else {
-                        console.warn(`Élément ${id} non trouvé lors du chargement`);
-                    }
-                });
-            } catch (error) {
-                console.error('Erreur fetch GET:', error.message);
-                showToast(`Erreur de chargement: ${error.message}`, true);
-            }
-        }
-
-        // Charger les autres paramètres depuis localStorage
-        function loadLocalSettings() {
+            console.log('Chargement des paramètres depuis localStorage');
             const settings = JSON.parse(localStorage.getItem('settings')) || {};
             const fields = [
+                { id: 'companyName', default: '' },
+                { id: 'companyAddress', default: '' },
+                { id: 'companyPhone', default: '' },
                 { id: 'theme', default: 'light' },
                 { id: 'currency', default: 'DZD' },
                 { id: 'language', default: 'fr' },
@@ -421,61 +382,24 @@
                     console.warn(`Élément ${id} non trouvé lors du chargement`);
                 }
             });
+            // Charger le logo
+            if (settings.companyLogo) {
+                const logoPreview = document.getElementById('logoPreview');
+                logoPreview.src = settings.companyLogo;
+                logoPreview.classList.remove('hidden');
+            }
             applyTheme(settings.theme);
         }
 
-        // Enregistrer les paramètres entreprise dans l'API
-        async function saveCompanySettings() {
+        // Enregistrer les paramètres dans localStorage
+        function saveSettings(formId) {
             if (!checkLoginStatus()) {
                 console.log('Sauvegarde annulée: utilisateur non connecté');
                 return;
             }
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                console.error('userId manquant avant PUT');
-                showToast('Erreur: utilisateur non connecté', true);
-                return;
-            }
-            const settings = {
-                companyName: document.getElementById('companyName')?.value || '',
-                companyAddress: document.getElementById('companyAddress')?.value || '',
-                companyPhone: document.getElementById('companyPhone')?.value || '',
-                companyLogo: document.getElementById('logoPreview')?.src || ''
-            };
-            console.log('Sauvegarde des paramètres entreprise:', settings);
-            try {
-                const response = await fetch(`${API_BASE_URL}/parametres`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify(settings)
-                });
-                console.log('Réponse PUT /parametres:', { status: response.status, ok: response.ok });
-                const data = await response.json();
-                if (!response.ok) {
-                    console.error('Erreur API PUT:', { data, status: response.status });
-                    throw new Error(data.erreur || `Erreur serveur (${response.status})`);
-                }
-                console.log('Sauvegarde réussie:', data);
-                showToast('Paramètres entreprise sauvegardés');
-            } catch (error) {
-                console.error('Erreur fetch PUT:', error.message);
-                showToast(`Erreur de sauvegarde: ${error.message}`, true);
-            }
-        }
-
-        // Enregistrer les autres paramètres dans localStorage
-        function saveLocalSettings(formId) {
             const settings = collectAllSettings();
-            const localSettings = { ...settings };
-            delete localSettings.companyName;
-            delete localSettings.companyAddress;
-            delete localSettings.companyPhone;
-            delete localSettings.companyLogo;
-            console.log(`Sauvegarde des paramètres locaux pour ${formId}:`, localSettings);
-            localStorage.setItem('settings', JSON.stringify(localSettings));
+            console.log(`Sauvegarde des paramètres pour ${formId}:`, settings);
+            localStorage.setItem('settings', JSON.stringify(settings));
             showToast(`Paramètres ${formId.replace('SettingsForm', '').toLowerCase()} sauvegardés`);
         }
 
@@ -488,7 +412,7 @@
                     const logoPreview = document.getElementById('logoPreview');
                     logoPreview.src = reader.result;
                     logoPreview.classList.remove('hidden');
-                    saveCompanySettings();
+                    saveSettings('generalSettingsForm');
                 };
                 reader.readAsDataURL(file);
             } else {
@@ -551,10 +475,10 @@
         // Gestion des changements automatiques
         function setupAutoSave() {
             const settingsFields = [
-                { id: 'companyName', form: 'generalSettingsForm', type: 'input', isCompany: true },
-                { id: 'companyAddress', form: 'generalSettingsForm', type: 'input', isCompany: true },
-                { id: 'companyPhone', form: 'generalSettingsForm', type: 'input', isCompany: true },
-                { id: 'companyLogo', form: 'generalSettingsForm', type: 'change', isCompany: true },
+                { id: 'companyName', form: 'generalSettingsForm', type: 'input' },
+                { id: 'companyAddress', form: 'generalSettingsForm', type: 'input' },
+                { id: 'companyPhone', form: 'generalSettingsForm', type: 'input' },
+                { id: 'companyLogo', form: 'generalSettingsForm', type: 'change' },
                 { id: 'theme', form: 'generalSettingsForm', type: 'change' },
                 { id: 'currency', form: 'generalSettingsForm', type: 'change' },
                 { id: 'language', form: 'generalSettingsForm', type: 'change' },
@@ -574,7 +498,7 @@
                 { id: 'offlineMode', form: 'performanceSettingsForm', type: 'change' }
             ];
 
-            settingsFields.forEach(({ id, form, type, isCompany }) => {
+            settingsFields.forEach(({ id, form, type }) => {
                 const element = document.getElementById(id);
                 if (!element) {
                     console.warn(`Élément ${id} non trouvé`);
@@ -586,11 +510,7 @@
                         localStorage.setItem('theme', element.value);
                         applyTheme(element.value);
                     }
-                    if (isCompany && id !== 'companyLogo') {
-                        saveCompanySettings();
-                    } else if (!isCompany) {
-                        saveLocalSettings(form);
-                    }
+                    if (id !== 'companyLogo') saveSettings(form);
                 });
             });
             console.log('Écouteurs auto-save configurés pour', settingsFields.length, 'champs');
@@ -604,8 +524,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             console.log('Initialisation de la page');
             applyTheme();
-            loadCompanySettings();
-            loadLocalSettings();
+            loadSettings();
             setupAutoSave();
             const testCameraButton = document.getElementById('testCamera');
             const logoutButton = document.getElementById('logoutButton');
