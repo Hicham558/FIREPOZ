@@ -214,6 +214,11 @@
             const toastMessage = document.getElementById('toastMessage');
             const toastIcon = document.getElementById('toastIcon');
 
+            if (!toast || !toastMessage || !toastIcon) {
+                console.error('Éléments toast non trouvés');
+                return;
+            }
+
             toast.className = `fixed bottom-4 right-4 flex items-center px-6 py-3 rounded-md shadow-lg ${
                 isError ? 'bg-red-500 text-white' : 'bg-green-500 text-white'
             }`;
@@ -227,6 +232,7 @@
         // Appliquer le thème depuis localStorage
         function applyTheme(themeValue) {
             const theme = themeValue || localStorage.getItem('theme') || 'light';
+            console.log('Application du thème:', theme);
             if (theme === 'dark') {
                 document.body.classList.remove('bg-gray-100');
                 document.body.classList.add('bg-gray-800');
@@ -324,8 +330,10 @@
             console.log('Chargement des paramètres pour userId:', userId);
             try {
                 const response = await fetch(`${API_BASE_URL}/parametres`, {
+                    method: 'GET',
                     headers: { 'X-User-ID': userId }
                 });
+                console.log('Réponse GET /parametres:', { status: response.status, ok: response.ok });
                 const data = await response.json();
                 if (!response.ok) {
                     console.error('Erreur API GET:', { data, status: response.status });
@@ -367,15 +375,23 @@
                 localStorage.setItem('theme', settings.theme || 'light');
                 applyTheme(settings.theme);
             } catch (error) {
-                console.error('Erreur fetch GET:', error);
-                showToast(`Erreur de chargement des paramètres: ${error.message}`, true);
+                console.error('Erreur fetch GET:', error.message);
+                showToast(`Erreur de chargement: ${error.message}`, true);
             }
         }
 
         // Enregistrer les paramètres
         async function saveSettings(formId) {
-            if (!checkLoginStatus()) return;
+            if (!checkLoginStatus()) {
+                console.log('Sauvegarde annulée: utilisateur non connecté');
+                return;
+            }
             const userId = localStorage.getItem('userId');
+            if (!userId) {
+                console.error('userId manquant avant PUT');
+                showToast('Erreur: utilisateur non connecté', true);
+                return;
+            }
             const settings = collectAllSettings();
             console.log(`Tentative de sauvegarde pour ${formId}:`, settings);
             try {
@@ -387,15 +403,16 @@
                     },
                     body: JSON.stringify(settings)
                 });
+                console.log('Réponse PUT /parametres:', { status: response.status, ok: response.ok });
                 const data = await response.json();
                 if (!response.ok) {
-                    console.error('Erreur API PUT:', { data, status: response.status, headers: response.headers });
+                    console.error('Erreur API PUT:', { data, status: response.status });
                     throw new Error(data.erreur || `Erreur serveur (${response.status})`);
                 }
                 console.log('Sauvegarde réussie:', data);
                 showToast(`Paramètres ${formId.replace('SettingsForm', '').toLowerCase()} sauvegardés`);
             } catch (error) {
-                console.error('Erreur fetch PUT:', error);
+                console.error('Erreur fetch PUT:', error.message);
                 showToast(`Erreur de sauvegarde: ${error.message}`, true);
             }
         }
@@ -489,7 +506,7 @@
                     saveSettings(form);
                 });
             });
-            console.log('Écouteurs auto-save configurés');
+            console.log('Écouteurs auto-save configurés pour', settingsFields.length, 'champs');
         }
 
         // Initialisation
@@ -498,8 +515,10 @@
             applyTheme();
             loadSettings();
             setupAutoSave();
-            document.getElementById('testCamera')?.addEventListener('click', testCamera);
-            document.getElementById('logoutButton')?.addEventListener('click', logout);
+            const testCameraButton = document.getElementById('testCamera');
+            const logoutButton = document.getElementById('logoutButton');
+            if (testCameraButton) testCameraButton.addEventListener('click', testCamera);
+            if (logoutButton) logoutButton.addEventListener('click', logout);
         });
     </script>
 </body>
