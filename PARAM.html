@@ -156,7 +156,7 @@
             <h3 class="text-xl font-semibold mb-4 text-gray-800">Rapports</h3>
             <form id="reportSettingsForm" class="space-y-4">
                 <div>
-                    <label for="reportFormat" class="block text-sm font-medium text-gray allusions-gray-700">Format des Rapports</label>
+                    <label for="reportFormat" class="block text-sm font-medium text-gray-700">Format des Rapports</label>
                     <select id="reportFormat" name="reportFormat" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
                         <option value="pdf">PDF</option>
                         <option value="excel">Excel</option>
@@ -207,7 +207,6 @@
     <script>
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
         let stream = null;
-        let currentSettings = {};
 
         // Afficher une notification toast
         function showToast(message, isError = false) {
@@ -226,8 +225,8 @@
         }
 
         // Appliquer le thème depuis localStorage
-        function applyTheme() {
-            const theme = localStorage.getItem('theme') || 'light';
+        function applyTheme(themeValue) {
+            const theme = themeValue || localStorage.getItem('theme') || 'light';
             if (theme === 'dark') {
                 document.body.classList.remove('bg-gray-100');
                 document.body.classList.add('bg-gray-800');
@@ -270,7 +269,8 @@
                     });
                 });
             }
-            document.getElementById('theme').value = theme;
+            const themeElement = document.getElementById('theme');
+            if (themeElement) themeElement.value = theme;
         }
 
         // Vérifier l'état de connexion
@@ -278,71 +278,94 @@
             const userId = localStorage.getItem('userId');
             const userEmail = localStorage.getItem('userEmail');
             if (!userId || !userEmail) {
+                console.log('userId ou userEmail manquant, redirection vers index.html');
                 showToast('Veuillez vous connecter', true);
                 setTimeout(() => window.location.href = '/FIREPOZ/index.html', 2000);
                 return false;
             }
-            document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
-            document.getElementById('userDisplay').classList.remove('hidden');
+            const userDisplay = document.getElementById('userDisplay');
+            if (userDisplay) {
+                userDisplay.textContent = userEmail.toLowerCase();
+                userDisplay.classList.remove('hidden');
+            }
+            console.log('Connexion OK:', { userId, userEmail });
             return true;
         }
 
         // Collecter tous les paramètres
         function collectAllSettings() {
-            return {
-                theme: document.getElementById('theme').value || 'light',
-                currency: document.getElementById('currency').value || 'DZD',
-                language: document.getElementById('language').value || 'fr',
-                cameraResolution: document.getElementById('cameraResolution').value || 'medium',
-                cameraFacing: document.getElementById('cameraFacing').value || 'environment',
-                autoScan: document.getElementById('autoScan').checked,
-                emailNotifications: document.getElementById('emailNotifications').checked,
-                appNotifications: document.getElementById('appNotifications').checked,
-                notificationEmail: document.getElementById('notificationEmail').value || '',
-                lowStockThreshold: parseInt(document.getElementById('lowStockThreshold').value) || 10,
-                autoReorder: document.getElementById('autoReorder').checked,
-                reorderQuantity: parseInt(document.getElementById('reorderQuantity').value) || 50,
-                reportFormat: document.getElementById('reportFormat').value || 'pdf',
-                reportFrequency: document.getElementById('reportFrequency').value || 'weekly',
-                enableCache: document.getElementById('enableCache').checked,
-                syncInterval: parseInt(document.getElementById('syncInterval').value) || 30,
-                offlineMode: document.getElementById('offlineMode').checked
+            const settings = {
+                theme: (document.getElementById('theme')?.value || 'light'),
+                currency: (document.getElementById('currency')?.value || 'DZD'),
+                language: (document.getElementById('language')?.value || 'fr'),
+                cameraResolution: (document.getElementById('cameraResolution')?.value || 'medium'),
+                cameraFacing: (document.getElementById('cameraFacing')?.value || 'environment'),
+                autoScan: document.getElementById('autoScan')?.checked || false,
+                emailNotifications: document.getElementById('emailNotifications')?.checked || false,
+                appNotifications: document.getElementById('appNotifications')?.checked || false,
+                notificationEmail: (document.getElementById('notificationEmail')?.value || ''),
+                lowStockThreshold: parseInt(document.getElementById('lowStockThreshold')?.value) || 10,
+                autoReorder: document.getElementById('autoReorder')?.checked || false,
+                reorderQuantity: parseInt(document.getElementById('reorderQuantity')?.value) || 50,
+                reportFormat: (document.getElementById('reportFormat')?.value || 'pdf'),
+                reportFrequency: (document.getElementById('reportFrequency')?.value || 'weekly'),
+                enableCache: document.getElementById('enableCache')?.checked || false,
+                syncInterval: parseInt(document.getElementById('syncInterval')?.value) || 30,
+                offlineMode: document.getElementById('offlineMode')?.checked || false
             };
+            console.log('Paramètres collectés:', settings);
+            return settings;
         }
 
         // Charger les paramètres
         async function loadSettings() {
             if (!checkLoginStatus()) return;
             const userId = localStorage.getItem('userId');
+            console.log('Chargement des paramètres pour userId:', userId);
             try {
                 const response = await fetch(`${API_BASE_URL}/parametres`, {
                     headers: { 'X-User-ID': userId }
                 });
                 const data = await response.json();
                 if (!response.ok) {
-                    console.error('Erreur API GET:', data, 'Statut:', response.status);
+                    console.error('Erreur API GET:', { data, status: response.status });
                     throw new Error(data.erreur || `Erreur serveur (${response.status})`);
                 }
-                currentSettings = data || {};
-                document.getElementById('theme').value = currentSettings.theme || 'light';
-                document.getElementById('currency').value = currentSettings.currency || 'DZD';
-                document.getElementById('language').value = currentSettings.language || 'fr';
-                document.getElementById('cameraResolution').value = currentSettings.cameraResolution || 'medium';
-                document.getElementById('cameraFacing').value = currentSettings.cameraFacing || 'environment';
-                document.getElementById('autoScan').checked = currentSettings.autoScan || false;
-                document.getElementById('emailNotifications').checked = currentSettings.emailNotifications || false;
-                document.getElementById('appNotifications').checked = currentSettings.appNotifications || false;
-                document.getElementById('notificationEmail').value = currentSettings.notificationEmail || '';
-                document.getElementById('lowStockThreshold').value = currentSettings.lowStockThreshold || 10;
-                document.getElementById('autoReorder').checked = currentSettings.autoReorder || false;
-                document.getElementById('reorderQuantity').value = currentSettings.reorderQuantity || 50;
-                document.getElementById('reportFormat').value = currentSettings.reportFormat || 'pdf';
-                document.getElementById('reportFrequency').value = currentSettings.reportFrequency || 'weekly';
-                document.getElementById('enableCache').checked = currentSettings.enableCache || false;
-                document.getElementById('syncInterval').value = currentSettings.syncInterval || 30;
-                document.getElementById('offlineMode').checked = currentSettings.offlineMode || false;
-                localStorage.setItem('theme', currentSettings.theme || 'light');
-                applyTheme();
+                console.log('Paramètres chargés:', data);
+                const settings = data || {};
+                const fields = [
+                    { id: 'theme', default: 'light' },
+                    { id: 'currency', default: 'DZD' },
+                    { id: 'language', default: 'fr' },
+                    { id: 'cameraResolution', default: 'medium' },
+                    { id: 'cameraFacing', default: 'environment' },
+                    { id: 'autoScan', default: false, type: 'checked' },
+                    { id: 'emailNotifications', default: false, type: 'checked' },
+                    { id: 'appNotifications', default: false, type: 'checked' },
+                    { id: 'notificationEmail', default: '' },
+                    { id: 'lowStockThreshold', default: 10 },
+                    { id: 'autoReorder', default: false, type: 'checked' },
+                    { id: 'reorderQuantity', default: 50 },
+                    { id: 'reportFormat', default: 'pdf' },
+                    { id: 'reportFrequency', default: 'weekly' },
+                    { id: 'enableCache', default: false, type: 'checked' },
+                    { id: 'syncInterval', default: 30 },
+                    { id: 'offlineMode', default: false, type: 'checked' }
+                ];
+                fields.forEach(({ id, default: defaultValue, type }) => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        if (type === 'checked') {
+                            element.checked = settings[id] !== undefined ? settings[id] : defaultValue;
+                        } else {
+                            element.value = settings[id] !== undefined ? settings[id] : defaultValue;
+                        }
+                    } else {
+                        console.warn(`Élément ${id} non trouvé lors du chargement`);
+                    }
+                });
+                localStorage.setItem('theme', settings.theme || 'light');
+                applyTheme(settings.theme);
             } catch (error) {
                 console.error('Erreur fetch GET:', error);
                 showToast(`Erreur de chargement des paramètres: ${error.message}`, true);
@@ -354,7 +377,7 @@
             if (!checkLoginStatus()) return;
             const userId = localStorage.getItem('userId');
             const settings = collectAllSettings();
-            console.log(`Sauvegarde ${formId}:`, settings); // Log pour débogage
+            console.log(`Tentative de sauvegarde pour ${formId}:`, settings);
             try {
                 const response = await fetch(`${API_BASE_URL}/parametres`, {
                     method: 'PUT',
@@ -366,11 +389,10 @@
                 });
                 const data = await response.json();
                 if (!response.ok) {
-                    console.error('Erreur API PUT:', data, 'Statut:', response.status);
+                    console.error('Erreur API PUT:', { data, status: response.status, headers: response.headers });
                     throw new Error(data.erreur || `Erreur serveur (${response.status})`);
                 }
-                currentSettings = settings;
-                console.log('Succès:', data); // Log pour débogage
+                console.log('Sauvegarde réussie:', data);
                 showToast(`Paramètres ${formId.replace('SettingsForm', '').toLowerCase()} sauvegardés`);
             } catch (error) {
                 console.error('Erreur fetch PUT:', error);
@@ -432,7 +454,7 @@
 
         // Gestion des changements automatiques
         function setupAutoSave() {
-            const allSettings = [
+            const settingsFields = [
                 { id: 'theme', form: 'generalSettingsForm', type: 'change' },
                 { id: 'currency', form: 'generalSettingsForm', type: 'change' },
                 { id: 'language', form: 'generalSettingsForm', type: 'change' },
@@ -452,30 +474,32 @@
                 { id: 'offlineMode', form: 'performanceSettingsForm', type: 'change' }
             ];
 
-            allSettings.forEach(({ id, form, type }) => {
+            settingsFields.forEach(({ id, form, type }) => {
                 const element = document.getElementById(id);
-                if (element) {
-                    element.addEventListener(type, () => {
-                        if (id === 'theme') {
-                            localStorage.setItem('theme', element.value);
-                            applyTheme();
-                        }
-                        saveSettings(form);
-                    });
-                } else {
+                if (!element) {
                     console.warn(`Élément ${id} non trouvé`);
+                    return;
                 }
+                element.addEventListener(type, () => {
+                    console.log(`Changement détecté pour ${id} (form: ${form})`);
+                    if (id === 'theme') {
+                        localStorage.setItem('theme', element.value);
+                        applyTheme(element.value);
+                    }
+                    saveSettings(form);
+                });
             });
+            console.log('Écouteurs auto-save configurés');
         }
 
         // Initialisation
-        document.getElementById('testCamera').addEventListener('click', testCamera);
-        document.getElementById('logoutButton').addEventListener('click', logout);
-
         document.addEventListener('DOMContentLoaded', () => {
+            console.log('Initialisation de la page');
             applyTheme();
             loadSettings();
             setupAutoSave();
+            document.getElementById('testCamera')?.addEventListener('click', testCamera);
+            document.getElementById('logoutButton')?.addEventListener('click', logout);
         });
     </script>
 </body>
