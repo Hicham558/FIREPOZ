@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -7,7 +6,8 @@
     <title>Gestion des Ventes</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://printjs-4de6.kxcdn.com/print.min.js"></script>
+    <link rel="stylesheet" href="https://printjs-4de6.kxcdn.com/print.min.css">
     <style>
         .password-input-container { position: relative; display: inline-block; }
         .password-toggle { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; }
@@ -54,14 +54,6 @@
         }
         #waitingListOverlay {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 1000;
-        }
-        #salesButtonsPanel {
-            background: #f9fafb; padding: 16px; border-radius: 8px; margin-top: 16px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-            display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
-        }
-        @media (max-width: 640px) {
-            #salesButtonsPanel { flex-direction: column; align-items: center; }
-            #salesButtonsPanel button { width: 100%; max-width: 200px; }
         }
     </style>
 </head>
@@ -245,7 +237,7 @@
                                 </tbody>
                             </table>
                         </div>
-                        <div id="salesButtonsPanel">
+                        <div class="mt-4 flex justify-end space-x-2">
                             <button id="pauseSaleButton" onclick="pauseSale()" class="bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 transition duration-300 transform hover:scale-105" disabled>
                                 <i class="fas fa-pause mr-2"></i>Mettre en attente
                             </button>
@@ -268,12 +260,12 @@
         </div>
     </div>
 
-    <video id="scannerPreview" autoplay playsinline class="relative">
+    <video id="scannerPreview" autoplay playsinline class="relative" style="width: 300px; height: 200px; border: 2px solid #e5e7eb; position: fixed; top: 100px; left: 50%; transform: translateX(-50%); z-index: 1000; display: none; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
         <button id="closeScannerButton" class="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition duration-300">
             <i class="fas fa-times"></i> Fermer
         </button>
     </video>
-    <div id="scannerOverlay"></div>
+    <div id="scannerOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 999;"></div>
 
     <div id="waitingListModal" class="hidden">
         <div class="flex justify-between items-center mb-4">
@@ -552,6 +544,16 @@
             document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
             localStorage.removeItem('selectedSeller');
             localStorage.removeItem('sellerPassword');
+            const numeroUtil = sellerSelect.value;
+            const password2 = document.getElementById('sellerPassword').value;
+            if (!numeroUtil || numeroUtil === '0') {
+                showToast('Veuillez sélectionner un vendeur', true);
+                return;
+            }
+            if (!password2) {
+                showToast('Veuillez entrer le mot de passe', true);
+                return;
+            }
             validerVendeur();
         }
 
@@ -1051,75 +1053,32 @@
         }
 
         function imprimerVente80mm() {
-            console.log('Impression ticket 80mm...');
+            console.log('Impression 80mm...');
             if (tempSaleLines.length === 0) {
                 showToast('Aucune ligne à imprimer', true);
                 return;
             }
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF({
-                orientation: 'portrait',
-                unit: 'mm',
-                format: [80, 200 + tempSaleLines.length * 10]
-            });
-
-            doc.setFontSize(12);
-            doc.setFont('Helvetica', 'bold');
-            doc.text('FirePoz - Ticket de Vente', 40, 10, { align: 'center' });
-            doc.setFontSize(10);
-            doc.setFont('Helvetica', 'normal');
-            doc.text(`Date: ${new Date().toLocaleString()}`, 40, 18, { align: 'center' });
-            const clientId = document.getElementById('saleClientId').value;
-            const clientName = clientId !== '0' ? document.getElementById('saleClientId').options[document.getElementById('saleClientId').selectedIndex].text : 'Comptoir';
-            doc.text(`Client: ${clientName}`, 40, 26, { align: 'center' });
-            doc.text(`Mode: ${document.getElementById('paymentMode').value === 'espece' ? 'Espèce' : 'À terme'}`, 40, 34, { align: 'center' });
-
-            doc.setLineWidth(0.5);
-            doc.line(5, 40, 75, 40);
-
-            doc.setFontSize(10);
-            doc.setFont('Helvetica', 'bold');
-            doc.text('Produit', 5, 48);
-            doc.text('Qté', 40, 48, { align: 'right' });
-            doc.text('Total', 75, 48, { align: 'right' });
-
-            let y = 56;
-            doc.setFont('Helvetica', 'normal');
-            tempSaleLines.forEach(line => {
-                const designation = line.designation.length > 20 ? line.designation.substring(0, 17) + '...' : line.designation;
-                doc.text(designation, 5, y);
-                doc.text(line.quantite, 40, y, { align: 'right' });
-                doc.text(`${parseFloat(line.prixt).toFixed(2)} DA`, 75, y, { align: 'right' });
-                y += 10;
-            });
-
-            doc.setLineWidth(0.5);
-            doc.line(5, y, 75, y);
-            y += 8;
-            doc.setFont('Helvetica', 'bold');
-            doc.text('Total:', 5, y);
-            const total = tempSaleLines.reduce((sum, line) => sum + parseFloat(line.prixt), 0).toFixed(2);
-            doc.text(`${total} DA`, 75, y, { align: 'right' });
-
-            if (document.getElementById('paymentMode').value === 'espece') {
-                y += 8;
-                const amountPaid = parseFloat(document.getElementById('amountPaid').value) || 0;
-                doc.text('Montant versé:', 5, y);
-                doc.text(`${amountPaid.toFixed(2)} DA`, 75, y, { align: 'right' });
-                y += 8;
-                doc.text('Rendu:', 5, y);
-                const change = (amountPaid - total).toFixed(2);
-                doc.text(`${change} DA`, 75, y, { align: 'right' });
-            }
-
-            y += 16;
-            doc.setFontSize(8);
-            doc.text('Merci pour votre achat !', 40, y, { align: 'center' });
-            y += 8;
-            doc.text('FirePoz - Gestion des Ventes', 40, y, { align: 'center' });
-
-            doc.save(`ticket_vente_${Date.now()}.pdf`);
-            showToast('Ticket 80mm généré');
+            const receipt = `
+----------------------------------------
+          Reçu de Vente
+----------------------------------------
+Date: ${new Date().toLocaleString()}
+Vendeur: ${document.getElementById('headerSellerName').textContent}
+Client: ${document.getElementById('saleClientId').options[document.getElementById('saleClientId').selectedIndex].text}
+----------------------------------------
+${tempSaleLines.map(ligne => `
+${ligne.designation}
+${ligne.quantite} x ${ligne.remarque} DA = ${ligne.prixt} DA
+`).join('')}
+----------------------------------------
+Total: ${document.getElementById('totalSale').textContent}
+----------------------------------------
+            `;
+            // Simuler l'envoi à une imprimante thermique
+            console.log(receipt);
+            // Pour une vraie implémentation, utiliser une bibliothèque comme escpos
+            // Exemple : envoyer à une imprimante via une API ou un plugin
+            showToast('Impression 80mm simulée (consultez la console pour le reçu)');
         }
 
         function imprimerVenteA4() {
@@ -1128,74 +1087,41 @@
                 showToast('Aucune ligne à imprimer', true);
                 return;
             }
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF({
-                orientation: 'portrait',
-                unit: 'mm',
-                format: 'a4'
+            const doc = document.createElement('div');
+            doc.innerHTML = `
+                <h1 style="text-align: center;">Reçu de Vente</h1>
+                <p><strong>Date:</strong> ${new Date().toLocaleString()}</p>
+                <p><strong>Vendeur:</strong> ${document.getElementById('headerSellerName').textContent}</p>
+                <p><strong>Client:</strong> ${document.getElementById('saleClientId').options[document.getElementById('saleClientId').selectedIndex].text}</p>
+                <table style="width:100%; border-collapse: collapse; margin-top: 20px;">
+                    <thead>
+                        <tr>
+                            <th style="border: 1px solid #000; padding: 8px;">Produit</th>
+                            <th style="border: 1px solid #000; padding: 8px;">Quantité</th>
+                            <th style="border: 1px solid #000; padding: 8px;">Prix Unitaire</th>
+                            <th style="border: 1px solid #000; padding: 8px;">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tempSaleLines.map(ligne => `
+                            <tr>
+                                <td style="border: 1px solid #000; padding: 8px;">${ligne.designation}</td>
+                                <td style="border: 1px solid #000; padding: 8px;">${ligne.quantite}</td>
+                                <td style="border: 1px solid #000; padding: 8px;">${ligne.remarque} DA</td>
+                                <td style="border: 1px solid #000; padding: 8px;">${ligne.prixt} DA</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                <p style="margin-top: 20px;"><strong>Total:</strong> ${document.getElementById('totalSale').textContent}</p>
+            `;
+            printJS({
+                printable: doc,
+                type: 'html',
+                documentTitle: 'Reçu de Vente',
+                style: 'table { width: 100%; border-collapse: collapse; } th, td { border: 1px solid #000; padding: 8px; text-align: left; } h1 { font-size: 24px; } p { font-size: 16px; }'
             });
-
-            doc.setFontSize(16);
-            doc.setFont('Helvetica', 'bold');
-            doc.text('FirePoz - Reçu de Vente', 105, 20, { align: 'center' });
-            doc.setFontSize(12);
-            doc.setFont('Helvetica', 'normal');
-            doc.text(`Date: ${new Date().toLocaleString()}`, 20, 30);
-            const clientId = document.getElementById('saleClientId').value;
-            const clientName = clientId !== '0' ? document.getElementById('saleClientId').options[document.getElementById('saleClientId').selectedIndex].text : 'Comptoir';
-            doc.text(`Client: ${clientName}`, 20, 38);
-            doc.text(`Mode de paiement: ${document.getElementById('paymentMode').value === 'espece' ? 'Espèce' : 'À terme'}`, 20, 46);
-
-            doc.setFontSize(10);
-            doc.setFont('Helvetica', 'bold');
-            doc.text('Produit', 20, 60);
-            doc.text('Code', 80, 60);
-            doc.text('Quantité', 110, 60, { align: 'right' });
-            doc.text('Prix Unitaire', 140, 60, { align: 'right' });
-            doc.text('Total', 190, 60, { align: 'right' });
-
-            doc.setLineWidth(0.5);
-            doc.line(20, 62, 190, 62);
-
-            let y = 70;
-            doc.setFont('Helvetica', 'normal');
-            tempSaleLines.forEach(line => {
-                const designation = line.designation.length > 30 ? line.designation.substring(0, 27) + '...' : line.designation;
-                doc.text(designation, 20, y);
-                doc.text(line.produit_bar, 80, y);
-                doc.text(line.quantite, 110, y, { align: 'right' });
-                doc.text(`${parseFloat(line.remarque).toFixed(2)} DA`, 140, y, { align: 'right' });
-                doc.text(`${parseFloat(line.prixt).toFixed(2)} DA`, 190, y, { align: 'right' });
-                y += 10;
-            });
-
-            doc.setLineWidth(0.5);
-            doc.line(20, y, 190, y);
-            y += 8;
-            doc.setFont('Helvetica', 'bold');
-            doc.text('Total:', 140, y, { align: 'right' });
-            const total = tempSaleLines.reduce((sum, line) => sum + parseFloat(line.prixt), 0).toFixed(2);
-            doc.text(`${total} DA`, 190, y, { align: 'right' });
-
-            if (document.getElementById('paymentMode').value === 'espece') {
-                y += 8;
-                const amountPaid = parseFloat(document.getElementById('amountPaid').value) || 0;
-                doc.text('Montant versé:', 140, y, { align: 'right' });
-                doc.text(`${amountPaid.toFixed(2)} DA`, 190, y, { align: 'right' });
-                y += 8;
-                doc.text('Rendu:', 140, y, { align: 'right' });
-                const change = (amountPaid - total).toFixed(2);
-                doc.text(`${change} DA`, 190, y, { align: 'right' });
-            }
-
-            y += 20;
-            doc.setFontSize(10);
-            doc.text('FirePoz - Gestion des Ventes', 105, y, { align: 'center' });
-            y += 8;
-            doc.text('Développé par Khelladi Hicham - Contact: Hicham.khelladi@gmail.com', 105, y, { align: 'center' });
-
-            doc.save(`recu_vente_${Date.now()}.pdf`);
-            showToast('Reçu A4 généré');
+            showToast('Impression A4 lancée');
         }
 
         document.getElementById('searchProduct').addEventListener('input', (e) => {
