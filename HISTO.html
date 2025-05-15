@@ -223,6 +223,7 @@
         let fournisseursCache = [];
 
         function togglePasswordVisibility() {
+            console.log('Toggle password visibility');
             const passwordInput = document.getElementById('userPassword');
             const toggleIcon = document.getElementById('togglePassword');
             if (passwordInput.type === 'password') {
@@ -237,6 +238,7 @@
         }
 
         function toggleSection(sectionId) {
+            console.log(`Toggle section: ${sectionId}`);
             const section = document.getElementById(sectionId);
             const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
             const chevron = document.getElementById(`${sectionId.replace('Section', 'Chevron')}`);
@@ -246,6 +248,7 @@
         }
 
         function showToast(message, isError = false) {
+            console.log(`Toast: ${message}, isError: ${isError}`);
             const toast = document.getElementById('toast');
             const toastMessage = document.getElementById('toastMessage');
             const toastIcon = document.getElementById('toastIcon');
@@ -261,6 +264,7 @@
         }
 
         function loginLogout() {
+            console.log('Login/Logout triggered');
             const userId = localStorage.getItem('userId');
             if (userId) {
                 localStorage.removeItem('userId');
@@ -275,6 +279,7 @@
         }
 
         async function chargerUtilisateurs() {
+            console.log('Chargement des utilisateurs...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour voir les utilisateurs', true);
@@ -284,8 +289,13 @@
                 const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
                     headers: { 'X-User-ID': userId }
                 });
-                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
+                console.log('Réponse API /liste_utilisateurs:', response.status);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
                 const utilisateurs = await response.json();
+                console.log('Utilisateurs reçus:', utilisateurs);
                 const userSelect = document.getElementById('userSelect');
                 userSelect.innerHTML = '<option value="0">Sélectionner un utilisateur</option>';
                 utilisateurs.forEach(u => {
@@ -296,11 +306,12 @@
                 });
             } catch (error) {
                 showToast('Erreur chargement utilisateurs: ' + error.message, true);
-                console.error('Erreur utilisateurs:', error);
+                console.error('Erreur chargement utilisateurs:', error);
             }
         }
 
         async function validerUtilisateur() {
+            console.log('Validation utilisateur...');
             const numeroUtil = document.getElementById('userSelect').value;
             const password2 = document.getElementById('userPassword').value;
             const userId = localStorage.getItem('userId');
@@ -329,7 +340,11 @@
                     },
                     body: JSON.stringify(testVersement)
                 });
-                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
+                console.log('Réponse API /ajouter_versement:', response.status);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
                 const selectedOption = document.getElementById('userSelect').options[document.getElementById('userSelect').selectedIndex];
                 const userName = selectedOption.text;
                 localStorage.setItem('selectedUser', JSON.stringify({
@@ -353,8 +368,8 @@
         }
 
         function changeAndValidateUser() {
-            const userSelect = document.getElementById('userSelect');
-            userSelect.value = '0';
+            console.log('Changement utilisateur...');
+            document.getElementById('userSelect').value = '0';
             document.getElementById('userPassword').value = '';
             document.getElementById('userPassword').disabled = false;
             document.getElementById('selectedUserName').textContent = '-';
@@ -366,42 +381,58 @@
             document.getElementById('userChevron').classList.remove('fa-chevron-down');
             localStorage.removeItem('selectedUser');
             localStorage.removeItem('userPassword');
-            validerUtilisateur();
         }
 
         async function chargerClients() {
+            console.log('Chargement clients...');
             const userId = localStorage.getItem('userId');
-            if (!userId) return;
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir les clients', true);
+                return;
+            }
             try {
                 const response = await fetch(`${API_BASE_URL}/liste_clients`, {
                     headers: { 'X-User-ID': userId }
                 });
-                if (!response.ok) throw new Error(`Erreur ${response.status}`);
+                console.log('Réponse API /liste_clients:', response.status);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
                 clientsCache = await response.json();
                 updateCFSelect('clients');
             } catch (error) {
                 showToast('Erreur chargement clients: ' + error.message, true);
-                console.error('Erreur clients:', error);
+                console.error('Erreur chargement clients:', error);
             }
         }
 
         async function chargerFournisseurs() {
+            console.log('Chargement fournisseurs...');
             const userId = localStorage.getItem('userId');
-            if (!userId) return;
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir les fournisseurs', true);
+                return;
+            }
             try {
                 const response = await fetch(`${API_BASE_URL}/liste_fournisseurs`, {
                     headers: { 'X-User-ID': userId }
                 });
-                if (!response.ok) throw new Error(`Erreur ${response.status}`);
+                console.log('Réponse API /liste_fournisseurs:', response.status);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
                 fournisseursCache = await response.json();
                 updateCFSelect('fournisseurs');
             } catch (error) {
                 showToast('Erreur chargement fournisseurs: ' + error.message, true);
-                console.error('Erreur fournisseurs:', error);
+                console.error('Erreur chargement fournisseurs:', error);
             }
         }
 
         function updateCFSelect(type) {
+            console.log(`Mise à jour select ${type}...`);
             const select = document.getElementById('numero_cf');
             select.innerHTML = '<option value="">Sélectionner...</option>';
             const data = type === 'clients' ? clientsCache : fournisseursCache;
@@ -416,15 +447,23 @@
         }
 
         async function loadHistorique(date = '', type = 'C') {
+            console.log(`Chargement historique, type: ${type}, date: ${date}`);
             const userId = localStorage.getItem('userId');
-            if (!userId) return;
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir l’historique', true);
+                return;
+            }
             try {
                 let url = `${API_BASE_URL}/historique_versements?type=${type}`;
                 if (date) url += `&date=${date}`;
                 const response = await fetch(url, {
                     headers: { 'X-User-ID': userId }
                 });
-                if (!response.ok) throw new Error(`Erreur ${response.status}`);
+                console.log('Réponse API /historique_versements:', response.status);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
                 const versements = await response.json();
                 const tbody = document.getElementById('versements-table');
                 tbody.innerHTML = versements.length === 0
@@ -445,11 +484,12 @@
                 });
             } catch (error) {
                 showToast('Erreur chargement historique: ' + error.message, true);
-                console.error('Erreur historique:', error);
+                console.error('Erreur chargement historique:', error);
             }
         }
 
         async function submitVersement() {
+            console.log('Soumission versement...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter', true);
@@ -481,8 +521,11 @@
                     },
                     body: JSON.stringify({ type, numero_cf, montant, justificatif, numero_util, password2 })
                 });
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.error || `Erreur ${response.status}`);
+                console.log('Réponse API /ajouter_versement:', response.status);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
                 message.textContent = 'Versement ajouté avec succès';
                 message.classList.remove('text-red-600', 'hidden');
                 message.classList.add('text-green-600');
@@ -501,6 +544,7 @@
         }
 
         function switchTab(tab) {
+            console.log(`Switch tab: ${tab}`);
             const clientTab = document.getElementById('tab-clients');
             const fournisseurTab = document.getElementById('tab-fournisseurs');
             const formTitle = document.getElementById('form-title');
@@ -524,45 +568,74 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOMContentLoaded: Vérification localStorage...');
             const userId = localStorage.getItem('userId');
             const userEmail = localStorage.getItem('userEmail');
+            const storedUser = localStorage.getItem('selectedUser');
+            const storedPassword = localStorage.getItem('userPassword');
+
+            console.log('userId:', userId);
+            console.log('userEmail:', userEmail);
+            console.log('selectedUser:', storedUser);
+            console.log('userPassword:', storedPassword ? 'Présent' : 'Absent');
+
             if (userId && userEmail) {
                 document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
                 document.getElementById('userDisplay').classList.remove('hidden');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+
+                // Charger les utilisateurs et vérifier selectedUser
                 chargerUtilisateurs().then(() => {
-                    const storedUser = localStorage.getItem('selectedUser');
+                    console.log('Utilisateurs chargés, vérification selectedUser...');
                     if (storedUser) {
-                        const { numero_util, nom } = JSON.parse(storedUser);
-                        const userSelect = document.getElementById('userSelect');
-                        const optionExists = Array.from(userSelect.options).some(o => o.value === numero_util);
-                        if (optionExists) {
-                            userSelect.value = numero_util;
-                            document.getElementById('selectedUserName').textContent = nom;
-                            document.getElementById('headerUserName').textContent = nom;
-                            document.getElementById('userPassword').disabled = true;
-                            document.getElementById('validateUserButton').textContent = 'Changer d’utilisateur';
-                            document.getElementById('validateUserButton').onclick = changeAndValidateUser;
-                            document.getElementById('userContent').classList.add('hidden');
-                            document.getElementById('userChevron').classList.add('fa-chevron-down');
-                            document.getElementById('userChevron').classList.remove('fa-chevron-up');
-                        } else {
+                        try {
+                            const { numero_util, nom } = JSON.parse(storedUser);
+                            const userSelect = document.getElementById('userSelect');
+                            const optionExists = Array.from(userSelect.options).some(option => option.value === numero_util);
+                            console.log('Option existe pour numero_util', numero_util, ':', optionExists);
+                            if (optionExists) {
+                                userSelect.value = numero_util;
+                                document.getElementById('selectedUserName').textContent = nom;
+                                document.getElementById('headerUserName').textContent = nom;
+                                document.getElementById('userPassword').disabled = true;
+                                document.getElementById('validateUserButton').textContent = 'Changer d’utilisateur';
+                                document.getElementById('validateUserButton').onclick = changeAndValidateUser;
+                                document.getElementById('userContent').classList.add('hidden');
+                                document.getElementById('userChevron').classList.add('fa-chevron-down');
+                                document.getElementById('userChevron').classList.remove('fa-chevron-up');
+                                console.log('Utilisateur chargé depuis localStorage:', nom);
+                            } else {
+                                console.log('selectedUser invalide, suppression...');
+                                localStorage.removeItem('selectedUser');
+                                localStorage.removeItem('userPassword');
+                                document.getElementById('userContent').classList.remove('hidden');
+                                document.getElementById('userChevron').classList.add('fa-chevron-up');
+                                document.getElementById('userChevron').classList.remove('fa-chevron-down');
+                                showToast('Utilisateur précédent non trouvé, veuillez en sélectionner un nouveau', true);
+                            }
+                        } catch (error) {
+                            console.error('Erreur parsing selectedUser:', error);
                             localStorage.removeItem('selectedUser');
                             localStorage.removeItem('userPassword');
                             document.getElementById('userContent').classList.remove('hidden');
                             document.getElementById('userChevron').classList.add('fa-chevron-up');
                             document.getElementById('userChevron').classList.remove('fa-chevron-down');
+                            showToast('Erreur chargement utilisateur, veuillez en sélectionner un nouveau', true);
                         }
                     } else {
+                        console.log('Aucun selectedUser, ouverture section utilisateur');
                         document.getElementById('userContent').classList.remove('hidden');
                         document.getElementById('userChevron').classList.add('fa-chevron-up');
                         document.getElementById('userChevron').classList.remove('fa-chevron-down');
                     }
                 });
+
+                // Charger les autres données
                 chargerClients();
                 chargerFournisseurs();
                 loadHistorique('', 'C');
             } else {
+                console.log('Aucun userId/userEmail, redirection vers index.html');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
                 window.location.href = 'index.html';
             }
