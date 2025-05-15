@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
+
 <link rel="manifest" href="manifest.json">
 <script>
   if ('serviceWorker' in navigator) {
@@ -9,6 +10,7 @@
     });
   }
 </script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestion Commerciale</title>
@@ -217,10 +219,7 @@
                             <input type="text" id="searchClient" placeholder="Rechercher des clients..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
                             <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
                         </div>
-                        <div class="flex justify-end mt-2 space-x-2">
-                            <a href="HISTO.html" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-money-check-alt mr-2"></i>Versement
-                            </a>
+                        <div class="flex justify-end mt-2">
                             <button onclick="toggleClientForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
                                 <i class="fas fa-plus mr-2"></i>Ajouter
                             </button>
@@ -300,10 +299,7 @@
                             <input type="text" id="searchFournisseur" placeholder="Rechercher des fournisseurs..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
                             <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
                         </div>
-                        <div class="flex justify-end mt-2 space-x-2">
-                            <a href="HISTO.html" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-money-check-alt mr-2"></i>Versement
-                            </a>
+                        <div class="flex justify-end mt-2">
                             <button onclick="toggleFournisseurForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
                                 <i class="fas fa-plus mr-2"></i>Ajouter
                             </button>
@@ -1395,7 +1391,7 @@
                     throw new Error(result.erreur || 'Erreur lors de la suppression');
                 }
 
-                     showToast('Utilisateur supprimé avec succès');
+                showToast('Utilisateur supprimé avec succès');
                 chargerUtilisateurs();
             } catch (error) {
                 showToast(error.message, true);
@@ -1420,8 +1416,8 @@
 
             rows.forEach(row => {
                 const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-                const statut = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
-                if (nom?.includes(searchTerm) || statut?.includes(searchTerm)) {
+                const statue = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
+                if (nom?.includes(searchTerm) || statue?.includes(searchTerm)) {
                     row.style.display = '';
                 } else {
                     row.style.display = 'none';
@@ -1429,15 +1425,15 @@
             });
         });
 
-        // --- Gestion du scanner de code-barres ---
+          // --- Gestion du scanner ---
         async function startScanner() {
-            if (isScanning) {
-                showToast('Le scanner est déjà en cours', true);
+            if (!('BarcodeDetector' in window)) {
+                showToast('Le scanner de code-barres n\'est pas pris en charge par ce navigateur', true);
                 return;
             }
 
-            if (!('BarcodeDetector' in window)) {
-                showToast('Le détecteur de codes-barres n\'est pas pris en charge par ce navigateur', true);
+            if (isScanning) {
+                showToast('Le scanner est déjà actif', true);
                 return;
             }
 
@@ -1455,36 +1451,31 @@
                 scannerPreview.appendChild(video);
                 scannerPreview.style.display = 'block';
 
-                barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'qr_code'] });
+                barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
                 isScanning = true;
 
-                scanBarcode(video);
-            } catch (error) {
-                showToast(`Erreur d'accès à la caméra: ${error.message}`, true);
-                console.error('Erreur scanner:', error);
-                stopScanner();
-            }
-        }
-
-        function scanBarcode(video) {
-            if (!isScanning) return;
-
-            barcodeDetector.detect(video)
-                .then(barcodes => {
-                    if (barcodes.length > 0) {
-                        const barcode = barcodes[0].rawValue;
-                        document.getElementById('productBar').value = barcode;
-                        showToast(`Code-barres détecté: ${barcode}`);
-                        stopScanner();
-                    } else {
-                        requestAnimationFrame(() => scanBarcode(video));
+                const scan = async () => {
+                    if (!isScanning) return;
+                    try {
+                        const barcodes = await barcodeDetector.detect(video);
+                        if (barcodes.length > 0) {
+                            const barcode = barcodes[0].rawValue;
+                            document.getElementById('productBar').value = barcode;
+                            showToast(`Code-barres détecté : ${barcode}`);
+                            stopScanner();
+                            return;
+                        }
+                    } catch (error) {
+                        console.error('Erreur de détection de code-barres:', error);
                     }
-                })
-                .catch(error => {
-                    showToast(`Erreur de détection: ${error.message}`, true);
-                    console.error('Erreur détection:', error);
-                    stopScanner();
-                });
+                    requestAnimationFrame(scan);
+                };
+
+                scan();
+            } catch (error) {
+                showToast('Erreur d\'accès à la caméra: ' + error.message, true);
+                console.error('Erreur scanner:', error);
+            }
         }
 
         function stopScanner() {
@@ -1496,7 +1487,6 @@
             scannerPreview.innerHTML = '';
             scannerPreview.style.display = 'none';
             isScanning = false;
-            barcodeDetector = null;
         }
     </script>
 </body>
