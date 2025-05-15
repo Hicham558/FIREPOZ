@@ -264,32 +264,29 @@
 
         function loginLogout() {
             console.log('Login/Logout');
-            const userId = localStorage.getItem('userId');
-            if (userId) {
-                localStorage.removeItem('userId');
-                localStorage.removeItem('userEmail');
-                localStorage.removeItem('selectedUser');
-                localStorage.removeItem('userPassword');
-                document.getElementById('userDisplay').textContent = '';
-                document.getElementById('userDisplay').classList.add('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                window.location.href = 'index.html';
-            }
+            localStorage.removeItem('userId');
+            localStorage.removeItem('userEmail');
+            localStorage.removeItem('selectedUser');
+            localStorage.removeItem('userPassword');
+            document.getElementById('userDisplay').textContent = '';
+            document.getElementById('userDisplay').classList.add('hidden');
+            document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+            window.location.href = 'index.html';
         }
 
         async function chargerUtilisateurs() {
             console.log('Chargement utilisateurs...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
-                console.log('Aucun userId, impossible de charger utilisateurs');
-                showToast('Veuillez vous connecter pour voir les utilisateurs', true);
+                console.log('Aucun userId');
+                showToast('Veuillez vous connecter', true);
                 return false;
             }
             try {
                 const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
                     headers: { 'X-User-ID': userId }
                 });
-                console.log('Réponse /liste_utilisateurs:', response.status, response.statusText);
+                console.log('Réponse /liste_utilisateurs:', response.status);
                 if (!response.ok) {
                     const errorText = await response.text();
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
@@ -306,7 +303,7 @@
                 });
                 return true;
             } catch (error) {
-                console.error('Erreur chargement utilisateurs:', error);
+                console.error('Erreur utilisateurs:', error);
                 showToast(`Erreur chargement utilisateurs: ${error.message}`, true);
                 return false;
             }
@@ -317,7 +314,7 @@
             const numeroUtil = document.getElementById('userSelect').value;
             const password2 = document.getElementById('userPassword').value;
             const userId = localStorage.getItem('userId');
-            console.log('numeroUtil:', numeroUtil, 'password2:', password2 ? '***' : 'vide', 'userId:', userId);
+            console.log('Params:', { numeroUtil, password2: password2 ? '***' : 'vide', userId });
 
             if (!userId) {
                 showToast('Veuillez vous connecter', true);
@@ -333,24 +330,15 @@
             }
 
             try {
-                const testVersement = {
-                    type: 'C',
-                    numero_cf: 1,
-                    montant: 0,
-                    justificatif: 'test',
-                    numero_util: parseInt(numeroUtil),
-                    password2: password2
-                };
-                console.log('Envoi test versement:', testVersement);
-                const response = await fetch(`${API_BASE_URL}/ajouter_versement`, {
+                const response = await fetch(`${API_BASE_URL}/valider_versement`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-User-ID': userId
                     },
-                    body: JSON.stringify(testVersement)
+                    body: JSON.stringify({ numero_util: parseInt(numeroUtil), password2 })
                 });
-                console.log('Réponse /ajouter_versement:', response.status, response.statusText);
+                console.log('Réponse /valider_versement:', response.status);
                 if (!response.ok) {
                     const errorText = await response.text();
                     console.error('Erreur texte:', errorText);
@@ -399,7 +387,7 @@
             console.log('Chargement clients...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Veuillez vous connecter pour voir les clients', true);
+                showToast('Veuillez vous connecter', true);
                 return;
             }
             try {
@@ -423,7 +411,7 @@
             console.log('Chargement fournisseurs...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Veuillez vous connecter pour voir les fournisseurs', true);
+                showToast('Veuillez vous connecter', true);
                 return;
             }
             try {
@@ -462,7 +450,7 @@
             console.log(`Chargement historique, type: ${type}, date: ${date}`);
             const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Veuillez vous connecter pour voir l’historique', true);
+                showToast('Veuillez vous connecter', true);
                 return;
             }
             try {
@@ -503,13 +491,13 @@
         async function submitVersement() {
             console.log('Soumission versement...');
             const userId = localStorage.getItem('userId');
+            const storedUser = localStorage.getItem('selectedUser');
             if (!userId) {
                 showToast('Veuillez vous connecter', true);
                 return;
             }
-            const storedUser = localStorage.getItem('selectedUser');
             if (!storedUser) {
-                showToast('Veuillez sélectionner et valider un utilisateur', true);
+                showToast('Veuillez sélectionner un utilisateur', true);
                 return;
             }
             const { numero_util } = JSON.parse(storedUser);
@@ -520,7 +508,7 @@
             const justificatif = document.getElementById('justificatif').value;
             const message = document.getElementById('form-message');
             if (!numero_cf || !montant) {
-                message.textContent = 'Client/Fournisseur et montant sont requis';
+                message.textContent = 'Client/Fournisseur et montant requis';
                 message.classList.remove('hidden');
                 return;
             }
@@ -580,49 +568,43 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            console.log('DOMContentLoaded: Vérification localStorage...');
+            console.log('DOMContentLoaded');
             const userId = localStorage.getItem('userId');
             const userEmail = localStorage.getItem('userEmail');
             const storedUser = localStorage.getItem('selectedUser');
             const storedPassword = localStorage.getItem('userPassword');
 
-            console.log('userId:', userId);
-            console.log('userEmail:', userEmail);
-            console.log('selectedUser:', storedUser);
-            console.log('userPassword:', storedPassword ? '***' : 'vide');
+            console.log('localStorage:', { userId, userEmail, selectedUser: storedUser, userPassword: storedPassword ? '***' : 'vide' });
 
             if (!userId || !userEmail) {
-                console.log('Aucun userId/userEmail, redirection vers index.html');
+                console.log('Aucun userId/userEmail');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
                 window.location.href = 'index.html';
                 return;
             }
 
-            // Mettre à jour l'interface pour l'utilisateur connecté
             document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
             document.getElementById('userDisplay').classList.remove('hidden');
             document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
 
-            // Charger les utilisateurs et vérifier selectedUser
             chargerUtilisateurs().then((success) => {
-                console.log('Chargement utilisateurs terminé, succès:', success);
+                console.log('Chargement utilisateurs:', success);
                 if (!success) {
-                    console.log('Échec chargement utilisateurs, panneau reste ouvert');
                     document.getElementById('userContent').classList.remove('hidden');
                     document.getElementById('userChevron').classList.add('fa-chevron-up');
                     document.getElementById('userChevron').classList.remove('fa-chevron-down');
                     return;
                 }
 
-                if (storedUser) {
+                if (storedUser && storedPassword) {
                     try {
                         const { numero_util, nom } = JSON.parse(storedUser);
-                        console.log('selectedUser trouvé:', { numero_util, nom });
+                        console.log('selectedUser:', { numero_util, nom });
                         const userSelect = document.getElementById('userSelect');
                         const optionExists = Array.from(userSelect.options).some(option => option.value === numero_util);
                         console.log('Option existe:', optionExists);
 
-                        if (optionExists && storedPassword) {
+                        if (optionExists) {
                             userSelect.value = numero_util;
                             document.getElementById('selectedUserName').textContent = nom;
                             document.getElementById('headerUserName').textContent = nom;
@@ -632,15 +614,15 @@
                             document.getElementById('userContent').classList.add('hidden');
                             document.getElementById('userChevron').classList.add('fa-chevron-down');
                             document.getElementById('userChevron').classList.remove('fa-chevron-up');
-                            console.log('Utilisateur chargé depuis localStorage:', nom);
+                            console.log('Utilisateur chargé:', nom);
                         } else {
-                            console.log('selectedUser invalide ou userPassword absent, nettoyage localStorage');
+                            console.log('selectedUser invalide');
                             localStorage.removeItem('selectedUser');
                             localStorage.removeItem('userPassword');
                             document.getElementById('userContent').classList.remove('hidden');
                             document.getElementById('userChevron').classList.add('fa-chevron-up');
                             document.getElementById('userChevron').classList.remove('fa-chevron-down');
-                            showToast('Utilisateur précédent non valide, veuillez sélectionner un utilisateur', true);
+                            showToast('Utilisateur non valide, veuillez sélectionner un utilisateur', true);
                         }
                     } catch (error) {
                         console.error('Erreur parsing selectedUser:', error);
@@ -649,17 +631,16 @@
                         document.getElementById('userContent').classList.remove('hidden');
                         document.getElementById('userChevron').classList.add('fa-chevron-up');
                         document.getElementById('userChevron').classList.remove('fa-chevron-down');
-                        showToast('Erreur chargement utilisateur, veuillez sélectionner un utilisateur', true);
+                        showToast('Erreur chargement utilisateur', true);
                     }
                 } else {
-                    console.log('Aucun selectedUser, ouverture panneau');
+                    console.log('Aucun selectedUser/userPassword');
                     document.getElementById('userContent').classList.remove('hidden');
                     document.getElementById('userChevron').classList.add('fa-chevron-up');
                     document.getElementById('userChevron').classList.remove('fa-chevron-down');
                 }
             });
 
-            // Charger les autres données
             chargerClients();
             chargerFournisseurs();
             loadHistorique('', 'C');
