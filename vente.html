@@ -37,7 +37,6 @@
             width: 300px;
             height: 200px;
             border: 2px solid #e5e7eb;
-            background: #000;
             position: fixed;
             top: 100px;
             left: 50%;
@@ -316,12 +315,12 @@
         </div>
     </div>
 
-    <div id="scannerPreview" class="relative">
+    <video id="scannerPreview" autoplay playsinline class="relative" style="width: 300px; height: 200px; border: 2px solid #e5e7eb; position: fixed; top: 100px; left: 50%; transform: translateX(-50%); z-index: 1000; display: none; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
         <button id="closeScannerButton" class="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition duration-300">
             <i class="fas fa-times"></i> Fermer
         </button>
-    </div>
-    <div id="scannerOverlay"></div>
+    </video>
+    <div id="scannerOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 999;"></div>
 
     <footer class="bg-gray-700 text-white text-center py-4 animate-fade-in">
         <p>Développé par Khelladi Hicham</p>
@@ -1399,28 +1398,55 @@
                 return;
             }
 
-            document.getElementById('productsList').classList.add('hidden');
-            document.getElementById('scannerOverlay').style.display = 'block';
-            document.getElementById('scannerPreview').style.display = 'block';
-
             const preview = document.getElementById('scannerPreview');
             const scanButton = document.getElementById('scanButton');
             const closeButton = document.getElementById('closeScannerButton');
+            const overlay = document.getElementById('scannerOverlay');
+
+            // Vérifier si le scanner est déjà actif
+            if (isScanning) {
+                console.log('Scanner déjà actif.');
+                return;
+            }
+
+            // Cacher la liste des produits et afficher l'overlay
+            document.getElementById('productsList').classList.add('hidden');
+            overlay.style.display = 'block';
+            preview.style.display = 'block';
             scanButton.disabled = true;
             isScanning = true;
 
-            closeButton.addEventListener('click', stopScanner);
+            // Ajouter l'événement de fermeture
+            closeButton.onclick = stopScanner;
 
             try {
+                // Demander l'accès à la caméra avec préférence pour la caméra arrière
                 stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment' }
+                    video: {
+                        facingMode: 'environment', // Caméra arrière
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    }
                 });
-                preview.srcObject = stream;
+                console.log('Flux caméra obtenu:', stream);
 
+                // Attacher le flux au <video>
+                preview.srcObject = stream;
+                preview.play().catch(err => {
+                    console.error('Erreur lecture vidéo:', err);
+                    showToast('Erreur lors de la lecture du flux vidéo: ' + err.message, true);
+                    stopScanner();
+                });
+
+                // Initialiser le détecteur de code-barres
                 barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a'] });
 
+                // Fonction de scan recursive
                 const scan = async () => {
-                    if (!isScanning) return;
+                    if (!isScanning) {
+                        console.log('Scan arrêté.');
+                        return;
+                    }
                     try {
                         const barcodes = await barcodeDetector.detect(preview);
                         if (barcodes.length > 0) {
@@ -1429,19 +1455,28 @@
                             document.getElementById('productBar').value = barcode;
                             stopScanner();
                             selectProductByBarcode(barcode);
+                            return; // Arrêter après détection
                         }
                     } catch (err) {
                         console.error('Erreur détection code-barres:', err);
+                        showToast('Erreur détection code-barres: ' + err.message, true);
                     }
                     if (isScanning) {
                         requestAnimationFrame(scan);
                     }
                 };
 
+                // Démarrer le scan
                 scan();
             } catch (err) {
                 console.error('Erreur démarrage scanner:', err);
-                showToast('Erreur d\'accès à la caméra: ' + err.message, true);
+                let errorMessage = 'Erreur d\'accès à la caméra: ' + err.message;
+                if (err.name === 'NotAllowedError') {
+                    errorMessage = 'Permission d\'accès à la caméra refusée. Veuillez autoriser l\'accès dans les paramètres du navigateur.';
+                } else if (err.name === 'NotFoundError') {
+                    errorMessage = 'Aucune caméra trouvée. Assurez-vous qu\'une caméra est connectée.';
+                }
+                showToast(errorMessage, true);
                 stopScanner();
             }
         }
@@ -1453,8 +1488,9 @@
                 stream.getTracks().forEach(track => track.stop());
                 stream = null;
             }
-            document.getElementById('scannerPreview').srcObject = null;
-            document.getElementById('scannerPreview').style.display = 'none';
+            const preview = document.getElementById('scannerPreview');
+            preview.srcObject = null;
+            preview.style.display = 'none';
             document.getElementById('scannerOverlay').style.display = 'none';
             document.getElementById('productsList').classList.remove('hidden');
             document.getElementById('scanButton').disabled = false;
