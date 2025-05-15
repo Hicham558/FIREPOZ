@@ -1,4 +1,4 @@
-const CACHE_NAME = 'firepoz-cache-v2'; // CHANGE le numéro à chaque mise à jour
+const CACHE_NAME = 'firepoz-cache-v3'; // CHANGE le numéro à chaque mise à jour
 
 const urlsToCache = [
   './index.html',
