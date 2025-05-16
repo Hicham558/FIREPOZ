@@ -259,7 +259,7 @@
                             </thead>
                             <tbody id="clientSituationTable" class="bg-white divide-y divide-gray-200">
                                 <tr>
-                                    <td colspan="7" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                                    <td colspan="7" class="text-center py-4 text-gray-500">Sélectionnez un client...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -306,7 +306,7 @@
                             </thead>
                             <tbody id="fournisseurSituationTable" class="bg-white divide-y divide-gray-200">
                                 <tr>
-                                    <td colspan="7" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                                    <td colspan="7" class="text-center py-4 text-gray-500">Sélectionnez un fournisseur...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -640,7 +640,7 @@
                     ? '<tr><td colspan="8" class="text-center py-4 text-gray-500">Aucun versement trouvé</td></tr>'
                     : '';
                 versements.forEach(v => {
-                    const apiType = v.cf === 'C' ? 'C' : 'F';
+                    const apiType = v.cf || v.type;
                     const displayType = apiType === 'C' ? 'Client' : 'Fournisseur';
                     const tr = document.createElement('tr');
                     tr.className = 'hover:bg-gray-50';
@@ -678,10 +678,16 @@
             }
             try {
                 console.log(`Chargement situation: type=${type}, numero_cf=${numero_cf}`); // Log pour débogage
-                let url = `${API_BASE_URL}/historique_versements?type=${type}`;
-                if (numero_cf) {
-                    url += `&numero_cf=${encodeURIComponent(numero_cf)}`;
+                const tbody = document.getElementById(type === 'C' ? 'clientSituationTable' : 'fournisseurSituationTable');
+                
+                // Si aucun numero_cf, afficher un message par défaut
+                if (!numero_cf) {
+                    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-gray-500">Sélectionnez un ${type === 'C' ? 'client' : 'fournisseur'}...</td></tr>`;
+                    return;
                 }
+
+                // Appeler le nouvel endpoint
+                const url = `${API_BASE_URL}/situation_versements?type=${type}&numero_cf=${encodeURIComponent(numero_cf)}`;
                 const response = await fetch(url, {
                     headers: { 'X-User-ID': userId }
                 });
@@ -690,59 +696,14 @@
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 const versements = await response.json();
-                console.log('Versements reçus:', versements); // Log pour vérifier les données
+                console.log(`Versements reçus pour ${type === 'C' ? 'client' : 'fournisseur'} ${numero_cf}:`, versements); // Log pour vérifier
 
-                // Filtrer pour s'assurer que cf correspond au type (C ou F)
-                const filteredVersements = versements.filter(v => v.cf === type);
-                console.log('Versements filtrés (cf correct):', filteredVersements);
-
-                const tbody = document.getElementById(type === 'C' ? 'clientSituationTable' : 'fournisseurSituationTable');
-                tbody.innerHTML = filteredVersements.length === 0
-                    ? `<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun versement pour ${numero_cf ? 'cette entité' : 'ce type'}</td></tr>`
-                    : '';
-                filteredVersements.forEach(v => {
-                    const apiType = v.cf === 'C' ? 'C' : 'F';
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="px-6 py-4 text-sm text-gray-900">${v.date_mc}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">${v.nom_cf || 'N/A'}</td>
-                        <td class="px-6 py-4 text-sm ${parseFloat(v.montant) < 0 ? 'text-red-600' : 'text-green-600'}">${v.montant}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500">${v.justificatif || '-'}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500">${v.utilisateur_nom || 'N/A'}</td>
-                        <td class="px-6 py-4 text-sm">
-                            <button onclick="openEditModal(${v.numero_mc}, '${apiType}', '${v.numero_cf}', '${v.nom_cf || 'N/A'}', ${v.montant}, '${v.justificatif || ''}')" class="text-blue-600 hover:text-blue-800">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                        </td>
-                        <td class="px-6 py-4 text-sm">
-                            <button onclick="annulerVersement(${v.numero_mc}, '${apiType}', '${v.numero_cf}')" class="text-red-600 hover:text-red-800">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-
-                // Solution alternative si l'API ne filtre pas numero_cf ou cf correctement (décommentez si nécessaire)
-                /*
-                let url = `${API_BASE_URL}/historique_versements?type=${type}`;
-                const response = await fetch(url, { headers: { 'X-User-ID': userId } });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                let versements = await response.json();
-                console.log('Versements bruts:', versements);
-                // Filtrer sur cf (C ou F) et numero_cf (numero_clt ou numero_fou)
-                versements = versements.filter(v => v.cf === type && (!numero_cf || String(v.numero_cf) === String(numero_cf)));
-                console.log('Versements filtrés client-side:', versements);
-                const tbody = document.getElementById(type === 'C' ? 'clientSituationTable' : 'fournisseurSituationTable');
+                // Remplir la grille
                 tbody.innerHTML = versements.length === 0
-                    ? `<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun versement pour ${numero_cf ? 'cette entité' : 'ce type'}</td></tr>`
+                    ? `<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun versement pour cet ${type === 'C' ? 'client' : 'fournisseur'}</td></tr>`
                     : '';
                 versements.forEach(v => {
-                    const apiType = v.cf === 'C' ? 'C' : 'F';
+                    const apiType = v.cf;
                     const tr = document.createElement('tr');
                     tr.className = 'hover:bg-gray-50';
                     tr.innerHTML = `
@@ -764,7 +725,6 @@
                     `;
                     tbody.appendChild(tr);
                 });
-                */
             } catch (error) {
                 showToast(`Erreur chargement situation: ${error.message}`, true);
                 console.error('Erreur situation:', error);
@@ -861,8 +821,8 @@
                 // Recharger les situations avec les filtres actuels
                 const clientFilter = document.getElementById('filter-client').value;
                 const fournisseurFilter = document.getElementById('filter-fournisseur').value;
-                loadSituation('C', clientFilter);
-                loadSituation('F', fournisseurFilter);
+                if (clientFilter) loadSituation('C', clientFilter);
+                if (fournisseurFilter) loadSituation('F', fournisseurFilter);
             } catch (error) {
                 message.textContent = error.message;
                 message.classList.remove('hidden');
@@ -933,8 +893,8 @@
                 // Recharger les situations avec les filtres actuels
                 const clientFilter = document.getElementById('filter-client').value;
                 const fournisseurFilter = document.getElementById('filter-fournisseur').value;
-                loadSituation('C', clientFilter);
-                loadSituation('F', fournisseurFilter);
+                if (clientFilter) loadSituation('C', clientFilter);
+                if (fournisseurFilter) loadSituation('F', fournisseurFilter);
             } catch (error) {
                 message.textContent = error.message;
                 message.classList.remove('hidden');
@@ -979,8 +939,8 @@
                 // Recharger les situations avec les filtres actuels
                 const clientFilter = document.getElementById('filter-client').value;
                 const fournisseurFilter = document.getElementById('filter-fournisseur').value;
-                loadSituation('C', clientFilter);
-                loadSituation('F', fournisseurFilter);
+                if (clientFilter) loadSituation('C', clientFilter);
+                if (fournisseurFilter) loadSituation('F', fournisseurFilter);
             } catch (error) {
                 showToast(`Erreur annulation versement: ${error.message}`, true);
                 console.error('Erreur annulation versement:', error);
@@ -1067,8 +1027,6 @@
                 chargerClients();
                 chargerFournisseurs();
                 loadHistorique('', 'C');
-                loadSituation('C');
-                loadSituation('F');
             } else {
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
                 window.location.href = 'index.html';
