@@ -238,6 +238,12 @@
                     </div>
                 </div>
                 <div class="p-6 hidden" id="clientSituationContent">
+                    <div class="mb-4">
+                        <label class="text-sm font-medium text-gray-700">Filtrer par client</label>
+                        <select id="filter-client" class="w-full md:w-1/4 px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="">Tous les clients</option>
+                        </select>
+                    </div>
                     <div class="table-container">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
@@ -279,6 +285,12 @@
                     </div>
                 </div>
                 <div class="p-6 hidden" id="fournisseurSituationContent">
+                    <div class="mb-4">
+                        <label class="text-sm font-medium text-gray-700">Filtrer par fournisseur</label>
+                        <select id="filter-fournisseur" class="w-full md:w-1/4 px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="">Tous les fournisseurs</option>
+                        </select>
+                    </div>
                     <div class="table-container">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
@@ -543,6 +555,7 @@
                 }
                 clientsCache = await response.json();
                 updateCFSelect('clients');
+                updateSituationFilters();
             } catch (error) {
                 showToast(`Erreur chargement clients: ${error.message}`, true);
                 console.error('Erreur clients:', error);
@@ -565,6 +578,7 @@
                 }
                 fournisseursCache = await response.json();
                 updateCFSelect('fournisseurs');
+                updateSituationFilters();
             } catch (error) {
                 showToast(`Erreur chargement fournisseurs: ${error.message}`, true);
                 console.error('Erreur fournisseurs:', error);
@@ -582,6 +596,25 @@
                 option.value = type === 'clients' ? item.numero_clt : item.numero_fou;
                 option.innerHTML = `${item.nom} <span class="${soldeClass}">[Solde: ${solde.toFixed(2)} DA]</span>`;
                 select.appendChild(option);
+            });
+        }
+
+        function updateSituationFilters() {
+            const clientSelect = document.getElementById('filter-client');
+            const fournisseurSelect = document.getElementById('filter-fournisseur');
+            clientSelect.innerHTML = '<option value="">Tous les clients</option>';
+            fournisseurSelect.innerHTML = '<option value="">Tous les fournisseurs</option>';
+            clientsCache.forEach(client => {
+                const option = document.createElement('option');
+                option.value = client.numero_clt;
+                option.textContent = client.nom;
+                clientSelect.appendChild(option);
+            });
+            fournisseursCache.forEach(fournisseur => {
+                const option = document.createElement('option');
+                option.value = fournisseur.numero_fou;
+                option.textContent = fournisseur.nom;
+                fournisseurSelect.appendChild(option);
             });
         }
 
@@ -635,6 +668,98 @@
                 showToast(`Erreur chargement historique: ${error.message}`, true);
                 console.error('Erreur historique:', error);
             }
+        }
+
+        async function loadSituation(type, numero_cf = '') {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter', true);
+                return;
+            }
+            try {
+                let url = `${API_BASE_URL}/historique_versements?type=${type}`;
+                if (numero_cf) url += `&numero_cf=${numero_cf}`;
+                const response = await fetch(url, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                const versements = await response.json();
+                const tbody = document.getElementById(type === 'C' ? 'clientSituationTable' : 'fournisseurSituationTable');
+                tbody.innerHTML = versements.length === 0
+                    ? '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun versement trouvé</td></tr>'
+                    : '';
+                versements.forEach(v => {
+                    const apiType = v.type === 'Client' || v.type === 'C' ? 'C' : 'F';
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-gray-50';
+                    tr.innerHTML = `
+                        <td class="px-6 py-4 text-sm text-gray-900">${v.date_mc}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">${v.nom_cf || 'N/A'}</td>
+                        <td class="px-6 py-4 text-sm ${parseFloat(v.montant) < 0 ? 'text-red-600' : 'text-green-600'}">${v.montant}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${v.justificatif || '-'}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${v.utilisateur_nom || 'N/A'}</td>
+                        <td class="px-6 py-4 text-sm">
+                            <button onclick="openEditModal(${v.numero_mc}, '${apiType}', '${v.numero_cf}', '${v.nom_cf || 'N/A'}', ${v.montant}, '${v.justificatif || ''}')" class="text-blue-600 hover:text-blue-800">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </td>
+                        <td class="px-6 py-4 text-sm">
+                            <button onclick="annulerVersement(${v.numero_mc}, '${apiType}', '${v.numero_cf}')" class="text-red-600 hover:text-red-800">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (error) {
+                showToast(`Erreur chargement situation: ${error.message}`, true);
+                console.error('Erreur situation:', error);
+            }
+        }
+
+        function printSituation(type) {
+            const table = document.getElementById(type === 'C' ? 'clientSituationTable' : 'fournisseurSituationTable');
+            const title = type === 'C' ? 'Situation Client' : 'Situation Fournisseur';
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <html>
+                <head>
+                    <title>${title}</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 20px; }
+                        h1 { text-align: center; color: #4f46e5; }
+                        table { width: 100%; border-collapse: collapse; }
+                        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                        th { background-color: #f3f4f6; color: #374151; }
+                        tr:nth-child(even) { background-color: #f9fafb; }
+                        .text-red-600 { color: #dc2626; }
+                        .text-green-600 { color: #16a34a; }
+                    </style>
+                </head>
+                <body>
+                    <h1>${title}</h1>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Nom</th>
+                                <th>Montant</th>
+                                <th>Justificatif</th>
+                                <th>Fait par</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${table.innerHTML}
+                        </tbody>
+                    </table>
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+            printWindow.print();
         }
 
         async function submitVersement() {
@@ -819,97 +944,6 @@
             }
         }
 
-        async function loadSituation(type) {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter', true);
-                return;
-            }
-            try {
-                const url = `${API_BASE_URL}/historique_versements?type=${type}`;
-                const response = await fetch(url, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                const versements = await response.json();
-                const tbody = document.getElementById(type === 'C' ? 'clientSituationTable' : 'fournisseurSituationTable');
-                tbody.innerHTML = versements.length === 0
-                    ? '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun versement trouvé</td></tr>'
-                    : '';
-                versements.forEach(v => {
-                    const apiType = v.type === 'Client' || v.type === 'C' ? 'C' : 'F';
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="px-6 py-4 text-sm text-gray-900">${v.date_mc}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">${v.nom_cf || 'N/A'}</td>
-                        <td class="px-6 py-4 text-sm ${parseFloat(v.montant) < 0 ? 'text-red-600' : 'text-green-600'}">${v.montant}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500">${v.justificatif || '-'}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500">${v.utilisateur_nom || 'N/A'}</td>
-                        <td class="px-6 py-4 text-sm">
-                            <button onclick="openEditModal(${v.numero_mc}, '${apiType}', '${v.numero_cf}', '${v.nom_cf || 'N/A'}', ${v.montant}, '${v.justificatif || ''}')" class="text-blue-600 hover:text-blue-800">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                        </td>
-                        <td class="px-6 py-4 text-sm">
-                            <button onclick="annulerVersement(${v.numero_mc}, '${apiType}', '${v.numero_cf}')" class="text-red-600 hover:text-red-800">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-            } catch (error) {
-                showToast(`Erreur chargement situation: ${error.message}`, true);
-                console.error('Erreur situation:', error);
-            }
-        }
-
-        function printSituation(type) {
-            const table = document.getElementById(type === 'C' ? 'clientSituationTable' : 'fournisseurSituationTable');
-            const title = type === 'C' ? 'Situation Client' : 'Situation Fournisseur';
-            const printWindow = window.open('', '_blank');
-            printWindow.document.write(`
-                <html>
-                <head>
-                    <title>${title}</title>
-                    <style>
-                        body { font-family: Arial, sans-serif; margin: 20px; }
-                        h1 { text-align: center; color: #4f46e5; }
-                        table { width: 100%; border-collapse: collapse; }
-                        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                        th { background-color: #f3f4f6; color: #374151; }
-                        tr:nth-child(even) { background-color: #f9fafb; }
-                        .text-red-600 { color: #dc2626; }
-                        .text-green-600 { color: #16a34a; }
-                    </style>
-                </head>
-                <body>
-                    <h1>${title}</h1>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Nom</th>
-                                <th>Montant</th>
-                                <th>Justificatif</th>
-                                <th>Fait par</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${table.innerHTML}
-                        </tbody>
-                    </table>
-                </body>
-                </html>
-            `);
-            printWindow.document.close();
-            printWindow.print();
-        }
-
         document.addEventListener('DOMContentLoaded', () => {
             const userId = localStorage.getItem('userId');
             const userEmail = localStorage.getItem('userEmail');
@@ -976,6 +1010,8 @@
 
             document.getElementById('cancelEditButton').addEventListener('click', closeEditModal);
             document.getElementById('submitEditButton').addEventListener('click', modifierVersement);
+            document.getElementById('filter-client').addEventListener('change', (e) => loadSituation('C', e.target.value));
+            document.getElementById('filter-fournisseur').addEventListener('change', (e) => loadSituation('F', e.target.value));
         });
 
         document.getElementById('tab-clients').addEventListener('click', () => switchTab('clients'));
