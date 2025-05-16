@@ -677,8 +677,9 @@
                 return;
             }
             try {
+                console.log(`Chargement situation pour type=${type}, numero_cf=${numero_cf}`); // Log pour débogage
                 let url = `${API_BASE_URL}/historique_versements?type=${type}`;
-                if (numero_cf) url += `&numero_cf=${numero_cf}`;
+                if (numero_cf) url += `&numero_cf=${encodeURIComponent(numero_cf)}`; // Encode pour éviter les erreurs d'URL
                 const response = await fetch(url, {
                     headers: { 'X-User-ID': userId }
                 });
@@ -687,9 +688,10 @@
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 const versements = await response.json();
+                console.log('Versements reçus:', versements); // Log pour voir les données
                 const tbody = document.getElementById(type === 'C' ? 'clientSituationTable' : 'fournisseurSituationTable');
                 tbody.innerHTML = versements.length === 0
-                    ? '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun versement trouvé</td></tr>'
+                    ? '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun versement trouvé pour cette sélection</td></tr>'
                     : '';
                 versements.forEach(v => {
                     const apiType = v.type === 'Client' || v.type === 'C' ? 'C' : 'F';
@@ -714,6 +716,26 @@
                     `;
                     tbody.appendChild(tr);
                 });
+                
+                // Solution alternative si l'API ne supporte pas numero_cf (décommentez si nécessaire) :
+                /*
+                let url = `${API_BASE_URL}/historique_versements?type=${type}`;
+                const response = await fetch(url, { headers: { 'X-User-ID': userId } });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                let versements = await response.json();
+                if (numero_cf) {
+                    versements = versements.filter(v => v.numero_cf === numero_cf);
+                }
+                console.log('Versements filtrés:', versements);
+                const tbody = document.getElementById(type === 'C' ? 'clientSituationTable' : 'fournisseurSituationTable');
+                tbody.innerHTML = versements.length === 0
+                    ? '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun versement trouvé pour cette sélection</td></tr>'
+                    : '';
+                versements.forEach(v => { ... }); // Même boucle que ci-dessus
+                */
             } catch (error) {
                 showToast(`Erreur chargement situation: ${error.message}`, true);
                 console.error('Erreur situation:', error);
@@ -807,6 +829,11 @@
                 loadHistorique(document.getElementById('filter-date').value, type);
                 showToast('Versement ajouté avec succès');
                 type === 'C' ? chargerClients() : chargerFournisseurs();
+                // Recharger les situations après ajout
+                const clientFilter = document.getElementById('filter-client').value;
+                const fournisseurFilter = document.getElementById('filter-fournisseur').value;
+                loadSituation('C', clientFilter);
+                loadSituation('F', fournisseurFilter);
             } catch (error) {
                 message.textContent = error.message;
                 message.classList.remove('hidden');
@@ -874,6 +901,11 @@
                 loadHistorique(document.getElementById('filter-date').value, type);
                 showToast('Versement modifié avec succès');
                 type === 'C' ? chargerClients() : chargerFournisseurs();
+                // Recharger les situations après modification
+                const clientFilter = document.getElementById('filter-client').value;
+                const fournisseurFilter = document.getElementById('filter-fournisseur').value;
+                loadSituation('C', clientFilter);
+                loadSituation('F', fournisseurFilter);
             } catch (error) {
                 message.textContent = error.message;
                 message.classList.remove('hidden');
@@ -915,6 +947,11 @@
                 loadHistorique(document.getElementById('filter-date').value, type);
                 showToast('Versement annulé avec succès');
                 type === 'C' ? chargerClients() : chargerFournisseurs();
+                // Recharger les situations après annulation
+                const clientFilter = document.getElementById('filter-client').value;
+                const fournisseurFilter = document.getElementById('filter-fournisseur').value;
+                loadSituation('C', clientFilter);
+                loadSituation('F', fournisseurFilter);
             } catch (error) {
                 showToast(`Erreur annulation versement: ${error.message}`, true);
                 console.error('Erreur annulation versement:', error);
@@ -1010,8 +1047,14 @@
 
             document.getElementById('cancelEditButton').addEventListener('click', closeEditModal);
             document.getElementById('submitEditButton').addEventListener('click', modifierVersement);
-            document.getElementById('filter-client').addEventListener('change', (e) => loadSituation('C', e.target.value));
-            document.getElementById('filter-fournisseur').addEventListener('change', (e) => loadSituation('F', e.target.value));
+            document.getElementById('filter-client').addEventListener('change', (e) => {
+                console.log('Filtre client changé:', e.target.value); // Log pour débogage
+                loadSituation('C', e.target.value);
+            });
+            document.getElementById('filter-fournisseur').addEventListener('change', (e) => {
+                console.log('Filtre fournisseur changé:', e.target.value); // Log pour débogage
+                loadSituation('F', e.target.value);
+            });
         });
 
         document.getElementById('tab-clients').addEventListener('click', () => switchTab('clients'));
