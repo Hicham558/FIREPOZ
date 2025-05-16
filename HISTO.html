@@ -640,7 +640,7 @@
                     ? '<tr><td colspan="8" class="text-center py-4 text-gray-500">Aucun versement trouvé</td></tr>'
                     : '';
                 versements.forEach(v => {
-                    const apiType = v.type === 'Client' || v.type === 'C' ? 'C' : 'F';
+                    const apiType = v.cf === 'C' ? 'C' : 'F';
                     const displayType = apiType === 'C' ? 'Client' : 'Fournisseur';
                     const tr = document.createElement('tr');
                     tr.className = 'hover:bg-gray-50';
@@ -691,12 +691,17 @@
                 }
                 const versements = await response.json();
                 console.log('Versements reçus:', versements); // Log pour vérifier les données
+
+                // Filtrer pour s'assurer que cf correspond au type (C ou F)
+                const filteredVersements = versements.filter(v => v.cf === type);
+                console.log('Versements filtrés (cf correct):', filteredVersements);
+
                 const tbody = document.getElementById(type === 'C' ? 'clientSituationTable' : 'fournisseurSituationTable');
-                tbody.innerHTML = versements.length === 0
+                tbody.innerHTML = filteredVersements.length === 0
                     ? `<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun versement pour ${numero_cf ? 'cette entité' : 'ce type'}</td></tr>`
                     : '';
-                versements.forEach(v => {
-                    const apiType = v.type === 'Client' || v.type === 'C' ? 'C' : 'F';
+                filteredVersements.forEach(v => {
+                    const apiType = v.cf === 'C' ? 'C' : 'F';
                     const tr = document.createElement('tr');
                     tr.className = 'hover:bg-gray-50';
                     tr.innerHTML = `
@@ -719,7 +724,7 @@
                     tbody.appendChild(tr);
                 });
 
-                // Solution alternative si l'API ne filtre pas numero_cf (décommentez si nécessaire) :
+                // Solution alternative si l'API ne filtre pas numero_cf ou cf correctement (décommentez si nécessaire)
                 /*
                 let url = `${API_BASE_URL}/historique_versements?type=${type}`;
                 const response = await fetch(url, { headers: { 'X-User-ID': userId } });
@@ -728,16 +733,16 @@
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 let versements = await response.json();
-                if (numero_cf) {
-                    versements = versements.filter(v => String(v.numero_cf) === String(numero_cf));
-                }
-                console.log('Versements filtrés:', versements);
+                console.log('Versements bruts:', versements);
+                // Filtrer sur cf (C ou F) et numero_cf (numero_clt ou numero_fou)
+                versements = versements.filter(v => v.cf === type && (!numero_cf || String(v.numero_cf) === String(numero_cf)));
+                console.log('Versements filtrés client-side:', versements);
                 const tbody = document.getElementById(type === 'C' ? 'clientSituationTable' : 'fournisseurSituationTable');
                 tbody.innerHTML = versements.length === 0
                     ? `<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun versement pour ${numero_cf ? 'cette entité' : 'ce type'}</td></tr>`
                     : '';
                 versements.forEach(v => {
-                    const apiType = v.type === 'Client' || v.type === 'C' ? 'C' : 'F';
+                    const apiType = v.cf === 'C' ? 'C' : 'F';
                     const tr = document.createElement('tr');
                     tr.className = 'hover:bg-gray-50';
                     tr.innerHTML = `
@@ -1072,11 +1077,11 @@
             document.getElementById('cancelEditButton').addEventListener('click', closeEditModal);
             document.getElementById('submitEditButton').addEventListener('click', modifierVersement);
             document.getElementById('filter-client').addEventListener('change', (e) => {
-                console.log('Filtre client changé:', e.target.value); // Log pour débogage
+                console.log('Filtre client changé: numero_clt=', e.target.value); // Log pour débogage
                 loadSituation('C', e.target.value);
             });
             document.getElementById('filter-fournisseur').addEventListener('change', (e) => {
-                console.log('Filtre fournisseur changé:', e.target.value); // Log pour débogage
+                console.log('Filtre fournisseur changé: numero_fou=', e.target.value); // Log pour débogage
                 loadSituation('F', e.target.value);
             });
         });
