@@ -249,7 +249,6 @@
                             <thead class="bg-gray-50">
                                 <tr>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Justificatif</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fait par</th>
@@ -259,7 +258,7 @@
                             </thead>
                             <tbody id="clientSituationTable" class="bg-white divide-y divide-gray-200">
                                 <tr>
-                                    <td colspan="7" class="text-center py-4 text-gray-500">Sélectionnez un client...</td>
+                                    <td colspan="6" class="text-center py-4 text-gray-500">Sélectionnez un client...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -296,7 +295,6 @@
                             <thead class="bg-gray-50">
                                 <tr>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Justificatif</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fait par</th>
@@ -306,7 +304,7 @@
                             </thead>
                             <tbody id="fournisseurSituationTable" class="bg-white divide-y divide-gray-200">
                                 <tr>
-                                    <td colspan="7" class="text-center py-4 text-gray-500">Sélectionnez un fournisseur...</td>
+                                    <td colspan="6" class="text-center py-4 text-gray-500">Sélectionnez un fournisseur...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -677,16 +675,14 @@
                 return;
             }
             try {
-                console.log(`Chargement situation: type=${type}, numero_cf=${numero_cf}`); // Log pour débogage
+                console.log(`Chargement situation: type=${type}, numero_cf=${numero_cf}`);
                 const tbody = document.getElementById(type === 'C' ? 'clientSituationTable' : 'fournisseurSituationTable');
                 
-                // Si aucun numero_cf, afficher un message par défaut
                 if (!numero_cf) {
-                    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-gray-500">Sélectionnez un ${type === 'C' ? 'client' : 'fournisseur'}...</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-gray-500">Sélectionnez un ${type === 'C' ? 'client' : 'fournisseur'}...</td></tr>`;
                     return;
                 }
 
-                // Appeler le nouvel endpoint
                 const url = `${API_BASE_URL}/situation_versements?type=${type}&numero_cf=${encodeURIComponent(numero_cf)}`;
                 const response = await fetch(url, {
                     headers: { 'X-User-ID': userId }
@@ -696,11 +692,10 @@
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 const versements = await response.json();
-                console.log(`Versements reçus pour ${type === 'C' ? 'client' : 'fournisseur'} ${numero_cf}:`, versements); // Log pour vérifier
+                console.log(`Versements reçus pour ${type === 'C' ? 'client' : 'fournisseur'} ${numero_cf}:`, versements);
 
-                // Remplir la grille
                 tbody.innerHTML = versements.length === 0
-                    ? `<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun versement pour cet ${type === 'C' ? 'client' : 'fournisseur'}</td></tr>`
+                    ? `<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun versement pour cet ${type === 'C' ? 'client' : 'fournisseur'}</td></tr>`
                     : '';
                 versements.forEach(v => {
                     const apiType = v.cf;
@@ -708,7 +703,6 @@
                     tr.className = 'hover:bg-gray-50';
                     tr.innerHTML = `
                         <td class="px-6 py-4 text-sm text-gray-900">${v.date_mc}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">${v.nom_cf || 'N/A'}</td>
                         <td class="px-6 py-4 text-sm ${parseFloat(v.montant) < 0 ? 'text-red-600' : 'text-green-600'}">${v.montant}</td>
                         <td class="px-6 py-4 text-sm text-gray-500">${v.justificatif || '-'}</td>
                         <td class="px-6 py-4 text-sm text-gray-500">${v.utilisateur_nom || 'N/A'}</td>
@@ -732,8 +726,36 @@
         }
 
         function printSituation(type) {
-            const table = document.getElementById(type === 'C' ? 'clientSituationTable' : 'fournisseurSituationTable');
+            const select = document.getElementById(type === 'C' ? 'filter-client' : 'filter-fournisseur');
+            const numero_cf = select.value;
+            if (!numero_cf) {
+                showToast(`Veuillez sélectionner un ${type === 'C' ? 'client' : 'fournisseur'}`, true);
+                return;
+            }
+
+            const data = type === 'C' ? clientsCache : fournisseursCache;
+            const entity = data.find(item => item[type === 'C' ? 'numero_clt' : 'numero_fou'] == numero_cf);
+            if (!entity) {
+                showToast(`Erreur : ${type === 'C' ? 'Client' : 'Fournisseur'} non trouvé`, true);
+                return;
+            }
+
+            const nom = entity.nom || 'N/A';
+            const solde = parseFloat(entity.solde || 0).toFixed(2);
             const title = type === 'C' ? 'Situation Client' : 'Situation Fournisseur';
+            const table = document.getElementById(type === 'C' ? 'clientSituationTable' : 'fournisseurSituationTable');
+            
+            // Filtrer les colonnes pour exclure "Nom"
+            const filteredTable = document.createElement('table');
+            filteredTable.innerHTML = table.innerHTML;
+            const rows = filteredTable.querySelectorAll('tr');
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td, th');
+                if (cells.length > 1) {
+                    row.removeChild(cells[1]); // Supprime la colonne "Nom" (index 1)
+                }
+            });
+
             const printWindow = window.open('', '_blank');
             printWindow.document.write(`
                 <html>
@@ -742,6 +764,10 @@
                     <style>
                         body { font-family: Arial, sans-serif; margin: 20px; }
                         h1 { text-align: center; color: #4f46e5; }
+                        .info { margin-bottom: 20px; }
+                        .info p { margin: 5px 0; font-size: 16px; }
+                        .solde-negatif { color: #dc2626; }
+                        .solde-positif { color: #16a34a; }
                         table { width: 100%; border-collapse: collapse; }
                         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
                         th { background-color: #f3f4f6; color: #374151; }
@@ -752,18 +778,21 @@
                 </head>
                 <body>
                     <h1>${title}</h1>
+                    <div class="info">
+                        <p><strong>Nom :</strong> ${nom}</p>
+                        <p><strong>Solde :</strong> <span class="${solde < 0 ? 'solde-negatif' : 'solde-positif'}">${solde} DA</span></p>
+                    </div>
                     <table>
                         <thead>
                             <tr>
                                 <th>Date</th>
-                                <th>Nom</th>
                                 <th>Montant</th>
                                 <th>Justificatif</th>
                                 <th>Fait par</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${table.innerHTML}
+                            ${filteredTable.querySelector('tbody').innerHTML}
                         </tbody>
                     </table>
                 </body>
@@ -818,7 +847,6 @@
                 loadHistorique(document.getElementById('filter-date').value, type);
                 showToast('Versement ajouté avec succès');
                 type === 'C' ? chargerClients() : chargerFournisseurs();
-                // Recharger les situations avec les filtres actuels
                 const clientFilter = document.getElementById('filter-client').value;
                 const fournisseurFilter = document.getElementById('filter-fournisseur').value;
                 if (clientFilter) loadSituation('C', clientFilter);
@@ -890,7 +918,6 @@
                 loadHistorique(document.getElementById('filter-date').value, type);
                 showToast('Versement modifié avec succès');
                 type === 'C' ? chargerClients() : chargerFournisseurs();
-                // Recharger les situations avec les filtres actuels
                 const clientFilter = document.getElementById('filter-client').value;
                 const fournisseurFilter = document.getElementById('filter-fournisseur').value;
                 if (clientFilter) loadSituation('C', clientFilter);
@@ -936,7 +963,6 @@
                 loadHistorique(document.getElementById('filter-date').value, type);
                 showToast('Versement annulé avec succès');
                 type === 'C' ? chargerClients() : chargerFournisseurs();
-                // Recharger les situations avec les filtres actuels
                 const clientFilter = document.getElementById('filter-client').value;
                 const fournisseurFilter = document.getElementById('filter-fournisseur').value;
                 if (clientFilter) loadSituation('C', clientFilter);
@@ -1035,11 +1061,11 @@
             document.getElementById('cancelEditButton').addEventListener('click', closeEditModal);
             document.getElementById('submitEditButton').addEventListener('click', modifierVersement);
             document.getElementById('filter-client').addEventListener('change', (e) => {
-                console.log('Filtre client changé: numero_clt=', e.target.value); // Log pour débogage
+                console.log('Filtre client changé: numero_clt=', e.target.value);
                 loadSituation('C', e.target.value);
             });
             document.getElementById('filter-fournisseur').addEventListener('change', (e) => {
-                console.log('Filtre fournisseur changé: numero_fou=', e.target.value); // Log pour débogage
+                console.log('Filtre fournisseur changé: numero_fou=', e.target.value);
                 loadSituation('F', e.target.value);
             });
         });
