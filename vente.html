@@ -24,7 +24,11 @@
         @keyframes userPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
         @keyframes countPulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
         @keyframes totalPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
-        @keyframes smoothBlink { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        @keyframes smoothBlink { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 
+
+ 
+
+1; } }
         .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
         .animate-pulse { animation: pulse 2s infinite ease-in-out; }
         .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
@@ -58,9 +62,15 @@
             font-size: 14px;
             cursor: pointer;
             transition: background-color 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         #closeScannerButton:hover {
             background-color: #dc2626;
+        }
+        #closeScannerButton i {
+            margin-right: 4px;
         }
         #scannerOverlay {
             display: none;
@@ -283,6 +293,10 @@
                             <div class="total-large animate-total-pulse text-center mb-4">
                                 Total: <span id="totalSale">0.00 DA</span>
                             </div>
+                            <div id="soldeInfo" class="text-sm text-gray-700 text-center mb-4 hidden">
+                                <p><strong>Solde avant vente :</strong> <span id="soldeAvant">0.00 DA</span></p>
+                                <p><strong>Solde après vente :</strong> <span id="soldeApres">0.00 DA</span></p>
+                            </div>
                             <div class="flex justify-between items-center">
                                 <div class="relative">
                                     <div class="mb-4">
@@ -456,7 +470,7 @@
                             document.getElementById('sellerContent').classList.add('hidden');
                             document.getElementById('sellerChevron').classList.add('fa-chevron-down');
                             document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
-                        } else {
+                        } elsecrypto.createHash('sha256').update(password).digest('hex');
                             localStorage.removeItem('selectedSeller');
                             localStorage.removeItem('sellerPassword');
                             document.getElementById('sellerContent').classList.remove('hidden');
@@ -911,6 +925,27 @@
             printButton80mm.disabled = false;
             printButtonA4.disabled = false;
             holdSaleButton.disabled = false;
+
+            // Gestion de l'affichage des soldes
+            const paymentMode = document.getElementById('paymentMode').value;
+            const clientId = document.getElementById('saleClientId').value;
+            const soldeInfo = document.getElementById('soldeInfo');
+            const soldeAvantElement = document.getElementById('soldeAvant');
+            const soldeApresElement = document.getElementById('soldeApres');
+
+            if (paymentMode === 'a_terme' && clientId !== '0' && tempSaleLines.length > 0) {
+                const client = clientsCache.find(c => c.numero_clt === parseInt(clientId));
+                const soldeAvant = client ? parseFloat(client.solde) || 0 : 0;
+                const amountPaid = parseFloat(document.getElementById('amountPaid').value) || 0;
+                const totalSale = tempSaleLines.reduce((sum, line) => sum + parseFloat(line.prixt || 0), 0);
+                const soldeApres = soldeAvant + (amountPaid - totalSale);
+
+                soldeAvantElement.textContent = `${soldeAvant.toFixed(2)} DA`;
+                soldeApresElement.textContent = `${soldeApres.toFixed(2)} DA`;
+                soldeInfo.classList.remove('hidden');
+            } else {
+                soldeInfo.classList.add('hidden');
+            }
         }
 
         function modifierQuantite(index, delta) {
@@ -1418,259 +1453,126 @@
 
             const printWindow = window.open('', '_blank', 'width=800,height=600');
             if (!printWindow) {
-           showToast('Impossible d\'ouvrir l\'aperçu. Veuillez désactiver votre bloqueur de pop-up.', true);
+                showToast('Impossible d\'ouvrir l\'aperçu. Veuillez désactiver votre bloqueur de pop-up.', true);
                 return;
             }
 
             printWindow.document.write(`
                 <html>
                     <head>
-                        <title>Bon de Livraison A4 - ${companyName}</title>
-                        <style>
-                            @page { size: A4; margin: 20mm; }
-                            body {
-                                margin: 0;
-                                padding: 0;
-                                font-family: Arial, sans-serif;
-                                color: #333;
-                            }
-                            .printable {
-                                width: 190mm;
-                                margin: 0 auto;
-                                padding: 10mm;
-                                background: #fff;
-                                border: 1mm solid #ddd;
-                                box-shadow: 0 0 5mm rgba(0,0,0,0.1);
-                            }
-                            header {
-                                margin-bottom: 10mm;
-                                border-bottom: 1mm solid #ddd;
-                                padding-bottom: 5mm;
-                            }
-                            .company-info {
-                                text-align: right;
-                            }
-                            header h1 {
-                                font-size: 24pt;
-                                color: #4f46e5;
-                                margin: 0;
-                            }
-                            header h2 {
-                                font-size: 18pt;
-                                text-align: center;
-                                margin: 5mm 0;
-                            }
-                            header p {
-                                font-size: 10pt;
-                                margin: 2mm 0;
-                            }
-                            table {
-                                width: 100%;
-                                border-collapse: collapse;
-                                margin-bottom: 10mm;
-                            }
-                            th, td {
-                                border: 0.5mm solid #ddd;
-                                padding: 3mm;
-                                font-size: 10pt;
-                                text-align: left;
-                            }
-                            th {
-                                background: #f3f4f6;
-                                font-weight: bold;
-                                color: #333;
-                            }
-                            .total-section {
-                                text-align: right;
-                                font-size: 14pt;
-                                font-weight: bold;
-                                margin-top: 5mm;
-                                padding-top: 5mm;
-                                border-top: 1mm solid #ddd;
-                            }
-                            footer {
-                                text-align: center;
-                                font-size: 9pt;
-                                margin-top: 10mm;
-                                border-top: 1mm solid #ddd;
-                                padding-top: 5mm;
-                            }
-                            footer p {
-                                margin: 2mm 0;
-                            }
-                            .print-controls {
-                                text-align: center;
-                                margin-top: 10mm;
-                            }
-                            .print-controls button {
-                                padding: 5mm 10mm;
-                                margin: 0 5mm;
-                                font-size: 10pt;
-                                cursor: pointer;
-                                border-radius: 5mm;
-                            }
-                            @media print {
-                                body {
-                                    margin: 0;
-                                    padding: 0;
-                                }
-                                .print-controls {
-                                    display: none;
-                                }
-                            }
-                        </style>
-                    </head>
-                    <body>
-                        ${ticketContent}
-                        <div class="print-controls">
-                            <button onclick="window.print(); window.close();" style="background-color: #4CAF50; color: white; border: none;">Imprimer</button>
-                            <button onclick="window.close();" style="background-color: #f44336; color: white; border: none;">Annuler</button>
-                        </div>
-                    </body>
-                </html>
-            `);
-            printWindow.document.close();
+                       <title>Bon de Livraison A4 - ${companyName}</title>
+<style>
+    @page { size: A4; margin: 20mm; }
+    body {
+        margin: 0;
+        padding: 0;
+        font-family: Arial, sans-serif;
+        color: #333;
+    }
+    .printable {
+        width: 190mm;
+        margin: 0 auto;
+        padding: 10mm;
+        background: #fff;
+        border: 1mm solid #ddd;
+        box-shadow: 0 0 5mm rgba(0,0,0,0.1);
+    }
+    header {
+        margin-bottom: 10mm;
+        border-bottom: 1mm solid #ddd;
+        padding-bottom: 5mm;
+    }
+    .company-info {
+        text-align: right;
+    }
+    header h1 {
+        font-size: 24pt;
+        color: #4f46e5;
+        margin: 0;
+    }
+    header h2 {
+        font-size: 18pt;
+        text-align: center;
+        margin: 5mm 0;
+    }
+    header p {
+        font-size: 10pt;
+        margin: 2mm 0;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 10mm;
+    }
+    th, td {
+        border: 0.5mm solid #ddd;
+        padding: 3mm;
+        font-size: 10pt;
+        text-align: left;
+    }
+    th {
+        background: #f4f4f4;
+        font-weight: bold;
+    }
+    .total-section {
+        text-align: right;
+        margin-top: 5mm;
+    }
+    .total-section p {
+        font-size: 12pt;
+        font-weight: bold;
+        margin: 2mm 0;
+    }
+    footer {
+        margin-top: 10mm;
+        text-align: center;
+        border-top: 1mm solid #ddd;
+        padding-top: 5mm;
+    }
+    footer p {
+        font-size: 10pt;
+        margin: 2mm 0;
+    }
+    .print-controls {
+        text-align: center;
+        margin-top: 10mm;
+    }
+    .print-controls button {
+        padding: 5mm 10mm;
+        margin: 0 5mm;
+        font-size: 10pt;
+        cursor: pointer;
+        border: none;
+        border-radius: 5mm;
+    }
+    .print-controls button.print {
+        background-color: #4CAF50;
+        color: white;
+    }
+    .print-controls button.cancel {
+        background-color: #f44336;
+        color: white;
+    }
+    @media print {
+        body {
+            margin: 0;
+            padding: 0;
         }
-
-        let stream = null;
-        let isScanning = false;
-        let barcodeDetector = null;
-
-        async function startScanner() {
-            console.log('Démarrage du scanner...');
-            if (typeof BarcodeDetector === 'undefined') {
-                showToast('Le scanner de code-barres n\'est pas supporté par ce navigateur. Utilisez Chrome ou Edge.', true);
-                return;
-            }
-
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                showToast('L\'accès à la caméra n\'est pas supporté par ce navigateur.', true);
-                return;
-            }
-
-            const preview = document.getElementById('scannerPreview');
-            const overlay = document.getElementById('scannerOverlay');
-
-            try {
-                stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment' }
-                });
-                preview.srcObject = stream;
-                preview.style.display = 'block';
-                overlay.style.display = 'block';
-                isScanning = true;
-
-                barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
-
-                scanBarcode();
-            } catch (error) {
-                console.error('Erreur accès caméra:', error);
-                showToast('Erreur lors de l\'accès à la caméra: ' + error.message, true);
-            }
+        .print-controls {
+            display: none;
         }
-
-        function scanBarcode() {
-            if (!isScanning || !barcodeDetector) return;
-
-            const preview = document.getElementById('scannerPreview');
-            barcodeDetector.detect(preview).then(barcodes => {
-                if (barcodes.length > 0) {
-                    const barcode = barcodes[0].rawValue;
-                    console.log('Code-barres détecté:', barcode);
-                    document.getElementById('productBar').value = barcode;
-                    rechercherProduitParCodeBarre(barcode);
-                    // Ne pas arrêter le scanner ici pour garder l'aperçu actif
-                    setTimeout(scanBarcode, 1000); // Attendre 1 seconde avant de relancer pour éviter les scans multiples
-                } else {
-                    setTimeout(scanBarcode, 100);
-                }
-            }).catch(error => {
-                console.error('Erreur détection code-barres:', error);
-                showToast('Erreur lors de la détection du code-barres', true);
-                stopScanner();
-            });
+        .printable {
+            box-shadow: none;
+            border: none;
         }
-
-        function stopScanner() {
-            console.log('Arrêt du scanner...');
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                stream = null;
-            }
-            const preview = document.getElementById('scannerPreview');
-            const overlay = document.getElementById('scannerOverlay');
-            preview.style.display = 'none';
-            overlay.style.display = 'none';
-            isScanning = false;
-            barcodeDetector = null;
-        }
-
-        function rechercherProduitParCodeBarre(barcode) {
-            console.log('Recherche produit par code-barres:', barcode);
-            const produit = produitsCache.find(p => p.BAR.toString() === barcode.toString());
-            if (produit) {
-                selectProduct(
-                    produit.NUMERO_ITEM,
-                    produit.BAR,
-                    produit.PRIX,
-                    produit.PRIXBA,
-                    produit.QTE,
-                    produit.DESIGNATION
-                );
-            } else {
-                showToast('Produit non trouvé pour ce code-barres', true);
-            }
-        }
-
-        document.getElementById('closeScannerButton').addEventListener('click', stopScanner);
-
-        document.getElementById('productBar').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') {
-                const barcode = this.value.trim();
-                if (barcode) {
-                    rechercherProduitParCodeBarre(barcode);
-                    this.value = '';
-                }
-            }
-        });
-
-        document.getElementById('searchProduct').addEventListener('input', function () {
-            const searchTerm = this.value.toLowerCase();
-            const tbody = document.getElementById('productsList');
-            tbody.innerHTML = '';
-
-            const filteredProducts = produitsCache.filter(produit =>
-                produit.DESIGNATION.toLowerCase().includes(searchTerm) ||
-                produit.BAR.toString().includes(searchTerm)
-            );
-
-            if (filteredProducts.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
-                return;
-            }
-
-            filteredProducts.forEach(produit => {
-                const stockStatus = produit.QTE <= 0 ? 'Rupture' : produit.QTE <= 5 ? 'Stock faible' : produit.QTE.toFixed(2);
-                const stockClass = produit.QTE <= 0 ? 'stock-rupture' : produit.QTE <= 5 ? 'stock-faible' : '';
-                const buttonDisabled = produit.QTE <= 0 ? 'btn-disabled' : '';
-                const buttonAttrs = produit.QTE <= 0 ? 'disabled' : '';
-
-                const tr = document.createElement('tr');
-                tr.className = `hover:bg-gray-50 ${stockClass}`;
-                tr.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <button onclick="selectProduct(${produit.NUMERO_ITEM}, ${produit.BAR}, ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition duration-300 ${buttonDisabled}" ${buttonAttrs}>
-                            <i class="fas fa-plus"></i>
-                        </button>
-                    </td>
-                    <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stockStatus}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-        });
-    </script>
+    }
+</style>
+</head>
+<body>
+    ${ticketContent}
+    <div class="print-controls">
+        <button onclick="window.print(); window.close();" class="print">Imprimer</button>
+        <button onclick="window.close();" class="cancel">Annuler</button>
+    </div>
 </body>
 </html>
