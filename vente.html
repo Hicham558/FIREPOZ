@@ -451,7 +451,7 @@
                 const desiredFormats = ['ean_13', 'code_128', 'upc_a', 'upc_e'];
                 const availableFormats = desiredFormats.filter(format => supportedFormats.includes(format));
                 if (availableFormats.length === 0) {
-                    showToast('Aucun format de code-barres supporté par ce navigateur', true);
+                    showToast('Aucun format de code-barres supporté par ce navigateur.', true);
                     return;
                 }
                 barcodeDetector = new BarcodeDetector({ formats: availableFormats });
@@ -469,29 +469,45 @@
                     isScanning = true;
 
                     preview.onplay = () => {
+                        console.log('Vidéo prête, démarrage du scan...');
                         scanBarcode();
                     };
                 } catch (error) {
-                    console.error('Erreur accès caméra :', error);
+                    console.error('Erreur lors de l\'accès à la caméra :', error);
                     showToast('Erreur lors de l\'accès à la caméra : ' + error.message, true);
                 }
             } catch (error) {
                 console.error('Erreur lors de la récupération des formats supportés :', error);
-                showToast('Erreur lors de la récupération des formats supportés', true);
+                showToast('Erreur lors de la récupération des formats supportés.', true);
             }
         }
 
         function scanBarcode() {
-            if (!isScanning || !barcodeDetector) return;
+            if (!isScanning || !barcodeDetector) {
+                console.log('Scan arrêté : isScanning ou barcodeDetector non défini.');
+                return;
+            }
 
             const preview = document.getElementById('scannerPreview');
             const canvas = document.getElementById('scanCanvas');
             const ctx = canvas.getContext('2d');
+
+            // Vérifier que la vidéo a des dimensions valides
+            if (preview.videoWidth <= 0 || preview.videoHeight <= 0) {
+                console.warn('Dimensions vidéo non valides, nouvelle tentative dans 100ms.');
+                setTimeout(scanBarcode, 100);
+                return;
+            }
+
             canvas.width = preview.videoWidth;
             canvas.height = preview.videoHeight;
             ctx.drawImage(preview, 0, 0, canvas.width, canvas.height);
 
             barcodeDetector.detect(canvas).then(barcodes => {
+                if (!isScanning) {
+                    console.log('Scan arrêté pendant la détection.');
+                    return;
+                }
                 if (barcodes.length > 0) {
                     const barcode = barcodes[0].rawValue;
                     console.log('Code-barres détecté :', barcode);
@@ -502,8 +518,8 @@
                     setTimeout(scanBarcode, 100); // Relancer après 100ms
                 }
             }).catch(error => {
-                console.error('Erreur détection code-barres :', error);
-                showToast('Erreur lors de la détection du code-barres', true);
+                console.error('Erreur lors de la détection de code-barres :', error.name, error.message);
+                showToast('Erreur lors de la détection du code-barres.', true);
                 setTimeout(scanBarcode, 100); // Continuer malgré l'erreur
             });
         }
@@ -515,7 +531,9 @@
                 stream.getTracks().forEach(track => track.stop());
                 stream = null;
             }
-            document.getElementById('scannerPreview').style.display = 'none';
+            const preview = document.getElementById('scannerPreview');
+            preview.srcObject = null;
+            preview.style.display = 'none';
             document.getElementById('scannerOverlay').style.display = 'none';
             barcodeDetector = null;
         }
