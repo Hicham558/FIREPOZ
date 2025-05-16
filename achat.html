@@ -39,6 +39,27 @@
         .btn-disabled { background-color: #d1d5db !important; cursor: not-allowed !important; }
         .solde-negatif { color: #ef4444; }
         .solde-positif { color: #10b981; }
+        #pendingReceptionsModal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        #pendingReceptionsModal .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -205,6 +226,16 @@
                                 </tbody>
                             </table>
                         </div>
+                        <div class="mt-4 flex justify-end space-x-2">
+                            <div class="w-full flex space-x-2">
+                                <button id="holdReceptionButton" onclick="holdReception()" class="flex-1 bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 transition duration-300 transform hover:scale-105">
+                                    <i class="fas fa-pause mr-2"></i>Mettre en attente
+                                </button>
+                                <button id="pendingReceptionsButton" onclick="showPendingReceptions()" class="flex-1 bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700 transition duration-300 transform hover:scale-105">
+                                    <i class="fas fa-list mr-2"></i>Liste d'attente
+                                </button>
+                            </div>
+                        </div>
                         <div class="mt-4 flex justify-end">
                             <button id="validateReceptionButton" onclick="validerReception()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105" disabled>
                                 <i class="fas fa-check mr-2"></i>Valider la réception
@@ -212,6 +243,20 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="pendingReceptionsModal">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold text-gray-800">Réceptions en attente</h2>
+                <button onclick="closePendingReceptionsModal()" class="text-gray-600 hover:text-gray-800 transition">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="pendingReceptionsList" class="space-y-4">
+                <!-- Liste des réceptions en attente -->
             </div>
         </div>
     </div>
@@ -282,14 +327,12 @@
                 document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
                 document.getElementById('userDisplay').classList.remove('hidden');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                // Désactiver sellerSelect pendant le chargement
                 document.getElementById('sellerSelect').disabled = true;
                 chargerUtilisateurs().then(() => {
                     const storedSeller = localStorage.getItem('selectedSeller');
                     if (storedSeller) {
                         const { numero_util, nom } = JSON.parse(storedSeller);
                         const sellerSelect = document.getElementById('sellerSelect');
-                        // Vérifier si l'utilisateur existe dans la liste
                         const optionExists = Array.from(sellerSelect.options).some(option => option.value === numero_util);
                         if (optionExists) {
                             sellerSelect.value = numero_util;
@@ -313,7 +356,6 @@
                         document.getElementById('sellerChevron').classList.add('fa-chevron-up');
                         document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
                     }
-                    // Réactiver sellerSelect après chargement
                     sellerSelect.disabled = false;
                 });
                 chargerFournisseurs();
@@ -379,7 +421,7 @@
 
             try {
                 const sellerSelect = document.getElementById('sellerSelect');
-                const currentSelection = sellerSelect.value; // Préserver la sélection actuelle
+                const currentSelection = sellerSelect.value;
                 const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
                     headers: { 'X-User-ID': userId }
                 });
@@ -392,7 +434,6 @@
                 utilisateursCache = await response.json();
                 console.log('Utilisateurs reçus:', utilisateursCache);
 
-                // Mettre à jour la liste sans réinitialiser si possible
                 sellerSelect.innerHTML = '<option value="0">Sélectionner un utilisateur</option>';
                 utilisateursCache.forEach(utilisateur => {
                     const option = document.createElement('option');
@@ -401,7 +442,6 @@
                     sellerSelect.appendChild(option);
                 });
 
-                // Restaurer la sélection si elle est valide
                 if (currentSelection !== '0' && utilisateursCache.some(u => u.numero_util === currentSelection)) {
                     sellerSelect.value = currentSelection;
                 }
@@ -417,8 +457,7 @@
             const numeroUtil = sellerSelect.value;
             const password2 = document.getElementById('sellerPassword').value;
 
-            console.log('Valeur de sellerSelect:', numeroUtil); // Débogage
-
+            console.log('Valeur de sellerSelect:', numeroUtil);
             if (!numeroUtil || numeroUtil === '0') {
                 showToast('Veuillez sélectionner un utilisateur', true);
                 return;
@@ -453,7 +492,6 @@
 
         function changeAndValidateSeller() {
             console.log('Changement et validation de l\'utilisateur...');
-            // Réinitialiser l'UI
             const sellerSelect = document.getElementById('sellerSelect');
             sellerSelect.value = '0';
             document.getElementById('sellerPassword').value = '';
@@ -465,15 +503,13 @@
             document.getElementById('sellerChevron').classList.add('fa-chevron-up');
             document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
 
-            // Supprimer les anciennes données du localStorage
             localStorage.removeItem('selectedSeller');
             localStorage.removeItem('sellerPassword');
 
-            // Valider le nouvel utilisateur
             const numeroUtil = sellerSelect.value;
             const password2 = document.getElementById('sellerPassword').value;
 
-            console.log('Valeur de sellerSelect dans changeAndValidateSeller:', numeroUtil); // Débogage
+            console.log('Valeur de sellerSelect dans changeAndValidateSeller:', numeroUtil);
 
             if (!numeroUtil || numeroUtil === '0') {
                 showToast('Veuillez sélectionner un utilisateur', true);
@@ -647,12 +683,14 @@
             const tbody = document.getElementById('tempReceptionList');
             const itemCountElement = document.getElementById('receptionItemCount');
             const validateButton = document.getElementById('validateReceptionButton');
+            const holdReceptionButton = document.getElementById('holdReceptionButton');
 
             if (tempReceptionLines.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucune ligne ajoutée</td></tr>';
                 itemCountElement.textContent = '0';
                 itemCountElement.classList.add('hidden');
                 validateButton.disabled = true;
+                holdReceptionButton.disabled = true;
                 document.getElementById('totalAchat').textContent = '0.00 DA';
                 return;
             }
@@ -690,6 +728,7 @@
             itemCountElement.textContent = totalItems.toFixed(2);
             itemCountElement.classList.remove('hidden');
             validateButton.disabled = false;
+            holdReceptionButton.disabled = false;
             calculerTotalAchat();
         }
 
@@ -736,6 +775,97 @@
             tempReceptionLines.splice(index, 1);
             updateTempReceptionTable();
             showToast(`Ligne "${ligne.designation}" supprimée`);
+        }
+
+        function holdReception() {
+            console.log('Mise en attente de la réception...');
+            if (tempReceptionLines.length === 0) {
+                showToast('Aucune ligne à mettre en attente', true);
+                return;
+            }
+
+            const fournisseurId = document.getElementById('receptionFournisseurId').value;
+
+            const pendingReception = {
+                id: Date.now(),
+                date: new Date().toLocaleString('fr-FR'),
+                lines: [...tempReceptionLines],
+                fournisseurId
+            };
+
+            const pendingReceptions = JSON.parse(localStorage.getItem('pendingReceptions') || '[]');
+            pendingReceptions.push(pendingReception);
+            localStorage.setItem('pendingReceptions', JSON.stringify(pendingReceptions));
+
+            tempReceptionLines = [];
+            document.getElementById('receptionFournisseurId').value = '0';
+            updateTempReceptionTable();
+
+            showToast('Réception mise en attente avec succès');
+        }
+
+        function showPendingReceptions() {
+            console.log('Affichage des réceptions en attente...');
+            const modal = document.getElementById('pendingReceptionsModal');
+            const pendingReceptionsList = document.getElementById('pendingReceptionsList');
+            const pendingReceptions = JSON.parse(localStorage.getItem('pendingReceptions') || '[]');
+
+            if (pendingReceptions.length === 0) {
+                pendingReceptionsList.innerHTML = '<p class="text-center text-gray-500">Aucune réception en attente</p>';
+            } else {
+                pendingReceptionsList.innerHTML = pendingReceptions.map(reception => `
+                    <div class="border p-4 rounded-md shadow-sm bg-gray-50">
+                        <div class="flex justify-between items-center mb-2">
+                            <h3 class="font-semibold">Réception #${reception.id} - ${reception.date}</h3>
+                            <div class="space-x-2">
+                                <button onclick="loadPendingReception(${reception.id})" class="bg-green-600 text-white px-2 py-1 rounded-md hover:bg-green-700 transition">
+                                    <i class="fas fa-upload mr-1"></i> Charger
+                                </button>
+                                <button onclick="deletePendingReception(${reception.id})" class="bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
+                                    <i class="fas fa-trash mr-1"></i> Supprimer
+                                </button>
+                            </div>
+                        </div>
+                        <p><strong>Fournisseur:</strong> ${reception.fournisseurId === '0' ? 'Aucun' : fournisseursCache.find(f => f.numero_fou === parseInt(reception.fournisseurId))?.nom || 'Inconnu'}</p>
+                        <p><strong>Total:</strong> ${reception.lines.reduce((sum, line) => sum + (parseFloat(line.qtea) * parseFloat(line.prixbh)), 0).toFixed(2)} DA</p>
+                        <p><strong>Articles:</strong> ${reception.lines.length}</p>
+                    </div>
+                `).join('');
+            }
+
+            modal.style.display = 'flex';
+        }
+
+        function loadPendingReception(receptionId) {
+            console.log('Chargement de la réception en attente:', receptionId);
+            const pendingReceptions = JSON.parse(localStorage.getItem('pendingReceptions') || '[]');
+            const reception = pendingReceptions.find(r => r.id === receptionId);
+
+            if (!reception) {
+                showToast('Réception en attente non trouvée', true);
+                return;
+            }
+
+            tempReceptionLines = [...reception.lines];
+            document.getElementById('receptionFournisseurId').value = reception.fournisseurId || '0';
+            updateTempReceptionTable();
+
+            deletePendingReception(receptionId);
+            closePendingReceptionsModal();
+            showToast('Réception en attente chargée avec succès');
+        }
+
+        function deletePendingReception(receptionId) {
+            console.log('Suppression de la réception en attente:', receptionId);
+            let pendingReceptions = JSON.parse(localStorage.getItem('pendingReceptions') || '[]');
+            pendingReceptions = pendingReceptions.filter(r => r.id !== receptionId);
+            localStorage.setItem('pendingReceptions', JSON.stringify(pendingReceptions));
+            showPendingReceptions();
+            showToast('Réception en attente supprimée');
+        }
+
+        function closePendingReceptionsModal() {
+            document.getElementById('pendingReceptionsModal').style.display = 'none';
         }
 
         async function validerReception() {
