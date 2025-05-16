@@ -682,7 +682,7 @@
                     const option = document.createElement('option');
                     option.value = client.numero_clt;
                     option.innerHTML = `${client.nom} (ID: ${client.numero_clt}) <span class="${soldeClass}">[Solde: ${solde.toFixed(2)} DA]</span>`;
-leid                    selectElement.appendChild(option);
+                    selectElement.appendChild(option);
                 });
             } catch (error) {
                 showToast('Erreur lors du chargement des clients: ' + error.message, true);
@@ -1418,7 +1418,7 @@ leid                    selectElement.appendChild(option);
 
             const printWindow = window.open('', '_blank', 'width=800,height=600');
             if (!printWindow) {
-                showToast('Impossible d\'ouvrir l\'aperçu. Veuillez désactiver votre bloqueur de pop-up.', true);
+           showToast('Impossible d\'ouvrir l\'aperçu. Veuillez désactiver votre bloqueur de pop-up.', true);
                 return;
             }
 
@@ -1507,8 +1507,13 @@ leid                    selectElement.appendChild(option);
                                 margin: 0 5mm;
                                 font-size: 10pt;
                                 cursor: pointer;
+                                border-radius: 5mm;
                             }
                             @media print {
+                                body {
+                                    margin: 0;
+                                    padding: 0;
+                                }
                                 .print-controls {
                                     display: none;
                                 }
@@ -1518,8 +1523,8 @@ leid                    selectElement.appendChild(option);
                     <body>
                         ${ticketContent}
                         <div class="print-controls">
-                            <button onclick="window.print(); window.close();" style="background-color: #4CAF50; color: white; border: none; border-radius: 5mm;">Imprimer</button>
-                            <button onclick="window.close();" style="background-color: #f44336; color: white; border: none; border-radius: 5mm;">Annuler</button>
+                            <button onclick="window.print(); window.close();" style="background-color: #4CAF50; color: white; border: none;">Imprimer</button>
+                            <button onclick="window.close();" style="background-color: #f44336; color: white; border: none;">Annuler</button>
                         </div>
                     </body>
                 </html>
@@ -1527,103 +1532,81 @@ leid                    selectElement.appendChild(option);
             printWindow.document.close();
         }
 
-        // Variables globales pour le scanner
         let stream = null;
         let isScanning = false;
+        let barcodeDetector = null;
 
-        // Vérifie la compatibilité de BarcodeDetector
-        async function checkBarcodeDetectorSupport() {
-            if (!('BarcodeDetector' in window)) {
-                showToast('Le scanner de code-barres n\'est pas supporté par ce navigateur. Essayez Chrome ou Edge.', true);
-                return false;
-            }
-            return true;
-        }
-
-        // Démarre le scanner
         async function startScanner() {
             console.log('Démarrage du scanner...');
-            if (isScanning) {
-                showToast('Le scanner est déjà actif.', true);
+            if (typeof BarcodeDetector === 'undefined') {
+                showToast('Le scanner de code-barres n\'est pas supporté par ce navigateur. Utilisez Chrome ou Edge.', true);
                 return;
             }
 
-            if (!(await checkBarcodeDetectorSupport())) return;
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                showToast('L\'accès à la caméra n\'est pas supporté par ce navigateur.', true);
+                return;
+            }
 
-            const video = document.getElementById('scannerPreview');
-            const scannerOverlay = document.getElementById('scannerOverlay');
+            const preview = document.getElementById('scannerPreview');
+            const overlay = document.getElementById('scannerOverlay');
 
             try {
-                // Demande l'accès à la caméra
                 stream = await navigator.mediaDevices.getUserMedia({
                     video: { facingMode: 'environment' }
                 });
-                video.srcObject = stream;
-                video.style.display = 'block';
-                scannerOverlay.style.display = 'block';
+                preview.srcObject = stream;
+                preview.style.display = 'block';
+                overlay.style.display = 'block';
                 isScanning = true;
 
-                // Initialise BarcodeDetector
-                const barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'upc_a', 'code_128', 'qr_code'] });
-                await video.play();
-                scanBarcode(video, barcodeDetector);
-                showToast('Scanner démarré. Placez le code-barres devant la caméra.');
+                barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
+
+                scanBarcode();
             } catch (error) {
-                console.error('Erreur démarrage scanner:', error);
-                showToast('Erreur lors du démarrage du scanner: ' + error.message, true);
-                stopScanner();
+                console.error('Erreur accès caméra:', error);
+                showToast('Erreur lors de l\'accès à la caméra: ' + error.message, true);
             }
         }
 
-        // Scanne le code-barres
-        async function scanBarcode(video, barcodeDetector) {
-            if (!isScanning) return;
+        function scanBarcode() {
+            if (!isScanning || !barcodeDetector) return;
 
-            try {
-                const barcodes = await barcodeDetector.detect(video);
+            const preview = document.getElementById('scannerPreview');
+            barcodeDetector.detect(preview).then(barcodes => {
                 if (barcodes.length > 0) {
-                    const barcodeValue = barcodes[0].rawValue;
-                    console.log('Code-barres détecté:', barcodeValue);
-                    document.getElementById('productBar').value = barcodeValue;
-                    stopScanner();
-                    handleBarcodeInput(barcodeValue);
-                    return;
+                    const barcode = barcodes[0].rawValue;
+                    console.log('Code-barres détecté:', barcode);
+                    document.getElementById('productBar').value = barcode;
+                    rechercherProduitParCodeBarre(barcode);
+                    // Ne pas arrêter le scanner ici pour garder l'aperçu actif
+                    setTimeout(scanBarcode, 1000); // Attendre 1 seconde avant de relancer pour éviter les scans multiples
+                } else {
+                    setTimeout(scanBarcode, 100);
                 }
-            } catch (error) {
+            }).catch(error => {
                 console.error('Erreur détection code-barres:', error);
-                showToast('Erreur lors de la détection du code-barres.', true);
+                showToast('Erreur lors de la détection du code-barres', true);
                 stopScanner();
-                return;
-            }
-
-            // Continue le scan si aucun code-barres n'est détecté
-            setTimeout(() => scanBarcode(video, barcodeDetector), 100);
+            });
         }
 
-        // Arrête le scanner
         function stopScanner() {
             console.log('Arrêt du scanner...');
-            const video = document.getElementById('scannerPreview');
-            const scannerOverlay = document.getElementById('scannerOverlay');
-
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
                 stream = null;
             }
-
-            video.srcObject = null;
-            video.style.display = 'none';
-            scannerOverlay.style.display = 'none';
+            const preview = document.getElementById('scannerPreview');
+            const overlay = document.getElementById('scannerOverlay');
+            preview.style.display = 'none';
+            overlay.style.display = 'none';
             isScanning = false;
-            showToast('Scanner arrêté.');
+            barcodeDetector = null;
         }
 
-        // Associe le bouton "Exit" à stopScanner
-        document.getElementById('closeScannerButton').addEventListener('click', stopScanner);
-
-        // Gère l'entrée manuelle ou scannée du code-barres
-        function handleBarcodeInput(barcode) {
-            console.log('Traitement code-barres:', barcode);
+        function rechercherProduitParCodeBarre(barcode) {
+            console.log('Recherche produit par code-barres:', barcode);
             const produit = produitsCache.find(p => p.BAR.toString() === barcode.toString());
             if (produit) {
                 selectProduct(
@@ -1635,29 +1618,31 @@ leid                    selectElement.appendChild(option);
                     produit.DESIGNATION
                 );
             } else {
-                showToast('Produit non trouvé pour ce code-barres.', true);
+                showToast('Produit non trouvé pour ce code-barres', true);
             }
         }
 
-        // Écouteur pour l'entrée manuelle du code-barres
-        document.getElementById('productBar').addEventListener('change', (e) => {
-            const barcode = e.target.value.trim();
-            if (barcode) {
-                handleBarcodeInput(barcode);
-                e.target.value = ''; // Réinitialise le champ
+        document.getElementById('closeScannerButton').addEventListener('click', stopScanner);
+
+        document.getElementById('productBar').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                const barcode = this.value.trim();
+                if (barcode) {
+                    rechercherProduitParCodeBarre(barcode);
+                    this.value = '';
+                }
             }
         });
 
-        // Recherche de produits
-        document.getElementById('searchProduct').addEventListener('input', (e) => {
-            const searchTerm = e.target.value.toLowerCase();
+        document.getElementById('searchProduct').addEventListener('input', function () {
+            const searchTerm = this.value.toLowerCase();
+            const tbody = document.getElementById('productsList');
+            tbody.innerHTML = '';
+
             const filteredProducts = produitsCache.filter(produit =>
                 produit.DESIGNATION.toLowerCase().includes(searchTerm) ||
                 produit.BAR.toString().includes(searchTerm)
             );
-
-            const tbody = document.getElementById('productsList');
-            tbody.innerHTML = '';
 
             if (filteredProducts.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
