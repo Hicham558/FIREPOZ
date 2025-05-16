@@ -48,6 +48,19 @@
         }
         #closeScannerButton {
             z-index: 1001;
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background-color: #ef4444;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        #closeScannerButton:hover {
+            background-color: #dc2626;
         }
         #scannerOverlay {
             display: none;
@@ -348,7 +361,7 @@
 
     <video id="scannerPreview" autoplay playsinline class="relative" style="width: 300px; height: 200px; border: 2px solid #e5e7eb; position: fixed; top: 100px; left: 50%; transform: translateX(-50%); z-index: 1000; display: none; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
         <button id="closeScannerButton" class="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition duration-300">
-            <i class="fas fa-times"></i> Fermer
+            <i class="fas fa-times"></i> Exit
         </button>
     </video>
     <div id="scannerOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 999;"></div>
@@ -627,27 +640,14 @@
             document.getElementById('selectedSellerName').textContent = '-';
             document.getElementById('headerSellerName').textContent = '-';
             document.getElementById('validateSellerButton').textContent = 'Valider';
-            document.getElementById('sellerContent').classList.remove('hidden');
-            document.getElementById('sellerChevron').classList.add('fa-chevron-up');
-            document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
+            document.getElementById('validateSellerButton').onclick = validerVendeur;
 
             localStorage.removeItem('selectedSeller');
             localStorage.removeItem('sellerPassword');
 
-            const numeroUtil = sellerSelect.value;
-            const password2 = document.getElementById('sellerPassword').value;
-
-            if (!numeroUtil || numeroUtil === '0') {
-                showToast('Veuillez sélectionner un vendeur', true);
-                return;
-            }
-
-            if (!password2) {
-                showToast('Veuillez entrer le mot de passe', true);
-                return;
-            }
-
-            validerVendeur();
+            document.getElementById('sellerContent').classList.remove('hidden');
+            document.getElementById('sellerChevron').classList.add('fa-chevron-up');
+            document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
         }
 
         async function chargerClients() {
@@ -1418,7 +1418,7 @@
 
             const printWindow = window.open('', '_blank', 'width=800,height=600');
             if (!printWindow) {
-                showToast('Impossible d\'ouvrir l\'aperçu. Veuillez désactiver votre bloqueur de pop-up.', true);
+           showToast('Impossible d\'ouvrir l\'aperçu. Veuillez désactiver votre bloqueur de pop-up.', true);
                 return;
             }
 
@@ -1507,21 +1507,24 @@
                                 margin: 0 5mm;
                                 font-size: 10pt;
                                 cursor: pointer;
-                                border: none;
                                 border-radius: 5mm;
                             }
                             @media print {
-                                body { margin: 0; }
-                                .print-controls { display: none; }
-                                .printable { box-shadow: none; border: none; }
+                                body {
+                                    margin: 0;
+                                    padding: 0;
+                                }
+                                .print-controls {
+                                    display: none;
+                                }
                             }
                         </style>
                     </head>
                     <body>
                         ${ticketContent}
                         <div class="print-controls">
-                            <button onclick="window.print(); window.close();" style="background-color: #4CAF50; color: white;">Imprimer</button>
-                            <button onclick="window.close();" style="background-color: #f44336; color: white;">Annuler</button>
+                            <button onclick="window.print(); window.close();" style="background-color: #4CAF50; color: white; border: none;">Imprimer</button>
+                            <button onclick="window.close();" style="background-color: #f44336; color: white; border: none;">Annuler</button>
                         </div>
                     </body>
                 </html>
@@ -1530,13 +1533,13 @@
         }
 
         let stream = null;
-        let barcodeDetector = null;
         let isScanning = false;
+        let barcodeDetector = null;
 
         async function startScanner() {
             console.log('Démarrage du scanner...');
-            if (!('BarcodeDetector' in window)) {
-            showToast('Le scanner de code-barres n\'est pas supporté par ce navigateur. Utilisez Chrome ou Edge.', true);
+            if (typeof BarcodeDetector === 'undefined') {
+                showToast('Le scanner de code-barres n\'est pas supporté par ce navigateur. Utilisez Chrome ou Edge.', true);
                 return;
             }
 
@@ -1547,7 +1550,6 @@
 
             const preview = document.getElementById('scannerPreview');
             const overlay = document.getElementById('scannerOverlay');
-            const closeButton = document.getElementById('closeScannerButton');
 
             try {
                 stream = await navigator.mediaDevices.getUserMedia({
@@ -1559,8 +1561,6 @@
                 isScanning = true;
 
                 barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
-
-                closeButton.onclick = stopScanner;
 
                 scanBarcode();
             } catch (error) {
@@ -1577,9 +1577,10 @@
                 if (barcodes.length > 0) {
                     const barcode = barcodes[0].rawValue;
                     console.log('Code-barres détecté:', barcode);
-                    stopScanner();
                     document.getElementById('productBar').value = barcode;
                     rechercherProduitParCodeBarre(barcode);
+                    // Ne pas arrêter le scanner ici pour garder l'aperçu actif
+                    setTimeout(scanBarcode, 1000); // Attendre 1 seconde avant de relancer pour éviter les scans multiples
                 } else {
                     setTimeout(scanBarcode, 100);
                 }
@@ -1620,6 +1621,8 @@
                 showToast('Produit non trouvé pour ce code-barres', true);
             }
         }
+
+        document.getElementById('closeScannerButton').addEventListener('click', stopScanner);
 
         document.getElementById('productBar').addEventListener('keypress', function (e) {
             if (e.key === 'Enter') {
