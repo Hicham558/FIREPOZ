@@ -107,6 +107,7 @@
                     <i class="fas fa-fire mr-2 text-amber-400 animate-pulse"></i> FirePoz
                 </h1>
                 <span id="userDisplay" class="small-email user-anim hidden"></span>
+Thread: 1 Message: 7
             </div>
             <div class="space-x-4 flex items-center">
                 <a href="page1.html" class="hover:text-indigo-200 transition flex items-center">
@@ -401,7 +402,7 @@
                                 <i class="fas fa-stop mr-2"></i>Arrêter
                             </button>
                             <button onclick="resetProductForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-times mr-2"></i>Annuler
+                                <i class="fas fa-times mr-2"></ipray-1"></i>Annuler
                             </button>
                             <button onclick="saveProduct()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
                                 <i class="fas fa-save mr-2"></i>Enregistrer
@@ -414,9 +415,9 @@
                             <thead class="bg-gray-50">
                                 <tr>
                                     <th class="hidden-id">ID</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Désignation</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code Barre</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Désignation</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Vente</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Achat</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
@@ -1225,9 +1226,9 @@
                     tr.className = 'hover:bg-gray-50';
                     tr.innerHTML = `
                         <td class="hidden-id">${produit.NUMERO_ITEM || 'N/A'}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.REF || 'N/A'}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || '0.00').toFixed(2)}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
@@ -1260,14 +1261,14 @@
             document.getElementById('productId').value = numero_item;
             document.getElementById('productBar').value = bar;
             document.getElementById('productDesignation').value = designation;
-            document.getElementById('productPrix').value = prix;
-            document.getElementById('productPrixba').value = prixba;
+            document.getElementById('productPrix').value = parseFloat(prix).toFixed(2);
+            document.getElementById('productPrixba').value = prixba ? parseFloat(prixba).toFixed(2) : '';
             document.getElementById('productQte').value = qte;
             document.getElementById('productFormTitle').textContent = 'Modifier Produit';
             document.getElementById('productForm').classList.remove('hidden');
         }
 
-        async function supprimerProduit(numero_item) {
+        async function supprimerProduit(id) {
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour supprimer un produit', true);
@@ -1279,7 +1280,7 @@
             }
 
             try {
-                const response = await fetch(`${API_BASE_URL}/supprimer_item/${numero_item}`, {
+                const response = await fetch(`${API_BASE_URL}/supprimer_item/${id}`, {
                     method: 'DELETE',
                     headers: {
                         'X-User-ID': userId
@@ -1306,7 +1307,7 @@
                 return;
             }
 
-          const id = document.getElementById('productId').value;
+            const id = document.getElementById('productId').value;
             const bar = document.getElementById('productBar').value.trim();
             const designation = document.getElementById('productDesignation').value.trim();
             const prix = document.getElementById('productPrix').value;
@@ -1319,7 +1320,7 @@
             }
 
             const prixValue = parseFloat(prix);
-            const prixbaValue = prixba ? parseFloat(prixba) : '0.00';
+            const prixbaValue = prixba ? parseFloat(prixba) : 0;
             const qteValue = parseInt(qte);
 
             if (isNaN(prixValue) || isNaN(qteValue) || prixValue < 0 || qteValue < 0) {
@@ -1328,23 +1329,6 @@
             }
 
             try {
-                // Vérifier si le code-barres existe déjà (sauf pour le produit en cours de modification)
-                const checkResponse = await fetch(`${API_BASE_URL}/check_barcode/${bar}`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
-                });
-
-                const checkResult = await checkResponse.json();
-                if (!checkResponse.ok) {
-                    throw new Error(checkResult.erreur || 'Erreur lors de la vérification du code-barres');
-                }
-
-                if (checkResult.exists && id !== checkResult.id) {
-                    showToast('Ce code-barres est déjà utilisé', true);
-                    return;
-                }
-
                 const url = id ? `${API_BASE_URL}/modifier_item/${id}` : `${API_BASE_URL}/ajouter_item`;
                 const method = id ? 'PUT' : 'POST';
                 const response = await fetch(url, {
@@ -1362,11 +1346,15 @@
                     })
                 });
 
-                const result = await response.json();
                 if (!response.ok) {
+                    const result = await response.json();
+                    if (response.status === 409) {
+                        throw new Error('Ce code-barres existe déjà');
+                    }
                     throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
                 }
 
+                const result = await response.json();
                 showToast(id ? 'Produit modifié avec succès' : 'Produit ajouté avec succès');
                 resetProductForm();
                 chargerProduits();
@@ -1462,10 +1450,10 @@
             const rows = document.querySelectorAll('#productsList tr');
 
             rows.forEach(row => {
-                const bar = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-                const ref = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
-                const designation = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
-                if (bar?.includes(searchTerm) || ref?.includes(searchTerm) || designation?.includes(searchTerm)) {
+                const designation = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
+                const bar = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
+                const ref = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
+                if (designation?.includes(searchTerm) || bar?.includes(searchTerm) || ref?.includes(searchTerm)) {
                     row.style.display = '';
                 } else {
                     row.style.display = 'none';
@@ -1644,4 +1632,4 @@
         });
     </script>
 </body>
-</html>  
+</html>
