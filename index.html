@@ -1325,7 +1325,121 @@
         });
 
         // --- Gestion des produits ---
-        async function ajouterProduit() {
+      // --- Gestion des produits ---
+async function chargerProduits() {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour voir les produits', true);
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/liste_produits`, {
+            headers: { 'X-User-ID': userId }
+        });
+        if (!response.ok) {
+            throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+        }
+        const produits = await response.json();
+        const tbody = document.getElementById('productsList');
+        const countElement = document.getElementById('productCount');
+
+        if (produits.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
+            countElement.textContent = '0';
+            countElement.classList.remove('hidden');
+            return;
+        }
+
+        tbody.innerHTML = '';
+        produits.forEach(produit => {
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-gray-50';
+            tr.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.code_barre || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${produit.designation || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.reference || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.prix_vente || '0'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.prix_achat || '0'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.qte_stock || '0'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <button onclick="editProduit('${produit.numero_prd}')" class="text-indigo-600 hover:text-indigo-800 transition">
+                        <i class="fas fa-edit"></i> Modifier
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+        countElement.textContent = produits.length;
+        countElement.classList.remove('hidden');
+    } catch (error) {
+        document.getElementById('productsList').innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center py-4 text-red-500">
+                    Erreur de chargement: ${error.message}
+                </td>
+            </tr>
+        `;
+        console.error('Erreur produits:', error);
+    }
+}
+
+// --- Gestion des utilisateurs ---
+async function chargerUtilisateurs() {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour voir les utilisateurs', true);
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+            headers: { 'X-User-ID': userId }
+        });
+        if (!response.ok) {
+            throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+        }
+        const utilisateurs = await response.json();
+        const tbody = document.getElementById('utilisateursList');
+        const countElement = document.getElementById('utilisateurCount');
+
+        if (utilisateurs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun utilisateur trouvé</td></tr>';
+            countElement.textContent = '0';
+            countElement.classList.remove('hidden');
+            return;
+        }
+
+        tbody.innerHTML = '';
+        utilisateurs.forEach(utilisateur => {
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-gray-50';
+            tr.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.id || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${utilisateur.nom || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.statut || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <button onclick="editUtilisateur('${utilisateur.id}')" class="text-indigo-600 hover:text-indigo-800 transition">
+                        <i class="fas fa-edit"></i> Modifier
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+        countElement.textContent = utilisateurs.length;
+        countElement.classList.remove('hidden');
+    } catch (error) {
+        document.getElementById('utilisateursList').innerHTML = `
+            <tr>
+                <td colspan="4" class="text-center py-4 text-red-500">
+                    Erreur de chargement: ${error.message}
+                </td>
+            </tr>
+        `;
+        console.error('Erreur utilisateurs:', error);
+    }
+}
+	  async function ajouterProduit() {
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour ajouter un produit', true);
