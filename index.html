@@ -579,7 +579,7 @@
         </div>
     </div>
 
-    <script>
+   <script>
     const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
     let caChartInstance = null;
     let stream = null;
@@ -645,6 +645,24 @@
 
         document.getElementById('scrollTopButton').addEventListener('click', () => {
             window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+
+        // Ajout des écouteurs d'événements pour les formulaires
+        document.getElementById('clientForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            ajouterClient();
+        });
+        document.getElementById('fournisseurForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            ajouterFournisseur();
+        });
+        document.getElementById('productForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            ajouterProduit();
+        });
+        document.getElementById('utilisateurForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            ajouterUtilisateur();
         });
     });
 
@@ -910,15 +928,15 @@
             tr.className = 'hover:bg-gray-50';
             tr.innerHTML = `
                 <td class="px-6 py-4 whitespace-nowrap">${index + 1}</td>
-                <td class="px-6 py-4 whitespace-nowrap">${client.reference}</td>
+                <td class="px-6 py-4 whitespace-nowrap">${client.numero_clt}</td>
                 <td class="px-6 py-4 whitespace-nowrap">${client.nom}</td>
                 <td class="px-6 py-4 whitespace-nowrap">${client.contact || ''}</td>
                 <td class="px-6 py-4 whitespace-nowrap">${client.adresse || ''}</td>
                 <td class="px-6 py-4 whitespace-nowrap action-buttons">
-                    <button onclick="editerClient('${client.reference}')" class="text-blue-600 hover:text-blue-800 mr-2">
+                    <button onclick="editerClient('${client.numero_clt}')" class="text-blue-600 hover:text-blue-800 mr-2">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button onclick="supprimerClient('${client.reference}')" class="text-red-600 hover:text-red-800">
+                    <button onclick="supprimerClient('${client.numero_clt}')" class="text-red-600 hover:text-red-800">
                         <i class="fas fa-trash"></i>
                     </button>
                 </td>
@@ -945,7 +963,7 @@
             return;
         }
 
-        const reference = document.getElementById('clientReference').value;
+        const numeroClt = document.getElementById('clientNumeroClt').value;
         const nom = document.getElementById('clientNom').value.trim();
         const contact = document.getElementById('clientContact').value.trim();
         const adresse = document.getElementById('clientAdresse').value.trim();
@@ -956,8 +974,8 @@
         }
 
         try {
-            const url = reference ? `${API_BASE_URL}/modifier_client/${reference}` : `${API_BASE_URL}/ajouter_client`;
-            const method = reference ? 'PUT' : 'POST';
+            const url = numeroClt ? `${API_BASE_URL}/modifier_client/${numeroClt}` : `${API_BASE_URL}/ajouter_client`;
+            const method = numeroClt ? 'PUT' : 'POST';
             const response = await fetch(url, {
                 method: method,
                 headers: {
@@ -965,34 +983,35 @@
                     'X-User-ID': userId
                 },
                 body: JSON.stringify({
+                    numero_clt: numeroClt || undefined,
                     nom,
                     contact,
                     adresse
                 })
             });
 
-            const result = await response.json();
             if (!response.ok) {
-                throw new Error(result.erreur || 'Erreur lors de l\'opération');
+                const result = await response.json();
+                throw new Error(result.erreur || `Erreur ${response.status}: ${response.statusText}`);
             }
 
-            showToast(reference ? 'Client modifié avec succès' : 'Client ajouté avec succès');
+            showToast(numeroClt ? 'Client modifié avec succès' : 'Client ajouté avec succès');
             resetClientForm();
-            chargerClients();
+            await chargerClients();
         } catch (error) {
-            showToast(error.message, true);
+            showToast(`Erreur: ${error.message}`, true);
             console.error('Erreur client:', error);
         }
     }
 
-    async function editerClient(reference) {
-        const client = clientsData.find(c => c.reference === reference);
+    async function editerClient(numeroClt) {
+        const client = clientsData.find(c => c.numero_clt === numeroClt);
         if (!client) {
             showToast('Client non trouvé', true);
             return;
         }
 
-        document.getElementById('clientReference').value = client.reference;
+        document.getElementById('clientNumeroClt').value = client.numero_clt;
         document.getElementById('clientNom').value = client.nom;
         document.getElementById('clientContact').value = client.contact || '';
         document.getElementById('clientAdresse').value = client.adresse || '';
@@ -1001,7 +1020,7 @@
         document.getElementById('clientForm').classList.remove('hidden');
     }
 
-    async function supprimerClient(reference) {
+    async function supprimerClient(numeroClt) {
         const userId = localStorage.getItem('userId');
         if (!userId) {
             showToast('Veuillez vous connecter pour supprimer un client', true);
@@ -1013,28 +1032,28 @@
         }
 
         try {
-            const response = await fetch(`${API_BASE_URL}/supprimer_client/${reference}`, {
+            const response = await fetch(`${API_BASE_URL}/supprimer_client/${numeroClt}`, {
                 method: 'DELETE',
                 headers: {
                     'X-User-ID': userId
                 }
             });
 
-            const result = await response.json();
             if (!response.ok) {
-                throw new Error(result.erreur || 'Erreur lors de la suppression');
+                const result = await response.json();
+                throw new Error(result.erreur || `Erreur ${response.status}: ${response.statusText}`);
             }
 
             showToast('Client supprimé avec succès');
-            chargerClients();
+            await chargerClients();
         } catch (error) {
-            showToast(error.message, true);
+            showToast(`Erreur: ${error.message}`, true);
             console.error('Erreur suppression client:', error);
         }
     }
 
     function resetClientForm() {
-        document.getElementById('clientReference').value = '';
+        document.getElementById('clientNumeroClt').value = '';
         document.getElementById('clientNom').value = '';
         document.getElementById('clientContact').value = '';
         document.getElementById('clientAdresse').value = '';
@@ -1044,8 +1063,9 @@
     }
 
     function toggleClientForm() {
-        document.getElementById('clientForm').classList.toggle('hidden');
-        if (!document.getElementById('clientForm').classList.contains('hidden')) {
+        const form = document.getElementById('clientForm');
+        form.classList.toggle('hidden');
+        if (!form.classList.contains('hidden')) {
             resetClientForm();
         }
     }
@@ -1100,15 +1120,15 @@
             tr.className = 'hover:bg-gray-50';
             tr.innerHTML = `
                 <td class="px-6 py-4 whitespace-nowrap">${index + 1}</td>
-                <td class="px-6 py-4 whitespace-nowrap">${fournisseur.reference}</td>
+                <td class="px-6 py-4 whitespace-nowrap">${fournisseur.numero_fou}</td>
                 <td class="px-6 py-4 whitespace-nowrap">${fournisseur.nom}</td>
                 <td class="px-6 py-4 whitespace-nowrap">${fournisseur.contact || ''}</td>
                 <td class="px-6 py-4 whitespace-nowrap">${fournisseur.adresse || ''}</td>
                 <td class="px-6 py-4 whitespace-nowrap action-buttons">
-                    <button onclick="editerFournisseur('${fournisseur.reference}')" class="text-blue-600 hover:text-blue-800 mr-2">
+                    <button onclick="editerFournisseur('${fournisseur.numero_fou}')" class="text-blue-600 hover:text-blue-800 mr-2">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button onclick="supprimerFournisseur('${fournisseur.reference}')" class="text-red-600 hover:text-red-800">
+                    <button onclick="supprimerFournisseur('${fournisseur.numero_fou}')" class="text-red-600 hover:text-red-800">
                         <i class="fas fa-trash"></i>
                     </button>
                 </td>
@@ -1135,7 +1155,7 @@
             return;
         }
 
-        const reference = document.getElementById('fournisseurReference').value;
+        const numeroFou = document.getElementById('fournisseurNumeroFou').value;
         const nom = document.getElementById('fournisseurNom').value.trim();
         const contact = document.getElementById('fournisseurContact').value.trim();
         const adresse = document.getElementById('fournisseurAdresse').value.trim();
@@ -1146,8 +1166,8 @@
         }
 
         try {
-            const url = reference ? `${API_BASE_URL}/modifier_fournisseur/${reference}` : `${API_BASE_URL}/ajouter_fournisseur`;
-            const method = reference ? 'PUT' : 'POST';
+            const url = numeroFou ? `${API_BASE_URL}/modifier_fournisseur/${numeroFou}` : `${API_BASE_URL}/ajouter_fournisseur`;
+            const method = numeroFou ? 'PUT' : 'POST';
             const response = await fetch(url, {
                 method: method,
                 headers: {
@@ -1155,34 +1175,35 @@
                     'X-User-ID': userId
                 },
                 body: JSON.stringify({
+                    numero_fou: numeroFou || undefined,
                     nom,
                     contact,
                     adresse
                 })
             });
 
-            const result = await response.json();
             if (!response.ok) {
-                throw new Error(result.erreur || 'Erreur lors de l\'opération');
+                const result = await response.json();
+                throw new Error(result.erreur || `Erreur ${response.status}: ${response.statusText}`);
             }
 
-            showToast(reference ? 'Fournisseur modifié avec succès' : 'Fournisseur ajouté avec succès');
+            showToast(numeroFou ? 'Fournisseur modifié avec succès' : 'Fournisseur ajouté avec succès');
             resetFournisseurForm();
-            chargerFournisseurs();
+            await chargerFournisseurs();
         } catch (error) {
-            showToast(error.message, true);
+            showToast(`Erreur: ${error.message}`, true);
             console.error('Erreur fournisseur:', error);
         }
     }
 
-    async function editerFournisseur(reference) {
-        const fournisseur = fournisseursData.find(f => f.reference === reference);
+    async function editerFournisseur(numeroFou) {
+        const fournisseur = fournisseursData.find(f => f.numero_fou === numeroFou);
         if (!fournisseur) {
             showToast('Fournisseur non trouvé', true);
             return;
         }
 
-        document.getElementById('fournisseurReference').value = fournisseur.reference;
+        document.getElementById('fournisseurNumeroFou').value = fournisseur.numero_fou;
         document.getElementById('fournisseurNom').value = fournisseur.nom;
         document.getElementById('fournisseurContact').value = fournisseur.contact || '';
         document.getElementById('fournisseurAdresse').value = fournisseur.adresse || '';
@@ -1191,7 +1212,7 @@
         document.getElementById('fournisseurForm').classList.remove('hidden');
     }
 
-    async function supprimerFournisseur(reference) {
+    async function supprimerFournisseur(numeroFou) {
         const userId = localStorage.getItem('userId');
         if (!userId) {
             showToast('Veuillez vous connecter pour supprimer un fournisseur', true);
@@ -1203,28 +1224,28 @@
         }
 
         try {
-            const response = await fetch(`${API_BASE_URL}/supprimer_fournisseur/${reference}`, {
+            const response = await fetch(`${API_BASE_URL}/supprimer_fournisseur/${numeroFou}`, {
                 method: 'DELETE',
                 headers: {
                     'X-User-ID': userId
                 }
             });
 
-            const result = await response.json();
             if (!response.ok) {
-                throw new Error(result.erreur || 'Erreur lors de la suppression');
+                const result = await response.json();
+                throw new Error(result.erreur || `Erreur ${response.status}: ${response.statusText}`);
             }
 
             showToast('Fournisseur supprimé avec succès');
-            chargerFournisseurs();
+            await chargerFournisseurs();
         } catch (error) {
-            showToast(error.message, true);
+            showToast(`Erreur: ${error.message}`, true);
             console.error('Erreur suppression fournisseur:', error);
         }
     }
 
     function resetFournisseurForm() {
-        document.getElementById('fournisseurReference').value = '';
+        document.getElementById('fournisseurNumeroFou').value = '';
         document.getElementById('fournisseurNom').value = '';
         document.getElementById('fournisseurContact').value = '';
         document.getElementById('fournisseurAdresse').value = '';
@@ -1234,8 +1255,9 @@
     }
 
     function toggleFournisseurForm() {
-        document.getElementById('fournisseurForm').classList.toggle('hidden');
-        if (!document.getElementById('fournisseurForm').classList.contains('hidden')) {
+        const form = document.getElementById('fournisseurForm');
+        form.classList.toggle('hidden');
+        if (!form.classList.contains('hidden')) {
             resetFournisseurForm();
         }
     }
@@ -1290,16 +1312,16 @@
             tr.className = 'hover:bg-gray-50';
             tr.innerHTML = `
                 <td class="px-6 py-4 whitespace-nowrap">${index + 1}</td>
-                <td class="px-6 py-4 whitespace-nowrap">${produit.REF}</td>
-                <td class="px-6 py-4">${produit.DESIGNATION}</td>
-                <td class="px-6 py-4 whitespace-nowrap">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
-                <td class="px-6 py-4 whitespace-nowrap">${parseFloat(produit.PRIXBA || 0).toFixed(2)}</td>
-                <td class="px-6 py-4 whitespace-nowrap">${produit.QTE || 0}</td>
+                <td class="px-6 py-4 whitespace-nowrap">${produit.numero_item}</td>
+                <td class="px-6 py-4">${produit.designation}</td>
+                <td class="px-6 py-4 whitespace-nowrap">${parseFloat(produit.prix || 0).toFixed(2)}</td>
+                <td class="px-6 py-4 whitespace-nowrap">${parseFloat(produit.prixba || 0).toFixed(2)}</td>
+                <td class="px-6 py-4 whitespace-nowrap">${produit.qte || 0}</td>
                 <td class="px-6 py-4 whitespace-nowrap action-buttons">
-                    <button onclick="editerProduit('${produit.NUMERO_ITEM}')" class="text-blue-600 hover:text-blue-800 mr-2">
+                    <button onclick="editerProduit('${produit.numero_item}')" class="text-blue-600 hover:text-blue-800 mr-2">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button onclick="supprimerProduit('${produit.NUMERO_ITEM}')" class="text-red-600 hover:text-red-800">
+                    <button onclick="supprimerProduit('${produit.numero_item}')" class="text-red-600 hover:text-red-800">
                         <i class="fas fa-trash"></i>
                     </button>
                 </td>
@@ -1314,7 +1336,7 @@
     function filterProduits() {
         const searchTerm = document.getElementById('searchProduct').value.toLowerCase();
         const filteredProduits = produitsData.filter(produit => 
-            produit.DESIGNATION.toLowerCase().includes(searchTerm)
+            produit.designation.toLowerCase().includes(searchTerm)
         );
         renderProduits(filteredProduits);
     }
@@ -1348,6 +1370,7 @@
                     'X-User-ID': userId
                 },
                 body: JSON.stringify({
+                    numero_item: numeroItem || undefined,
                     designation,
                     bar,
                     prix: parseFloat(prix),
@@ -1356,33 +1379,33 @@
                 })
             });
 
-            const result = await response.json();
             if (!response.ok) {
-                throw new Error(result.erreur || 'Erreur lors de l\'opération');
+                const result = await response.json();
+                throw new Error(result.erreur || `Erreur ${response.status}: ${response.statusText}`);
             }
 
             showToast(numeroItem ? 'Produit modifié avec succès' : 'Produit ajouté avec succès');
             resetProductForm();
-            chargerProduits();
+            await chargerProduits();
         } catch (error) {
-            showToast(error.message, true);
+            showToast(`Erreur: ${error.message}`, true);
             console.error('Erreur produit:', error);
         }
     }
 
     async function editerProduit(numeroItem) {
-        const produit = produitsData.find(p => p.NUMERO_ITEM === numeroItem);
+        const produit = produitsData.find(p => p.numero_item === numeroItem);
         if (!produit) {
             showToast('Produit non trouvé', true);
             return;
         }
 
-        document.getElementById('productNumeroItem').value = produit.NUMERO_ITEM;
-        document.getElementById('productDesignation').value = produit.DESIGNATION;
-        document.getElementById('productBar').value = produit.BAR;
-        document.getElementById('productPrix').value = parseFloat(produit.PRIX || 0).toFixed(2);
-        document.getElementById('productPrixba').value = parseFloat(produit.PRIXBA || 0).toFixed(2);
-        document.getElementById('productQte').value = produit.QTE || 0;
+        document.getElementById('productNumeroItem').value = produit.numero_item;
+        document.getElementById('productDesignation').value = produit.designation;
+        document.getElementById('productBar').value = produit.bar;
+        document.getElementById('productPrix').value = parseFloat(produit.prix || 0).toFixed(2);
+        document.getElementById('productPrixba').value = parseFloat(produit.prixba || 0).toFixed(2);
+        document.getElementById('productQte').value = produit.qte || 0;
         document.getElementById('productFormTitle').textContent = 'Modifier Produit';
         document.getElementById('productSubmitButton').innerHTML = '<i class="fas fa-save mr-2"></i>Modifier';
         document.getElementById('productForm').classList.remove('hidden');
@@ -1407,15 +1430,15 @@
                 }
             });
 
-            const result = await response.json();
             if (!response.ok) {
-                throw new Error(result.erreur || 'Erreur lors de la suppression');
+                const result = await response.json();
+                throw new Error(result.erreur || `Erreur ${response.status}: ${response.statusText}`);
             }
 
             showToast('Produit supprimé avec succès');
-            chargerProduits();
+            await chargerProduits();
         } catch (error) {
-            showToast(error.message, true);
+            showToast(`Erreur: ${error.message}`, true);
             console.error('Erreur suppression produit:', error);
         }
     }
@@ -1434,8 +1457,9 @@
     }
 
     function toggleProductForm() {
-        document.getElementById('productForm').classList.toggle('hidden');
-        if (!document.getElementById('productForm').classList.contains('hidden')) {
+        const form = document.getElementById('productForm');
+        form.classList.toggle('hidden');
+        if (!form.classList.contains('hidden')) {
             resetProductForm();
         }
     }
@@ -1592,22 +1616,23 @@
                     'X-User-ID': userId
                 },
                 body: JSON.stringify({
+                    id,
                     nom,
                     password,
                     statut
                 })
             });
 
-            const result = await response.json();
             if (!response.ok) {
-                throw new Error(result.erreur || 'Erreur lors de l\'opération');
+                const result = await response.json();
+                throw new Error(result.erreur || `Erreur ${response.status}: ${response.statusText}`);
             }
 
             showToast(id ? 'Utilisateur modifié avec succès' : 'Utilisateur ajouté avec succès');
             resetUtilisateurForm();
-            chargerUtilisateurs();
+            await chargerUtilisateurs();
         } catch (error) {
-            showToast(error.message, true);
+            showToast(`Erreur: ${error.message}`, true);
             console.error('Erreur utilisateur:', error);
         }
     }
@@ -1663,15 +1688,15 @@
                 }
             });
 
-            const result = await response.json();
             if (!response.ok) {
-                throw new Error(result.erreur || 'Erreur lors de la suppression');
+                const result = await response.json();
+                throw new Error(result.erreur || `Erreur ${response.status}: ${response.statusText}`);
             }
 
             showToast('Utilisateur supprimé avec succès');
-            chargerUtilisateurs();
+            await chargerUtilisateurs();
         } catch (error) {
-            showToast(error.message, true);
+            showToast(`Erreur: ${error.message}`, true);
             console.error('Erreur suppression utilisateur:', error);
         }
     }
@@ -1687,8 +1712,9 @@
     }
 
     function toggleUtilisateurForm() {
-        document.getElementById('utilisateurForm').classList.toggle('hidden');
-        if (!document.getElementById('utilisateurForm').classList.contains('hidden')) {
+        const form = document.getElementById('utilisateurForm');
+        form.classList.toggle('hidden');
+        if (!form.classList.contains('hidden')) {
             resetUtilisateurForm();
         }
     }
