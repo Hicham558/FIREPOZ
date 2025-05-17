@@ -255,7 +255,7 @@
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                                    <th class="px-6 py-3 crédito text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
@@ -1224,18 +1224,18 @@
                     const tr = document.createElement('tr');
                     tr.className = 'hover:bg-gray-50';
                     tr.innerHTML = `
-                        <td class="hidden-id">${produit.id || 'N/A'}</td>
+                        <td class="hidden-id">${produit.NUMERO_ITEM || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.ref || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.REF || 'N/A'}</td>
                         <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || '0.00').toFixed(2)}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <button onclick="modifierProduit('${produit.id}', '${produit.BAR}', '${produit.ref}', '${produit.DESIGNATION}', '${produit.PRIX}', '${produit.PRIXBA}', '${produit.QTE}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
+                            <button onclick="modifierProduit('${produit.NUMERO_ITEM}', '${produit.BAR}', '${produit.DESIGNATION}', '${produit.PRIX}', '${produit.PRIXBA}', '${produit.QTE}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
                                 <i class="fas fa-edit"></i> Modifier
                             </button>
-                            <button onclick="supprimerProduit('${produit.id}')" class="text-red-600 hover:text-red-800 transition">
+                            <button onclick="supprimerProduit('${produit.NUMERO_ITEM}')" class="text-red-600 hover:text-red-800 transition">
                                 <i class="fas fa-trash-alt"></i> Supprimer
                             </button>
                         </td>
@@ -1256,10 +1256,9 @@
             }
         }
 
-        function modifierProduit(id, bar, ref, designation, prix, prixba, qte) {
-            document.getElementById('productId').value = id;
+        function modifierProduit(numero_item, bar, designation, prix, prixba, qte) {
+            document.getElementById('productId').value = numero_item;
             document.getElementById('productBar').value = bar;
-            document.getElementById('productRef').value = ref;
             document.getElementById('productDesignation').value = designation;
             document.getElementById('productPrix').value = prix;
             document.getElementById('productPrixba').value = prixba;
@@ -1268,7 +1267,7 @@
             document.getElementById('productForm').classList.remove('hidden');
         }
 
-        async function supprimerProduit(id) {
+        async function supprimerProduit(numero_item) {
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour supprimer un produit', true);
@@ -1280,7 +1279,7 @@
             }
 
             try {
-                const response = await fetch(`${API_BASE_URL}/supprimer_item/${id}`, {
+                const response = await fetch(`${API_BASE_URL}/supprimer_item/${numero_item}`, {
                     method: 'DELETE',
                     headers: {
                         'X-User-ID': userId
@@ -1301,361 +1300,348 @@
         }
 
         async function saveProduct() {
-    const userId = localStorage.getItem('userId');
-    if (!userId) {
-        showToast('Veuillez vous connecter pour sauvegarder un produit', true);
-        return;
-    }
-
-    const id = document.getElementById('productId').value;
-    const bar = document.getElementById('productBar').value.trim();
-    const ref = document.getElementById('productRef').value.trim();
-    const designation = document.getElementById('productDesignation').value.trim();
-    const prix = document.getElementById('productPrix').value.trim();
-    const prixba = document.getElementById('productPrixba').value.trim();
-    const qte = document.getElementById('productQte').value.trim();
-
-    if (!designation || !bar || !prix || !qte) {
-        showToast('Veuillez remplir tous les champs obligatoires', true);
-        return;
-    }
-
-    let prixbaValue = '0.00';
-    if (prixba) {
-        const parsedPrixba = parseFloat(prixba);
-        if (isNaN(parsedPrixba) || parsedPrixba < 0) {
-            showToast('Le prix d\'achat doit être un nombre positif', true);
-            return;
-        }
-        prixbaValue = parsedPrixba.toFixed(2);
-    }
-
-    const prixValue = parseFloat(prix);
-    const qteValue = parseInt(qte);
-    if (isNaN(prixValue) || prixValue < 0) {
-        showToast('Le prix de vente doit être un nombre positif', true);
-        return;
-    }
-    if (isNaN(qteValue) || qteValue < 0) {
-        showToast('La quantité doit être un nombre positif', true);
-        return;
-    }
-
-    try {
-        // Vérifier si le code-barres existe déjà (sauf pour le produit en cours de modification)
- const checkResponse = await fetch(`${API_BASE_URL}/check_barcode/${bar}`, {
-            headers: {
-                'X-User-ID': userId
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour sauvegarder un produit', true);
+                return;
             }
-        });
 
-        const checkResult = await checkResponse.json();
-        if (!checkResponse.ok) {
-            throw new Error(checkResult.erreur || 'Erreur lors de la vérification du code-barres');
-        }
+          const id = document.getElementById('productId').value;
+            const bar = document.getElementById('productBar').value.trim();
+            const designation = document.getElementById('productDesignation').value.trim();
+            const prix = document.getElementById('productPrix').value;
+            const prixba = document.getElementById('productPrixba').value;
+            const qte = document.getElementById('productQte').value;
 
-        if (checkResult.exists && id !== checkResult.id) {
-            showToast('Ce code-barres est déjà utilisé', true);
-            return;
-        }
+            if (!bar || !designation || !prix || !qte) {
+                showToast('Veuillez remplir tous les champs obligatoires', true);
+                return;
+            }
 
-        const url = id ? `${API_BASE_URL}/modifier_item/${id}` : `${API_BASE_URL}/ajouter_item`;
-        const method = id ? 'PUT' : 'POST';
-        const response = await fetch(url, {
-            method: method,
-            headers: {
-                'Content-Type': 'application/json',
-                'X-User-ID': userId
-            },
-            body: JSON.stringify({
-                BAR: bar,
-                DESIGNATION: designation,
-                PRIX: prixValue,
-                PRIXBA: prixbaValue,
-                QTE: qteValue
-            })
-        });
+            const prixValue = parseFloat(prix);
+            const prixbaValue = prixba ? parseFloat(prixba) : '0.00';
+            const qteValue = parseInt(qte);
 
-        const result = await response.json();
-        if (!response.ok) {
-            throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
-        }
+            if (isNaN(prixValue) || isNaN(qteValue) || prixValue < 0 || qteValue < 0) {
+                showToast('Le prix et la quantité doivent être des nombres valides et positifs', true);
+                return;
+            }
 
-        showToast(id ? 'Produit modifié avec succès' : 'Produit ajouté avec succès');
-        resetProductForm();
-        chargerProduits();
-    } catch (error) {
-        showToast(error.message, true);
-        console.error('Erreur sauvegarde produit:', error);
-    }
-}
-
-function resetProductForm() {
-    document.getElementById('productId').value = '';
-    document.getElementById('productBar').value = '';
-    document.getElementById('productDesignation').value = '';
-    document.getElementById('productPrix').value = '';
-    document.getElementById('productPrixba').value = '';
-    document.getElementById('productQte').value = '';
-    document.getElementById('productFormTitle').textContent = 'Nouveau Produit';
-    document.getElementById('productForm').classList.add('hidden');
-    stopScanner();
-}
-
-function toggleProductForm() {
-    document.getElementById('productForm').classList.toggle('hidden');
-}
-
-async function startScanner() {
-    if (isScanning) {
-        stopScanner();
-        return;
-    }
-
-    if (!('BarcodeDetector' in window)) {
-        showToast('Le scanner de code-barres n\'est pas pris en charge par ce navigateur', true);
-        return;
-    }
-
-    try {
-        stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'environment' }
-        });
-        const video = document.createElement('video');
-        video.srcObject = stream;
-        video.autoplay = true;
-        video.playsinline = true;
-
-        const preview = document.getElementById('scannerPreview');
-        preview.innerHTML = '';
-        preview.appendChild(video);
-        preview.style.display = 'block';
-
-        barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'upc_a', 'code_128'] });
-        isScanning = true;
-        document.getElementById('scanButton').innerHTML = '<i class="fas fa-stop"></i> Arrêter';
-
-        const scan = async () => {
-            if (!isScanning) return;
             try {
-                const barcodes = await barcodeDetector.detect(video);
-                if (barcodes.length > 0) {
-                    const barcode = barcodes[0].rawValue;
-                    document.getElementById('productBar').value = barcode;
-                    stopScanner();
-                    showToast('Code-barres scanné avec succès');
+                // Vérifier si le code-barres existe déjà (sauf pour le produit en cours de modification)
+                const checkResponse = await fetch(`${API_BASE_URL}/check_barcode/${bar}`, {
+                    headers: {
+                        'X-User-ID': userId
+                    }
+                });
+
+                const checkResult = await checkResponse.json();
+                if (!checkResponse.ok) {
+                    throw new Error(checkResult.erreur || 'Erreur lors de la vérification du code-barres');
+                }
+
+                if (checkResult.exists && id !== checkResult.id) {
+                    showToast('Ce code-barres est déjà utilisé', true);
                     return;
                 }
-                requestAnimationFrame(scan);
+
+                const url = id ? `${API_BASE_URL}/modifier_item/${id}` : `${API_BASE_URL}/ajouter_item`;
+                const method = id ? 'PUT' : 'POST';
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify({
+                        bar,
+                        designation,
+                        prix: prixValue,
+                        prixba: prixbaValue,
+                        qte: qteValue
+                    })
+                });
+
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
+                }
+
+                showToast(id ? 'Produit modifié avec succès' : 'Produit ajouté avec succès');
+                resetProductForm();
+                chargerProduits();
             } catch (error) {
-                console.error('Erreur scan:', error);
-                requestAnimationFrame(scan);
+                showToast(error.message, true);
+                console.error('Erreur sauvegarde produit:', error);
             }
-        };
-        scan();
-    } catch (error) {
-        showToast('Erreur d\'accès à la caméra', true);
-        console.error('Erreur démarrage scanner:', error);
-    }
-}
-
-function stopScanner() {
-    if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-        stream = null;
-    }
-    isScanning = false;
-    const preview = document.getElementById('scannerPreview');
-    preview.innerHTML = '';
-    preview.style.display = 'none';
-    document.getElementById('scanButton').innerHTML = '<i class="fas fa-camera"></i> Scanner';
-}
-
-document.getElementById('searchProduct').addEventListener('input', function(e) {
-    const searchTerm = e.target.value.toLowerCase();
-    const rows = document.querySelectorAll('#productsList tr');
-
-    rows.forEach(row => {
-        const bar = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-        const ref = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
-        const designation = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
-        if (bar?.includes(searchTerm) || ref?.includes(searchTerm) || designation?.includes(searchTerm)) {
-            row.style.display = '';
-        } else {
-            row.style.display = 'none';
         }
-    });
-});
 
-// --- Gestion des utilisateurs ---
-async function chargerUtilisateurs() {
-    const userId = localStorage.getItem('userId');
-    if (!userId) {
-        showToast('Veuillez vous connecter pour voir les utilisateurs', true);
-        return;
-    }
+        function resetProductForm() {
+            document.getElementById('productId').value = '';
+            document.getElementById('productBar').value = '';
+            document.getElementById('productDesignation').value = '';
+            document.getElementById('productPrix').value = '';
+            document.getElementById('productPrixba').value = '';
+            document.getElementById('productQte').value = '';
+            document.getElementById('productFormTitle').textContent = 'Nouveau Produit';
+            document.getElementById('productForm').classList.add('hidden');
+            stopScanner();
+        }
 
-    try {
-        const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-            headers: {
-                'X-User-ID': userId
+        function toggleProductForm() {
+            document.getElementById('productForm').classList.toggle('hidden');
+        }
+
+        async function startScanner() {
+            if (isScanning) {
+                stopScanner();
+                return;
             }
-        });
-        if (!response.ok) {
-            throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-        }
-        const utilisateurs = await response.json();
-        const tbody = document.getElementById('utilisateursList');
-        const countElement = document.getElementById('utilisateurCount');
 
-        if (utilisateurs.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun utilisateur trouvé</td></tr>';
-            countElement.textContent = '0';
-            countElement.classList.remove('hidden');
-            return;
-        }
-
-        tbody.innerHTML = '';
-        utilisateurs.forEach(utilisateur => {
-            const tr = document.createElement('tr');
-            tr.className = 'hover:bg-gray-50';
-            tr.innerHTML = `
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.id || 'N/A'}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${utilisateur.nom || 'N/A'}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.statut || 'N/A'}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <button onclick="modifierUtilisateur('${utilisateur.id}', '${utilisateur.nom}', '${utilisateur.statut}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
-                        <i class="fas fa-edit"></i> Modifier
-                    </button>
-                    <button onclick="supprimerUtilisateur('${utilisateur.id}')" class="text-red-600 hover:text-red-800 transition">
-                        <i class="fas fa-trash-alt"></i> Supprimer
-                    </button>
-                </td>
-            `;
-            tbody.appendChild(tr);
-        });
-        countElement.textContent = utilisateurs.length;
-        countElement.classList.remove('hidden');
-    } catch (error) {
-        document.getElementById('utilisateursList').innerHTML = `
-            <tr>
-                <td colspan="4" class="text-center py-4 text-red-500">
-                    Erreur de chargement: ${error.message}
-                </td>
-            </tr>
-        `;
-        console.error('Erreur utilisateurs:', error);
-    }
-}
-
-function modifierUtilisateur(id, nom, statut) {
-    document.getElementById('utilisateurId').value = id;
-    document.getElementById('utilisateurNom').value = nom;
-    document.getElementById('utilisateurStatut').value = statut;
-    document.getElementById('utilisateurForm').classList.remove('hidden');
-}
-
-async function supprimerUtilisateur(id) {
-    const userId = localStorage.getItem('userId');
-    if (!userId) {
-        showToast('Veuillez vous connecter pour supprimer un utilisateur', true);
-        return;
-    }
-
-    if (!confirm('Voulez-vous vraiment supprimer cet utilisateur ?')) {
-        return;
-    }
-
-    try {
-        const response = await fetch(`${API_BASE_URL}/supprimer_utilisateur/${id}`, {
-            method: 'DELETE',
-            headers: {
-                'X-User-ID': userId
+            if (!('BarcodeDetector' in window)) {
+                showToast('Le scanner de code-barres n\'est pas pris en charge par ce navigateur', true);
+                return;
             }
+
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' }
+                });
+                const video = document.createElement('video');
+                video.srcObject = stream;
+                video.autoplay = true;
+                video.playsinline = true;
+
+                const preview = document.getElementById('scannerPreview');
+                preview.innerHTML = '';
+                preview.appendChild(video);
+                preview.style.display = 'block';
+
+                barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'upc_a', 'code_128'] });
+                isScanning = true;
+                document.getElementById('scanButton').innerHTML = '<i class="fas fa-stop"></i> Arrêter';
+
+                const scan = async () => {
+                    if (!isScanning) return;
+                    try {
+                        const barcodes = await barcodeDetector.detect(video);
+                        if (barcodes.length > 0) {
+                            const barcode = barcodes[0].rawValue;
+                            document.getElementById('productBar').value = barcode;
+                            stopScanner();
+                            showToast('Code-barres scanné avec succès');
+                            return;
+                        }
+                        requestAnimationFrame(scan);
+                    } catch (error) {
+                        console.error('Erreur scan:', error);
+                        requestAnimationFrame(scan);
+                    }
+                };
+                scan();
+            } catch (error) {
+                showToast('Erreur d\'accès à la caméra', true);
+                console.error('Erreur démarrage scanner:', error);
+            }
+        }
+
+        function stopScanner() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+            isScanning = false;
+            const preview = document.getElementById('scannerPreview');
+            preview.innerHTML = '';
+            preview.style.display = 'none';
+            document.getElementById('scanButton').innerHTML = '<i class="fas fa-camera"></i> Scanner';
+        }
+
+        document.getElementById('searchProduct').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('#productsList tr');
+
+            rows.forEach(row => {
+                const bar = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
+                const ref = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
+                const designation = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
+                if (bar?.includes(searchTerm) || ref?.includes(searchTerm) || designation?.includes(searchTerm)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
         });
 
-        const result = await response.json();
-        if (!response.ok) {
-            throw new Error(result.erreur || 'Erreur lors de la suppression');
+        // --- Gestion des utilisateurs ---
+        async function chargerUtilisateurs() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir les utilisateurs', true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+                    headers: {
+                        'X-User-ID': userId
+                    }
+                });
+                if (!response.ok) {
+                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                }
+                const utilisateurs = await response.json();
+                const tbody = document.getElementById('utilisateursList');
+                const countElement = document.getElementById('utilisateurCount');
+
+                if (utilisateurs.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun utilisateur trouvé</td></tr>';
+                    countElement.textContent = '0';
+                    countElement.classList.remove('hidden');
+                    return;
+                }
+
+                tbody.innerHTML = '';
+                utilisateurs.forEach(utilisateur => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-gray-50';
+                    tr.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.id || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${utilisateur.nom || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.statut || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <button onclick="modifierUtilisateur('${utilisateur.id}', '${utilisateur.nom}', '${utilisateur.statut}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
+                                <i class="fas fa-edit"></i> Modifier
+                            </button>
+                            <button onclick="supprimerUtilisateur('${utilisateur.id}')" class="text-red-600 hover:text-red-800 transition">
+                                <i class="fas fa-trash-alt"></i> Supprimer
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                countElement.textContent = utilisateurs.length;
+                countElement.classList.remove('hidden');
+            } catch (error) {
+                document.getElementById('utilisateursList').innerHTML = `
+                    <tr>
+                        <td colspan="4" class="text-center py-4 text-red-500">
+                            Erreur de chargement: ${error.message}
+                        </td>
+                    </tr>
+                `;
+                console.error('Erreur utilisateurs:', error);
+            }
         }
 
-        showToast('Utilisateur supprimé avec succès');
-        chargerUtilisateurs();
-    } catch (error) {
-        showToast(error.message, true);
-        console.error('Erreur suppression utilisateur:', error);
-    }
-}
+        function modifierUtilisateur(id, nom, statut) {
+            document.getElementById('utilisateurId').value = id;
+            document.getElementById('utilisateurNom').value = nom;
+            document.getElementById('utilisateurStatut').value = statut;
+            document.getElementById('utilisateurForm').classList.remove('hidden');
+        }
 
-async function ajouterUtilisateur() {
-    const userId = localStorage.getItem('userId');
-    if (!userId) {
-        showToast('Veuillez vous connecter pour ajouter un utilisateur', true);
-        return;
-    }
+        async function supprimerUtilisateur(id) {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour supprimer un utilisateur', true);
+                return;
+            }
 
-    const nom = document.getElementById('utilisateurNom').value.trim();
-    const password = document.getElementById('utilisateurPassword').value.trim();
-    const statut = document.getElementById('utilisateurStatut').value;
+            if (!confirm('Voulez-vous vraiment supprimer cet utilisateur ?')) {
+                return;
+            }
 
-    if (!nom || !password) {
-        showToast('Veuillez remplir tous les champs obligatoires', true);
-        return;
-    }
+            try {
+                const response = await fetch(`${API_BASE_URL}/supprimer_utilisateur/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-User-ID': userId
+                    }
+                });
 
-    try {
-        const response = await fetch(`${API_BASE_URL}/ajouter_utilisateur`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-User-ID': userId
-            },
-            body: JSON.stringify({
-                nom,
-                password,
-                statut
-            })
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.erreur || 'Erreur lors de la suppression');
+                }
+
+                showToast('Utilisateur supprimé avec succès');
+                chargerUtilisateurs();
+            } catch (error) {
+                showToast(error.message, true);
+                console.error('Erreur suppression utilisateur:', error);
+            }
+        }
+
+        async function ajouterUtilisateur() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour ajouter un utilisateur', true);
+                return;
+            }
+
+            const nom = document.getElementById('utilisateurNom').value.trim();
+            const password = document.getElementById('utilisateurPassword').value.trim();
+            const statut = document.getElementById('utilisateurStatut').value;
+
+            if (!nom || !password) {
+                showToast('Veuillez remplir tous les champs obligatoires', true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/ajouter_utilisateur`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify({
+                        nom,
+                        password,
+                        statut
+                    })
+                });
+
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.erreur || 'Erreur lors de l\'ajout');
+                }
+
+                showToast('Utilisateur ajouté avec succès');
+                resetUtilisateurForm();
+                chargerUtilisateurs();
+            } catch (error) {
+                showToast(error.message, true);
+                console.error('Erreur ajout utilisateur:', error);
+            }
+        }
+
+        function resetUtilisateurForm() {
+            document.getElementById('utilisateurNom').value = '';
+            document.getElementById('utilisateurPassword').value = '';
+            document.getElementById('utilisateurStatut').value = 'admin';
+            document.getElementById('utilisateurForm').classList.add('hidden');
+        }
+
+        function toggleUtilisateurForm() {
+            document.getElementById('utilisateurForm').classList.toggle('hidden');
+        }
+
+        document.getElementById('searchUtilisateur').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('#utilisateursList tr');
+
+            rows.forEach(row => {
+                const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
+                const statut = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
+                if (nom?.includes(searchTerm) || statut?.includes(searchTerm)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
         });
-
-        const result = await response.json();
-        if (!response.ok) {
-            throw new Error(result.erreur || 'Erreur lors de l\'ajout');
-        }
-
-        showToast('Utilisateur ajouté avec succès');
-        resetUtilisateurForm();
-        chargerUtilisateurs();
-    } catch (error) {
-        showToast(error.message, true);
-        console.error('Erreur ajout utilisateur:', error);
-    }
-}
-
-function resetUtilisateurForm() {
-    document.getElementById('utilisateurNom').value = '';
-    document.getElementById('utilisateurPassword').value = '';
-    document.getElementById('utilisateurStatut').value = 'admin';
-    document.getElementById('utilisateurForm').classList.add('hidden');
-}
-
-function toggleUtilisateurForm() {
-    document.getElementById('utilisateurForm').classList.toggle('hidden');
-}
-
-document.getElementById('searchUtilisateur').addEventListener('input', function(e) {
-    const searchTerm = e.target.value.toLowerCase();
-    const rows = document.querySelectorAll('#utilisateursList tr');
-
-    rows.forEach(row => {
-        const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-        const statut = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
-        if (nom?.includes(searchTerm) || statut?.includes(searchTerm)) {
-            row.style.display = '';
-        } else {
-            row.style.display = 'none';
-        }
-    });
-});
-</script>
+    </script>
 </body>
-</html>
+</html>  
