@@ -370,30 +370,29 @@
                     <div id="productForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
                         <h3 class="font-medium mb-3" id="productFormTitle">Nouveau Produit</h3>
                         <input type="hidden" id="productId">
-                        <div id="scannerPreview"></div>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Désignation*</label>
-                                <input type="text" id="productDesignation" class="w-full px-3 py-2 border rounded-md" required>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Désignation</label>
+                                <input type="text" id="productDesignation" class="w-full px-3 py-2 border rounded-md">
                             </div>
                             <div class="relative">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Code Barre*</label>
-                                <input type="text" id="productBar" class="w-full px-3 py-2 border rounded-md" required>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Code Barre</label>
+                                <input type="text" id="productBar" class="w-full px-3 py-2 border rounded-md">
                                 <button id="scanButton" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition duration-300" onclick="startScanner()">
                                     <i class="fas fa-camera"></i> Scanner
                                 </button>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Prix Vente*</label>
-                                <input type="number" id="productPrix" step="0.01" class="w-full px-3 py-2 border rounded-md" required>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Prix Vente</label>
+                                <input type="number" id="productPrix" step="0.01" class="w-full px-3 py-2 border rounded-md">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Prix Achat</label>
                                 <input type="number" id="productPrixba" step="0.01" class="w-full px-3 py-2 border rounded-md" placeholder="Ex: 300.00">
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Quantité*</label>
-                                <input type="number" id="productQte" class="w-full px-3 py-2 border rounded-md" required>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Quantité</label>
+                                <input type="number" id="productQte" class="w-full px-3 py-2 border rounded-md">
                             </div>
                         </div>
                         <div class="flex justify-end space-x-3 mt-4">
@@ -1313,17 +1312,17 @@
             const prix = document.getElementById('productPrix').value;
             const prixba = document.getElementById('productPrixba').value;
             const qte = document.getElementById('productQte').value;
-if (!bar || !designation || !prix || !qte) {
-                showToast('Veuillez remplir tous les champs obligatoires', true);
+
+            const prixValue = prix ? parseFloat(prix) : 0;
+            const prixbaValue = prixba ? parseFloat(prixba) : 0;
+            const qteValue = qte ? parseInt(qte) : 0;
+
+            if (prix && (isNaN(prixValue) || prixValue < 0)) {
+                showToast('Le prix doit être un nombre valide et positif', true);
                 return;
             }
-
-            const prixValue = parseFloat(prix);
-            const prixbaValue = prixba ? parseFloat(prixba) : 0;
-            const qteValue = parseInt(qte);
-
-            if (isNaN(prixValue) || isNaN(qteValue) || prixValue < 0 || qteValue < 0) {
-                showToast('Le prix et la quantité doivent être des nombres valides et positifs', true);
+            if (qte && (isNaN(qteValue) || qteValue < 0)) {
+                showToast('La quantité doit être un nombre valide et positif', true);
                 return;
             }
 
@@ -1359,7 +1358,7 @@ if (!bar || !designation || !prix || !qte) {
             }
         }
 
-        function resetProductForm() {
+      function resetProductForm() {
             document.getElementById('productId').value = '';
             document.getElementById('productBar').value = '';
             document.getElementById('productDesignation').value = '';
@@ -1382,83 +1381,14 @@ if (!bar || !designation || !prix || !qte) {
             rows.forEach(row => {
                 const designation = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
                 const bar = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
-                const reference = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
-                if (designation?.includes(searchTerm) || bar?.includes(searchTerm) || reference?.includes(searchTerm)) {
+                const ref = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
+                if (designation?.includes(searchTerm) || bar?.includes(searchTerm) || ref?.includes(searchTerm)) {
                     row.style.display = '';
                 } else {
                     row.style.display = 'none';
                 }
             });
         });
-
-        // --- Gestion du scanner ---
-        async function startScanner() {
-            if (isScanning) return;
-
-            try {
-                if (!('BarcodeDetector' in window)) {
-                    showToast('Le détecteur de code-barres n\'est pas supporté par ce navigateur', true);
-                    return;
-                }
-
-                stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment' }
-                });
-
-                const video = document.createElement('video');
-                video.srcObject = stream;
-                video.autoplay = true;
-                video.playsInline = true;
-                video.style.width = '100%';
-                video.style.height = '100%';
-
-                const scannerPreview = document.getElementById('scannerPreview');
-                scannerPreview.innerHTML = '';
-                scannerPreview.appendChild(video);
-                scannerPreview.style.display = 'block';
-
-                barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
-
-                isScanning = true;
-                scanBarcode(video);
-            } catch (error) {
-                showToast('Erreur d\'accès à la caméra: ' + error.message, true);
-                console.error('Erreur scanner:', error);
-                stopScanner();
-            }
-        }
-
-        function scanBarcode(video) {
-            if (!isScanning) return;
-
-            barcodeDetector.detect(video)
-                .then(barcodes => {
-                    if (barcodes.length > 0) {
-                        const barcode = barcodes[0].rawValue;
-                        document.getElementById('productBar').value = barcode;
-                        showToast('Code-barres détecté: ' + barcode);
-                        stopScanner();
-                    } else {
-                        requestAnimationFrame(() => scanBarcode(video));
-                    }
-                })
-                .catch(error => {
-                    showToast('Erreur de détection de code-barres: ' + error.message, true);
-                    console.error('Erreur détection:', error);
-                    stopScanner();
-                });
-        }
-
-        function stopScanner() {
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                stream = null;
-            }
-            const scannerPreview = document.getElementById('scannerPreview');
-            scannerPreview.innerHTML = '';
-            scannerPreview.style.display = 'none';
-            isScanning = false;
-        }
 
         // --- Gestion des utilisateurs ---
         async function chargerUtilisateurs() {
@@ -1469,7 +1399,7 @@ if (!bar || !designation || !prix || !qte) {
             }
 
             try {
-                const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+                const response = await fetch(`${API_BASE_URL}/liste_users`, {
                     headers: {
                         'X-User-ID': userId
                     }
@@ -1493,14 +1423,14 @@ if (!bar || !designation || !prix || !qte) {
                     const tr = document.createElement('tr');
                     tr.className = 'hover:bg-gray-50';
                     tr.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.numero || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.numero_user || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${utilisateur.nom || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.statut || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <button onclick="modifierUtilisateur('${utilisateur.numero}', '${utilisateur.nom}', '${utilisateur.statut}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
+                            <button onclick="modifierUtilisateur('${utilisateur.numero_user}', '${utilisateur.nom}', '${utilisateur.statut}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
                                 <i class="fas fa-edit"></i> Modifier
                             </button>
-                            <button onclick="supprimerUtilisateur('${utilisateur.numero}')" class="text-red-600 hover:text-red-800 transition">
+                            <button onclick="supprimerUtilisateur('${utilisateur.numero_user}')" class="text-red-600 hover:text-red-800 transition">
                                 <i class="fas fa-trash-alt"></i> Supprimer
                             </button>
                         </td>
@@ -1521,18 +1451,16 @@ if (!bar || !designation || !prix || !qte) {
             }
         }
 
-        function modifierUtilisateur(numero, nom, statut) {
-            document.getElementById('utilisateurId').value = numero;
+        function modifierUtilisateur(id, nom, statut) {
+            document.getElementById('utilisateurId').value = id;
             document.getElementById('utilisateurNom').value = nom;
-            document.getElementById('utilisateurStatut').value = statut.toLowerCase();
-            document.getElementById('utilisateurPassword').value = ''; // Clear password field
+            document.getElementById('utilisateurStatut').value = statut;
+            document.getElementById('utilisateurPassword').value = '';
             document.getElementById('utilisateurFormTitle').textContent = 'Modifier Utilisateur';
             document.getElementById('utilisateurForm').classList.remove('hidden');
-            // Make password field optional for modification
-            document.getElementById('utilisateurPassword').removeAttribute('required');
         }
 
-        async function supprimerUtilisateur(numero) {
+        async function supprimerUtilisateur(id) {
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour supprimer un utilisateur', true);
@@ -1544,7 +1472,7 @@ if (!bar || !designation || !prix || !qte) {
             }
 
             try {
-                const response = await fetch(`${API_BASE_URL}/supprimer_utilisateur/${numero}`, {
+                const response = await fetch(`${API_BASE_URL}/supprimer_user/${id}`, {
                     method: 'DELETE',
                     headers: {
                         'X-User-ID': userId
@@ -1577,22 +1505,16 @@ if (!bar || !designation || !prix || !qte) {
             const statut = document.getElementById('utilisateurStatut').value;
 
             if (!nom || (!id && !password)) {
-                showToast('Veuillez remplir tous les champs obligatoires', true);
+                showToast('Veuillez remplir les champs Nom et Mot de passe', true);
                 return;
             }
 
             try {
-                const url = id ? `${API_BASE_URL}/modifier_utilisateur/${id}` : `${API_BASE_URL}/ajouter_utilisateur`;
+                const url = id ? `${API_BASE_URL}/modifier_user/${id}` : `${API_BASE_URL}/ajouter_user`;
                 const method = id ? 'PUT' : 'POST';
-                const payload = {
-                    user_id: userId, // Include userId in payload to associate with the authenticated user
-                    nom,
-                    statue: statut // Backend expects 'statue' instead of 'statut'
-                };
-
-                // Only include password if provided (for add or if updating password)
+                const body = { nom, statut };
                 if (password) {
-                    payload.password2 = password; // Backend expects 'password2'
+                    body.password = password;
                 }
 
                 const response = await fetch(url, {
@@ -1601,7 +1523,7 @@ if (!bar || !designation || !prix || !qte) {
                         'Content-Type': 'application/json',
                         'X-User-ID': userId
                     },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify(body)
                 });
 
                 const result = await response.json();
@@ -1625,16 +1547,10 @@ if (!bar || !designation || !prix || !qte) {
             document.getElementById('utilisateurStatut').value = 'admin';
             document.getElementById('utilisateurFormTitle').textContent = 'Nouvel Utilisateur';
             document.getElementById('utilisateurForm').classList.add('hidden');
-            // Restore password field as required for adding new users
-            document.getElementById('utilisateurPassword').setAttribute('required', '');
         }
 
         function toggleUtilisateurForm() {
             document.getElementById('utilisateurForm').classList.toggle('hidden');
-            // Ensure password is required when opening form for new user
-            if (!document.getElementById('utilisateurId').value) {
-                document.getElementById('utilisateurPassword').setAttribute('required', '');
-            }
         }
 
         document.getElementById('searchUtilisateur').addEventListener('input', function(e) {
@@ -1651,7 +1567,67 @@ if (!bar || !designation || !prix || !qte) {
                 }
             });
         });
+
+        // --- Gestion du scanner de code-barres ---
+        async function startScanner() {
+            if (!('BarcodeDetector' in window)) {
+                showToast('Le détecteur de code-barres n\'est pas supporté par votre navigateur', true);
+                return;
+            }
+
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                const video = document.createElement('video');
+                video.id = 'scannerPreview';
+                video.style.display = 'block';
+                video.srcObject = stream;
+                video.play();
+
+                const productForm = document.getElementById('productForm');
+                productForm.insertBefore(video, productForm.querySelector('.grid'));
+
+                barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
+
+                isScanning = true;
+                scanBarcode(video);
+            } catch (error) {
+                showToast('Erreur d\'accès à la caméra: ' + error.message, true);
+                console.error('Erreur scanner:', error);
+            }
+        }
+
+        function scanBarcode(video) {
+            if (!isScanning) return;
+
+            barcodeDetector.detect(video)
+                .then(barcodes => {
+                    if (barcodes.length > 0) {
+                        const barcode = barcodes[0].rawValue;
+                        document.getElementById('productBar').value = barcode;
+                        showToast('Code-barres détecté: ' + barcode);
+                        stopScanner();
+                    } else {
+                        setTimeout(() => scanBarcode(video), 100);
+                    }
+                })
+                .catch(error => {
+                    showToast('Erreur de détection de code-barres: ' + error.message, true);
+                    console.error('Erreur détection:', error);
+                    stopScanner();
+                });
+        }
+
+        function stopScanner() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+            isScanning = false;
+            const video = document.getElementById('scannerPreview');
+            if (video) {
+                video.remove();
+            }
+        }
     </script>
 </body>
 </html>
-       
