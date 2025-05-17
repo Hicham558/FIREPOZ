@@ -255,7 +255,7 @@
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
+                                    <th class="px-6 py-3 crédito text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
@@ -382,10 +382,6 @@
                                 <button id="scanButton" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition duration-300" onclick="startScanner()">
                                     <i class="fas fa-camera"></i> Scanner
                                 </button>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Référence</label>
-                                <input type="text" id="productRef" class="w-full px-3 py-2 border rounded-md">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Prix Vente*</label>
@@ -1347,14 +1343,19 @@
 
     try {
         // Vérifier si le code-barres existe déjà (sauf pour le produit en cours de modification)
-        const checkResponse = await fetch(`${API_BASE_URL}/check_barcode/${bar}`, {
+ const checkResponse = await fetch(`${API_BASE_URL}/check_barcode/${bar}`, {
             headers: {
                 'X-User-ID': userId
             }
         });
+
         const checkResult = await checkResponse.json();
-        if (checkResult.exists && (!id || checkResult.id !== id)) {
-            showToast('Ce code-barres existe déjà', true);
+        if (!checkResponse.ok) {
+            throw new Error(checkResult.erreur || 'Erreur lors de la vérification du code-barres');
+        }
+
+        if (checkResult.exists && id !== checkResult.id) {
+            showToast('Ce code-barres est déjà utilisé', true);
             return;
         }
 
@@ -1368,9 +1369,8 @@
             },
             body: JSON.stringify({
                 BAR: bar,
-                ref: ref,
                 DESIGNATION: designation,
-                PRIX: prixValue.toFixed(2),
+                PRIX: prixValue,
                 PRIXBA: prixbaValue,
                 QTE: qteValue
             })
@@ -1393,7 +1393,6 @@
 function resetProductForm() {
     document.getElementById('productId').value = '';
     document.getElementById('productBar').value = '';
-    document.getElementById('productRef').value = '';
     document.getElementById('productDesignation').value = '';
     document.getElementById('productPrix').value = '';
     document.getElementById('productPrixba').value = '';
@@ -1405,6 +1404,71 @@ function resetProductForm() {
 
 function toggleProductForm() {
     document.getElementById('productForm').classList.toggle('hidden');
+}
+
+async function startScanner() {
+    if (isScanning) {
+        stopScanner();
+        return;
+    }
+
+    if (!('BarcodeDetector' in window)) {
+        showToast('Le scanner de code-barres n\'est pas pris en charge par ce navigateur', true);
+        return;
+    }
+
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment' }
+        });
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.autoplay = true;
+        video.playsinline = true;
+
+        const preview = document.getElementById('scannerPreview');
+        preview.innerHTML = '';
+        preview.appendChild(video);
+        preview.style.display = 'block';
+
+        barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'upc_a', 'code_128'] });
+        isScanning = true;
+        document.getElementById('scanButton').innerHTML = '<i class="fas fa-stop"></i> Arrêter';
+
+        const scan = async () => {
+            if (!isScanning) return;
+            try {
+                const barcodes = await barcodeDetector.detect(video);
+                if (barcodes.length > 0) {
+                    const barcode = barcodes[0].rawValue;
+                    document.getElementById('productBar').value = barcode;
+                    stopScanner();
+                    showToast('Code-barres scanné avec succès');
+                    return;
+                }
+                requestAnimationFrame(scan);
+            } catch (error) {
+                console.error('Erreur scan:', error);
+                requestAnimationFrame(scan);
+            }
+        };
+        scan();
+    } catch (error) {
+        showToast('Erreur d\'accès à la caméra', true);
+        console.error('Erreur démarrage scanner:', error);
+    }
+}
+
+function stopScanner() {
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+    }
+    isScanning = false;
+    const preview = document.getElementById('scannerPreview');
+    preview.innerHTML = '';
+    preview.style.display = 'none';
+    document.getElementById('scanButton').innerHTML = '<i class="fas fa-camera"></i> Scanner';
 }
 
 document.getElementById('searchProduct').addEventListener('input', function(e) {
@@ -1460,6 +1524,9 @@ async function chargerUtilisateurs() {
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${utilisateur.nom || 'N/A'}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.statut || 'N/A'}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <button onclick="modifierUtilisateur('${utilisateur.id}', '${utilisateur.nom}', '${utilisateur.statut}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
+                        <i class="fas fa-edit"></i> Modifier
+                    </button>
                     <button onclick="supprimerUtilisateur('${utilisateur.id}')" class="text-red-600 hover:text-red-800 transition">
                         <i class="fas fa-trash-alt"></i> Supprimer
                     </button>
@@ -1478,6 +1545,45 @@ async function chargerUtilisateurs() {
             </tr>
         `;
         console.error('Erreur utilisateurs:', error);
+    }
+}
+
+function modifierUtilisateur(id, nom, statut) {
+    document.getElementById('utilisateurId').value = id;
+    document.getElementById('utilisateurNom').value = nom;
+    document.getElementById('utilisateurStatut').value = statut;
+    document.getElementById('utilisateurForm').classList.remove('hidden');
+}
+
+async function supprimerUtilisateur(id) {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour supprimer un utilisateur', true);
+        return;
+    }
+
+    if (!confirm('Voulez-vous vraiment supprimer cet utilisateur ?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/supprimer_utilisateur/${id}`, {
+            method: 'DELETE',
+            headers: {
+                'X-User-ID': userId
+            }
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.erreur || 'Erreur lors de la suppression');
+        }
+
+        showToast('Utilisateur supprimé avec succès');
+        chargerUtilisateurs();
+    } catch (error) {
+        showToast(error.message, true);
+        console.error('Erreur suppression utilisateur:', error);
     }
 }
 
@@ -1525,38 +1631,6 @@ async function ajouterUtilisateur() {
     }
 }
 
-async function supprimerUtilisateur(id) {
-    const userId = localStorage.getItem('userId');
-    if (!userId) {
-        showToast('Veuillez vous connecter pour supprimer un utilisateur', true);
-        return;
-    }
-
-    if (!confirm('Voulez-vous vraiment supprimer cet utilisateur ?')) {
-        return;
-    }
-
-    try {
-        const response = await fetch(`${API_BASE_URL}/supprimer_utilisateur/${id}`, {
-            method: 'DELETE',
-            headers: {
-                'X-User-ID': userId
-            }
-        });
-
-        const result = await response.json();
-        if (!response.ok) {
-            throw new Error(result.erreur || 'Erreur lors de la suppression');
-        }
-
-        showToast('Utilisateur supprimé avec succès');
-        chargerUtilisateurs();
-    } catch (error) {
-        showToast(error.message, true);
-        console.error('Erreur suppression utilisateur:', error);
-    }
-}
-
 function resetUtilisateurForm() {
     document.getElementById('utilisateurNom').value = '';
     document.getElementById('utilisateurPassword').value = '';
@@ -1582,69 +1656,6 @@ document.getElementById('searchUtilisateur').addEventListener('input', function(
         }
     });
 });
-
-// --- Gestion du scanner ---
-async function startScanner() {
-    if (!('BarcodeDetector' in window)) {
-        showToast('Le détecteur de code-barres n\'est pas supporté par votre navigateur', true);
-        return;
-    }
-
-    try {
-        stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'environment' }
-        });
-        const video = document.createElement('video');
-        video.srcObject = stream;
-        video.setAttribute('playsinline', true);
-        video.play();
-
-        const scannerPreview = document.getElementById('scannerPreview');
-        scannerPreview.innerHTML = '';
-        scannerPreview.appendChild(video);
-        scannerPreview.style.display = 'block';
-
-        barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
-        isScanning = true;
-
-        detectBarcode(video);
-    } catch (error) {
-        showToast('Erreur d\'accès à la caméra: ' + error.message, true);
-        console.error('Erreur démarrage scanner:', error);
-    }
-}
-
-function detectBarcode(video) {
-    if (!isScanning) return;
-
-    barcodeDetector.detect(video)
-        .then(barcodes => {
-            if (barcodes.length > 0) {
-                const barcode = barcodes[0].rawValue;
-                document.getElementById('productBar').value = barcode;
-                stopScanner();
-                showToast('Code-barres détecté: ' + barcode);
-            } else {
-                setTimeout(() => detectBarcode(video), 100);
-            }
-        })
-        .catch(error => {
-            showToast('Erreur détection code-barres: ' + error.message, true);
-            console.error('Erreur détection:', error);
-            stopScanner();
-        });
-}
-
-function stopScanner() {
-    if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-        stream = null;
-    }
-    isScanning = false;
-    const scannerPreview = document.getElementById('scannerPreview');
-    scannerPreview.innerHTML = '';
-    scannerPreview.style.display = 'none';
-}
 </script>
 </body>
 </html>
