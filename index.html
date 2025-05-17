@@ -107,7 +107,6 @@
                     <i class="fas fa-fire mr-2 text-amber-400 animate-pulse"></i> FirePoz
                 </h1>
                 <span id="userDisplay" class="small-email user-anim hidden"></span>
-Thread: 1 Message: 7
             </div>
             <div class="space-x-4 flex items-center">
                 <a href="page1.html" class="hover:text-indigo-200 transition flex items-center">
@@ -402,7 +401,7 @@ Thread: 1 Message: 7
                                 <i class="fas fa-stop mr-2"></i>Arrêter
                             </button>
                             <button onclick="resetProductForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-times mr-2"></ipray-1"></i>Annuler
+                                <i class="fas fa-times mr-2"></i>Annuler
                             </button>
                             <button onclick="saveProduct()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
                                 <i class="fas fa-save mr-2"></i>Enregistrer
@@ -459,7 +458,8 @@ Thread: 1 Message: 7
                     </div>
 
                     <div id="utilisateurForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
-                        <h3 class="font-medium mb-3">Nouvel Utilisateur</h3>
+                        <h3 class="font-medium mb-3" id="utilisateurFormTitle">Nouvel Utilisateur</h3>
+                        <input type="hidden" id="utilisateurId">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
@@ -481,7 +481,7 @@ Thread: 1 Message: 7
                             <button onclick="resetUtilisateurForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
                                 <i class="fas fa-times mr-2"></i>Annuler
                             </button>
-                            <button onclick="ajouterUtilisateur()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
+                            <button onclick="saveUtilisateur()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
                                 <i class="fas fa-save mr-2"></i>Enregistrer
                             </button>
                         </div>
@@ -1234,7 +1234,7 @@ Thread: 1 Message: 7
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             <button onclick="modifierProduit('${produit.NUMERO_ITEM}', '${produit.BAR}', '${produit.DESIGNATION}', '${produit.PRIX}', '${produit.PRIXBA}', '${produit.QTE}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
-                                <i class="fas fa-edit"></i> Modifier
+                 <i class="fas fa-edit"></i> Modifier
                             </button>
                             <button onclick="supprimerProduit('${produit.NUMERO_ITEM}')" class="text-red-600 hover:text-red-800 transition">
                                 <i class="fas fa-trash-alt"></i> Supprimer
@@ -1301,7 +1301,7 @@ Thread: 1 Message: 7
         }
 
         async function saveProduct() {
-            const userId = localStorage.getItem('userId');
+            const user broadId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour sauvegarder un produit', true);
                 return;
@@ -1526,6 +1526,8 @@ Thread: 1 Message: 7
             document.getElementById('utilisateurId').value = id;
             document.getElementById('utilisateurNom').value = nom;
             document.getElementById('utilisateurStatut').value = statut;
+            document.getElementById('utilisateurPassword').value = ''; // Clear password field for security
+            document.getElementById('utilisateurFormTitle').textContent = 'Modifier Utilisateur';
             document.getElementById('utilisateurForm').classList.remove('hidden');
         }
 
@@ -1561,54 +1563,70 @@ Thread: 1 Message: 7
             }
         }
 
-        async function ajouterUtilisateur() {
+        async function saveUtilisateur() {
             const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Veuillez vous connecter pour ajouter un utilisateur', true);
+                showToast('Veuillez vous connecter pour sauvegarder un utilisateur', true);
                 return;
             }
 
+            const id = document.getElementById('utilisateurId').value;
             const nom = document.getElementById('utilisateurNom').value.trim();
             const password = document.getElementById('utilisateurPassword').value.trim();
             const statut = document.getElementById('utilisateurStatut').value;
 
-            if (!nom || !password) {
+            // For adding a new user, all fields are required
+            if (!id && (!nom || !password || !statut)) {
                 showToast('Veuillez remplir tous les champs obligatoires', true);
                 return;
             }
 
+            // For modifying a user, nom and statut are required, password is optional
+            if (id && (!nom || !statut)) {
+                showToast('Veuillez remplir les champs Nom et Statut', true);
+                return;
+            }
+
             try {
-                const response = await fetch(`${API_BASE_URL}/ajouter_utilisateur`, {
-                    method: 'POST',
+                const url = id ? `${API_BASE_URL}/modifier_utilisateur/${id}` : `${API_BASE_URL}/ajouter_utilisateur`;
+                const method = id ? 'PUT' : 'POST';
+                const payload = {
+                    nom,
+                    statue: statut // Backend expects 'statue', frontend uses 'statut'
+                };
+                if (password) {
+                    payload.password2 = password; // Backend expects 'password2'
+                }
+
+                const response = await fetch(url, {
+                    method: method,
                     headers: {
                         'Content-Type': 'application/json',
                         'X-User-ID': userId
                     },
-                    body: JSON.stringify({
-                        nom,
-                        password,
-                        statut
-                    })
+                    body: JSON.stringify(payload)
                 });
 
                 const result = await response.json();
                 if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de l\'ajout');
+                    throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
                 }
 
-                showToast('Utilisateur ajouté avec succès');
+                showToast(id ? 'Utilisateur modifié avec succès' : 'Utilisateur ajouté avec succès');
                 resetUtilisateurForm();
                 chargerUtilisateurs();
             } catch (error) {
                 showToast(error.message, true);
-                console.error('Erreur ajout utilisateur:', error);
+                console.error('Erreur sauvegarde utilisateur:', error);
             }
         }
 
         function resetUtilisateurForm() {
+            document.getElementById('utilisateurId').value = '';
             document.getElementById('utilisateurNom').value = '';
             document.getElementById('utilisateurPassword').value = '';
             document.getElementById('utilisateurStatut').value = 'admin';
+            document.getElementById('utilisateurFormTitle').textContent = 'Nouvel Utilisateur';
             document.getElementById('utilisateurForm').classList.add('hidden');
         }
 
@@ -1632,4 +1650,4 @@ Thread: 1 Message: 7
         });
     </script>
 </body>
-</html>
+</html>        
