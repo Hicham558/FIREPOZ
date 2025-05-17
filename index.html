@@ -4,539 +4,411 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestion Commerciale</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
-        @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes user  { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
-        @keyframes countPulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
-        @keyframes kpiPop { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-        @keyframes clientPulse { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
-        .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
-        .animate-pulse { animation: pulse 2s infinite ease-in-out; }
-        .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
-        .animate-kpi-pop { animation: kpiPop 0.5s ease-out forwards; }
-        .top-client-updated { animation: clientPulse 0.6s ease-in-out; }
-        #clientsSection { animation-delay: 0.2s; }
-        #fournisseursSection { animation-delay: 0.4s; }
-        #productsSection { animation-delay: 0.6s; }
-        #utilisateursSection { animation-delay: 0.8s; }
-        footer { animation-delay: 1.2s; }
-        #scannerPreview { width: 100%; max-width: 300px; height: 200px; border: 2px solid #e5e7eb; margin-bottom: 1rem; display: none; background: #000; }
-        .user-anim { animation: userPulse 1.5s infinite ease-in-out; }
-        .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
-        .small-email { font-size: 0.75rem; line-height: 1rem; }
-        .kpi-card { transition: transform 0.3s ease, box-shadow 0.3s ease; }
-        .kpi-card:hover { transform: scale(1.03); box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1); }
-        .kpi-section { transition: opacity 0.5s ease; }
-        .kpi-updated { animation: pulse 0.5s ease-in-out; }
-        .dynamic-icon { transition: color 0.3s ease; }
-        .chart-container { animation-delay: 1s; }
-        #kpiSection {
-            border-bottom: 2px solid #e5e7eb;
-            transition: all 0.3s ease;
-        }
-        #kpiSection:hover {
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
         .kpi-card {
-            border-left: 4px solid #4F46E5;
-            transition: all 0.3s ease;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
         .kpi-card:hover {
-            transform: translateY(-2px);
+            transform: translateY(-5px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
         }
-        .fixed-buttons {
-            position: sticky;
-            top: 64px;
-            z-index: 9;
-            background: #f3f4f6;
-            padding: 1rem 0;
-            margin-bottom: 2rem;
+        .kpi-updated {
+            animation: pulse 0.5s ease;
         }
-        .table-container {
-            max-height: 350px;
-            overflow-y: auto;
-            position: relative;
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
         }
-        .table-container table {
+        .top-client-updated {
+            animation: highlight 0.6s ease;
+        }
+        @keyframes highlight {
+            0% { background-color: #e5e7eb; }
+            100% { background-color: #f9fafb; }
+        }
+        .dynamic-icon {
+            transition: color 0.3s ease, transform 0.3s ease;
+        }
+        .dynamic-icon:hover {
+            transform: scale(1.2);
+        }
+        #scannerPreview {
+            display: none;
+            margin-bottom: 1rem;
+            max-width: 100%;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        #scannerPreview video {
             width: 100%;
+            height: auto;
         }
-        .table-container thead {
-            position: sticky;
-            top: 0;
-            background: #f9fafb;
-            z-index: 1;
+        #scrollTopButton {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        #scrollTopButton:hover {
+            transform: scale(1.1);
+        }
+        .search-input {
+            transition: all 0.3s ease;
+        }
+        .search-input:focus {
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
         }
     </style>
 </head>
-<body class="bg-gray-100">
-    <!-- Formulaire de connexion -->
-    <div id="loginModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-20 hidden">
-        <form id="loginForm" class="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 class="text-xl font-semibold mb-4">Connexion</h2>
-            <p class="text-sm text-red-500 mb-4">⚠️ Le mot de passe ne doit pas être celui de votre email.</p>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Adresse Email*</label>
-                <input type="email" id="userEmail" name="username" autocomplete="username" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre email" required>
-            </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe*</label>
-                <input type="password" id="userPassword" name="password" autocomplete="current-password" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre mot de passe" required>
-            </div>
-            <div class="flex justify-end space-x-3">
-                <button type="submit" onclick="loginWithCredentials(event)" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
-                    <i class="fas fa-sign-in-alt mr-2"></i>Se connecter
+<body class="bg-gray-100 font-sans">
+    <div class="container mx-auto p-4 max-w-7xl">
+        <!-- En-tête -->
+        <header class="flex justify-between items-center mb-8 bg-white p-4 rounded-lg shadow">
+            <h1 class="text-2xl font-bold text-gray-800">Gestion Commerciale</h1>
+            <div class="flex items-center space-x-4">
+                <span id="userDisplay" class="text-gray-700 hidden"></span>
+                <button id="loginLogoutButton" onclick="loginLogout()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
+                    <i class="fas fa-sign-in-alt mr-1"></i>Connexion
                 </button>
             </div>
-        </form>
-    </div>
-
-    <!-- Menu de navigation -->
-    <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-slide-in">
-        <div class="container mx-auto flex justify-between items-center">
-            <div class="flex flex-col">
-                <h1 class="text-2xl font-bold flex items-center">
-                    <i class="fas fa-fire mr-2 text-amber-400 animate-pulse"></i> FirePoz
-                </h1>
-                <span id="userDisplay" class="small-email user-anim hidden"></span>
-            </div>
-            <div class="space-x-4 flex items-center">
-                <a href="page1.html" class="hover:text-indigo-200 transition flex items-center">
-                    <i class="fas fa-barcode mr-1"></i> Scanner Produit
-                </a>
-                <button id="loginLogoutButton" onclick="loginLogout()" class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition flex items-center">
-                    <i class="fas fa-sign-out-alt mr-1"></i>Déconnexion
-                </button>
-            </div>
-        </div>
-    </nav>
-
-    <!-- Contenu principal -->
-    <div class="container mx-auto px-4 py-16 mt-16">
-        <header class="mb-8">
-            <h1 class="text-3xl font-bold text-indigo-700">KHsphers software</h1>
-            <p class="text-gray-600 flex items-center">
-                <i class="fas fa-database mr-2 text-indigo-500"></i> Fueled by PostgreSQL
-            </p>
         </header>
 
-        <!-- Boutons Vente et Achat fixés -->
-        <div class="fixed-buttons flex">
-            <a href="vente.html" class="w-1/2 bg-green-600 text-white py-6 flex items-center justify-center hover:bg-green-700 transition-all duration-300 transform hover:scale-105 animate-pulse">
-                <i class="fas fa-shopping-cart text-4xl mr-3"></i>
-                <span class="text-2xl font-semibold">Vente</span>
-            </a>
-            <a href="achat.html" class="w-1/2 bg-blue-600 text-white py-6 flex items-center justify-center hover:bg-blue-700 transition-all duration-300 transform hover:scale-105 animate-pulse">
-                <i class="fas fa-box-open text-4xl mr-3"></i>
-                <span class="text-2xl font-semibold">Achat</span>
-            </a>
+        <!-- Modal de connexion -->
+        <div id="loginModal" class="bg-white p-6 rounded-lg shadow-lg mb-8">
+            <h2 class="text-xl font-semibold mb-4">Connexion</h2>
+            <form onsubmit="loginWithCredentials(event)">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input type="email" id="userEmail" class="w-full px-3 py-2 border rounded-md" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe</label>
+                    <input type="password" id="userPassword" class="w-full px-3 py-2 border rounded-md" required>
+                </div>
+                <button type="submit" class="w-full bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
+                    <i class="fas fa-sign-in-alt mr-2"></i>Se connecter
+                </button>
+            </form>
         </div>
 
-        <!-- Section KPI améliorée -->
-        <div id="kpiSection" class="w-full bg-gradient-to-r from-indigo-100 to-white shadow-lg rounded-lg p-4 mb-8 z-10 animate-fade-in">
+        <!-- KPI Dashboard -->
+        <section id="kpiSection" class="mb-8">
             <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                    <i class="fas fa-chart-line mr-2 text-indigo-500 animate-pulse"></i> Tableau de Bord
-                </h2>
-                <select id="kpiPeriod" class="border p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm">
-                    <option value="day">Aujourd'hui</option>
-                    <option value="week">Cette Semaine</option>
+                <h2 class="text-xl font-semibold">Tableau de Bord</h2>
+                <select id="kpiPeriod" class="px-3 py-2 border rounded-md">
+                    <option value="daily">Aujourd'hui</option>
+                    <option value="weekly">Cette semaine</option>
+                    <option value="monthly">Ce mois</option>
+                    <option value="yearly">Cette année</option>
                 </select>
             </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24">
-                    <h3 class="text-xs font-medium text-gray-600 flex items-center">
-                        <i id="caIcon" class="fas fa-money-bill-wave mr-1 text-green-500 dynamic-icon"></i> Chiffre d'Affaires
-                    </h3>
-                    <p id="totalCA" class="text-lg font-bold text-indigo-600">0.00 DA</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="kpi-card bg-white p-4 rounded-lg shadow">
+                    <div class="flex items-center">
+                        <i id="caIcon" class="fas fa-money-bill-wave mr-1 text-gray-400"></i>
+                        <span class="text-sm font-medium">Chiffre d'Affaires</span>
+                    </div>
+                    <p id="totalCA" class="text-2xl font-bold text-gray-800 mt-2">0.00 DA</p>
                 </div>
-                <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24">
-                    <h3 class="text-xs font-medium text-gray-600 flex items-center">
-                        <i id="profitIcon" class="fas fa-chart-pie mr-1 text-blue-500 dynamic-icon"></i> Bénéfice Total
-                    </h3>
-                    <p id="totalProfit" class="text-lg font-bold text-indigo-600">0.00 DA</p>
+                <div class="kpi-card bg-white p-4 rounded-lg shadow">
+                    <div class="flex items-center">
+                        <i id="profitIcon" class="fas fa-chart-pie mr-1 text-gray-400"></i>
+                        <span class="text-sm font-medium">Profit Total</span>
+                    </div>
+                    <p id="totalProfit" class="text-2xl font-bold text-gray-800 mt-2">0.00 DA</p>
                 </div>
-                <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24">
-                    <h3 class="text-xs font-medium text-gray-600 flex items-center">
-                        <i id="salesIcon" class="fas fa-shopping-cart mr-1 text-yellow-500 dynamic-icon"></i> Ventes
-                    </h3>
-                    <p id="salesCount" class="text-lg font-bold text-indigo-600">0</p>
+                <div class="kpi-card bg-white p-4 rounded-lg shadow">
+                    <div class="flex items-center">
+                        <i id="salesIcon" class="fas fa-shopping-cart mr-1 text-gray-400"></i>
+                        <span class="text-sm font-medium">Nombre de Ventes</span>
+                    </div>
+                    <p id="salesCount" class="text-2xl font-bold text-gray-800 mt-2">0</p>
                 </div>
-                <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24">
-                    <h3 class="text-xs font-medium text-gray-600 flex items-center">
-                        <i id="stockIcon" class="fas fa-exclamation-triangle mr-1 text-red-500 dynamic-icon"></i> Ruptures
-                    </h3>
-                    <p id="lowStockItems" class="text-lg font-bold text-indigo-600">0</p>
+                <div class="kpi-card bg-white p-4 rounded-lg shadow">
+                    <div class="flex items-center">
+                        <i id="stockIcon" class="fas fa-exclamation-triangle mr-1 text-gray-400"></i>
+                        <span class="text-sm font-medium">Produits en Rupture</span>
+                    </div>
+                    <p id="lowStockItems" class="text-2xl font-bold text-gray-800 mt-2">0</p>
                 </div>
-                <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24 col-span-2 sm:col-span-1 lg:col-span-2">
-                    <h3 class="text-xs font-medium text-gray-600 flex items-center">
-                        <i id="clientIcon" class="fas fa-user-check mr-1 text-purple-500 dynamic-icon"></i> Top Client
-                    </h3>
-                    <p id="topClient" class="text-sm font-bold text-indigo-600 overflow-hidden text-ellipsis whitespace-nowrap" title="N/A">N/A</p>
-                    <p id="topClientCA" class="text-xs text-gray-500">0.00 DA</p>
+                <div class="kpi-card bg-white p-4 rounded-lg shadow">
+                    <div class="flex items-center">
+                        <i id="clientIcon" class="fas fa-user-check mr-1 text-gray-400"></i>
+                        <span class="text-sm font-medium">Top Client</span>
+                    </div>
+                    <p id="topClient" class="text-lg font-bold text-gray-800 mt-2 truncate" title="N/A">N/A</p>
+                    <p id="topClientCA" class="text-sm text-gray-600">0.00 DA</p>
                 </div>
             </div>
-        </div>
+            <div class="mt-6 bg-white p-4 rounded-lg shadow">
+                <canvas id="caChart"></canvas>
+            </div>
+        </section>
 
-        <!-- Graphique en dessous -->
-        <div class="w-full bg-white p-4 rounded-lg shadow-md animate-fade-in chart-container mt-4">
-            <h3 class="text-lg font-medium text-gray-700 mb-4 flex items-center">
-                <i class="fas fa-chart-area mr-2 text-indigo-500"></i> Évolution du Chiffre d'Affaires
-            </h3>
-            <canvas id="caChart" height="100"></canvas>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
-            <!-- Gestion Clients -->
-            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="clientsSection">
-                <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('clientsSection')">
-                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-users mr-2 text-indigo-500"></i> Gestion Clients
-                        <span id="clientCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                    </h2>
-                    <button class="text-gray-600 hover:text-gray-800 transition">
-                        <i class="fas fa-chevron-down" id="clientsChevron"></i>
+        <!-- Section Clients -->
+        <section id="clientsSection" class="mb-8">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold">Clients <span id="clientCount" class="hidden text-sm text-gray-500 ml-2">(0)</span></h2>
+                <div class="flex items-center space-x-2">
+                    <input type="text" id="searchClient" class="px-3 py-2 border rounded-md search-input" placeholder="Rechercher un client...">
+                    <button onclick="toggleClientForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
+                        <i class="fas fa-plus mr-2"></i>Nouveau
                     </button>
-                </div>
-                <div class="p-6 hidden" id="clientsContent">
-                    <div class="mb-4">
-                        <div class="relative">
-                            <input type="text" id="searchClient" placeholder="Rechercher des clients..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                        </div>
-                        <div class="flex justify-end mt-2">
-                            <button onclick="toggleClientForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-plus mr-2"></i>Ajouter
-                            </button>
-                        </div>
-                    </div>
-
-                    <div id="clientForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
-                        <h3 class="font-medium mb-3">Nouveau Client</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
-                                <input type="text" id="clientNom" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Contact</label>
-                                <input type="text" id="clientContact" class="w-full px-3 py-2 border rounded-md">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
-                                <input type="text" id="clientAdresse" class="w-full px-3 py-2 border rounded-md">
-                            </div>
-                        </div>
-                        <div class="flex justify-end space-x-3 mt-4">
-                            <button onclick="resetClientForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-times mr-2"></i>Annuler
-                            </button>
-                            <button onclick="ajouterClient()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-save mr-2"></i>Enregistrer
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="table-container">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="clientsList" class="bg-white divide-y divide-gray-200">
-                                <tr>
-                                    <td colspan="5" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                    <i id="clientsChevron" class="fas fa-chevron-down cursor-pointer" onclick="toggleSection('clientsSection')"></i>
                 </div>
             </div>
+            <div id="clientsContent">
+                <div id="clientForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
+                    <h3 class="font-medium mb-3">Nouveau Client</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
+                            <input type="text" id="clientNom" class="w-full px-3 py-2 border rounded-md" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Contact</label>
+                            <input type="text" id="clientContact" class="w-full px-3 py-2 border rounded-md">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
+                            <input type="text" id="clientAdresse" class="w-full px-3 py-2 border rounded-md">
+                        </div>
+                    </div>
+                    <div class="flex justify-end space-x-3 mt-4">
+                        <button onclick="resetClientForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
+                            <i class="fas fa-times mr-2"></i>Annuler
+                        </button>
+                        <button onclick="ajouterClient()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
+                            <i class="fas fa-save mr-2"></i>Enregistrer
+                        </button>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow overflow-x-auto">
+                    <table class="min-w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="clientsList">
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-gray-500">Veuillez vous connecter</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
 
-            <!-- Gestion Fournisseurs -->
-            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="fournisseursSection">
-                <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('fournisseursSection')">
-                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-truck mr-2 text-indigo-500"></i> Gestion Fournisseurs
-                        <span id="fournisseurCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                    </h2>
-                    <button class="text-gray-600 hover:text-gray-800 transition">
-                        <i class="fas fa-chevron-down" id="fournisseursChevron"></i>
+        <!-- Section Fournisseurs -->
+        <section id="fournisseursSection" class="mb-8">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold">Fournisseurs <span id="fournisseurCount" class="hidden text-sm text-gray-500 ml-2">(0)</span></h2>
+                <div class="flex items-center space-x-2">
+                    <input type="text" id="searchFournisseur" class="px-3 py-2 border rounded-md search-input" placeholder="Rechercher un fournisseur...">
+                    <button onclick="toggleFournisseurForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
+                        <i class="fas fa-plus mr-2"></i>Nouveau
                     </button>
-                </div>
-                <div class="p-6 hidden" id="fournisseursContent">
-                    <div class="mb-4">
-                        <div class="relative">
-                            <input type="text" id="searchFournisseur" placeholder="Rechercher des fournisseurs..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                        </div>
-                        <div class="flex justify-end mt-2">
-                            <button onclick="toggleFournisseurForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-plus mr-2"></i>Ajouter
-                            </button>
-                        </div>
-                    </div>
-
-                    <div id="fournisseurForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
-                        <h3 class="font-medium mb-3">Nouveau Fournisseur</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
-                                <input type="text" id="fournisseurNom" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Contact</label>
-                                <input type="text" id="fournisseurContact" class="w-full px-3 py-2 border rounded-md">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
-                                <input type="text" id="fournisseurAdresse" class="w-full px-3 py-2 border rounded-md">
-                            </div>
-                        </div>
-                        <div class="flex justify-end space-x-3 mt-4">
-                            <button onclick="resetFournisseurForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-times mr-2"></i>Annuler
-                            </button>
-                            <button onclick="ajouterFournisseur()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-save mr-2"></i>Enregistrer
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="table-container">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="fournisseursList" class="bg-white divide-y divide-gray-200">
-                                <tr>
-                                    <td colspan="5" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                    <i id="fournisseursChevron" class="fas fa-chevron-down cursor-pointer" onclick="toggleSection('fournisseursSection')"></i>
                 </div>
             </div>
+            <div id="fournisseursContent">
+                <div id="fournisseurForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
+                    <h3 class="font-medium mb-3">Nouveau Fournisseur</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
+                            <input type="text" id="fournisseurNom" class="w-full px-3 py-2 border rounded-md" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Contact</label>
+                            <input type="text" id="fournisseurContact" class="w-full px-3 py-2 border rounded-md">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
+                            <input type="text" id="fournisseurAdresse" class="w-full px-3 py-2 border rounded-md">
+                        </div>
+                    </div>
+                    <div class="flex justify-end space-x-3 mt-4">
+                        <button onclick="resetFournisseurForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
+                            <i class="fas fa-times mr-2"></i>Annuler
+                        </button>
+                        <button onclick="ajouterFournisseur()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
+                            <i class="fas fa-save mr-2"></i>Enregistrer
+                        </button>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow overflow-x-auto">
+                    <table class="min-w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fournisseursList">
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-gray-500">Veuillez vous connecter</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
 
-            <!-- Liste des Produits -->
-            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="productsSection">
-                <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('productsSection')">
-                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-boxes mr-2 text-indigo-500"></i> Liste des Produits
-                        <span id="productCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                    </h2>
-                    <button class="text-gray-600 hover:text-gray-800 transition">
-                        <i class="fas fa-chevron-down" id="productsChevron"></i>
+        <!-- Section Produits -->
+        <section id="productsSection" class="mb-8">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold">Produits <span id="productCount" class="hidden text-sm text-gray-500 ml-2">(0)</span></h2>
+                <div class="flex items-center space-x-2">
+                    <input type="text" id="searchProduct" class="px-3 py-2 border rounded-md search-input" placeholder="Rechercher un produit...">
+                    <button onclick="toggleProductForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
+                        <i class="fas fa-plus mr-2"></i>Nouveau
                     </button>
-                </div>
-                <div class="p-6 hidden" id="productsContent">
-                    <div class="mb-4">
-                        <div class="relative">
-                            <input type="text" id="searchProduct" placeholder="Rechercher des produits..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                        </div>
-                        <div class="flex justify-end mt-2">
-                            <button onclick="toggleProductForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-plus mr-2"></i>Ajouter
-                            </button>
-                        </div>
-                    </div>
-
-                    <div id="productForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
-                        <h3 class="font-medium mb-3">Nouveau Produit</h3>
-                        <div id="scannerPreview"></div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Désignation*</label>
-                                <input type="text" id="productDesignation" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div class="relative">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Code Barre*</label>
-                                <input type="text" id="productBar" class="w-full px-3 py-2 border rounded-md" required>
-                                <button id="scanButton" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition duration-300" onclick="startScanner()">
-                                    <i class="fas fa-camera"></i> Scanner
-                                </button>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Prix Vente*</label>
-                                <input type="number" id="productPrix" step="0.01" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Prix Achat</label>
-                                <input type="number" id="productPrixba" step="0.01" class="w-full px-3 py-2 border rounded-md" placeholder="Ex: 300.00">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Quantité*</label>
-                                <input type="number" id="productQte" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                        </div>
-                        <div class="flex justify-end space-x-3 mt-4">
-                            <button onclick="stopScanner()" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-stop mr-2"></i>Arrêter
-                            </button>
-                            <button onclick="resetProductForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-times mr-2"></i>Annuler
-                            </button>
-                            <button onclick="ajouterProduit()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-save mr-2"></i>Enregistrer
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="table-container">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Désignation</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Vente</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Achat</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="productsList" class="bg-white divide-y divide-gray-200">
-                                <tr>
-                                    <td colspan="6" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                    <i id="productsChevron" class="fas fa-chevron-down cursor-pointer" onclick="toggleSection('productsSection')"></i>
                 </div>
             </div>
+            <div id="productsContent">
+                <div id="productForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
+                    <h3 class="font-medium mb-3">Nouveau Produit</h3>
+                    <div id="scannerPreview"></div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Désignation*</label>
+                            <input type="text" id="productDesignation" class="w-full px-3 py-2 border rounded-md" required>
+                        </div>
+                        <div class="relative">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Code Barre*</label>
+                            <input type="text" id="productBar" class="w-full px-3 py-2 border rounded-md" required>
+                            <button id="scanButton" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition duration-300" onclick="startScanner()">
+                                <i class="fas fa-camera"></i> Scanner
+                            </button>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Prix Vente*</label>
+                            <input type="number" id="productPrix" step="0.01" class="w-full px-3 py-2 border rounded-md" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Prix Achat</label>
+                            <input type="number" id="productPrixba" step="0.01" class="w-full px-3 py-2 border rounded-md" placeholder="Ex: 300.00">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Quantité*</label>
+                            <input type="number" id="productQte" class="w-full px-3 py-2 border rounded-md" required>
+                        </div>
+                    </div>
+                    <div class="flex justify-end space-x-3 mt-4">
+                        <button onclick="stopScanner()" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition duration-300 transform hover:scale-105">
+                            <i class="fas fa-stop mr-2"></i>Arrêter
+                        </button>
+                        <button onclick="resetProductForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
+                            <i class="fas fa-times mr-2"></i>Annuler
+                        </button>
+                        <button onclick="ajouterProduit()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
+                            <i class="fas fa-save mr-2"></i>Enregistrer
+                        </button>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow overflow-x-auto">
+                    <table class="min-w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Désignation</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Vente</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Achat</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="productsList">
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-gray-500">Veuillez vous connecter</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
 
-            <!-- Gestion Utilisateurs -->
-            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="utilisateursSection">
-                <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('utilisateursSection')">
-                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-user-tie mr-2 text-indigo-500"></i> Gestion Utilisateurs
-                        <span id="utilisateurCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                    </h2>
-                    <button class="text-gray-600 hover:text-gray-800 transition">
-                        <i class="fas fa-chevron-down" id="utilisateursChevron"></i>
+        <!-- Section Utilisateurs -->
+        <section id="utilisateursSection" class="mb-8">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold">Utilisateurs <span id="utilisateurCount" class="hidden text-sm text-gray-500 ml-2">(0)</span></h2>
+                <div class="flex items-center space-x-2">
+                    <input type="text" id="searchUtilisateur" class="px-3 py-2 border rounded-md search-input" placeholder="Rechercher un utilisateur...">
+                    <button onclick="toggleUtilisateurForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
+                        <i class="fas fa-plus mr-2"></i>Nouveau
                     </button>
-                </div>
-                <div class="p-6 hidden" id="utilisateursContent">
-                    <div class="mb-4">
-                        <div class="relative">
-                            <input type="text" id="searchUtilisateur" placeholder="Rechercher des utilisateurs..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                        </div>
-                        <div class="flex justify-end mt-2">
-                            <button onclick="toggleUtilisateurForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-plus mr-2"></i>Ajouter
-                            </button>
-                        </div>
-                    </div>
-
-                    <div id="utilisateurForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
-                        <h3 class="font-medium mb-3">Nouvel Utilisateur</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
-                                <input type="text" id="utilisateurNom" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe*</label>
-                                <input type="password" id="utilisateurPassword" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Statut*</label>
-                                <select id="utilisateurStatut" class="w-full px-3 py-2 border rounded-md">
-                                    <option value="admin">Admin</option>
-                                    <option value="emplo">Employé</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="flex justify-end space-x-3 mt-4">
-                            <button onclick="resetUtilisateurForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-times mr-2"></i>Annuler
-                            </button>
-                            <button onclick="ajouterUtilisateur()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-save mr-2"></i>Enregistrer
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="table-container">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="utilisateursList" class="bg-white divide-y divide-gray-200">
-                                <tr>
-                                    <td colspan="4" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                    <i id="utilisateursChevron" class="fas fa-chevron-down cursor-pointer" onclick="toggleSection('utilisateursSection')"></i>
                 </div>
             </div>
-
-            <!-- Panneau Actions Rapides -->
-            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="actionsSection">
-                <div class="p-6">
-                    <h2 class="text-xl font-semibold text-gray-800 flex items-center mb-4">
-                        <i class="fas fa-bolt mr-2 text-indigo-500"></i> Actions Rapides
-                    </h2>
-                    <div class="grid grid-cols-2 gap-4">
-                        <a href="page2.html" class="bg-indigo-600 text-white p-4 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105 flex items-center justify-center">
-                            <i class="fas fa-chart-bar mr-2 text-xl"></i>
-                            <span class="font-medium">Statistiques</span>
-                        </a>
-                        <a href="HISTO.html" class="bg-blue-600 text-white p-4 rounded-md hover:bg-blue-700 transition duration-300 transform hover:scale-105 flex items-center justify-center">
-                            <i class="fas fa-money-check-alt mr-2 text-xl"></i>
-                            <span class="font-medium">Versement</span>
-                        </a>
-                        <a href="PARAM.html" class="bg-gray-600 text-white p-4 rounded-md hover:bg-gray-700 transition duration-300 transform hover:scale-105 flex items-center justify-center">
-                            <i class="fas fa-cog mr-2 text-xl"></i>
-                            <span class="font-medium">Réglage</span>
-                        </a>
-                        <a href="HELP.html" class="bg-green-600 text-white p-4 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105 flex items-center justify-center">
-                            <i class="fas fa-question-circle mr-2 text-xl"></i>
-                            <span class="font-medium">Aide</span>
-                        </a>
+            <div id="utilisateursContent">
+                <div id="utilisateurForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
+                    <h3 class="font-medium mb-3">Nouvel Utilisateur</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
+                            <input type="text" id="utilisateurNom" class="w-full px-3 py-2 border rounded-md" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe*</label>
+                            <input type="password" id="utilisateurPassword" class="w-full px-3 py-2 border rounded-md" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Statut*</label>
+                            <select id="utilisateurStatut" class="w-full px-3 py-2 border rounded-md">
+                                <option value="admin">Admin</option>
+                                <option value="utilisateur">Utilisateur</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex justify-end space-x-3 mt-4">
+                        <button onclick="resetUtilisateurForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
+                            <i class="fas fa-times mr-2"></i>Annuler
+                        </button>
+                        <button onclick="ajouterUtilisateur()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
+                            <i class="fas fa-save mr-2"></i>Enregistrer
+                        </button>
                     </div>
                 </div>
+                <div class="bg-white rounded-lg shadow overflow-x-auto">
+                    <table class="min-w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="utilisateursList">
+                            <tr>
+                                <td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
-        </div>
-    </div>
+        </section>
 
-    <!-- Footer -->
-    <footer class="bg-gray-700 text-white text-center py-4 mt-8 animate-fade-in">
-        <p>Développé par Khelladi Hicham</p>
-        <p>Tel: <a href="tel:00213553700900" class="underline hover:text-indigo-300 transition duration-300">00213553700900</a></p>
-        <p>Email: <a href="mailto:Hicham.khelladi@gmail.com" class="underline hover:text-indigo-300 transition duration-300">Hicham.khelladi@gmail.com</a></p>
-    </footer>
+        <!-- Bouton remonter en haut -->
+        <button id="scrollTopButton" class="fixed bottom-4 right-4 bg-indigo-600 text-white p-3 rounded-full shadow-lg hover:bg-indigo-700 transition duration-300 hidden">
+            <i class="fas fa-arrow-up"></i>
+        </button>
 
-    <!-- Bouton flottant pour remonter en haut -->
-    <button id="scrollTopButton" class="hidden fixed bottom-4 right-4 bg-indigo-600 text-white p-3 rounded-full shadow-lg hover:bg-indigo-700 transition transform hover:scale-110 animate-fade-in z-30" title="Remonter en haut">
-        <i class="fas fa-arrow-up"></i>
-    </button>
-
-    <div id="toast" class="fixed bottom-4 right-4 hidden">
-        <div class="flex items-center px-6 py-3 rounded-md shadow-lg">
-            <i id="toastIcon" class="mr-2"></i>
+        <!-- Toast Notification -->
+        <div id="toast" class="hidden fixed bottom-4 right-4 flex items-center bg-green-500 text-white px-6 py-3 rounded-md shadow-lg">
+            <i id="toastIcon" class="fas fa-check-circle mr-2"></i>
             <span id="toastMessage"></span>
         </div>
     </div>
@@ -547,6 +419,7 @@
         let stream = null;
         let barcodeDetector = null;
         let isScanning = false;
+        let editMode = { type: null, id: null }; // Pour suivre le mode édition
 
         // Générer un user_id basé sur l'email et le mot de passe
         function generateUniqueUserId(email, password) {
@@ -600,7 +473,30 @@
             document.getElementById('scrollTopButton').addEventListener('click', () => {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             });
+
+            // Recherche en temps réel
+            document.getElementById('searchClient').addEventListener('input', () => filterTable('clientsList', 'searchClient'));
+            document.getElementById('searchFournisseur').addEventListener('input', () => filterTable('fournisseursList', 'searchFournisseur'));
+            document.getElementById('searchProduct').addEventListener('input', () => filterTable('productsList', 'searchProduct'));
+            document.getElementById('searchUtilisateur').addEventListener('input', () => filterTable('utilisateursList', 'searchUtilisateur'));
         });
+
+        // Fonction de filtrage des tableaux
+        function filterTable(tableId, inputId) {
+            const searchTerm = document.getElementById(inputId).value.toLowerCase();
+            const rows = document.getElementById(tableId).getElementsByTagName('tr');
+            for (let row of rows) {
+                const cells = row.getElementsByTagName('td');
+                let match = false;
+                for (let cell of cells) {
+                    if (cell.textContent.toLowerCase().includes(searchTerm)) {
+                        match = true;
+                        break;
+                    }
+                }
+                row.style.display = match ? '' : 'none';
+            }
+        }
 
         // Fonction pour charger les KPI
         async function chargerKPI() {
@@ -854,10 +750,10 @@
                         <td class="px-6 py-4 whitespace-nowrap">${client.contact || ''}</td>
                         <td class="px-6 py-4 whitespace-nowrap">${client.adresse || ''}</td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <button onclick="editerClient('${client.reference}')" class="text-blue-600 hover:text-blue-800 mr-2">
+                            <button onclick="editerClient('${client.numero_clt}')" class="text-blue-600 hover:text-blue-800 mr-2" title="Modifier">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <button onclick="supprimerClient('${client.reference}')" class="text-red-600 hover:text-red-800">
+                            <button onclick="supprimerClient('${client.numero_clt}')" class="text-red-600 hover:text-red-800" title="Supprimer">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </td>
@@ -923,14 +819,139 @@
             }
         }
 
+        async function editerClient(numero_clt) {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour modifier un client', true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_clients`, {
+                    headers: {
+                        'X-User-ID': userId
+                    }
+                });
+                const clients = await response.json();
+                const client = clients.find(c => c.numero_clt === parseInt(numero_clt));
+
+                if (!client) {
+                    showToast('Client non trouvé', true);
+                    return;
+                }
+
+                // Pré-remplir le formulaire
+                document.getElementById('clientNom').value = client.nom;
+                document.getElementById('clientContact').value = client.contact || '';
+                document.getElementById('clientAdresse').value = client.adresse || '';
+                document.getElementById('clientForm').classList.remove('hidden');
+
+                // Mettre à jour le titre et le bouton
+                document.querySelector('#clientForm h3').textContent = 'Modifier Client';
+                const saveButton = document.querySelector('#clientForm button[onclick="ajouterClient()"]');
+                saveButton.innerHTML = '<i class="fas fa-save mr-2"></i>Modifier';
+                saveButton.onclick = () => modifierClient(numero_clt);
+
+                editMode = { type: 'client', id: numero_clt };
+            } catch (error) {
+                showToast('Erreur lors du chargement du client', true);
+                console.error('Erreur édition client:', error);
+            }
+        }
+
+        async function modifierClient(numero_clt) {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour modifier un client', true);
+                return;
+            }
+
+            const nom = document.getElementById('clientNom').value.trim();
+            const contact = document.getElementById('clientContact').value.trim();
+            const adresse = document.getElementById('clientAdresse').value.trim();
+
+            if (!nom) {
+                showToast('Le nom est obligatoire', true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/modifier_client/${numero_clt}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify({
+                        nom,
+                        contact,
+                        adresse
+                    })
+                });
+
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.erreur || 'Erreur lors de la modification');
+                }
+
+                showToast('Client modifié avec succès');
+                resetClientForm();
+                chargerClients();
+            } catch (error) {
+                showToast(error.message, true);
+                console.error('Erreur modification client:', error);
+            }
+        }
+
+        async function supprimerClient(numero_clt) {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour supprimer un client', true);
+                return;
+            }
+
+            if (!confirm('Voulez-vous vraiment supprimer ce client ?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/supprimer_client/${numero_clt}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-User-ID': userId
+                    }
+                });
+
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.erreur || 'Erreur lors de la suppression');
+                }
+
+                showToast('Client supprimé avec succès');
+                chargerClients();
+            } catch (error) {
+                showToast(error.message, true);
+                console.error('Erreur suppression client:', error);
+            }
+        }
+
         function resetClientForm() {
             document.getElementById('clientNom').value = '';
             document.getElementById('clientContact').value = '';
             document.getElementById('clientAdresse').value = '';
             document.getElementById('clientForm').classList.add('hidden');
+            document.querySelector('#clientForm h3').textContent = 'Nouveau Client';
+            const saveButton = document.querySelector('#clientForm button[onclick="modifierClient()"]') || 
+                             document.querySelector('#clientForm button[onclick="ajouterClient()"]');
+            saveButton.innerHTML = '<i class="fas fa-save mr-2"></i>Enregistrer';
+            saveButton.onclick = ajouterClient;
+            editMode = { type: null, id: null };
         }
 
         function toggleClientForm() {
+            if (editMode.type === 'client') {
+                resetClientForm();
+            }
             document.getElementById('clientForm').classList.toggle('hidden');
         }
 
@@ -974,10 +995,10 @@
                         <td class="px-6 py-4 whitespace-nowrap">${fournisseur.contact || ''}</td>
                         <td class="px-6 py-4 whitespace-nowrap">${fournisseur.adresse || ''}</td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <button onclick="editerFournisseur('${fournisseur.reference}')" class="text-blue-600 hover:text-blue-800 mr-2">
+                            <button onclick="editerFournisseur('${fournisseur.numero_fou}')" class="text-blue-600 hover:text-blue-800 mr-2" title="Modifier">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <button onclick="supprimerFournisseur('${fournisseur.reference}')" class="text-red-600 hover:text-red-800">
+                            <button onclick="supprimerFournisseur('${fournisseur.numero_fou}')" class="text-red-600 hover:text-red-800" title="Supprimer">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </td>
@@ -1043,14 +1064,139 @@
             }
         }
 
+        async function editerFournisseur(numero_fou) {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour modifier un fournisseur', true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_fournisseurs`, {
+                    headers: {
+                        'X-User-ID': userId
+                    }
+                });
+                const fournisseurs = await response.json();
+                const fournisseur = fournisseurs.find(f => f.numero_fou === parseInt(numero_fou));
+
+                if (!fournisseur) {
+                    showToast('Fournisseur non trouvé', true);
+                    return;
+                }
+
+                // Pré-remplir le formulaire
+                document.getElementById('fournisseurNom').value = fournisseur.nom;
+                document.getElementById('fournisseurContact').value = fournisseur.contact || '';
+                document.getElementById('fournisseurAdresse').value = fournisseur.adresse || '';
+                document.getElementById('fournisseurForm').classList.remove('hidden');
+
+                // Mettre à jour le titre et le bouton
+                document.querySelector('#fournisseurForm h3').textContent = 'Modifier Fournisseur';
+                const saveButton = document.querySelector('#fournisseurForm button[onclick="ajouterFournisseur()"]');
+                saveButton.innerHTML = '<i class="fas fa-save mr-2"></i>Modifier';
+                saveButton.onclick = () => modifierFournisseur(numero_fou);
+
+                editMode = { type: 'fournisseur', id: numero_fou };
+            } catch (error) {
+                showToast('Erreur lors du chargement du fournisseur', true);
+                console.error('Erreur édition fournisseur:', error);
+            }
+        }
+
+        async function modifierFournisseur(numero_fou) {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour modifier un fournisseur', true);
+                return;
+            }
+
+            const nom = document.getElementById('fournisseurNom').value.trim();
+            const contact = document.getElementById('fournisseurContact').value.trim();
+            const adresse = document.getElementById('fournisseurAdresse').value.trim();
+
+            if (!nom) {
+                showToast('Le nom est obligatoire', true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/modifier_fournisseur/${numero_fou}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify({
+                        nom,
+                        contact,
+                        adresse
+                    })
+                });
+
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.erreur || 'Erreur lors de la modification');
+                }
+
+                showToast('Fournisseur modifié avec succès');
+                resetFournisseurForm();
+                chargerFournisseurs();
+            } catch (error) {
+                showToast(error.message, true);
+                console.error('Erreur modification fournisseur:', error);
+            }
+        }
+
+        async function supprimerFournisseur(numero_fou) {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour supprimer un fournisseur', true);
+                return;
+            }
+
+            if (!confirm('Voulez-vous vraiment supprimer ce fournisseur ?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/supprimer_fournisseur/${numero_fou}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-User-ID': userId
+                    }
+                });
+
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.erreur || 'Erreur lors de la suppression');
+                }
+
+                showToast('Fournisseur supprimé avec succès');
+                chargerFournisseurs();
+            } catch (error) {
+                showToast(error.message, true);
+                console.error('Erreur suppression fournisseur:', error);
+            }
+        }
+
         function resetFournisseurForm() {
             document.getElementById('fournisseurNom').value = '';
             document.getElementById('fournisseurContact').value = '';
             document.getElementById('fournisseurAdresse').value = '';
             document.getElementById('fournisseurForm').classList.add('hidden');
+            document.querySelector('#fournisseurForm h3').textContent = 'Nouveau Fournisseur';
+            const saveButton = document.querySelector('#fournisseurForm button[onclick="modifierFournisseur()"]') || 
+                             document.querySelector('#fournisseurForm button[onclick="ajouterFournisseur()"]');
+            saveButton.innerHTML = '<i class="fas fa-save mr-2"></i>Enregistrer';
+            saveButton.onclick = ajouterFournisseur;
+            editMode = { type: null, id: null };
         }
 
         function toggleFournisseurForm() {
+            if (editMode.type === 'fournisseur') {
+                resetFournisseurForm();
+            }
             document.getElementById('fournisseurForm').classList.toggle('hidden');
         }
 
@@ -1089,16 +1235,16 @@
                     const tr = document.createElement('tr');
                     tr.className = 'hover:bg-gray-50';
                     tr.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap">${produit.ref}</td>
-                        <td class="px-6 py-4">${produit.designation}</td>
-                        <td class="px-6 py-4 whitespace-nowrap">${parseFloat(produit.prix || 0).toFixed(2)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap">${parseFloat(produit.prixba || 0).toFixed(2)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap">${produit.qte || 0}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${produit.REF}</td>
+                        <td class="px-6 py-4">${produit.DESIGNATION}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${parseFloat(produit.PRIX).toFixed(2)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${parseFloat(produit.PRIXBA).toFixed(2)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${produit.QTE}</td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <button onclick="editerProduit('${produit.ref}')" class="text-blue-600 hover:text-blue-800 mr-2">
+                            <button onclick="editerProduit('${produit.NUMERO_ITEM}')" class="text-blue-600 hover:text-blue-800 mr-2" title="Modifier">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <button onclick="supprimerProduit('${produit.ref}')" class="text-red-600 hover:text-red-800">
+                            <button onclick="supprimerProduit('${produit.NUMERO_ITEM}')" class="text-red-600 hover:text-red-800" title="Supprimer">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </td>
@@ -1168,6 +1314,128 @@
             }
         }
 
+        async function editerProduit(numero_item) {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour modifier un produit', true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
+                    headers: {
+                        'X-User-ID': userId
+                    }
+                });
+                const produits = await response.json();
+                const produit = produits.find(p => p.NUMERO_ITEM === parseInt(numero_item));
+
+                if (!produit) {
+                    showToast('Produit non trouvé', true);
+                    return;
+                }
+
+                // Pré-remplir le formulaire
+                document.getElementById('productDesignation').value = produit.DESIGNATION;
+                document.getElementById('productBar').value = produit.BAR;
+                document.getElementById('productPrix').value = parseFloat(produit.PRIX).toFixed(2);
+                document.getElementById('productPrixba').value = parseFloat(produit.PRIXBA).toFixed(2);
+                document.getElementById('productQte').value = produit.QTE;
+                document.getElementById('productForm').classList.remove('hidden');
+
+                // Mettre à jour le titre et le bouton
+                document.querySelector('#productForm h3').textContent = 'Modifier Produit';
+                const saveButton = document.querySelector('#productForm button[onclick="ajouterProduit()"]');
+                saveButton.innerHTML = '<i class="fas fa-save mr-2"></i>Modifier';
+                saveButton.onclick = () => modifierProduit(numero_item);
+
+                editMode = { type: 'produit', id: numero_item };
+            } catch (error) {
+                showToast('Erreur lors du chargement du produit', true);
+                console.error('Erreur édition produit:', error);
+            }
+        }
+
+        async function modifierProduit(numero_item) {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour modifier un produit', true);
+                return;
+            }
+
+            const designation = document.getElementById('productDesignation').value.trim();
+            const bar = document.getElementById('productBar').value.trim();
+            const prix = document.getElementById('productPrix').value.trim();
+            const prixba = document.getElementById('productPrixba').value.trim() || '0';
+            const qte = document.getElementById('productQte').value.trim();
+
+            if (!designation || !bar || !prix || !qte) {
+                showToast('Veuillez remplir tous les champs obligatoires', true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/modifier_item/${numero_item}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify({
+                        designation,
+                        bar,
+                        prix: parseFloat(prix),
+                        prixba: parseFloat(prixba),
+                        qte: parseInt(qte)
+                    })
+                });
+
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.erreur || 'Erreur lors de la modification');
+                }
+
+                showToast('Produit modifié avec succès');
+                resetProductForm();
+                chargerProduits();
+            } catch (error) {
+                showToast(error.message, true);
+                console.error('Erreur modification produit:', error);
+            }
+        }
+
+        async function supprimerProduit(numero_item) {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour supprimer un produit', true);
+                return;
+            }
+
+            if (!confirm('Voulez-vous vraiment supprimer ce produit ?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/supprimer_item/${numero_item}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-User-ID': userId
+                    }
+                });
+
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.erreur || 'Erreur lors de la suppression');
+                }
+
+                showToast('Produit supprimé avec succès');
+                chargerProduits();
+            } catch (error) {
+                showToast(error.message, true);
+                console.error('Erreur suppression produit:', error);
+            }
+        }
+
         function resetProductForm() {
             document.getElementById('productDesignation').value = '';
             document.getElementById('productBar').value = '';
@@ -1175,10 +1443,19 @@
             document.getElementById('productPrixba').value = '';
             document.getElementById('productQte').value = '';
             document.getElementById('productForm').classList.add('hidden');
+            document.querySelector('#productForm h3').textContent = 'Nouveau Produit';
+            const saveButton = document.querySelector('#productForm button[onclick="modifierProduit()"]') || 
+                             document.querySelector('#productForm button[onclick="ajouterProduit()"]');
+            saveButton.innerHTML = '<i class="fas fa-save mr-2"></i>Enregistrer';
+            saveButton.onclick = ajouterProduit;
+            editMode = { type: null, id: null };
             stopScanner();
         }
 
         function toggleProductForm() {
+            if (editMode.type === 'produit') {
+                resetProductForm();
+            }
             document.getElementById('productForm').classList.toggle('hidden');
         }
 
@@ -1221,10 +1498,10 @@
                         <td class="px-6 py-4 whitespace-nowrap">${utilisateur.nom}</td>
                         <td class="px-6 py-4 whitespace-nowrap">${utilisateur.statut}</td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <button onclick="editerUtilisateur('${utilisateur.id}')" class="text-blue-600 hover:text-blue-800 mr-2">
+                            <button onclick="editerUtilisateur('${utilisateur.id}')" class="text-blue-600 hover:text-blue-800 mr-2" title="Modifier">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <button onclick="supprimerUtilisateur('${utilisateur.id}')" class="text-red-600 hover:text-red-800">
+                            <button onclick="supprimerUtilisateur('${utilisateur.id}')" class="text-red-600 hover:text-red-800" title="Supprimer">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </td>
@@ -1290,7 +1567,91 @@
             }
         }
 
-        async function supprimerUtilisateur(id) {
+        async function editerUtilisateur(numero_util) {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour modifier un utilisateur', true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+                    headers: {
+                        'X-User-ID': userId
+                    }
+                });
+                const utilisateurs = await response.json();
+                const utilisateur = utilisateurs.find(u => u.id === parseInt(numero_util));
+
+                if (!utilisateur) {
+                    showToast('Utilisateur non trouvé', true);
+                    return;
+                }
+
+                // Pré-remplir le formulaire
+                document.getElementById('utilisateurNom').value = utilisateur.nom;
+                document.getElementById('utilisateurPassword').value = '';
+                document.getElementById('utilisateurStatut').value = utilisateur.statut;
+                document.getElementById('utilisateurForm').classList.remove('hidden');
+
+                // Mettre à jour le titre et le bouton
+                document.querySelector('#utilisateurForm h3').textContent = 'Modifier Utilisateur';
+                const saveButton = document.querySelector('#utilisateurForm button[onclick="ajouterUtilisateur()"]');
+                saveButton.innerHTML = '<i class="fas fa-save mr-2"></i>Modifier';
+                saveButton.onclick = () => modifierUtilisateur(numero_util);
+
+                editMode = { type: 'utilisateur', id: numero_util };
+            } catch (error) {
+                showToast('Erreur lors du chargement de l\'utilisateur', true);
+                console.error('Erreur édition utilisateur:', error);
+            }
+        }
+
+        async function modifierUtilisateur(numero_util) {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour modifier un utilisateur', true);
+                return;
+            }
+
+            const nom = document.getElementById('utilisateurNom').value.trim();
+            const password = document.getElementById('utilisateurPassword').value.trim();
+            const statut = document.getElementById('utilisateurStatut').value;
+
+            if (!nom || !statut) {
+                showToast('Veuillez remplir tous les champs obligatoires', true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/modifier_utilisateur/${numero_util}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify({
+                        nom,
+                        password2: password || undefined,
+                        statue: statut
+                    })
+                });
+
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.erreur || 'Erreur                     lors de la modification');
+                }
+
+                showToast('Utilisateur modifié avec succès');
+                resetUtilisateurForm();
+                chargerUtilisateurs();
+            } catch (error) {
+                showToast(error.message, true);
+                console.error('Erreur modification utilisateur:', error);
+            }
+        }
+
+        async function supprimerUtilisateur(numero_util) {
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour supprimer un utilisateur', true);
@@ -1302,7 +1663,7 @@
             }
 
             try {
-                const response = await fetch(`${API_BASE_URL}/supprimer_utilisateur/${id}`, {
+                const response = await fetch(`${API_BASE_URL}/supprimer_utilisateur/${numero_util}`, {
                     method: 'DELETE',
                     headers: {
                         'X-User-ID': userId
@@ -1327,9 +1688,18 @@
             document.getElementById('utilisateurPassword').value = '';
             document.getElementById('utilisateurStatut').value = 'admin';
             document.getElementById('utilisateurForm').classList.add('hidden');
+            document.querySelector('#utilisateurForm h3').textContent = 'Nouvel Utilisateur';
+            const saveButton = document.querySelector('#utilisateurForm button[onclick="modifierUtilisateur()"]') || 
+                             document.querySelector('#utilisateurForm button[onclick="ajouterUtilisateur()"]');
+            saveButton.innerHTML = '<i class="fas fa-save mr-2"></i>Enregistrer';
+            saveButton.onclick = ajouterUtilisateur;
+            editMode = { type: null, id: null };
         }
 
         function toggleUtilisateurForm() {
+            if (editMode.type === 'utilisateur') {
+                resetUtilisateurForm();
+            }
             document.getElementById('utilisateurForm').classList.toggle('hidden');
         }
 
@@ -1395,37 +1765,5 @@
             scannerPreview.style.display = 'none';
         }
     </script>
-<link rel="manifest" href="manifest.json">
-
-<div id="update-notification" style="display:none; position:fixed; bottom:10px; right:10px; background:#333; color:#fff; padding:10px; border-radius:5px; z-index:9999;">
-  Nouvelle version disponible.
-  <button onclick="window.location.reload()" style="margin-left:10px;">Mettre à jour</button>
-</div>
-
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function() {
-    navigator.serviceWorker.register('./service-worker.js').then(function(registration) {
-      console.log('[SW] Enregistré:', registration);
-
-      registration.onupdatefound = function() {
-        const newSW = registration.installing;
-        newSW.onstatechange = function() {
-          if (newSW.state === 'installed') {
-            if (navigator.serviceWorker.controller) {
-              console.log('[SW] Nouvelle version installée');
-              document.getElementById('update-notification').style.display = 'block';
-            } else {
-              console.log('[SW] Service Worker prêt pour la première fois');
-            }
-          }
-        };
-      };
-    }).catch(function(error) {
-      console.error('[SW] Erreur d\'enregistrement:', error);
-    });
-  });
-}
-</script>
 </body>
 </html>
