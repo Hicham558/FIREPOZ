@@ -433,37 +433,45 @@
             window.location.href = 'index.html';
         }
 
-        async function chargerUtilisateurs() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter', true);
-                return false;
-            }
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                const utilisateurs = await response.json();
-                const sellerSelect = document.getElementById('sellerSelect');
-                sellerSelect.innerHTML = '<option value="0">Sélectionner un vendeur</option>';
-                utilisateurs.forEach(utilisateur => {
-                    const option = document.createElement('option');
-                    option.value = utilisateur.numero_util;
-                    option.textContent = utilisateur.nom;
-                    sellerSelect.appendChild(option);
-                });
-                return true;
-            } catch (error) {
-                showToast(`Erreur chargement utilisateurs: ${error.message}`, true);
-                console.error('Erreur utilisateurs:', error);
-                return false;
-            }
-        }
+   async function chargerUtilisateurs() {
+    console.log('Chargement des utilisateurs...');
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour voir les utilisateurs', true);
+        return;
+    }
 
+    try {
+        const sellerSelect = document.getElementById('sellerSelect');
+        const currentSelection = sellerSelect.value;
+        const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+            headers: { 'X-User-ID': userId }
+        });
+        console.log('Réponse liste_utilisateurs:', response.status, response.statusText);
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Erreur texte liste_utilisateurs:', errorText);
+            throw new Error(`Erreur ${response.status}: ${errorText}`);
+        }
+        utilisateursCache = await response.json();
+        console.log('Utilisateurs reçus:', utilisateursCache);
+
+        sellerSelect.innerHTML = '<option value="0">Sélectionner un vendeur</option>';
+        utilisateursCache.forEach(utilisateur => {
+            const option = document.createElement('option');
+            option.value = utilisateur.numero; // Changed from numero_util to numero
+            option.textContent = utilisateur.nom;
+            sellerSelect.appendChild(option);
+        });
+
+        if (currentSelection !== '0' && utilisateursCache.some(u => u.numero === currentSelection)) {
+            sellerSelect.value = currentSelection;
+        }
+    } catch (error) {
+        showToast('Erreur lors du chargement des utilisateurs: ' + error.message, true);
+        console.error('Erreur utilisateurs:', error);
+    }
+}
         async function validerVendeur() {
             const numeroUtil = document.getElementById('sellerSelect').value;
             const password2 = document.getElementById('sellerPassword').value;
