@@ -989,10 +989,10 @@ function renderClients(clients) {
         tr.className = 'hover:bg-gray-50';
         tr.innerHTML = `
             <td class="px-6 py-4 whitespace-nowrap">${index + 1}</td>
-            <td class="px-6 py-4 whitespace-nowrap">${client.reference || client.numero_clt}</td>
-            <td class="px-6 py-4 whitespace-nowrap">${client.nom}</td>
-            <td class="px-6 py-4 whitespace-nowrap">${client.contact || ''}</td>
-            <td class="px-6 py-4 whitespace-nowrap">${client.adresse || ''}</td>
+            <td class="px-6 py-4 whitespace-nowrap">${client.reference || client.numero_clt || '-'}</td>
+            <td class="px-6 py-4 whitespace-nowrap">${client.nom || '-'}</td>
+            <td class="px-6 py-4 whitespace-nowrap">${client.contact || '-'}</td>
+            <td class="px-6 py-4 whitespace-nowrap">${client.adresse || '-'}</td>
             <td class="px-6 py-4 whitespace-nowrap action-buttons">
                 <button onclick="editerClient('${client.numero_clt}')" class="text-blue-600 hover:text-blue-800 mr-2">
                     <i class="fas fa-edit"></i>
@@ -1012,8 +1012,8 @@ function renderClients(clients) {
 function filterClients() {
     const searchTerm = document.getElementById('searchClient').value.toLowerCase();
     const filteredClients = clientsData.filter(client =>
-        client.nom.toLowerCase().includes(searchTerm) ||
-        (client.reference || client.numero_clt).toLowerCase().includes(searchTerm)
+        (client.nom || '').toLowerCase().includes(searchTerm) ||
+        (client.reference || client.numero_clt || '').toLowerCase().includes(searchTerm)
     );
     renderClients(filteredClients);
 }
@@ -1072,15 +1072,28 @@ async function editerClient(numeroClt) {
     const client = clientsData.find(c => c.numero_clt === numeroClt);
     if (!client) {
         showToast('Client non trouvé', true);
-        console.error('Client non trouvé:', numeroClt, clientsData);
-        return;
+        console.error('Client non trouvé:', numeroClt, 'Données:', clientsData);
+        // Tenter de recharger les données
+        await chargerClients();
+        const retryClient = clientsData.find(c => c.numero_clt === numeroClt);
+        if (!retryClient) {
+            showToast('Client toujours non trouvé après rechargement', true);
+            return;
+        }
+        // Continuer avec retryClient
+        document.getElementById('clientNumeroClt').value = retryClient.numero_clt;
+        document.getElementById('clientReference').value = retryClient.reference || retryClient.numero_clt || '';
+        document.getElementById('clientNom').value = retryClient.nom || '';
+        document.getElementById('clientContact').value = retryClient.contact || '';
+        document.getElementById('clientAdresse').value = retryClient.adresse || '';
+    } else {
+        document.getElementById('clientNumeroClt').value = client.numero_clt;
+        document.getElementById('clientReference').value = client.reference || client.numero_clt || '';
+        document.getElementById('clientNom').value = client.nom || '';
+        document.getElementById('clientContact').value = client.contact || '';
+        document.getElementById('clientAdresse').value = client.adresse || '';
     }
 
-    document.getElementById('clientNumeroClt').value = client.numero_clt;
-    document.getElementById('clientReference').value = client.reference || client.numero_clt;
-    document.getElementById('clientNom').value = client.nom;
-    document.getElementById('clientContact').value = client.contact || '';
-    document.getElementById('clientAdresse').value = client.adresse || '';
     document.getElementById('clientFormTitle').textContent = 'Modifier Client';
     document.getElementById('clientSubmitButton').innerHTML = '<i class="fas fa-save mr-2"></i>Modifier';
     document.getElementById('clientForm').classList.remove('hidden');
@@ -1185,10 +1198,10 @@ function renderFournisseurs(fournisseurs) {
         tr.className = 'hover:bg-gray-50';
         tr.innerHTML = `
             <td class="px-6 py-4 whitespace-nowrap">${index + 1}</td>
-            <td class="px-6 py-4 whitespace-nowrap">${fournisseur.reference || fournisseur.numero_fou}</td>
-            <td class="px-6 py-4 whitespace-nowrap">${fournisseur.nom}</td>
-            <td class="px-6 py-4 whitespace-nowrap">${fournisseur.contact || ''}</td>
-            <td class="px-6 py-4 whitespace-nowrap">${fournisseur.adresse || ''}</td>
+            <td class="px-6 py-4 whitespace-nowrap">${fournisseur.reference || fournisseur.numero_fou || '-'}</td>
+            <td class="px-6 py-4 whitespace-nowrap">${fournisseur.nom || '-'}</td>
+            <td class="px-6 py-4 whitespace-nowrap">${fournisseur.contact || '-'}</td>
+            <td class="px-6 py-4 whitespace-nowrap">${fournisseur.adresse || '-'}</td>
             <td class="px-6 py-4 whitespace-nowrap action-buttons">
                 <button onclick="editerFournisseur('${fournisseur.numero_fou}')" class="text-blue-600 hover:text-blue-800 mr-2">
                     <i class="fas fa-edit"></i>
@@ -1208,8 +1221,8 @@ function renderFournisseurs(fournisseurs) {
 function filterFournisseurs() {
     const searchTerm = document.getElementById('searchFournisseur').value.toLowerCase();
     const filteredFournisseurs = fournisseursData.filter(fournisseur =>
-        fournisseur.nom.toLowerCase().includes(searchTerm) ||
-        (fournisseur.reference || fournisseur.numero_fou).toLowerCase().includes(searchTerm)
+        (fournisseur.nom || '').toLowerCase().includes(searchTerm) ||
+        (fournisseur.reference || fournisseur.numero_fou || '').toLowerCase().includes(searchTerm)
     );
     renderFournisseurs(filteredFournisseurs);
 }
@@ -1268,15 +1281,28 @@ async function editerFournisseur(numeroFou) {
     const fournisseur = fournisseursData.find(f => f.numero_fou === numeroFou);
     if (!fournisseur) {
         showToast('Fournisseur non trouvé', true);
-        console.error('Fournisseur non trouvé:', numeroFou, fournisseursData);
-        return;
+        console.error('Fournisseur non trouvé:', numeroFou, 'Données:', fournisseursData);
+        // Tenter de recharger les données
+        await chargerFournisseurs();
+        const retryFournisseur = fournisseursData.find(f => f.numero_fou === numeroFou);
+        if (!retryFournisseur) {
+            showToast('Fournisseur toujours non trouvé après rechargement', true);
+            return;
+        }
+        // Continuer avec retryFournisseur
+        document.getElementById('fournisseurNumeroFou').value = retryFournisseur.numero_fou;
+        document.getElementById('fournisseurReference').value = retryFournisseur.reference || retryFournisseur.numero_fou || '';
+        document.getElementById('fournisseurNom').value = retryFournisseur.nom || '';
+        document.getElementById('fournisseurContact').value = retryFournisseur.contact || '';
+        document.getElementById('fournisseurAdresse').value = retryFournisseur.adresse || '';
+    } else {
+        document.getElementById('fournisseurNumeroFou').value = fournisseur.numero_fou;
+        document.getElementById('fournisseurReference').value = fournisseur.reference || fournisseur.numero_fou || '';
+        document.getElementById('fournisseurNom').value = fournisseur.nom || '';
+        document.getElementById('fournisseurContact').value = fournisseur.contact || '';
+        document.getElementById('fournisseurAdresse').value = fournisseur.adresse || '';
     }
 
-    document.getElementById('fournisseurNumeroFou').value = fournisseur.numero_fou;
-    document.getElementById('fournisseurReference').value = fournisseur.reference || fournisseur.numero_fou;
-    document.getElementById('fournisseurNom').value = fournisseur.nom;
-    document.getElementById('fournisseurContact').value = fournisseur.contact || '';
-    document.getElementById('fournisseurAdresse').value = fournisseur.adresse || '';
     document.getElementById('fournisseurFormTitle').textContent = 'Modifier Fournisseur';
     document.getElementById('fournisseurSubmitButton').innerHTML = '<i class="fas fa-save mr-2"></i>Modifier';
     document.getElementById('fournisseurForm').classList.remove('hidden');
@@ -1381,8 +1407,8 @@ function renderProduits(produits) {
         tr.className = 'hover:bg-gray-50';
         tr.innerHTML = `
             <td class="px-6 py-4 whitespace-nowrap">${index + 1}</td>
-            <td class="px-6 py-4 whitespace-nowrap">${produit.reference || produit.numero_item}</td>
-            <td class="px-6 py-4">${produit.designation}</td>
+            <td class="px-6 py-4 whitespace-nowrap">${produit.reference || produit.numero_item || '-'}</td>
+            <td class="px-6 py-4">${produit.designation || '-'}</td>
             <td class="px-6 py-4 whitespace-nowrap">${parseFloat(produit.prix || 0).toFixed(2)}</td>
             <td class="px-6 py-4 whitespace-nowrap">${parseFloat(produit.prixba || 0).toFixed(2)}</td>
             <td class="px-6 py-4 whitespace-nowrap">${produit.qte || 0}</td>
@@ -1405,8 +1431,8 @@ function renderProduits(produits) {
 function filterProduits() {
     const searchTerm = document.getElementById('searchProduct').value.toLowerCase();
     const filteredProduits = produitsData.filter(produit =>
-        produit.designation.toLowerCase().includes(searchTerm) ||
-        (produit.reference || produit.numero_item).toLowerCase().includes(searchTerm)
+        (produit.designation || '').toLowerCase().includes(searchTerm) ||
+        (produit.reference || produit.numero_item || '').toLowerCase().includes(searchTerm)
     );
     renderProduits(filteredProduits);
 }
@@ -1469,17 +1495,32 @@ async function editerProduit(numeroItem) {
     const produit = produitsData.find(p => p.numero_item === numeroItem);
     if (!produit) {
         showToast('Produit non trouvé', true);
-        console.error('Produit non trouvé:', numeroItem, produitsData);
-        return;
+        console.error('Produit non trouvé:', numeroItem, 'Données:', produitsData);
+        // Tenter de recharger les données
+        await chargerProduits();
+        const retryProduit = produitsData.find(p => p.numero_item === numeroItem);
+        if (!retryProduit) {
+            showToast('Produit toujours non trouvé après rechargement', true);
+            return;
+        }
+        // Continuer avec retryProduit
+        document.getElementById('productNumeroItem').value = retryProduit.numero_item;
+        document.getElementById('productReference').value = retryProduit.reference || retryProduit.numero_item || '';
+        document.getElementById('productDesignation').value = retryProduit.designation || '';
+        document.getElementById('productBar').value = retryProduit.bar || '';
+        document.getElementById('productPrix').value = parseFloat(retryProduit.prix || 0).toFixed(2);
+        document.getElementById('productPrixba').value = parseFloat(retryProduit.prixba || 0).toFixed(2);
+        document.getElementById('productQte').value = retryProduit.qte || 0;
+    } else {
+        document.getElementById('productNumeroItem').value = produit.numero_item;
+        document.getElementById('productReference').value = produit.reference || produit.numero_item || '';
+        document.getElementById('productDesignation').value = produit.designation || '';
+        document.getElementById('productBar').value = produit.bar || '';
+        document.getElementById('productPrix').value = parseFloat(produit.prix || 0).toFixed(2);
+        document.getElementById('productPrixba').value = parseFloat(produit.prixba || 0).toFixed(2);
+        document.getElementById('productQte').value = produit.qte || 0;
     }
 
-    document.getElementById('productNumeroItem').value = produit.numero_item;
-    document.getElementById('productReference').value = produit.reference || produit.numero_item;
-    document.getElementById('productDesignation').value = produit.designation || '';
-    document.getElementById('productBar').value = produit.bar || '';
-    document.getElementById('productPrix').value = parseFloat(produit.prix || 0).toFixed(2);
-    document.getElementById('productPrixba').value = parseFloat(produit.prixba || 0).toFixed(2);
-    document.getElementById('productQte').value = produit.qte || 0;
     document.getElementById('productFormTitle').textContent = 'Modifier Produit';
     document.getElementById('productSubmitButton').innerHTML = '<i class="fas fa-save mr-2"></i>Modifier';
     document.getElementById('productForm').classList.remove('hidden');
@@ -1728,9 +1769,9 @@ async function editerUtilisateur(id) {
         }
         const utilisateur = await response.json();
         document.getElementById('utilisateurId').value = utilisateur.id;
-        document.getElementById('utilisateurNom').value = utilisateur.nom;
+        document.getElementById('utilisateurNom').value = utilisateur.nom || '';
         document.getElementById('utilisateurPassword').value = '';
-        document.getElementById('utilisateurStatut').value = utilisateur.statut;
+        document.getElementById('utilisateurStatut').value = utilisateur.statut || 'admin';
         document.getElementById('utilisateurFormTitle').textContent = 'Modifier Utilisateur';
         document.getElementById('utilisateurSubmitButton').innerHTML = '<i class="fas fa-save mr-2"></i>Modifier';
         document.getElementById('utilisateurForm').classList.remove('hidden');
@@ -1789,8 +1830,6 @@ function toggleUtilisateurForm() {
         resetUtilisateurForm();
     }
 }
-
-
-</script>   
+</script> 
 </body>
 </html>
