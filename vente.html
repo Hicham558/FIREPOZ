@@ -149,6 +149,53 @@
             max-height: 80vh;
             overflow-y: auto;
         }
+        /* Nouveaux styles pour maximisation et animation */
+        .maximized {
+            position: fixed !important;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1002;
+            background: white;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        .maximized .table-container {
+            max-height: calc(100vh - 150px);
+            overflow-y: auto;
+        }
+        .maximized .p-6 {
+            padding: 1rem;
+        }
+        .maximized-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f3f4f6;
+            padding: 1rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .maximized-search {
+            margin-bottom: 1rem;
+            padding: 0 1rem;
+        }
+        .added-product {
+            animation: flashAdded 0.5s ease-out;
+        }
+        @keyframes flashAdded {
+            0% { background-color: rgba(79, 70, 229, 0.2); }
+            50% { background-color: rgba(79, 70, 229, 0.4); }
+            100% { background-color: transparent; }
+        }
+        .maximize-button {
+            transition: transform 0.3s ease;
+        }
+        .maximize-button:hover {
+            transform: scale(1.1);
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -231,12 +278,17 @@
                         <i class="fas fa-boxes mr-2 text-indigo-500"></i> Produits Disponibles
                         <span id="productCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
                     </h2>
-                    <button class="text-gray-600 hover:text-gray-800 transition">
-                        <i class="fas fa-chevron-down" id="productsChevron"></i>
-                    </button>
+                    <div class="flex space-x-2">
+                        <button id="maximizeProductsButton" onclick="toggleMaximizeProducts(event)" class="text-gray-600 hover:text-gray-800 transition maximize-button">
+                            <i class="fas fa-expand" id="maximizeIcon"></i>
+                        </button>
+                        <button class="text-gray-600 hover:text-gray-800 transition">
+                            <i class="fas fa-chevron-down" id="productsChevron"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="p-6 hidden" id="productsContent">
-                    <div class="mb-4 flex flex-col md:flex-row gap-4">
+                    <div class="mb-4 flex flex-col md:flex-row gap-4 maximized-search">
                         <div class="relative w-full md:w-1/2">
                             <input type="text" id="searchProduct" placeholder="Rechercher un produit..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
                             <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
@@ -424,7 +476,6 @@
             const section = document.getElementById(sectionId);
             const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
             const chevron = document.getElementById(`${sectionId.replace('Section', 'Chevron')}`);
-
             content.classList.toggle('hidden');
             chevron.classList.toggle('fa-chevron-down');
             chevron.classList.toggle('fa-chevron-up');
@@ -489,6 +540,8 @@
 
         function loginLogout() {
             console.log('Déconnexion en cours...');
+ bitcast
+
             const userId = localStorage.getItem('userId');
             if (userId) {
                 localStorage.removeItem('userId');
@@ -523,45 +576,46 @@
             }, 3000);
         }
 
-     async function chargerUtilisateurs() {
-    console.log('Chargement des utilisateurs...');
-    const userId = localStorage.getItem('userId');
-    if (!userId) {
-        showToast('Veuillez vous connecter pour voir les utilisateurs', true);
-        return;
-    }
+        async function chargerUtilisateurs() {
+            console.log('Chargement des utilisateurs...');
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir les utilisateurs', true);
+                return;
+            }
 
-    try {
-        const sellerSelect = document.getElementById('sellerSelect');
-        const currentSelection = sellerSelect.value;
-        const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-            headers: { 'X-User-ID': userId }
-        });
-        console.log('Réponse liste_utilisateurs:', response.status, response.statusText);
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Erreur texte liste_utilisateurs:', errorText);
-            throw new Error(`Erreur ${response.status}: ${errorText}`);
+            try {
+                const sellerSelect = document.getElementById('sellerSelect');
+                const currentSelection = sellerSelect.value;
+                const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                console.log('Réponse liste_utilisateurs:', response.status, response.statusText);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Erreur texte liste_utilisateurs:', errorText);
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                utilisateursCache = await response.json();
+                console.log('Utilisateurs reçus:', utilisateursCache);
+
+                sellerSelect.innerHTML = '<option value="0">Sélectionner un vendeur</option>';
+                utilisateursCache.forEach(utilisateur => {
+                    const option = document.createElement('option');
+                    option.value = utilisateur.numero;
+                    option.textContent = utilisateur.nom;
+                    sellerSelect.appendChild(option);
+                });
+
+                if (currentSelection !== '0' && utilisateursCache.some(u => u.numero === currentSelection)) {
+                    sellerSelect.value = currentSelection;
+                }
+            } catch (error) {
+                showToast('Erreur lors du chargement des utilisateurs: ' + error.message, true);
+                console.error('Erreur utilisateurs:', error);
+            }
         }
-        utilisateursCache = await response.json();
-        console.log('Utilisateurs reçus:', utilisateursCache);
 
-        sellerSelect.innerHTML = '<option value="0">Sélectionner un vendeur</option>';
-        utilisateursCache.forEach(utilisateur => {
-            const option = document.createElement('option');
-            option.value = utilisateur.numero; // Changed from numero_util to numero
-            option.textContent = utilisateur.nom;
-            sellerSelect.appendChild(option);
-        });
-
-        if (currentSelection !== '0' && utilisateursCache.some(u => u.numero === currentSelection)) {
-            sellerSelect.value = currentSelection;
-        }
-    } catch (error) {
-        showToast('Erreur lors du chargement des utilisateurs: ' + error.message, true);
-        console.error('Erreur utilisateurs:', error);
-    }
-}
         async function validerVendeur() {
             console.log('Validation du vendeur...');
             const numeroUtil = document.getElementById('sellerSelect').value;
@@ -843,6 +897,13 @@
 
             updateTempSalesTable();
             showToast(`Produit ajouté : ${designation}`);
+            
+            const tempSalesList = document.getElementById('tempSalesList');
+            const newRow = tempSalesList.querySelector(`tr:nth-child(${tempSaleLines.length})`);
+            if (newRow) {
+                newRow.classList.add('added-product');
+                setTimeout(() => newRow.classList.remove('added-product'), 500);
+            }
         }
 
         function updateTempSalesTable() {
@@ -1417,7 +1478,7 @@
 
             const printWindow = window.open('', '_blank', 'width=800,height=600');
             if (!printWindow) {
-           showToast('Impossible d\'ouvrir l\'aperçu. Veuillez désactiver votre bloqueur de pop-up.', true);
+                showToast('Impossible d\'ouvrir l\'aperçu. Veuillez désactiver votre bloqueur de pop-up.', true);
                 return;
             }
 
@@ -1469,33 +1530,26 @@
                                 margin-bottom: 10mm;
                             }
                             th, td {
-                                border: 0.5mm solid #ddd;
-                                padding: 3mm;
+                                border: 1mm solid #ddd;
+                                padding: 2mm;
                                 font-size: 10pt;
                                 text-align: left;
                             }
                             th {
-                                background: #f3f4f6;
+                                background-color: #f3f4f6;
                                 font-weight: bold;
-                                color: #333;
                             }
                             .total-section {
                                 text-align: right;
-                                font-size: 14pt;
-                                font-weight: bold;
+                                font-size: 12pt;
                                 margin-top: 5mm;
-                                padding-top: 5mm;
-                                border-top: 1mm solid #ddd;
                             }
                             footer {
                                 text-align: center;
-                                font-size: 9pt;
                                 margin-top: 10mm;
                                 border-top: 1mm solid #ddd;
                                 padding-top: 5mm;
-                            }
-                            footer p {
-                                margin: 2mm 0;
+                                font-size: 10pt;
                             }
                             .print-controls {
                                 text-align: center;
@@ -1506,7 +1560,6 @@
                                 margin: 0 5mm;
                                 font-size: 10pt;
                                 cursor: pointer;
-                                border-radius: 5mm;
                             }
                             @media print {
                                 body {
@@ -1522,8 +1575,8 @@
                     <body>
                         ${ticketContent}
                         <div class="print-controls">
-                            <button onclick="window.print(); window.close();" style="background-color: #4CAF50; color: white; border: none;">Imprimer</button>
-                            <button onclick="window.close();" style="background-color: #f44336; color: white; border: none;">Annuler</button>
+                            <button onclick="window.print(); window.close();" style="background-color: #4CAF50; color: white; border: none; border-radius: 5mm;">Imprimer</button>
+                            <button onclick="window.close();" style="background-color: #f44336; color: white; border: none; border-radius: 5mm;">Annuler</button>
                         </div>
                     </body>
                 </html>
@@ -1531,118 +1584,96 @@
             printWindow.document.close();
         }
 
-    let stream = null;
-let isScanning = false;
-let barcodeDetector = null;
+        let isScanning = false;
+        let stream = null;
 
-async function startScanner() {
-    console.log('Démarrage du scanner...');
-    // Vérifier la disponibilité de BarcodeDetector
-    if (typeof BarcodeDetector === 'undefined') {
-        showToast('Le scanner de code-barres n\'est pas supporté par ce navigateur. Utilisez Chrome ou Edge.', true);
-        return;
-    }
+        async function startScanner() {
+            console.log('Démarrage du scanner...');
+            const scannerPreview = document.getElementById('scannerPreview');
+            const scannerOverlay = document.getElementById('scannerOverlay');
+            const closeScannerButton = document.getElementById('closeScannerButton');
 
-    // Vérifier l'accès à la caméra
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        showToast('L\'accès à la caméra n\'est pas supporté par ce navigateur.', true);
-        return;
-    }
-
-    const preview = document.getElementById('scannerPreview');
-    const overlay = document.getElementById('scannerOverlay');
-
-    try {
-        // Demander l'accès à la caméra avec facingMode: 'environment' pour la caméra arrière
-        stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
-        });
-        preview.srcObject = stream;
-        preview.style.display = 'block';
-        overlay.style.display = 'block';
-        isScanning = true;
-
-        // Initialiser BarcodeDetector avec les formats supportés
-        barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
-
-        // Attendre que la vidéo soit prête avant de lancer le scan
-        preview.onloadedmetadata = () => {
-            preview.play();
-            scanBarcode();
-        };
-    } catch (error) {
-        console.error('Erreur accès caméra:', error);
-        showToast('Erreur lors de l\'accès à la caméra: ' + error.message, true);
-        stopScanner();
-    }
-}
-
-function scanBarcode() {
-    if (!isScanning || !barcodeDetector) {
-        console.log('Scan arrêté ou détecteur non initialisé.');
-        return;
-    }
-
-    const preview = document.getElementById('scannerPreview');
-    barcodeDetector
-        .detect(preview)
-        .then(barcodes => {
-            if (barcodes.length > 0) {
-                const barcode = barcodes[0].rawValue;
-                console.log('Code-barres détecté:', barcode);
-                document.getElementById('productBar').value = barcode;
-                rechercherProduitParCodeBarre(barcode);
-                stopScanner(); // Arrêter le scanner après détection réussie
-            } else {
-                // Relancer le scan après un délai raisonnable
-                setTimeout(scanBarcode, 200);
+            if (isScanning) {
+                console.log('Scanner déjà actif.');
+                return;
             }
-        })
-        .catch(error => {
-            console.error('Erreur détection code-barres:', error);
-            showToast('Erreur lors de la détection du code-barres: ' + error.message, true);
-            stopScanner();
-        });
-}
 
-function stopScanner() {
-    console.log('Arrêt du scanner...');
-    isScanning = false;
-    barcodeDetector = null;
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' }
+                });
+                scannerPreview.srcObject = stream;
+                scannerPreview.style.display = 'block';
+                scannerOverlay.style.display = 'block';
+                isScanning = true;
 
-    // Arrêter toutes les pistes vidéo
-    if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-        stream = null;
-    }
+                const barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
+                closeScannerButton.style.display = 'block';
 
-    // Cacher l'aperçu et l'overlay
-    const preview = document.getElementById('scannerPreview');
-    const overlay = document.getElementById('scannerOverlay');
-    preview.srcObject = null;
-    preview.style.display = 'none';
-    overlay.style.display = 'none';
-}
+                async function scan() {
+                    if (!isScanning) return;
 
-function rechercherProduitParCodeBarre(barcode) {
-    console.log('Recherche produit par code-barres:', barcode);
-    const produit = produitsCache.find(p => p.BAR.toString() === barcode.toString());
-    if (produit) {
-        selectProduct(
-            produit.NUMERO_ITEM,
-            produit.BAR,
-            produit.PRIX,
-            produit.PRIXBA,
-            produit.QTE,
-            produit.DESIGNATION
-        );
-        showToast(`Produit trouvé: ${produit.DESIGNATION}`, false);
-    } else {
-        showToast('Produit non trouvé pour ce code-barres', true);
-    }
-}
+                    try {
+                        const barcodes = await barcodeDetector.detect(scannerPreview);
+                        if (barcodes.length > 0) {
+                            const barcode = barcodes[0].rawValue;
+                            console.log('Code-barres détecté:', barcode);
+                            stopScanner();
+                            document.getElementById('productBar').value = barcode;
+                            selectProductByBarcode(barcode);
+                        } else {
+                            setTimeout(scan, 100);
+                        }
+                    } catch (err) {
+                        console.error('Erreur lors du scan:', err);
+                        setTimeout(scan, 100);
+                    }
+                }
 
-        document.getElementById('searchProduct').addEventListener('input', function () {
+                scan();
+            } catch (err) {
+                console.error('Erreur démarrage scanner:', err);
+                showToast('Erreur d\'accès à la caméra: ' + err.message, true);
+            }
+        }
+
+        function stopScanner() {
+            console.log('Arrêt du scanner...');
+            const scannerPreview = document.getElementById('scannerPreview');
+            const scannerOverlay = document.getElementById('scannerOverlay');
+            const closeScannerButton = document.getElementById('closeScannerButton');
+
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+
+            scannerPreview.style.display = 'none';
+            scannerOverlay.style.display = 'none';
+            closeScannerButton.style.display = 'none';
+            isScanning = false;
+        }
+
+        document.getElementById('closeScannerButton').addEventListener('click', stopScanner);
+
+        function selectProductByBarcode(barcode) {
+            console.log('Recherche produit par code-barres:', barcode);
+            const produit = produitsCache.find(p => p.BAR === parseInt(barcode));
+            if (produit) {
+                selectProduct(
+                    produit.NUMERO_ITEM,
+                    produit.BAR,
+                    produit.PRIX,
+                    produit.PRIXBA,
+                    produit.QTE,
+                    produit.DESIGNATION
+                );
+            } else {
+                showToast('Produit non trouvé pour ce code-barres', true);
+            }
+        }
+
+        document.getElementById('searchProduct').addEventListener('input', function() {
             const searchTerm = this.value.toLowerCase();
             const tbody = document.getElementById('productsList');
             tbody.innerHTML = '';
@@ -1678,7 +1709,45 @@ function rechercherProduitParCodeBarre(barcode) {
                 `;
                 tbody.appendChild(tr);
             });
+
+            document.getElementById('productCount').textContent = filteredProducts.length;
         });
+
+        document.getElementById('productBar').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                const barcode = this.value.trim();
+                if (barcode) {
+                    selectProductByBarcode(barcode);
+                    this.value = '';
+                }
+            }
+        });
+
+        // Variable pour suivre l'état maximisé
+        let isProductsMaximized = false;
+
+        // Fonction pour basculer entre maximisé et normal
+        function toggleMaximizeProducts(event) {
+            event.stopPropagation();
+            const productsSection = document.getElementById('productsSection');
+            const productsContent = document.getElementById('productsContent');
+            const maximizeIcon = document.getElementById('maximizeIcon');
+
+            isProductsMaximized = !isProductsMaximized;
+
+            if (isProductsMaximized) {
+                productsSection.classList.add('maximized');
+                productsContent.classList.remove('hidden');
+                maximizeIcon.classList.remove('fa-expand');
+                maximizeIcon.classList.add('fa-compress');
+                document.getElementById('productsChevron').classList.add('fa-chevron-up');
+                document.getElementById('productsChevron').classList.remove('fa-chevron-down');
+            } else {
+                productsSection.classList.remove('maximized');
+                maximizeIcon.classList.remove('fa-compress');
+                maximizeIcon.classList.add('fa-expand');
+            }
+        }
     </script>
 </body>
 </html>
