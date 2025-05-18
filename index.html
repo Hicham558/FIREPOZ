@@ -15,11 +15,13 @@
         @keyframes countPulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
         @keyframes kpiPop { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
         @keyframes clientPulse { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
+        @keyframes smoothBlink { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
         .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
         .animate-pulse { animation: pulse 2s infinite ease-in-out; }
         .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
         .animate-kpi-pop { animation: kpiPop 0.5s ease-out forwards; }
         .top-client-updated { animation: clientPulse 0.6s ease-in-out; }
+        .seller-anim { animation: smoothBlink 1.5s infinite ease-in-out; }
         #clientsSection { animation-delay: 0.2s; }
         #fournisseursSection { animation-delay: 0.4s; }
         #productsSection { animation-delay: 0.6s; }
@@ -75,6 +77,32 @@
         .hidden-id {
             display: none;
         }
+        .password-input-container {
+            position: relative;
+            display: inline-block;
+        }
+        .password-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+        }
+        select, input {
+            transition: all 0.3s ease;
+        }
+        select:focus, input:focus {
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+        }
+        select option {
+            padding: 8px;
+            background: #fff;
+            color: #333;
+        }
+        .disabled-action {
+            pointer-events: none;
+            opacity: 0.5;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -107,6 +135,8 @@
                     <i class="fas fa-fire mr-2 text-amber-400 animate-pulse"></i> FirePoz
                 </h1>
                 <span id="userDisplay" class="small-email user-anim hidden"></span>
+                <span class="text-sm font-medium text-gray-200">Vendeur: </span>
+                <span id="headerSellerName" class="text-sm text-indigo-200 seller-anim">-</span>
             </div>
             <div class="space-x-4 flex items-center">
                 <a href="page1.html" class="hover:text-indigo-200 transition flex items-center">
@@ -127,6 +157,47 @@
                 <i class="fas fa-database mr-2 text-indigo-500"></i> Fueled by PostgreSQL
             </p>
         </header>
+
+        <!-- Section vendeur -->
+        <div id="sellerSection" class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8">
+            <div class="p-6 cursor-pointer" onclick="toggleSection('sellerSection')">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-user mr-2 text-indigo-500"></i> Sélection du Vendeur
+                    </h2>
+                    <button class="text-gray-600 hover:text-gray-800 transition">
+                        <i class="fas fa-chevron-down" id="sellerChevron"></i>
+                    </button>
+                </div>
+                <div class="mt-2">
+                    <span class="text-sm font-medium text-gray-700">Vendeur: </span>
+                    <span id="selectedSellerName" class="text-sm text-indigo-600 seller-anim">-</span>
+                </div>
+            </div>
+            <div class="p-6 hidden" id="sellerContent">
+                <div class="flex flex-col md:flex-row gap-4 mb-4">
+                    <div class="relative w-full md:w-1/3">
+                        <span class="text-sm font-medium text-gray-700 mr-2">Vendeur: </span>
+                        <select id="sellerSelect" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300">
+                            <option value="0">Sélectionner un vendeur</option>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700 top-6">
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                    </div>
+                    <div class="relative w-full md:w-1/3 password-input-container">
+                        <span class="text-sm font-medium text-gray-700 mr-2">Mot de passe: </span>
+                        <input type="password" id="sellerPassword" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Entrez le mot de passe">
+                        <i class="fas fa-eye password-toggle" id="togglePassword" onclick="togglePasswordVisibility()"></i>
+                    </div>
+                    <div class="w-full md:w-1/3">
+                        <button id="validateSellerButton" onclick="validerVendeur()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300">
+                            <i class="fas fa-check mr-2"></i>Valider
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- Boutons Vente et Achat fixés -->
         <div class="fixed-buttons flex">
@@ -514,7 +585,7 @@
                         <i class="fas fa-bolt mr-2 text-indigo-500"></i> Actions Rapides
                     </h2>
                     <div class="grid grid-cols-2 gap-4">
-                        <a href="page2.html" class="bg-indigo-600 text-white p-4 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105 flex items-center justify-center">
+                        <a href="page2.html" id="statsButton" class="bg-indigo-600 text-white p-4 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105 flex items-center justify-center">
                             <i class="fas fa-chart-bar mr-2 text-xl"></i>
                             <span class="font-medium">Statistiques</span>
                         </a>
@@ -582,6 +653,7 @@
                 chargerProduits();
                 chargerUtilisateurs();
                 chargerKPI();
+                initializeSellerSection();
             } else {
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
                 document.getElementById('loginModal').classList.remove('hidden');
@@ -748,6 +820,7 @@
                 chargerProduits();
                 chargerUtilisateurs();
                 chargerKPI();
+                initializeSellerSection();
             } else {
                 localStorage.setItem('userId', userId);
                 localStorage.setItem('userEmail', emailLowerCase);
@@ -760,6 +833,7 @@
                 chargerProduits();
                 chargerUtilisateurs();
                 chargerKPI();
+                initializeSellerSection();
                 showToast('Nouveau compte créé avec succès');
             }
         }
@@ -770,8 +844,13 @@
             if (userId) {
                 localStorage.removeItem('userId');
                 localStorage.removeItem('userEmail');
+                localStorage.removeItem('selectedSeller');
+                localStorage.removeItem('sellerPassword');
+                localStorage.removeItem('sellerStatus');
                 document.getElementById('userDisplay').textContent = '';
                 document.getElementById('userDisplay').classList.add('hidden');
+                document.getElementById('headerSellerName').textContent = '-';
+                document.getElementById('selectedSellerName').textContent = '-';
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
                 document.getElementById('loginModal').classList.remove('hidden');
                 document.getElementById('clientsList').innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
@@ -792,6 +871,8 @@
                     caChartInstance.destroy();
                     caChartInstance = null;
                 }
+                document.getElementById('statsButton').classList.remove('disabled-action');
+                enableGridActions();
             }
         }
 
@@ -867,7 +948,7 @@
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.reference || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.contact || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.adresse || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 action-cell">
                             <button onclick="modifierClient('${client.numero_clt}', '${client.nom}', '${client.contact}', '${client.adresse}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
                                 <i class="fas fa-edit"></i> Modifier
                             </button>
@@ -880,6 +961,7 @@
                 });
                 countElement.textContent = clients.length;
                 countElement.classList.remove('hidden');
+                applyGridRestrictions();
             } catch (error) {
                 document.getElementById('clientsList').innerHTML = `
                     <tr>
@@ -1049,7 +1131,7 @@
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.reference || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.contact || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.adresse || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 action-cell">
                             <button onclick="modifierFournisseur('${fournisseur.numero_fou}', '${fournisseur.nom}', '${fournisseur.contact}', '${fournisseur.adresse}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
                                 <i class="fas fa-edit"></i> Modifier
                             </button>
@@ -1062,13 +1144,14 @@
                 });
                 countElement.textContent = fournisseurs.length;
                 countElement.classList.remove('hidden');
+                applyGridRestrictions();
             } catch (error) {
                 document.getElementById('fournisseursList').innerHTML = `
                     <tr>
                         <td colspan="7" class="text-center py-4 text-red-500">
                             Erreur de chargement: ${error.message}
                         </td>
-                    </tr
+                    </tr>
                 `;
                 console.error('Erreur fournisseurs:', error);
             }
@@ -1232,10 +1315,10 @@
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || '0.00').toFixed(2)}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 action-cell">
                             <button onclick="modifierProduit('${produit.NUMERO_ITEM}', '${produit.BAR}', '${produit.DESIGNATION}', '${produit.PRIX}', '${produit.PRIXBA}', '${produit.QTE}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
                                 <i class="fas fa-edit"></i> Modifier
-                            </button>
+</button>
                             <button onclick="supprimerProduit('${produit.NUMERO_ITEM}')" class="text-red-600 hover:text-red-800 transition">
                                 <i class="fas fa-trash-alt"></i> Supprimer
                             </button>
@@ -1245,24 +1328,25 @@
                 });
                 countElement.textContent = produits.length;
                 countElement.classList.remove('hidden');
+                applyGridRestrictions();
             } catch (error) {
                 document.getElementById('productsList').innerHTML = `
                     <tr>
                         <td colspan="8" class="text-center py-4 text-red-500">
                             Erreur de chargement: ${error.message}
                         </td>
-                    </tr
+                    </tr>
                 `;
                 console.error('Erreur produits:', error);
             }
         }
 
-        function modifierProduit(numero_item, bar, designation, prix, prixba, qte) {
-            document.getElementById('productId').value = numero_item;
+        function modifierProduit(id, bar, designation, prix, prixba, qte) {
+            document.getElementById('productId').value = id;
             document.getElementById('productBar').value = bar;
             document.getElementById('productDesignation').value = designation;
             document.getElementById('productPrix').value = parseFloat(prix).toFixed(2);
-            document.getElementById('productPrixba').value = prixba ? parseFloat(prixba).toFixed(2) : '';
+            document.getElementById('productPrixba').value = parseFloat(prixba || '0').toFixed(2);
             document.getElementById('productQte').value = qte;
             document.getElementById('productFormTitle').textContent = 'Modifier Produit';
             document.getElementById('productForm').classList.remove('hidden');
@@ -1280,7 +1364,7 @@
             }
 
             try {
-                const response = await fetch(`${API_BASE_URL}/supprimer_item/${id}`, {
+                const response = await fetch(`${API_BASE_URL}/supprimer_produit/${id}`, {
                     method: 'DELETE',
                     headers: {
                         'X-User-ID': userId
@@ -1300,65 +1384,57 @@
             }
         }
 
-       async function saveProduct() {
-    const userId = localStorage.getItem('userId');
-    if (!userId) {
-        showToast('Veuillez vous connecter pour sauvegarder un produit', true);
-        return;
-    }
+        async function saveProduct() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour sauvegarder un produit', true);
+                return;
+            }
 
-    const id = document.getElementById('productId').value;
-    const bar = document.getElementById('productBar').value.trim();
-    const designation = document.getElementById('productDesignation').value.trim();
-    const prix = document.getElementById('productPrix').value;
-    const prixba = document.getElementById('productPrixba').value;
-    const qte = document.getElementById('productQte').value;
+            const id = document.getElementById('productId').value;
+            const bar = document.getElementById('productBar').value.trim();
+            const designation = document.getElementById('productDesignation').value.trim();
+            const prix = parseFloat(document.getElementById('productPrix').value);
+            const prixba = parseFloat(document.getElementById('productPrixba').value) || 0;
+            const qte = parseInt(document.getElementById('productQte').value);
 
-    if (!bar || !designation || prix === '' || qte === '') {
-        showToast('Veuillez remplir tous les champs obligatoires', true);
-        return;
-    }
+            if (!bar || !designation || isNaN(prix) || isNaN(qte)) {
+                showToast('Veuillez remplir tous les champs obligatoires', true);
+                return;
+            }
 
-    const prixValue = parseFloat(prix);
-    const prixbaValue = prixba ? parseFloat(prixba) : 0;
-    const qteValue = parseInt(qte);
+            try {
+                const url = id ? `${API_BASE_URL}/modifier_produit/${id}` : `${API_BASE_URL}/ajouter_produit`;
+                const method = id ? 'PUT' : 'POST';
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify({
+                        BAR: bar,
+                        DESIGNATION: designation,
+                        PRIX: prix,
+                        PRIXBA: prixba,
+                        QTE: qte
+                    })
+                });
 
-    if (isNaN(prixValue) || isNaN(qteValue) || prixValue < 0 || qteValue < 0) {
-        showToast('Le prix et la quantité doivent être des nombres valides et positifs', true);
-        return;
-    }
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
+                }
 
-    try {
-        const url = id ? `${API_BASE_URL}/modifier_item/${id}` : `${API_BASE_URL}/ajouter_item`;
-        const method = id ? 'PUT' : 'POST';
-        const response = await fetch(url, {
-            method: method,
-            headers: {
-                'Content-Type': 'application/json',
-                'X-User-ID': userId
-            },
-            body: JSON.stringify({
-                bar: bar,
-                designation: designation,
-                prix: prixValue,
-                prixba: prixbaValue,
-                qte: qteValue
-            })
-        });
-
-        const result = await response.json();
-        if (!response.ok) {
-            throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
+                showToast(id ? 'Produit modifié avec succès' : 'Produit ajouté avec succès');
+                resetProductForm();
+                chargerProduits();
+            } catch (error) {
+                showToast(error.message, true);
+                console.error('Erreur sauvegarde produit:', error);
+            }
         }
 
-        showToast(id ? 'Produit modifié avec succès' : 'Produit ajouté avec succès');
-        resetProductForm();
-        chargerProduits();
-    } catch (error) {
-        showToast(error.message, true);
-        console.error('Erreur sauvegarde produit:', error);
-    }
-}
         function resetProductForm() {
             document.getElementById('productId').value = '';
             document.getElementById('productBar').value = '';
@@ -1382,83 +1458,14 @@
             rows.forEach(row => {
                 const designation = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
                 const bar = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
-                const reference = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
-                if (designation?.includes(searchTerm) || bar?.includes(searchTerm) || reference?.includes(searchTerm)) {
+                const ref = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
+                if (designation?.includes(searchTerm) || bar?.includes(searchTerm) || ref?.includes(searchTerm)) {
                     row.style.display = '';
                 } else {
                     row.style.display = 'none';
                 }
             });
         });
-
-        // --- Gestion du scanner ---
-        async function startScanner() {
-            if (isScanning) return;
-
-            try {
-                if (!('BarcodeDetector' in window)) {
-                    showToast('Le détecteur de code-barres n\'est pas supporté par ce navigateur', true);
-                    return;
-                }
-
-                stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment' }
-                });
-
-                const video = document.createElement('video');
-                video.srcObject = stream;
-                video.autoplay = true;
-                video.playsInline = true;
-                video.style.width = '100%';
-                video.style.height = '100%';
-
-                const scannerPreview = document.getElementById('scannerPreview');
-                scannerPreview.innerHTML = '';
-                scannerPreview.appendChild(video);
-                scannerPreview.style.display = 'block';
-
-                barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
-
-                isScanning = true;
-                scanBarcode(video);
-            } catch (error) {
-                showToast('Erreur d\'accès à la caméra: ' + error.message, true);
-                console.error('Erreur scanner:', error);
-                stopScanner();
-            }
-        }
-
-        function scanBarcode(video) {
-            if (!isScanning) return;
-
-            barcodeDetector.detect(video)
-                .then(barcodes => {
-                    if (barcodes.length > 0) {
-                        const barcode = barcodes[0].rawValue;
-                        document.getElementById('productBar').value = barcode;
-                        showToast('Code-barres détecté: ' + barcode);
-                        stopScanner();
-                    } else {
-                        requestAnimationFrame(() => scanBarcode(video));
-                    }
-                })
-                .catch(error => {
-                    showToast('Erreur de détection de code-barres: ' + error.message, true);
-                    console.error('Erreur détection:', error);
-                    stopScanner();
-                });
-        }
-
-        function stopScanner() {
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                stream = null;
-            }
-            const scannerPreview = document.getElementById('scannerPreview');
-            scannerPreview.innerHTML = '';
-            scannerPreview.style.display = 'none';
-            isScanning = false;
-        }
 
         // --- Gestion des utilisateurs ---
         async function chargerUtilisateurs() {
@@ -1493,14 +1500,14 @@
                     const tr = document.createElement('tr');
                     tr.className = 'hover:bg-gray-50';
                     tr.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.numero || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.id || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${utilisateur.nom || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.statut || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <button onclick="modifierUtilisateur('${utilisateur.numero}', '${utilisateur.nom}', '${utilisateur.statut}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 action-cell">
+                            <button onclick="modifierUtilisateur('${utilisateur.id}', '${utilisateur.nom}', '${utilisateur.statut}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
                                 <i class="fas fa-edit"></i> Modifier
                             </button>
-                            <button onclick="supprimerUtilisateur('${utilisateur.numero}')" class="text-red-600 hover:text-red-800 transition">
+                            <button onclick="supprimerUtilisateur('${utilisateur.id}')" class="text-red-600 hover:text-red-800 transition">
                                 <i class="fas fa-trash-alt"></i> Supprimer
                             </button>
                         </td>
@@ -1509,6 +1516,8 @@
                 });
                 countElement.textContent = utilisateurs.length;
                 countElement.classList.remove('hidden');
+                applyGridRestrictions();
+                populateSellerSelect(utilisateurs);
             } catch (error) {
                 document.getElementById('utilisateursList').innerHTML = `
                     <tr>
@@ -1521,18 +1530,16 @@
             }
         }
 
-        function modifierUtilisateur(numero, nom, statut) {
-            document.getElementById('utilisateurId').value = numero;
+        function modifierUtilisateur(id, nom, statut) {
+            document.getElementById('utilisateurId').value = id;
             document.getElementById('utilisateurNom').value = nom;
-            document.getElementById('utilisateurStatut').value = statut.toLowerCase();
-            document.getElementById('utilisateurPassword').value = ''; // Clear password field
+            document.getElementById('utilisateurPassword').value = '';
+            document.getElementById('utilisateurStatut').value = statut;
             document.getElementById('utilisateurFormTitle').textContent = 'Modifier Utilisateur';
             document.getElementById('utilisateurForm').classList.remove('hidden');
-            // Make password field optional for modification
-            document.getElementById('utilisateurPassword').removeAttribute('required');
         }
 
-        async function supprimerUtilisateur(numero) {
+        async function supprimerUtilisateur(id) {
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour supprimer un utilisateur', true);
@@ -1544,7 +1551,7 @@
             }
 
             try {
-                const response = await fetch(`${API_BASE_URL}/supprimer_utilisateur/${numero}`, {
+                const response = await fetch(`${API_BASE_URL}/supprimer_utilisateur/${id}`, {
                     method: 'DELETE',
                     headers: {
                         'X-User-ID': userId
@@ -1573,7 +1580,7 @@
 
             const id = document.getElementById('utilisateurId').value;
             const nom = document.getElementById('utilisateurNom').value.trim();
-            const password = document.getElementById('utilisateurPassword').value.trim();
+            const password = document.getElementById('utilisateurPassword').value;
             const statut = document.getElementById('utilisateurStatut').value;
 
             if (!nom || (!id && !password)) {
@@ -1584,24 +1591,17 @@
             try {
                 const url = id ? `${API_BASE_URL}/modifier_utilisateur/${id}` : `${API_BASE_URL}/ajouter_utilisateur`;
                 const method = id ? 'PUT' : 'POST';
-                const payload = {
-                    user_id: userId, // Include userId in payload to associate with the authenticated user
-                    nom,
-                    statue: statut // Backend expects 'statue' instead of 'statut'
-                };
-
-                // Only include password if provided (for add or if updating password)
+                const body = { nom, statut };
                 if (password) {
-                    payload.password2 = password; // Backend expects 'password2'
+                    body.password = password;
                 }
-
                 const response = await fetch(url, {
                     method: method,
                     headers: {
                         'Content-Type': 'application/json',
                         'X-User-ID': userId
                     },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify(body)
                 });
 
                 const result = await response.json();
@@ -1625,16 +1625,10 @@
             document.getElementById('utilisateurStatut').value = 'admin';
             document.getElementById('utilisateurFormTitle').textContent = 'Nouvel Utilisateur';
             document.getElementById('utilisateurForm').classList.add('hidden');
-            // Restore password field as required for adding new users
-            document.getElementById('utilisateurPassword').setAttribute('required', '');
         }
 
         function toggleUtilisateurForm() {
             document.getElementById('utilisateurForm').classList.toggle('hidden');
-            // Ensure password is required when opening form for new user
-            if (!document.getElementById('utilisateurId').value) {
-                document.getElementById('utilisateurPassword').setAttribute('required', '');
-            }
         }
 
         document.getElementById('searchUtilisateur').addEventListener('input', function(e) {
@@ -1651,7 +1645,196 @@
                 }
             });
         });
+
+        // --- Gestion du scanner ---
+        async function startScanner() {
+            if (!('BarcodeDetector' in window)) {
+                showToast('Le scanner de code-barres n\'est pas pris en charge par ce navigateur', true);
+                return;
+            }
+
+            if (isScanning) {
+                stopScanner();
+                return;
+            }
+
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' }
+                });
+                const video = document.createElement('video');
+                video.srcObject = stream;
+                video.setAttribute('playsinline', true);
+                video.play();
+
+                const scannerPreview = document.getElementById('scannerPreview');
+                scannerPreview.innerHTML = '';
+                scannerPreview.appendChild(video);
+                scannerPreview.style.display = 'block';
+
+                barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
+                isScanning = true;
+
+                const scan = async () => {
+                    if (!isScanning) return;
+                    try {
+                        const barcodes = await barcodeDetector.detect(video);
+                        if (barcodes.length > 0) {
+                            document.getElementById('productBar').value = barcodes[0].rawValue;
+                            stopScanner();
+                            showToast('Code-barres scanné avec succès');
+                            return;
+                        }
+                    } catch (error) {
+                        console.error('Erreur lors du scan:', error);
+                    }
+                    requestAnimationFrame(scan);
+                };
+
+                scan();
+                document.getElementById('scanButton').innerHTML = '<i class="fas fa-stop"></i> Arrêter';
+            } catch (error) {
+                showToast('Erreur lors de l\'accès à la caméra: ' + error.message, true);
+                console.error('Erreur scanner:', error);
+            }
+        }
+
+        function stopScanner() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+            const scannerPreview = document.getElementById('scannerPreview');
+            scannerPreview.innerHTML = '';
+            scannerPreview.style.display = 'none';
+            isScanning = false;
+            barcodeDetector = null;
+            document.getElementById('scanButton').innerHTML = '<i class="fas fa-camera"></i> Scanner';
+        }
+
+        // --- Gestion des vendeurs ---
+        function initializeSellerSection() {
+            const savedSeller = localStorage.getItem('selectedSeller');
+            const savedPassword = localStorage.getItem('sellerPassword');
+            const savedStatus = localStorage.getItem('sellerStatus');
+
+            if (savedSeller && savedPassword) {
+                document.getElementById('selectedSellerName').textContent = savedSeller;
+                document.getElementById('headerSellerName').textContent = savedSeller;
+                applySellerRestrictions(savedStatus);
+            } else {
+                document.getElementById('sellerSection').classList.remove('hidden');
+            }
+        }
+
+        function populateSellerSelect(utilisateurs) {
+            const sellerSelect = document.getElementById('sellerSelect');
+            sellerSelect.innerHTML = '<option value="0">Sélectionner un vendeur</option>';
+            utilisateurs.forEach(user => {
+                const option = document.createElement('option');
+                option.value = user.id;
+                option.textContent = user.nom;
+                option.dataset.statut = user.statut;
+                sellerSelect.appendChild(option);
+            });
+        }
+
+        function togglePasswordVisibility() {
+            const passwordInput = document.getElementById('sellerPassword');
+            const toggleIcon = document.getElementById('togglePassword');
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.classList.remove('fa-eye');
+                toggleIcon.classList.add('fa-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                toggleIcon.classList.remove('fa-eye-slash');
+                toggleIcon.classList.add('fa-eye');
+            }
+        }
+
+        async function validerVendeur() {
+            const sellerSelect = document.getElementById('sellerSelect');
+            const sellerId = sellerSelect.value;
+            const sellerPassword = document.getElementById('sellerPassword').value.trim();
+
+            if (sellerId === '0' || !sellerPassword) {
+                showToast('Veuillez sélectionner un vendeur et entrer un mot de passe', true);
+                return;
+            }
+
+            const selectedOption = sellerSelect.options[sellerSelect.selectedIndex];
+            const sellerName = selectedOption.textContent;
+            const sellerStatus = selectedOption.dataset.statut;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/valider_vendeur/${sellerId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': localStorage.getItem('userId')
+                    },
+                    body: JSON.stringify({ password: sellerPassword })
+                });
+
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.erreur || 'Mot de passe incorrect');
+                }
+
+                localStorage.setItem('selectedSeller', sellerName);
+                localStorage.setItem('sellerPassword', sellerPassword);
+                localStorage.setItem('sellerStatus', sellerStatus);
+
+                document.getElementById('selectedSellerName').textContent = sellerName;
+                document.getElementById('headerSellerName').textContent = sellerName;
+                document.getElementById('sellerPassword').value = '';
+                document.getElementById('sellerSelect').value = '0';
+
+                applySellerRestrictions(sellerStatus);
+
+                showToast(`Vendeur ${sellerName} validé avec succès`);
+            } catch (error) {
+                showToast(error.message, true);
+                console.error('Erreur validation vendeur:', error);
+            }
+        }
+
+        function applySellerRestrictions(status) {
+            const statsButton = document.getElementById('statsButton');
+            const actionCells = document.querySelectorAll('.action-cell');
+
+            if (status === 'emplo') {
+                statsButton.classList.add('disabled-action');
+                disableGridActions();
+            } else {
+                statsButton.classList.remove('disabled-action');
+                enableGridActions();
+            }
+        }
+
+        function disableGridActions() {
+            const actionCells = document.querySelectorAll('.action-cell');
+            actionCells.forEach(cell => {
+                cell.classList.add('disabled-action');
+            });
+        }
+
+        function enableGridActions() {
+            const actionCells = document.querySelectorAll('.action-cell');
+            actionCells.forEach(cell => {
+                cell.classList.remove('disabled-action');
+            });
+        }
+
+        function applyGridRestrictions() {
+            const sellerStatus = localStorage.getItem('sellerStatus');
+            if (sellerStatus === 'emplo') {
+                disableGridActions();
+            } else {
+                enableGridActions();
+            }
+        }
     </script>
 </body>
 </html>
-       
