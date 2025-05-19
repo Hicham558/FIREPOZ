@@ -3,799 +3,500 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion Commerciale</title>
+    <title>Ventes & Achats</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes user { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        @keyframes userPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
         @keyframes countPulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
-        @keyframes kpiPop { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-        @keyframes clientPulse { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
+        @keyframes totalPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        @keyframes smoothBlink { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
         .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
         .animate-pulse { animation: pulse 2s infinite ease-in-out; }
         .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
-        .animate-kpi-pop { animation: kpiPop 0.5s ease-out forwards; }
-        .top-client-updated { animation: clientPulse 0.6s ease-in-out; }
-        #clientsSection { animation-delay: 0.2s; }
-        #fournisseursSection { animation-delay: 0.4s; }
-        #productsSection { animation-delay: 0.6s; }
-        #utilisateursSection { animation-delay: 0.8s; }
-        footer { animation-delay: 1.2s; }
-        #scannerPreview { width: 100%; max-width: 300px; height: 200px; border: 2px solid #e5e7eb; margin-bottom: 1rem; display: none; background: #000; }
+        .animate-total-pulse { animation: totalPulse 1.5s ease-in-out; }
+        #dailySalesSection { animation-delay: 0.3s; }
+        #dailyPurchasesSection { animation-delay: 0.4s; }
+        #topArticlesSection { animation-delay: 0.5s; }
+        #profitSection { animation-delay: 0.7s; }
+        #stockValueSection { animation-delay: 0.9s; }
+        footer { animation-delay: 1s; }
         .user-anim { animation: userPulse 1.5s infinite ease-in-out; }
         .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
+        .seller-anim { animation: smoothBlink 1.5s infinite ease-in-out; }
         .small-email { font-size: 0.75rem; line-height: 1rem; }
-        .kpi-card { transition: transform 0.3s ease, box-shadow 0.3s ease; }
-        .kpi-card:hover { transform: scale(1.03); box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1); }
-        .kpi-section { transition: opacity 0.5s ease; }
-        .kpi-updated { animation: pulse 0.5s ease-in-out; }
-        .dynamic-icon { transition: color 0.3s ease; }
-        .chart-container { animation-delay: 1s; }
-        #kpiSection {
-            border-bottom: 2px solid #e5e7eb;
-            transition: all 0.3s ease;
+        .total-large {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #4f46e5;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
         }
-        #kpiSection:hover {
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-        .kpi-card {
-            border-left: 4px solid #4F46E5;
-            transition: all 0.3s ease;
-        }
-        .kpi-card:hover {
-            transform: translateY(-2px);
-        }
-        .fixed-buttons {
-            position: sticky;
-            top: 64px;
-            z-index: 9;
-            background: #f3f4f6;
-            padding: 1rem 0;
-            margin-bottom: 2rem;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-        .table-container {
-            max-height: 350px;
+        #dailySalesContent .table-container,
+        #dailyPurchasesContent .table-container {
+            max-height: 300px;
             overflow-y: auto;
-            position: relative;
+            overflow-x: auto;
         }
-        .table-container table {
+        #dailySalesContent .table-container table,
+        #dailyPurchasesContent .table-container table {
             width: 100%;
         }
-        .table-container thead {
-            position: sticky;
-            top: 0;
-            background: #f9fafb;
-            z-index: 1;
+        #topArticlesContent .chart-container,
+        #profitContent .chart-container {
+            max-width: 500px;
+            margin: 0 auto;
         }
-        .hidden-id {
-            display: none;
+        .flatpickr-input, select {
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            padding: 0.5rem 2.5rem 0.5rem 0.75rem;
+            width: 100%;
+            background: white;
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke%3D%22%236B7280%22%3E%3Cpath%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%222%22%20d%3D%22M19%209l-7%207-7-7%22%2F%3E%3C%2Fsvg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 1.5em;
+            transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            color: #1f2937; /* Texte sombre pour contraste */
+        }
+        .flatpickr-input:focus, select:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+        }
+        select:disabled {
+            background-color: #f3f4f6;
+            cursor: not-allowed;
+        }
+        @media print and (min-width: 210mm) {
+            body * { visibility: hidden; }
+            #printAreaA4, #printAreaA4 *, #printAreaPurchasesA4, #printAreaPurchasesA4 * { visibility: visible; }
+            #printAreaA4, #printAreaPurchasesA4 {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 210mm;
+                font-size: 12pt;
+            }
+            .table-container { max-height: none; overflow: visible; }
+            table { page-break-inside: auto; }
+            tr { page-break-inside: avoid; page-break-after: auto; }
+            .no-print { display: none; }
+        }
+        @media print and (max-width: 80mm) {
+            body * { visibility: hidden; }
+            #printAreaTicket, #printAreaTicket *, #printAreaPurchaseTicket, #printAreaPurchaseTicket * { visibility: visible; }
+            #printAreaTicket, #printAreaPurchaseTicket {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 80mm;
+                font-size: 10pt;
+                line-height: 1.2;
+            }
+            .no-print { display: none; }
         }
     </style>
 </head>
 <body class="bg-gray-100">
-    <!-- Formulaire de connexion -->
-    <div id="loginModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-20 hidden">
-        <form id="loginForm" class="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 class="text-xl font-semibold mb-4">Connexion</h2>
-            <p class="text-sm text-red-500 mb-4">⚠️ Le mot de passe ne doit pas être celui de votre email.</p>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Adresse Email*</label>
-                <input type="email" id="userEmail" name="username" autocomplete="username" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre email" required>
-            </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe*</label>
-                <input type="password" id="userPassword" name="password" autocomplete="current-password" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre mot de passe" required>
-            </div>
-            <div class="flex justify-end space-x-3">
-                <button type="submit" onclick="loginWithCredentials(event)" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
-                    <i class="fas fa-sign-in-alt mr-2"></i>Se connecter
-                </button>
-            </div>
-        </form>
-    </div>
-
-    <!-- Menu de navigation -->
-    <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-slide-in">
+    <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-slide-in no-print">
         <div class="container mx-auto flex justify-between items-center">
             <div class="flex flex-col">
                 <h1 class="text-2xl font-bold flex items-center">
                     <i class="fas fa-fire mr-2 text-amber-400 animate-pulse"></i> FirePoz
                 </h1>
                 <span id="userDisplay" class="small-email user-anim hidden"></span>
+                <span id="selectedSellerDisplay" class="small-email hidden"></span>
             </div>
             <div class="space-x-4 flex items-center">
-                <a href="page1.html" class="hover:text-indigo-200 transition flex items-center">
-                    <i class="fas fa-barcode mr-1"></i> Scanner Produit
+                <a href="vente.html" class="hover:text-indigo-200 transition flex items-center">
+                    <i class="fas fa-shopping-cart mr-1"></i> Ventes
+                </a>
+                <a href="index.html" class="hover:text-indigo-200 transition flex items-center">
+                    <i class="fas fa-home mr-1"></i> Accueil
                 </a>
                 <button id="loginLogoutButton" onclick="loginLogout()" class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition flex items-center">
-                    <i class="fas fa-sign-out-alt mr-1"></i>Déconnexion
+                    <i class="fas fa-sign-out-alt mr-1"></i> Déconnexion
                 </button>
             </div>
         </div>
     </nav>
 
-    <!-- Contenu principal -->
     <div class="container mx-auto px-4 py-16 mt-16">
         <header class="mb-8">
-            <h1 class="text-3xl font-bold text-indigo-700">KHsphers software</h1>
+            <h1 class="text-3xl font-bold text-indigo-700">Ventes & Achats</h1>
             <p class="text-gray-600 flex items-center">
-                <i class="fas fa-database mr-2 text-indigo-500"></i> Fueled by PostgreSQL
+                <i class="fas fa-calendar-day mr-2 text-indigo-500"></i> Résumé des ventes et achats
             </p>
         </header>
 
-        <!-- Boutons Vente et Achat fixés -->
-        <div class="fixed-buttons flex">
-            <a href="vente.html" class="w-1/2 bg-green-600 text-white py-6 flex items-center justify-center hover:bg-green-700 transition-all duration-300 transform hover:scale-105 animate-pulse">
-                <i class="fas fa-shopping-cart text-4xl mr-3"></i>
-                <span class="text-2xl font-semibold">Vente</span>
-            </a>
-            <a href="achat.html" class="w-1/2 bg-blue-600 text-white py-6 flex items-center justify-center hover:bg-blue-700 transition-all duration-300 transform hover:scale-105 animate-pulse">
-                <i class="fas fa-box-open text-4xl mr-3"></i>
-                <span class="text-2xl font-semibold">Achat</span>
-            </a>
-        </div>
-
-        <!-- Section KPI améliorée -->
-        <div id="kpiSection" class="w-full bg-gradient-to-r from-indigo-100 to-white shadow-lg rounded-lg p-4 mb-8 z-10 animate-fade-in">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                    <i class="fas fa-chart-line mr-2 text-indigo-500 animate-pulse"></i> Tableau de Bord
-                </h2>
-                <select id="kpiPeriod" class="border p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm">
-                    <option value="day">Aujourd'hui</option>
-                    <option value="week">Cette Semaine</option>
+        <div class="mb-6 flex flex-col md:flex-row gap-4 no-print">
+            <div class="relative w-full md:w-1/5">
+                <label for="dateFilter" class="text-sm font-medium text-gray-700">Date</label>
+                <input type="text" id="dateFilter" placeholder="Sélectionner une date" class="flatpickr-input mt-1" aria-describedby="dateFilterHelp">
+                <p id="dateFilterHelp" class="sr-only">Sélectionnez une date au format AAAA-MM-JJ</p>
+            </div>
+            <div class="relative w-full md:w-1/5">
+                <label for="clientFilter" class="text-sm font-medium text-gray-700">Client</label>
+                <select id="clientFilter" class="mt-1 block w-full" aria-label="Filtrer par client">
+                    <option value="">Tous les clients</option>
+                    <option value="0">Comptoir</option>
                 </select>
             </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24">
-                    <h3 class="text-xs font-medium text-gray-600 flex items-center">
-                        <i id="caIcon" class="fas fa-money-bill-wave mr-1 text-green-500 dynamic-icon"></i> Chiffre d'Affaires
-                    </h3>
-                    <p id="totalCA" class="text-lg font-bold text-indigo-600">0.00 DA</p>
-                </div>
-                <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24">
-                    <h3 class="text-xs font-medium text-gray-600 flex items-center">
-                        <i id="profitIcon" class="fas fa-chart-pie mr-1 text-blue-500 dynamic-icon"></i> Bénéfice Total
-                    </h3>
-                    <p id="totalProfit" class="text-lg font-bold text-indigo-600">0.00 DA</p>
-                </div>
-                <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24">
-                    <h3 class="text-xs font-medium text-gray-600 flex items-center">
-                        <i id="salesIcon" class="fas fa-shopping-cart mr-1 text-yellow-500 dynamic-icon"></i> Ventes
-                    </h3>
-                    <p id="salesCount" class="text-lg font-bold text-indigo-600">0</p>
-                </div>
-                <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24">
-                    <h3 class="text-xs font-medium text-gray-600 flex items-center">
-                        <i id="stockIcon" class="fas fa-exclamation-triangle mr-1 text-red-500 dynamic-icon"></i> Ruptures
-                    </h3>
-                    <p id="lowStockItems" class="text-lg font-bold text-indigo-600">0</p>
-                </div>
-                <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24 col-span-2 sm:col-span-1 lg:col-span-2">
-                    <h3 class="text-xs font-medium text-gray-600 flex items-center">
-                        <i id="clientIcon" class="fas fa-user-check mr-1 text-purple-500 dynamic-icon"></i> Top Client
-                    </h3>
-                    <p id="topClient" class="text-sm font-bold text-indigo-600 overflow-hidden text-ellipsis whitespace-nowrap" title="N/A">N/A</p>
-                    <p id="topClientCA" class="text-xs text-gray-500">0.00 DA</p>
-                </div>
+            <div class="relative w-full md:w-1/5">
+                <label for="fournisseurFilter" class="text-sm font-medium text-gray-700">Fournisseur</label>
+                <select id="fournisseurFilter" class="mt-1 block w-full" aria-label="Filtrer par fournisseur">
+                    <option value="">Tous les fournisseurs</option>
+                </select>
+            </div>
+            <div class="relative w-full md:w-1/5">
+                <label for="userFilter" class="text-sm font-medium text-gray-700">Utilisateur</label>
+                <select id="userFilter" class="mt-1 block w-full" aria-label="Filtrer par utilisateur">
+                    <option value="0">Tous les utilisateurs</option>
+                </select>
+            </div>
+            <div class="relative w-full md:w-1/5 flex items-end">
+                <button onclick="printA4()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition w-full">
+                    <i class="fas fa-print mr-1"></i> Imprimer A4
+                </button>
             </div>
         </div>
 
-        <!-- Graphique en dessous -->
-        <div class="w-full bg-white p-4 rounded-lg shadow-md animate-fade-in chart-container mt-4">
-            <h3 class="text-lg font-medium text-gray-700 mb-4 flex items-center">
-                <i class="fas fa-chart-area mr-2 text-indigo-500"></i> Évolution du Chiffre d'Affaires
-            </h3>
-            <canvas id="caChart" height="100"></canvas>
+        <!-- Liste des Ventes -->
+        <section class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="dailySalesSection">
+            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('dailySalesSection')">
+                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                    <i class="fas fa-calendar-day mr-2 text-indigo-500"></i> Liste des Ventes
+                    <span id="dailySalesCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                </h2>
+                <button class="text-gray-600 hover:text-gray-800 transition">
+                    <i class="fas fa-chevron-down" id="dailySalesChevron"></i>
+                </button>
+            </div>
+            <div class="p-6 hidden" id="dailySalesContent">
+                <div class="mb-4">
+                    <h3 class="text-lg font-medium text-gray-700">Total: <span id="dailySalesTotal" class="text-indigo-600 font-bold">0.00 DA</span></h3>
+                </div>
+                <div class="mb-6">
+                    <h4 class="text-md font-medium text-gray-600 mb-2">Tickets (Ventes Comptoir)</h4>
+                    <div class="table-container">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Commande</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fait par</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ticketsList" class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td colspan="6" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div>
+                    <h4 class="text-md font-medium text-gray-600 mb-2">Bons de Livraison</h4>
+                    <div class="table-container">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Commande</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fait par</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bonsList" class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td colspan="6" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Liste des Achats -->
+        <section class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="dailyPurchasesSection">
+            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('dailyPurchasesSection')">
+                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                    <i class="fas fa-truck-loading mr-2 text-indigo-500"></i> Liste des Achats
+                    <span id="dailyPurchasesCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                </h2>
+                <button class="text-gray-600 hover:text-gray-800 transition">
+                    <i class="fas fa-chevron-down" id="dailyPurchasesChevron"></i>
+                </button>
+            </div>
+            <div class="p-6 hidden" id="dailyPurchasesContent">
+                <div class="mb-4">
+                    <h3 class="text-lg font-medium text-gray-700">Total: <span id="dailyPurchasesTotal" class="text-indigo-600 font-bold">0.00 DA</span></h3>
+                </div>
+                <div class="mb-6">
+                    <h4 class="text-md font-medium text-gray-600 mb-2">Bons de Réception</h4>
+                    <div class="table-container">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Réception</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fournisseur</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fait par</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="receptionsList" class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td colspan="6" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Articles les plus vendus -->
+        <section class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="topArticlesSection">
+            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('topArticlesSection')">
+                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                    <i class="fas fa-chart-pie mr-2 text-indigo-500"></i> Articles les Plus Vendus
+                    <span id="topArticlesCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                </h2>
+                <button class="text-gray-600 hover:text-gray-800 transition">
+                    <i class="fas fa-chevron-down" id="topArticlesChevron"></i>
+                </button>
+            </div>
+            <div class="p-6 hidden" id="topArticlesContent">
+                <div class="mb-4">
+                    <h3 class="text-lg font-medium text-gray-700">Total Quantité Vendue: <span id="topArticlesTotal" class="text-indigo-600 font-bold">0</span></h3>
+                </div>
+                <div class="flex justify-center">
+                    <canvas id="topArticlesChart" width="400" height="400"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Bénéfice -->
+        <section class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="profitSection">
+            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('profitSection')">
+                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                    <i class="fas fa-chart-line mr-2 text-indigo-500"></i> Bénéfice
+                    <span id="profitCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                </h2>
+                <button class="text-gray-600 hover:text-gray-800 transition">
+                    <i class="fas fa-chevron-down" id="profitChevron"></i>
+                </button>
+            </div>
+            <div class="p-6 hidden" id="profitContent">
+                <div class="mb-4">
+                    <h3 class="text-lg font-medium text-gray-700">Bénéfice Total (Date Sélectionnée): <span id="profitTotal" class="text-indigo-600 font-bold">0.00 DA</span></h3>
+                </div>
+                <div class="flex justify-center">
+                    <canvas id="profitChart" width="400" height="300"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Valeur du Stock -->
+        <section class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="stockValueSection">
+            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('stockValueSection')">
+                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                    <i class="fas fa-warehouse mr-2 text-indigo-500"></i> Valeur du Stock et Zakat
+                </h2>
+                <button class="text-gray-600 hover:text-gray-800 transition">
+                    <i class="fas fa-chevron-down" id="stockValueChevron"></i>
+                </button>
+            </div>
+            <div class="p-6 hidden" id="stockValueContent">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-gray-50 p-4 rounded-md">
+                        <h3 class="text-lg font-medium text-gray-700">Valeur Stock (Achat)</h3>
+                        <p id="stockValueAchat" class="text-indigo-600 font-bold text-2xl">0.00 DA</p>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-md">
+                        <h3 class="text-lg font-medium text-gray-700">Valeur Stock (Vente)</h3>
+                        <p id="stockValueVente" class="text-indigo-600 font-bold text-2xl">0.00 DA</p>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-md flex items-center">
+                        <svg class="w-8 h-8 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2-2 4 4"></path>
+                        </svg>
+                        <div>
+                            <h3 class="text-lg font-medium text-gray-700">زكاتي (Zakat)</h3>
+                            <p id="zakatValue" class="text-green-600 font-bold text-2xl">0.00 DA</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Zone d'impression A4 pour les ventes -->
+        <div id="printAreaA4" class="hidden">
+            <h1 class="text-2xl font-bold mb-4">Rapport des Ventes</h1>
+            <p class="mb-2">Date: <span id="printDate"></span></p>
+            <p class="mb-4">Client: <span id="printClient"></span></p>
+            <h2 class="text-xl font-semibold mb-2">Tickets (Ventes Comptoir)</h2>
+            <table class="min-w-full border-collapse border border-gray-300 mb-6">
+                <thead>
+                    <tr class="bg-gray-100">
+                        <th class="border border-gray-300 px-4 py-2 text-left">N° Commande</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Date</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Client</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Fait par</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Total</th>
+                    </tr>
+                </thead>
+                <tbody id="printTicketsList"></tbody>
+            </table>
+            <h2 class="text-xl font-semibold mb-2">Bons de Livraison</h2>
+            <table class="min-w-full border-collapse border border-gray-300 mb-6">
+                <thead>
+                    <tr class="bg-gray-100">
+                        <th class="border border-gray-300 px-4 py-2 text-left">N° Commande</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Date</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Client</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Fait par</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Total</th>
+                    </tr>
+                </thead>
+                <tbody id="printBonsList"></tbody>
+            </table>
+            <p class="text-lg font-bold">Total: <span id="printTotal"></span> DA</p>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
-            <!-- Gestion Clients -->
-            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="clientsSection">
-                <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('clientsSection')">
-                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-users mr-2 text-indigo-500"></i> Gestion Clients
-                        <span id="clientCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                    </h2>
-                    <button class="text-gray-600 hover:text-gray-800 transition">
-                        <i class="fas fa-chevron-down" id="clientsChevron"></i>
-                    </button>
-                </div>
-                <div class="p-6 hidden" id="clientsContent">
-                    <div class="mb-4">
-                        <div class="relative">
-                            <input type="text" id="searchClient" placeholder="Rechercher des clients..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                        </div>
-                        <div class="flex justify-end mt-2">
-                            <button onclick="toggleClientForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-plus mr-2"></i>Ajouter
-                            </button>
-                        </div>
-                    </div>
+        <!-- Zone d'impression A4 pour les achats -->
+        <div id="printAreaPurchasesA4" class="hidden">
+            <h1 class="text-2xl font-bold mb-4">Rapport des Achats</h1>
+            <p class="mb-2">Date: <span id="printPurchasesDate"></span></p>
+            <h2 class="text-xl font-semibold mb-2">Bons de Réception</h2>
+            <table class="min-w-full border-collapse border border-gray-300 mb-6">
+                <thead>
+                    <tr class="bg-gray-100">
+                        <th class="border border-gray-300 px-4 py-2 text-left">N° Réception</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Date</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Fournisseur</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Fait par</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Total</th>
+                    </tr>
+                </thead>
+                <tbody id="printReceptionsList"></tbody>
+            </table>
+            <p class="text-lg font-bold">Total: <span id="printPurchasesTotal"></span> DA</p>
+        </div>
 
-                    <div id="clientForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
-                        <h3 class="font-medium mb-3" id="clientFormTitle">Nouveau Client</h3>
-                        <input type="hidden" id="clientId">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
-                                <input type="text" id="clientNom" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Contact</label>
-                                <input type="text" id="clientContact" class="w-full px-3 py-2 border rounded-md">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
-                                <input type="text" id="clientAdresse" class="w-full px-3 py-2 border rounded-md">
-                            </div>
-                        </div>
-                        <div class="flex justify-end space-x-3 mt-4">
-                            <button onclick="resetClientForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-times mr-2"></i>Annuler
-                            </button>
-                            <button onclick="saveClient()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-save mr-2"></i>Enregistrer
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="table-container">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="hidden-id">ID</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="clientsList" class="bg-white divide-y divide-gray-200">
-                                <tr>
-                                    <td colspan="7" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+        <!-- Zone d'impression ticket 80mm pour les ventes -->
+        <div id="printAreaTicket" class="hidden">
+            <div style="width: 80mm; padding: 5mm; font-family: Arial, sans-serif;">
+                <h1 style="text-align: center; font-size: 14pt; margin-bottom: 5mm;">FirePoz</h1>
+                <p style="text-align: center; margin: 2mm 0;">Vente #<span id="ticketNumero"></span></p>
+                <p style="margin: 2mm 0;">Date: <span id="ticketDate"></span></p>
+                <p style="margin: 2mm 0;">Client: <span id="ticketClient"></span></p>
+                <p style="margin: 2mm 0;">Fait par: <span id="ticketUtilisateur"></span></p>
+                <table style="width: 100%; border-collapse: collapse; margin: 5mm 0;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid #000;">
+                            <th style="text-align: left; padding: 2mm;">Produit</th>
+                            <th style="text-align: center; padding: 2mm;">Qté</th>
+                            <th style="text-align: right; padding: 2mm;">Prix</th>
+                            <th style="text-align: right; padding: 2mm;">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ticketLignes"></tbody>
+                </table>
+                <p style="text-align: right; font-weight: bold; margin: 5mm 0;">Total: <span id="ticketTotal"></span> DA</p>
+                <p style="text-align: center; margin: 5mm 0;">Merci de votre visite !</p>
             </div>
+        </div>
 
-            <!-- Gestion Fournisseurs -->
-            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="fournisseursSection">
-                <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('fournisseursSection')">
-                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-truck mr-2 text-indigo-500"></i> Gestion Fournisseurs
-                        <span id="fournisseurCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                    </h2>
-                    <button class="text-gray-600 hover:text-gray-800 transition">
-                        <i class="fas fa-chevron-down" id="fournisseursChevron"></i>
-                    </button>
-                </div>
-                <div class="p-6 hidden" id="fournisseursContent">
-                    <div class="mb-4">
-                        <div class="relative">
-                            <input type="text" id="searchFournisseur" placeholder="Rechercher des fournisseurs..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                        </div>
-                        <div class="flex justify-end mt-2">
-                            <button onclick="toggleFournisseurForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-plus mr-2"></i>Ajouter
-                            </button>
-                        </div>
-                    </div>
-
-                    <div id="fournisseurForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
-                        <h3 class="font-medium mb-3" id="fournisseurFormTitle">Nouveau Fournisseur</h3>
-                        <input type="hidden" id="fournisseurId">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
-                                <input type="text" id="fournisseurNom" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Contact</label>
-                                <input type="text" id="fournisseurContact" class="w-full px-3 py-2 border rounded-md">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
-                                <input type="text" id="fournisseurAdresse" class="w-full px-3 py-2 border rounded-md">
-                            </div>
-                        </div>
-                        <div class="flex justify-end space-x-3 mt-4">
-                            <button onclick="resetFournisseurForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-times mr-2"></i>Annuler
-                            </button>
-                            <button onclick="saveFournisseur()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-save mr-2"></i>Enregistrer
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="table-container">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="hidden-id">ID</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="fournisseursList" class="bg-white divide-y divide-gray-200">
-                                <tr>
-                                    <td colspan="7" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Liste des Produits -->
-            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="productsSection">
-                <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('productsSection')">
-                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-boxes mr-2 text-indigo-500"></i> Liste des Produits
-                        <span id="productCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                    </h2>
-                    <button class="text-gray-600 hover:text-gray-800 transition">
-                        <i class="fas fa-chevron-down" id="productsChevron"></i>
-                    </button>
-                </div>
-                <div class="p-6 hidden" id="productsContent">
-                    <div class="mb-4">
-                        <div class="relative">
-                            <input type="text" id="searchProduct" placeholder="Rechercher des produits..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                        </div>
-                        <div class="flex justify-end mt-2">
-                            <button onclick="toggleProductForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-plus mr-2"></i>Ajouter
-                            </button>
-                        </div>
-                    </div>
-
-                    <div id="productForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
-                        <h3 class="font-medium mb-3" id="productFormTitle">Nouveau Produit</h3>
-                        <input type="hidden" id="productId">
-                        <div id="scannerPreview"></div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Désignation*</label>
-                                <input type="text" id="productDesignation" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div class="relative">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Code Barre*</label>
-                                <input type="text" id="productBar" class="w-full px-3 py-2 border rounded-md" required>
-                                <button id="scanButton" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition duration-300" onclick="startScanner()">
-                                    <i class="fas fa-camera"></i> Scanner
-                                </button>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Prix Vente*</label>
-                                <input type="number" id="productPrix" step="0.01" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Prix Achat</label>
-                                <input type="number" id="productPrixba" step="0.01" class="w-full px-3 py-2 border rounded-md" placeholder="Ex: 300.00">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Quantité*</label>
-                                <input type="number" id="productQte" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                        </div>
-                        <div class="flex justify-end space-x-3 mt-4">
-                            <button onclick="stopScanner()" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-stop mr-2"></i>Arrêter
-                            </button>
-                            <button onclick="resetProductForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-times mr-2"></i>Annuler
-                            </button>
-                            <button onclick="saveProduct()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-save mr-2"></i>Enregistrer
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="table-container">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="hidden-id">ID</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Désignation</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code Barre</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Vente</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Achat</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="productsList" class="bg-white divide-y divide-gray-200">
-                                <tr>
-                                    <td colspan="8" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Gestion Utilisateurs -->
-            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="utilisateursSection">
-                <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('utilisateursSection')">
-                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-user-tie mr-2 text-indigo-500"></i> Gestion Utilisateurs
-                        <span id="utilisateurCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                    </h2>
-                    <button class="text-gray-600 hover:text-gray-800 transition">
-                        <i class="fas fa-chevron-down" id="utilisateursChevron"></i>
-                    </button>
-                </div>
-                <div class="p-6 hidden" id="utilisateursContent">
-                    <div class="mb-4">
-                        <div class="relative">
-                            <input type="text" id="searchUtilisateur" placeholder="Rechercher des utilisateurs..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                        </div>
-                        <div class="flex justify-end mt-2">
-                            <button onclick="toggleUtilisateurForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-plus mr-2"></i>Ajouter
-                            </button>
-                        </div>
-                    </div>
-
-                    <div id="utilisateurForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
-                        <h3 class="font-medium mb-3" id="utilisateurFormTitle">Nouvel Utilisateur</h3>
-                        <input type="hidden" id="utilisateurId">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
-                                <input type="text" id="utilisateurNom" class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe*</label>
-                                <input type="password" id="utilisateurPassword" class="w-full px-3 py-2 border rounded-md">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Statut*</label>
-                                <select id="utilisateurStatut" class="w-full px-3 py-2 border rounded-md">
-                                    <option value="admin">Admin</option>
-                                    <option value="emplo">Employé</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="flex justify-end space-x-3 mt-4">
-                            <button onclick="resetUtilisateurForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-times mr-2"></i>Annuler
-                            </button>
-                            <button onclick="saveUtilisateur()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
-                                <i class="fas fa-save mr-2"></i>Enregistrer
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="table-container">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="utilisateursList" class="bg-white divide-y divide-gray-200">
-                                <tr>
-                                    <td colspan="4" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Panneau Actions Rapides -->
-            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="actionsSection">
-                <div class="p-6">
-                    <h2 class="text-xl font-semibold text-gray-800 flex items-center mb-4">
-                        <i class="fas fa-bolt mr-2 text-indigo-500"></i> Actions Rapides
-                    </h2>
-                    <div class="grid grid-cols-2 gap-4">
-                        <a href="page2.html" class="bg-indigo-600 text-white p-4 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105 flex items-center justify-center">
-                            <i class="fas fa-chart-bar mr-2 text-xl"></i>
-                            <span class="font-medium">Statistiques</span>
-                        </a>
-                        <a href="HISTO.html" class="bg-blue-600 text-white p-4 rounded-md hover:bg-blue-700 transition duration-300 transform hover:scale-105 flex items-center justify-center">
-                            <i class="fas fa-money-check-alt mr-2 text-xl"></i>
-                            <span class="font-medium">Versement</span>
-                        </a>
-                        <a href="PARAM.html" class="bg-gray-600 text-white p-4 rounded-md hover:bg-gray-700 transition duration-300 transform hover:scale-105 flex items-center justify-center">
-                            <i class="fas fa-cog mr-2 text-xl"></i>
-                            <span class="font-medium">Réglage</span>
-                        </a>
-                        <a href="HELP.html" class="bg-green-600 text-white p-4 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105 flex items-center justify-center">
-                            <i class="fas fa-question-circle mr-2 text-xl"></i>
-                            <span class="font-medium">Aide</span>
-                        </a>
-                    </div>
-                </div>
+        <!-- Zone d'impression ticket 80mm pour les achats -->
+        <div id="printAreaPurchaseTicket" class="hidden">
+            <div style="width: 80mm; padding: 5mm; font-family: Arial, sans-serif;">
+                <h1 style="text-align: center; font-size: 14pt; margin-bottom: 5mm;">FirePoz</h1>
+                <p style="text-align: center; margin: 2mm 0;">Réception #<span id="purchaseTicketNumero"></span></p>
+                <p style="margin: 2mm 0;">Date: <span id="purchaseTicketDate"></span></p>
+                <p style="margin: 2mm 0;">Fournisseur: <span id="purchaseTicketFournisseur"></span></p>
+                <p style="margin: 2mm 0;">Fait par: <span id="purchaseTicketUtilisateur"></span></p>
+                <table style="width: 100%; border-collapse: collapse; margin: 5mm 0;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid #000;">
+                            <th style="text-align: left; padding: 2mm;">Produit</th>
+                            <th style="text-align: center; padding: 2mm;">Qté</th>
+                            <th style="text-align: right; padding: 2mm;">Prix</th>
+                            <th style="text-align: right; padding: 2mm;">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="purchaseTicketLignes"></tbody>
+                </table>
+                <p style="text-align: right; font-weight: bold; margin: 5mm 0;">Total: <span id="purchaseTicketTotal"></span> DA</p>
+                <p style="text-align: center; margin: 5mm 0;">Merci à notre fournisseur !</p>
             </div>
         </div>
     </div>
 
-    <!-- Footer -->
-    <footer class="bg-gray-700 text-white text-center py-4 mt-8 animate-fade-in">
+    <footer class="bg-gray-700 text-white text-center py-4 animate-fade-in no-print">
         <p>Développé par Khelladi Hicham</p>
         <p>Tel: <a href="tel:00213553700900" class="underline hover:text-indigo-300 transition duration-300">00213553700900</a></p>
         <p>Email: <a href="mailto:Hicham.khelladi@gmail.com" class="underline hover:text-indigo-300 transition duration-300">Hicham.khelladi@gmail.com</a></p>
     </footer>
 
-    <!-- Bouton flottant pour remonter en haut -->
-    <button id="scrollTopButton" class="hidden fixed bottom-4 right-4 bg-indigo-600 text-white p-3 rounded-full shadow-lg hover:bg-indigo-700 transition transform hover:scale-110 animate-fade-in z-30" title="Remonter en haut">
-        <i class="fas fa-arrow-up"></i>
-    </button>
-
-    <div id="toast" class="fixed bottom-4 right-4 hidden">
+    <div id="toast" class="fixed bottom-4 right-4 hidden no-print">
         <div class="flex items-center px-6 py-3 rounded-md shadow-lg">
             <i id="toastIcon" class="mr-2"></i>
             <span id="toastMessage"></span>
         </div>
     </div>
 
+    <div id="saleDetailsModal" class="fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center hidden z-50 no-print">
+        <div class="bg-white rounded-lg shadow-lg max-w-2xl w-full p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-semibold text-gray-800">Détails <span id="modalTitle"></span> #<span id="modalSaleNumber"></span></h3>
+                <button onclick="closeSaleDetailsModal()" class="text-gray-600 hover:text-gray-800">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="table-container max-h-96 overflow-y-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Unitaire</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="saleDetailsList" class="bg-white divide-y divide-gray-200"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <script>
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
-        let caChartInstance = null;
-        let stream = null;
-        let barcodeDetector = null;
-        let isScanning = false;
+        let dailySalesCache = { tickets: [], bons: [], total: 0 };
+        let dailyPurchasesCache = { receptions: [], total: 0 };
+        let clientsCache = [];
+        let topArticlesCache = [];
+        let profitCache = [];
+        let topArticlesChart = null;
+        let profitChart = null;
 
-        // Générer un user_id basé sur l'email et le mot de passe
-        function generateUniqueUserId(email, password) {
-            const combined = `${email.toLowerCase()}:${password}`;
-            return btoa(combined);
-        }
-
-        // Vérifier si l'utilisateur est connecté au chargement de la page
-        document.addEventListener('DOMContentLoaded', () => {
-            const userId = localStorage.getItem('userId');
-            const userEmail = localStorage.getItem('userEmail');
-            if (userId && userEmail) {
-                document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
-                document.getElementById('userDisplay').classList.remove('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                document.getElementById('loginModal').classList.add('hidden');
-                chargerClients();
-                chargerFournisseurs();
-                chargerProduits();
-                chargerUtilisateurs();
-                chargerKPI();
-            } else {
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                document.getElementById('loginModal').classList.remove('hidden');
-            }
-
-            // Vérification de la connexion API
-            fetch(`${API_BASE_URL}/`)
-                .then(response => response.text())
-                .then(text => console.log('Statut API:', text))
-                .catch(err => {
-                    console.error('API non disponible:', err);
-                    showToast('Erreur de connexion à l\'API', true);
-                });
-
-            // Écouteur pour le sélecteur de période KPI
-            document.getElementById('kpiPeriod').addEventListener('change', () => {
-                document.getElementById('kpiSection').style.opacity = '0.5';
-                setTimeout(chargerKPI, 300);
-            });
-
-            // Bouton remonter en haut
-            window.addEventListener('scroll', () => {
-                if (window.scrollY > 300) {
-                    document.getElementById('scrollTopButton').classList.remove('hidden');
-                } else {
-                    document.getElementById('scrollTopButton').classList.add('hidden');
-                }
-            });
-
-            document.getElementById('scrollTopButton').addEventListener('click', () => {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            });
-        });
-
-        // Fonction pour charger les KPI
-        async function chargerKPI() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les KPI', true);
-                return;
-            }
-
-            const period = document.getElementById('kpiPeriod').value;
-            try {
-                const response = await fetch(`${API_BASE_URL}/dashboard?period=${period}`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
-                });
-                if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-                }
-                const kpi = await response.json();
-
-                // Mettre à jour les KPI
-                document.getElementById('totalCA').textContent = `${kpi.total_ca.toFixed(2)} DA`;
-                document.getElementById('totalProfit').textContent = `${kpi.total_profit.toFixed(2)} DA`;
-                document.getElementById('salesCount').textContent = kpi.sales_count;
-                document.getElementById('lowStockItems').textContent = kpi.low_stock_items;
-                document.getElementById('topClient').textContent = kpi.top_client.name || 'N/A';
-                document.getElementById('topClient').title = kpi.top_client.name || 'N/A';
-                document.getElementById('topClientCA').textContent = `${kpi.top_client.ca.toFixed(2)} DA`;
-
-                // Animation de mise à jour
-                const kpiCards = document.querySelectorAll('.kpi-card');
-                kpiCards.forEach(card => {
-                    card.classList.add('kpi-updated');
-                    setTimeout(() => card.classList.remove('kpi-updated'), 500);
-                });
-
-                // Animation spécifique pour Top Client
-                const topClientCard = document.getElementById('topClient').parentElement;
-                topClientCard.classList.add('top-client-updated');
-                setTimeout(() => topClientCard.classList.remove('top-client-updated'), 600);
-
-                // Mettre à jour les icônes dynamiques
-                document.getElementById('caIcon').className = `fas fa-money-bill-wave mr-1 dynamic-icon ${kpi.total_ca > 0 ? 'text-green-500 animate-pulse' : 'text-gray-400'}`;
-                document.getElementById('profitIcon').className = `fas fa-chart-pie mr-1 dynamic-icon ${kpi.total_profit > 0 ? 'text-blue-500 animate-pulse' : 'text-gray-400'}`;
-                document.getElementById('salesIcon').className = `fas fa-shopping-cart mr-1 dynamic-icon ${kpi.sales_count > 0 ? 'text-yellow-500 animate-pulse' : 'text-gray-400'}`;
-                document.getElementById('stockIcon').className = `fas fa-exclamation-triangle mr-1 dynamic-icon ${kpi.low_stock_items > 0 ? 'text-red-500 animate-pulse' : 'text-gray-400'}`;
-                document.getElementById('clientIcon').className = `fas fa-user-check mr-1 dynamic-icon ${kpi.top_client.ca > 0 ? 'text-purple-500 animate-pulse' : 'text-gray-400'}`;
-
-                // Mettre à jour le graphique
-                updateChart(kpi.chart_data.labels, kpi.chart_data.values);
-
-                // Réactiver l'opacité
-                document.getElementById('kpiSection').style.opacity = '1';
-            } catch (error) {
-                showToast(`Erreur de chargement des KPI: ${error.message}`, true);
-                console.error('Erreur KPI:', error);
-                document.getElementById('kpiSection').style.opacity = '1';
-            }
-        }
-
-        // Fonction pour mettre à jour le graphique
-        function updateChart(labels, values) {
-            const ctx = document.getElementById('caChart').getContext('2d');
-            if (caChartInstance) {
-                caChartInstance.destroy();
-            }
-            caChartInstance = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Chiffre d\'Affaires (DA)',
-                        data: values,
-                        borderColor: '#4F46E5',
-                        backgroundColor: 'rgba(79, 70, 229, 0.2)',
-                        fill: true,
-                        tension: 0.4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        x: {
-                            title: { display: true, text: 'Date' }
-                        },
-                        y: {
-                            title: { display: true, text: 'CA (DA)' },
-                            beginAtZero: true
-                        }
-                    },
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            callbacks: {
-                                label: context => `${context.parsed.y.toFixed(2)} DA`
-                            }
-                        }
-                    },
-                    animation: {
-                        duration: 1000,
-                        easing: 'easeOutQuart'
-                    }
-                }
-            });
-        }
-
-        // Connexion avec email et mot de passe
-        function loginWithCredentials(event) {
-            event.preventDefault();
-            const email = document.getElementById('userEmail').value.trim();
-            const password = document.getElementById('userPassword').value.trim();
-            if (!email || !password) {
-                showToast('Veuillez entrer un email et un mot de passe valides', true);
-                return;
-            }
-
-            const emailLowerCase = email.toLowerCase();
-            const storedUserId = localStorage.getItem('userId');
-            const storedEmail = localStorage.getItem('userEmail');
-
-            const userId = generateUniqueUserId(emailLowerCase, password);
-
-            if (storedUserId && storedEmail === emailLowerCase && storedUserId === userId) {
-                document.getElementById('userDisplay').textContent = emailLowerCase;
-                document.getElementById('userDisplay').classList.remove('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                document.getElementById('loginModal').classList.add('hidden');
-                chargerClients();
-                chargerFournisseurs();
-                chargerProduits();
-                chargerUtilisateurs();
-                chargerKPI();
-            } else {
-                localStorage.setItem('userId', userId);
-                localStorage.setItem('userEmail', emailLowerCase);
-                document.getElementById('userDisplay').textContent = emailLowerCase;
-                document.getElementById('userDisplay').classList.remove('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                document.getElementById('loginModal').classList.add('hidden');
-                chargerClients();
-                chargerFournisseurs();
-                chargerProduits();
-                chargerUtilisateurs();
-                chargerKPI();
-                showToast('Nouveau compte créé avec succès');
-            }
-        }
-
-        // Fonction de déconnexion
-        function loginLogout() {
-            const userId = localStorage.getItem('userId');
-            if (userId) {
-                localStorage.removeItem('userId');
-                localStorage.removeItem('userEmail');
-                document.getElementById('userDisplay').textContent = '';
-                document.getElementById('userDisplay').classList.add('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                document.getElementById('loginModal').classList.remove('hidden');
-                document.getElementById('clientsList').innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
-                document.getElementById('fournisseursList').innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
-                document.getElementById('productsList').innerHTML = '<tr><td colspan="8" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
-                document.getElementById('utilisateursList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
-                document.getElementById('clientCount').classList.add('hidden');
-                document.getElementById('fournisseurCount').classList.add('hidden');
-                document.getElementById('productCount').classList.add('hidden');
-                document.getElementById('utilisateurCount').classList.add('hidden');
-                document.getElementById('totalCA').textContent = '0.00 DA';
-                document.getElementById('totalProfit').textContent = '0.00 DA';
-                document.getElementById('salesCount').textContent = '0';
-                document.getElementById('lowStockItems').textContent = '0';
-                document.getElementById('topClient').textContent = 'N/A';
-                document.getElementById('topClientCA').textContent = '0.00 DA';
-                if (caChartInstance) {
-                    caChartInstance.destroy();
-                    caChartInstance = null;
-                }
-            }
-        }
-
-        // Fonction pour afficher les notifications
         function showToast(message, isError = false) {
             const toast = document.getElementById('toast');
             const toastMessage = document.getElementById('toastMessage');
@@ -817,7 +518,6 @@
             }, 3000);
         }
 
-        // Fonction pour gérer l'animation développer/envelopper
         function toggleSection(sectionId) {
             const section = document.getElementById(sectionId);
             const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
@@ -828,8 +528,21 @@
             chevron.classList.toggle('fa-chevron-up');
         }
 
-        // --- Gestion des clients ---
+        function loginLogout() {
+            console.log('Déconnexion en cours...');
+            const userId = localStorage.getItem('userId');
+            if (userId) {
+                localStorage.removeItem('userId');
+                localStorage.removeItem('userEmail');
+                document.getElementById('userDisplay').textContent = '';
+                document.getElementById('userDisplay').classList.add('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                window.location.href = 'index.html';
+            }
+        }
+
         async function chargerClients() {
+            console.log('Chargement des clients...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour voir les clients', true);
@@ -838,180 +551,33 @@
 
             try {
                 const response = await fetch(`${API_BASE_URL}/liste_clients`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
+                    headers: { 'X-User-ID': userId }
                 });
                 if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
-                const clients = await response.json();
-                const tbody = document.getElementById('clientsList');
-                const countElement = document.getElementById('clientCount');
+                clientsCache = await response.json();
+                const selectElement = document.getElementById('clientFilter');
 
-                if (clients.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun client trouvé</td></tr>';
-                    countElement.textContent = '0';
-                    countElement.classList.remove('hidden');
-                    return;
-                }
-
-                tbody.innerHTML = '';
-                clients.forEach(client => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="hidden-id">${client.numero_clt || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${client.nom || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.solde || '0'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.reference || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.contact || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.adresse || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <button onclick="modifierClient('${client.numero_clt}', '${client.nom}', '${client.contact}', '${client.adresse}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
-                                <i class="fas fa-edit"></i> Modifier
-                            </button>
-                            <button onclick="supprimerClient('${client.numero_clt}')" class="text-red-600 hover:text-red-800 transition">
-                                <i class="fas fa-trash-alt"></i> Supprimer
-                            </button>
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-                countElement.textContent = clients.length;
-                countElement.classList.remove('hidden');
-            } catch (error) {
-                document.getElementById('clientsList').innerHTML = `
-                    <tr>
-                        <td colspan="7" class="text-center py-4 text-red-500">
-                            Erreur de chargement: ${error.message}
-                        </td>
-                    </tr>
+                selectElement.innerHTML = `
+                    <option value="">Tous les clients</option>
+                    <option value="0">Comptoir</option>
                 `;
+                clientsCache.forEach(client => {
+                    const option = document.createElement('option');
+                    option.value = client.numero_clt;
+                    option.textContent = `${client.nom} (ID: ${client.numero_clt})`;
+                    selectElement.appendChild(option);
+                });
+            } catch (error) {
+                showToast('Erreur lors du chargement des clients: ' + error.message, true);
                 console.error('Erreur clients:', error);
             }
         }
 
-        function modifierClient(id, nom, contact, adresse) {
-            document.getElementById('clientId').value = id;
-            document.getElementById('clientNom').value = nom;
-            document.getElementById('clientContact').value = contact;
-            document.getElementById('clientAdresse').value = adresse;
-            document.getElementById('clientFormTitle').textContent = 'Modifier Client';
-            document.getElementById('clientForm').classList.remove('hidden');
-        }
-
-        async function supprimerClient(id) {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour supprimer un client', true);
-                return;
-            }
-
-            if (!confirm('Voulez-vous vraiment supprimer ce client ?')) {
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/supprimer_client/${id}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'X-User-ID': userId
-                    }
-                });
-
-                const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de la suppression');
-                }
-
-                showToast('Client supprimé avec succès');
-                chargerClients();
-            } catch (error) {
-                showToast(error.message, true);
-                console.error('Erreur suppression client:', error);
-            }
-        }
-
-        async function saveClient() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour sauvegarder un client', true);
-                return;
-            }
-
-            const id = document.getElementById('clientId').value;
-            const nom = document.getElementById('clientNom').value.trim();
-            const contact = document.getElementById('clientContact').value.trim();
-            const adresse = document.getElementById('clientAdresse').value.trim();
-
-            if (!nom) {
-                showToast('Veuillez remplir le champ Nom', true);
-                return;
-            }
-
-            try {
-                const url = id ? `${API_BASE_URL}/modifier_client/${id}` : `${API_BASE_URL}/ajouter_client`;
-                const method = id ? 'PUT' : 'POST';
-                const response = await fetch(url, {
-                    method: method,
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({
-                        nom,
-                        contact,
-                        adresse
-                    })
-                });
-
-                const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
-                }
-
-                showToast(id ? 'Client modifié avec succès' : 'Client ajouté avec succès');
-                resetClientForm();
-                chargerClients();
-            } catch (error) {
-                showToast(error.message, true);
-                console.error('Erreur sauvegarde client:', error);
-            }
-        }
-
-        function resetClientForm() {
-            document.getElementById('clientId').value = '';
-            document.getElementById('clientNom').value = '';
-            document.getElementById('clientContact').value = '';
-            document.getElementById('clientAdresse').value = '';
-            document.getElementById('clientFormTitle').textContent = 'Nouveau Client';
-            document.getElementById('clientForm').classList.add('hidden');
-        }
-
-        function toggleClientForm() {
-            document.getElementById('clientForm').classList.toggle('hidden');
-        }
-
-        document.getElementById('searchClient').addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const rows = document.querySelectorAll('#clientsList tr');
-
-            rows.forEach(row => {
-                const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-                const reference = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
-                const contact = row.querySelector('td:nth-child(5)')?.textContent.toLowerCase();
-                const adresse = row.querySelector('td:nth-child(6)')?.textContent.toLowerCase();
-                if (nom?.includes(searchTerm) || reference?.includes(searchTerm) || contact?.includes(searchTerm) || adresse?.includes(searchTerm)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-
-        // --- Gestion des fournisseurs ---
         async function chargerFournisseurs() {
+            console.log('Chargement des fournisseurs...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour voir les fournisseurs', true);
@@ -1020,448 +586,30 @@
 
             try {
                 const response = await fetch(`${API_BASE_URL}/liste_fournisseurs`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
+                    headers: { 'X-User-ID': userId }
                 });
                 if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 const fournisseurs = await response.json();
-                const tbody = document.getElementById('fournisseursList');
-                const countElement = document.getElementById('fournisseurCount');
+                const selectElement = document.getElementById('fournisseurFilter');
 
-                if (fournisseurs.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun fournisseur trouvé</td></tr>';
-                    countElement.textContent = '0';
-                    countElement.classList.remove('hidden');
-                    return;
-                }
-
-                tbody.innerHTML = '';
+                selectElement.innerHTML = `<option value="">Tous les fournisseurs</option>`;
                 fournisseurs.forEach(fournisseur => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="hidden-id">${fournisseur.numero_fou || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${fournisseur.nom || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.solde || '0'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.reference || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.contact || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.adresse || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <button onclick="modifierFournisseur('${fournisseur.numero_fou}', '${fournisseur.nom}', '${fournisseur.contact}', '${fournisseur.adresse}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
-                                <i class="fas fa-edit"></i> Modifier
-                            </button>
-                            <button onclick="supprimerFournisseur('${fournisseur.numero_fou}')" class="text-red-600 hover:text-red-800 transition">
-                                <i class="fas fa-trash-alt"></i> Supprimer
-                            </button>
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
+                    const option = document.createElement('option');
+                    option.value = fournisseur.numero_fou;
+                    option.textContent = `${fournisseur.nom} (ID: ${fournisseur.numero_fou})`;
+                    selectElement.appendChild(option);
                 });
-                countElement.textContent = fournisseurs.length;
-                countElement.classList.remove('hidden');
             } catch (error) {
-                document.getElementById('fournisseursList').innerHTML = `
-                    <tr>
-                        <td colspan="7" class="text-center py-4 text-red-500">
-                            Erreur de chargement: ${error.message}
-                        </td>
-                    </tr
-                `;
+                showToast('Erreur lors du chargement des fournisseurs: ' + error.message, true);
                 console.error('Erreur fournisseurs:', error);
             }
         }
 
-        function modifierFournisseur(id, nom, contact, adresse) {
-            document.getElementById('fournisseurId').value = id;
-            document.getElementById('fournisseurNom').value = nom;
-            document.getElementById('fournisseurContact').value = contact;
-            document.getElementById('fournisseurAdresse').value = adresse;
-            document.getElementById('fournisseurFormTitle').textContent = 'Modifier Fournisseur';
-            document.getElementById('fournisseurForm').classList.remove('hidden');
-        }
-
-        async function supprimerFournisseur(id) {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour supprimer un fournisseur', true);
-                return;
-            }
-
-            if (!confirm('Voulez-vous vraiment supprimer ce fournisseur ?')) {
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/supprimer_fournisseur/${id}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'X-User-ID': userId
-                    }
-                });
-
-                const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de la suppression');
-                }
-
-                showToast('Fournisseur supprimé avec succès');
-                chargerFournisseurs();
-            } catch (error) {
-                showToast(error.message, true);
-                console.error('Erreur suppression fournisseur:', error);
-            }
-        }
-
-        async function saveFournisseur() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour sauvegarder un fournisseur', true);
-                return;
-            }
-
-            const id = document.getElementById('fournisseurId').value;
-            const nom = document.getElementById('fournisseurNom').value.trim();
-            const contact = document.getElementById('fournisseurContact').value.trim();
-            const adresse = document.getElementById('fournisseurAdresse').value.trim();
-
-            if (!nom) {
-                showToast('Veuillez remplir le champ Nom', true);
-                return;
-            }
-
-            try {
-                const url = id ? `${API_BASE_URL}/modifier_fournisseur/${id}` : `${API_BASE_URL}/ajouter_fournisseur`;
-                const method = id ? 'PUT' : 'POST';
-                const response = await fetch(url, {
-                    method: method,
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({
-                        nom,
-                        contact,
-                        adresse
-                    })
-                });
-
-                const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
-                }
-
-                showToast(id ? 'Fournisseur modifié avec succès' : 'Fournisseur ajouté avec succès');
-                resetFournisseurForm();
-                chargerFournisseurs();
-            } catch (error) {
-                showToast(error.message, true);
-                console.error('Erreur sauvegarde fournisseur:', error);
-            }
-        }
-
-        function resetFournisseurForm() {
-            document.getElementById('fournisseurId').value = '';
-            document.getElementById('fournisseurNom').value = '';
-            document.getElementById('fournisseurContact').value = '';
-            document.getElementById('fournisseurAdresse').value = '';
-            document.getElementById('fournisseurFormTitle').textContent = 'Nouveau Fournisseur';
-            document.getElementById('fournisseurForm').classList.add('hidden');
-        }
-
-        function toggleFournisseurForm() {
-            document.getElementById('fournisseurForm').classList.toggle('hidden');
-        }
-
-        document.getElementById('searchFournisseur').addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const rows = document.querySelectorAll('#fournisseursList tr');
-
-            rows.forEach(row => {
-                const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-                const reference = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
-                const contact = row.querySelector('td:nth-child(5)')?.textContent.toLowerCase();
-                const adresse = row.querySelector('td:nth-child(6)')?.textContent.toLowerCase();
-                if (nom?.includes(searchTerm) || reference?.includes(searchTerm) || contact?.includes(searchTerm) || adresse?.includes(searchTerm)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-
-        // --- Gestion des produits ---
-        async function chargerProduits() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les produits', true);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
-                });
-                if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-                }
-                const produits = await response.json();
-                const tbody = document.getElementById('productsList');
-                const countElement = document.getElementById('productCount');
-
-                if (produits.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
-                    countElement.textContent = '0';
-                    countElement.classList.remove('hidden');
-                    return;
-                }
-
-                tbody.innerHTML = '';
-                produits.forEach(produit => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="hidden-id">${produit.NUMERO_ITEM || 'N/A'}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.REF || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || '0.00').toFixed(2)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <button onclick="modifierProduit('${produit.NUMERO_ITEM}', '${produit.BAR}', '${produit.DESIGNATION}', '${produit.PRIX}', '${produit.PRIXBA}', '${produit.QTE}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
-                                <i class="fas fa-edit"></i> Modifier
-                            </button>
-                            <button onclick="supprimerProduit('${produit.NUMERO_ITEM}')" class="text-red-600 hover:text-red-800 transition">
-                                <i class="fas fa-trash-alt"></i> Supprimer
-                            </button>
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-                countElement.textContent = produits.length;
-                countElement.classList.remove('hidden');
-            } catch (error) {
-                document.getElementById('productsList').innerHTML = `
-                    <tr>
-                        <td colspan="8" class="text-center py-4 text-red-500">
-                            Erreur de chargement: ${error.message}
-                        </td>
-                    </tr
-                `;
-                console.error('Erreur produits:', error);
-            }
-        }
-
-        function modifierProduit(numero_item, bar, designation, prix, prixba, qte) {
-            document.getElementById('productId').value = numero_item;
-            document.getElementById('productBar').value = bar;
-            document.getElementById('productDesignation').value = designation;
-            document.getElementById('productPrix').value = parseFloat(prix).toFixed(2);
-            document.getElementById('productPrixba').value = prixba ? parseFloat(prixba).toFixed(2) : '';
-            document.getElementById('productQte').value = qte;
-            document.getElementById('productFormTitle').textContent = 'Modifier Produit';
-            document.getElementById('productForm').classList.remove('hidden');
-        }
-
-        async function supprimerProduit(id) {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour supprimer un produit', true);
-                return;
-            }
-
-            if (!confirm('Voulez-vous vraiment supprimer ce produit ?')) {
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/supprimer_item/${id}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'X-User-ID': userId
-                    }
-                });
-
-                const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de la suppression');
-                }
-
-                showToast('Produit supprimé avec succès');
-                chargerProduits();
-            } catch (error) {
-                showToast(error.message, true);
-                console.error('Erreur suppression produit:', error);
-            }
-        }
-
-       async function saveProduct() {
-    const userId = localStorage.getItem('userId');
-    if (!userId) {
-        showToast('Veuillez vous connecter pour sauvegarder un produit', true);
-        return;
-    }
-
-    const id = document.getElementById('productId').value;
-    const bar = document.getElementById('productBar').value.trim();
-    const designation = document.getElementById('productDesignation').value.trim();
-    const prix = document.getElementById('productPrix').value;
-    const prixba = document.getElementById('productPrixba').value;
-    const qte = document.getElementById('productQte').value;
-
-    if (!bar || !designation || prix === '' || qte === '') {
-        showToast('Veuillez remplir tous les champs obligatoires', true);
-        return;
-    }
-
-    const prixValue = parseFloat(prix);
-    const prixbaValue = prixba ? parseFloat(prixba) : 0;
-    const qteValue = parseInt(qte);
-
-    if (isNaN(prixValue) || isNaN(qteValue) || prixValue < 0 || qteValue < 0) {
-        showToast('Le prix et la quantité doivent être des nombres valides et positifs', true);
-        return;
-    }
-
-    try {
-        const url = id ? `${API_BASE_URL}/modifier_item/${id}` : `${API_BASE_URL}/ajouter_item`;
-        const method = id ? 'PUT' : 'POST';
-        const response = await fetch(url, {
-            method: method,
-            headers: {
-                'Content-Type': 'application/json',
-                'X-User-ID': userId
-            },
-            body: JSON.stringify({
-                bar: bar,
-                designation: designation,
-                prix: prixValue,
-                prixba: prixbaValue,
-                qte: qteValue
-            })
-        });
-
-        const result = await response.json();
-        if (!response.ok) {
-            throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
-        }
-
-        showToast(id ? 'Produit modifié avec succès' : 'Produit ajouté avec succès');
-        resetProductForm();
-        chargerProduits();
-    } catch (error) {
-        showToast(error.message, true);
-        console.error('Erreur sauvegarde produit:', error);
-    }
-}
-        function resetProductForm() {
-            document.getElementById('productId').value = '';
-            document.getElementById('productBar').value = '';
-            document.getElementById('productDesignation').value = '';
-            document.getElementById('productPrix').value = '';
-            document.getElementById('productPrixba').value = '';
-            document.getElementById('productQte').value = '';
-            document.getElementById('productFormTitle').textContent = 'Nouveau Produit';
-            document.getElementById('productForm').classList.add('hidden');
-            stopScanner();
-        }
-
-        function toggleProductForm() {
-            document.getElementById('productForm').classList.toggle('hidden');
-        }
-
-        document.getElementById('searchProduct').addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const rows = document.querySelectorAll('#productsList tr');
-
-            rows.forEach(row => {
-                const designation = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-                const bar = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
-                const reference = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
-                if (designation?.includes(searchTerm) || bar?.includes(searchTerm) || reference?.includes(searchTerm)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-
-        // --- Gestion du scanner ---
-        async function startScanner() {
-            if (isScanning) return;
-
-            try {
-                if (!('BarcodeDetector' in window)) {
-                    showToast('Le détecteur de code-barres n\'est pas supporté par ce navigateur', true);
-                    return;
-                }
-
-                stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment' }
-                });
-
-                const video = document.createElement('video');
-                video.srcObject = stream;
-                video.autoplay = true;
-                video.playsInline = true;
-                video.style.width = '100%';
-                video.style.height = '100%';
-
-                const scannerPreview = document.getElementById('scannerPreview');
-                scannerPreview.innerHTML = '';
-                scannerPreview.appendChild(video);
-                scannerPreview.style.display = 'block';
-
-                barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
-
-                isScanning = true;
-                scanBarcode(video);
-            } catch (error) {
-                showToast('Erreur d\'accès à la caméra: ' + error.message, true);
-                console.error('Erreur scanner:', error);
-                stopScanner();
-            }
-        }
-
-        function scanBarcode(video) {
-            if (!isScanning) return;
-
-            barcodeDetector.detect(video)
-                .then(barcodes => {
-                    if (barcodes.length > 0) {
-                        const barcode = barcodes[0].rawValue;
-                        document.getElementById('productBar').value = barcode;
-                        showToast('Code-barres détecté: ' + barcode);
-                        stopScanner();
-                    } else {
-                        requestAnimationFrame(() => scanBarcode(video));
-                    }
-                })
-                .catch(error => {
-                    showToast('Erreur de détection de code-barres: ' + error.message, true);
-                    console.error('Erreur détection:', error);
-                    stopScanner();
-                });
-        }
-
-        function stopScanner() {
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                stream = null;
-            }
-            const scannerPreview = document.getElementById('scannerPreview');
-            scannerPreview.innerHTML = '';
-            scannerPreview.style.display = 'none';
-            isScanning = false;
-        }
-
-        // --- Gestion des utilisateurs ---
         async function chargerUtilisateurs() {
+            console.log('Chargement des utilisateurs...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour voir les utilisateurs', true);
@@ -1470,188 +618,600 @@
 
             try {
                 const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
+                    headers: { 'X-User-ID': userId }
                 });
                 if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 const utilisateurs = await response.json();
-                const tbody = document.getElementById('utilisateursList');
-                const countElement = document.getElementById('utilisateurCount');
+                const selectElement = document.getElementById('userFilter');
 
-                if (utilisateurs.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun utilisateur trouvé</td></tr>';
-                    countElement.textContent = '0';
-                    countElement.classList.remove('hidden');
-                    return;
-                }
-
-                tbody.innerHTML = '';
-                utilisateurs.forEach(utilisateur => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.numero || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${utilisateur.nom || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.statut || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <button onclick="modifierUtilisateur('${utilisateur.numero}', '${utilisateur.nom}', '${utilisateur.statut}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
-                                <i class="fas fa-edit"></i> Modifier
-                            </button>
-                            <button onclick="supprimerUtilisateur('${utilisateur.numero}')" class="text-red-600 hover:text-red-800 transition">
-                                <i class="fas fa-trash-alt"></i> Supprimer
-                            </button>
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
+                selectElement.innerHTML = `<option value="0">Tous les utilisateurs</option>`;
+                utilisateurs.forEach(user => {
+                    const option = document.createElement('option');
+                    option.value = user.numero_util;
+                    option.textContent = `${user.nom} (${user.statue})`;
+                    selectElement.appendChild(option);
                 });
-                countElement.textContent = utilisateurs.length;
-                countElement.classList.remove('hidden');
             } catch (error) {
-                document.getElementById('utilisateursList').innerHTML = `
-                    <tr>
-                        <td colspan="4" class="text-center py-4 text-red-500">
-                            Erreur de chargement: ${error.message}
-                        </td>
-                    </tr>
-                `;
+                showToast('Erreur lors du chargement des utilisateurs: ' + error.message, true);
                 console.error('Erreur utilisateurs:', error);
             }
         }
 
-        function modifierUtilisateur(numero, nom, statut) {
-            document.getElementById('utilisateurId').value = numero;
-            document.getElementById('utilisateurNom').value = nom;
-            document.getElementById('utilisateurStatut').value = statut.toLowerCase();
-            document.getElementById('utilisateurPassword').value = ''; // Clear password field
-            document.getElementById('utilisateurFormTitle').textContent = 'Modifier Utilisateur';
-            document.getElementById('utilisateurForm').classList.remove('hidden');
-            // Make password field optional for modification
-            document.getElementById('utilisateurPassword').removeAttribute('required');
-        }
-
-        async function supprimerUtilisateur(numero) {
+        async function chargerVentesJour(date = '', numeroClt = '', numeroUtil = '0') {
+            console.log('Chargement des ventes...', { date, numeroClt, numeroUtil });
             const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Veuillez vous connecter pour supprimer un utilisateur', true);
-                return;
-            }
-
-            if (!confirm('Voulez-vous vraiment supprimer cet utilisateur ?')) {
+                showToast('Veuillez vous connecter pour voir les ventes', true);
+                window.location.href = 'index.html';
                 return;
             }
 
             try {
-                const response = await fetch(`${API_BASE_URL}/supprimer_utilisateur/${numero}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'X-User-ID': userId
-                    }
-                });
-
-                const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de la suppression');
-                }
-
-                showToast('Utilisateur supprimé avec succès');
-                chargerUtilisateurs();
-            } catch (error) {
-                showToast(error.message, true);
-                console.error('Erreur suppression utilisateur:', error);
-            }
-        }
-
-        async function saveUtilisateur() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour sauvegarder un utilisateur', true);
-                return;
-            }
-
-            const id = document.getElementById('utilisateurId').value;
-            const nom = document.getElementById('utilisateurNom').value.trim();
-            const password = document.getElementById('utilisateurPassword').value.trim();
-            const statut = document.getElementById('utilisateurStatut').value;
-
-            if (!nom || (!id && !password)) {
-                showToast('Veuillez remplir tous les champs obligatoires', true);
-                return;
-            }
-
-            try {
-                const url = id ? `${API_BASE_URL}/modifier_utilisateur/${id}` : `${API_BASE_URL}/ajouter_utilisateur`;
-                const method = id ? 'PUT' : 'POST';
-                const payload = {
-                    user_id: userId, // Include userId in payload to associate with the authenticated user
-                    nom,
-                    statue: statut // Backend expects 'statue' instead of 'statut'
-                };
-
-                // Only include password if provided (for add or if updating password)
-                if (password) {
-                    payload.password2 = password; // Backend expects 'password2'
-                }
+                const params = new URLSearchParams();
+                if (date) params.append('date', date);
+                if (numeroClt) params.append('numero_clt', numeroClt);
+                if (numeroUtil && numeroUtil !== '0') params.append('numero_util', numeroUtil);
+                const url = `${API_BASE_URL}/ventes_jour?${params.toString()}`;
 
                 const response = await fetch(url, {
-                    method: method,
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify(payload)
+                    headers: { 'X-User-ID': userId }
                 });
-
-                const result = await response.json();
                 if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                dailySalesCache = await response.json();
+
+                const ticketsTbody = document.getElementById('ticketsList');
+                const bonsTbody = document.getElementById('bonsList');
+                const countElement = document.getElementById('dailySalesCount');
+                const totalElement = document.getElementById('dailySalesTotal');
+
+                if (dailySalesCache.tickets.length === 0) {
+                    ticketsTbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun ticket</td></tr>';
+                } else {
+                    ticketsTbody.innerHTML = '';
+                    dailySalesCache.tickets.forEach(vente => {
+                        const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
+                        const tr = document.createElement('tr');
+                        tr.className = 'hover:bg-gray-50';
+                        tr.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <button onclick="showSaleDetails(${vente.numero_comande}, '${vente.nature}', 'Vente')" class="bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition mr-2">
+                                    <i class="fas fa-eye"></i> Voir
+                                </button>
+                                <button onclick="printTicket(${vente.numero_comande}, '${vente.nature}')" class="bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition">
+                                    <i class="fas fa-print"></i> Ticket
+                                </button>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${vente.numero_comande}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.client_nom || 'Comptoir'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.utilisateur_nom || 'N/A'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalVente.toFixed(2)} DA</td>
+                        `;
+                        ticketsTbody.appendChild(tr);
+                    });
                 }
 
-                showToast(id ? 'Utilisateur modifié avec succès' : 'Utilisateur ajouté avec succès');
-                resetUtilisateurForm();
-                chargerUtilisateurs();
-            } catch (error) {
-                showToast(error.message, true);
-                console.error('Erreur sauvegarde utilisateur:', error);
-            }
-        }
-
-        function resetUtilisateurForm() {
-            document.getElementById('utilisateurId').value = '';
-            document.getElementById('utilisateurNom').value = '';
-            document.getElementById('utilisateurPassword').value = '';
-            document.getElementById('utilisateurStatut').value = 'admin';
-            document.getElementById('utilisateurFormTitle').textContent = 'Nouvel Utilisateur';
-            document.getElementById('utilisateurForm').classList.add('hidden');
-            // Restore password field as required for adding new users
-            document.getElementById('utilisateurPassword').setAttribute('required', '');
-        }
-
-        function toggleUtilisateurForm() {
-            document.getElementById('utilisateurForm').classList.toggle('hidden');
-            // Ensure password is required when opening form for new user
-            if (!document.getElementById('utilisateurId').value) {
-                document.getElementById('utilisateurPassword').setAttribute('required', '');
-            }
-        }
-
-        document.getElementById('searchUtilisateur').addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const rows = document.querySelectorAll('#utilisateursList tr');
-
-            rows.forEach(row => {
-                const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-                const statut = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
-                if (nom?.includes(searchTerm) || statut?.includes(searchTerm)) {
-                    row.style.display = '';
+                if (dailySalesCache.bons.length === 0) {
+                    bonsTbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun bon de livraison</td></tr>';
                 } else {
-                    row.style.display = 'none';
+                    bonsTbody.innerHTML = '';
+                    dailySalesCache.bons.forEach(vente => {
+                        const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
+                        const tr = document.createElement('tr');
+                        tr.className = 'hover:bg-gray-50';
+                        tr.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <button onclick="showSaleDetails(${vente.numero_comande}, '${vente.nature}', 'Vente')" class="bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition mr-2">
+                                    <i class="fas fa-eye"></i> Voir
+                                </button>
+                                <button onclick="printTicket(${vente.numero_comande}, '${vente.nature}')" class="bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition">
+                                    <i class="fas fa-print"></i> Ticket
+                                </button>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${vente.numero_comande}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.client_nom || 'Comptoir'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.utilisateur_nom || 'N/A'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalVente.toFixed(2)} DA</td>
+                        `;
+                        bonsTbody.appendChild(tr);
+                    });
+                }
+
+                countElement.textContent = dailySalesCache.tickets.length + dailySalesCache.bons.length;
+                countElement.classList.remove('hidden');
+                totalElement.textContent = `${parseFloat(dailySalesCache.total).toFixed(2)} DA`;
+            } catch (error) {
+                document.getElementById('ticketsList').innerHTML = `
+                    <tr><td colspan="6" class="text-center py-4 text-red-500">Erreur de chargement: ${error.message}</td></tr>
+                `;
+                document.getElementById('bonsList').innerHTML = `
+                    <tr><td colspan="6" class="text-center py-4 text-red-500">Erreur de chargement: ${error.message}</td></tr>
+                `;
+                console.error('Erreur ventes:', error);
+                showToast(`Erreur chargement ventes: ${error.message}`, true);
+            }
+        }
+
+        async function chargerAchatsJour(date = '', numeroUtil = '0', numeroFour = '') {
+            console.log('Chargement des achats avec:', { date, numeroUtil, numeroFour });
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir les achats', true);
+                window.location.href = 'index.html';
+                return;
+            }
+
+            try {
+                const params = new URLSearchParams();
+                if (date) params.append('date', date);
+                if (numeroUtil && numeroUtil !== '0') params.append('numero_util', numeroUtil);
+                if (numeroFour && numeroFour !== '') params.append('numero_four', numeroFour);
+                const url = `${API_BASE_URL}/receptions_jour?${params.toString()}`;
+                console.log('Fetching receptions from:', url);
+
+                const response = await fetch(url, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                dailyPurchasesCache = await response.json();
+                console.log('Receptions data:', dailyPurchasesCache);
+
+                const receptionsTbody = document.getElementById('receptionsList');
+                const countElement = document.getElementById('dailyPurchasesCount');
+                const totalElement = document.getElementById('dailyPurchasesTotal');
+
+                receptionsTbody.innerHTML = '';
+
+                if (dailyPurchasesCache.receptions.length === 0) {
+                    receptionsTbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun bon de réception</td></tr>';
+                } else {
+                    dailyPurchasesCache.receptions.forEach(reception => {
+                        const totalReception = reception.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.total_ligne || 0), 0);
+                        const tr = document.createElement('tr');
+                        tr.className = 'hover:bg-gray-50';
+                        tr.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <button onclick="showSaleDetails(${reception.numero_mouvement}, '${reception.nature}', 'Réception')" class="bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition mr-2">
+                                    <i class="fas fa-eye"></i> Voir
+                                </button>
+                                <button onclick="printPurchaseTicket(${reception.numero_mouvement}, '${reception.nature}')" class="bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition">
+                                    <i class="fas fa-print"></i> Ticket
+                                </button>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${reception.numero_mouvement}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(reception.date_m).toLocaleString('fr-FR')}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${reception.fournisseur_nom || 'N/A'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${reception.utilisateur_nom || 'N/A'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalReception.toFixed(2)} DA</td>
+                        `;
+                        receptionsTbody.appendChild(tr);
+                    });
+                }
+
+                countElement.textContent = dailyPurchasesCache.receptions.length;
+                countElement.classList.remove('hidden');
+                totalElement.textContent = `${parseFloat(dailyPurchasesCache.total).toFixed(2)} DA`;
+            } catch (error) {
+                document.getElementById('receptionsList').innerHTML = `
+                    <tr><td colspan="6" class="text-center py-4 text-red-500">Erreur de chargement: ${error.message}</td></tr>
+                `;
+                console.error('Erreur achats:', error);
+                showToast(`Erreur chargement achats: ${error.message}`, true);
+            }
+        }
+
+        async function chargerArticlesPlusVendus(date = '', numeroClt = '', numeroUtil = '0') {
+            console.log('Chargement des articles les plus vendus...', { date, numeroClt, numeroUtil });
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir les articles', true);
+                return;
+            }
+
+            try {
+                const params = new URLSearchParams();
+                if (date) params.append('date', date);
+                if (numeroClt) params.append('numero_clt', numeroClt);
+                if (numeroUtil && numeroUtil !== '0') params.append('numero_util', numeroUtil);
+                const url = `${API_BASE_URL}/articles_plus_vendus?${params.toString()}`;
+
+                const response = await fetch(url, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                topArticlesCache = await response.json();
+
+                const countElement = document.getElementById('topArticlesCount');
+                const totalElement = document.getElementById('topArticlesTotal');
+
+                const totalQuantite = topArticlesCache.reduce((sum, article) => sum + parseInt(article.quantite || 0), 0);
+
+                countElement.textContent = topArticlesCache.length;
+                countElement.classList.remove('hidden');
+                totalElement.textContent = totalQuantite;
+
+                const labels = topArticlesCache.map(article => article.designation || 'N/A');
+                const quantites = topArticlesCache.map(article => parseInt(article.quantite || 0));
+
+                const backgroundColors = quantites.map((_, index) => `hsl(${(index * 360) / quantites.length}, 70%, 60%)`);
+                const borderColors = quantites.map((_, index) => `hsl(${(index * 360) / quantites.length}, 70%, 40%)`);
+
+                if (topArticlesChart) {
+                    topArticlesChart.destroy();
+                }
+
+                const ctx = document.getElementById('topArticlesChart').getContext('2d');
+                topArticlesChart = new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: quantites,
+                            backgroundColor: backgroundColors,
+                            borderColor: borderColors,
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { position: 'top' },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const value = context.raw || 0;
+                                        return `${label}: ${value} unités`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Erreur articles:', error);
+                showToast(`Erreur chargement articles: ${error.message}`, true);
+                document.getElementById('topArticlesTotal').textContent = '0';
+                document.getElementById('topArticlesCount').classList.add('hidden');
+            }
+        }
+
+        async function chargerProfit(date = '', numeroClt = '', numeroUtil = '0') {
+            console.log('Chargement du bénéfice...', { date, numeroClt, numeroUtil });
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir le bénéfice', true);
+                return;
+            }
+
+            try {
+                const params = new URLSearchParams();
+                if (date) params.append('date', date);
+                if (numeroClt) params.append('numero_clt', numeroClt);
+                if (numeroUtil && numeroUtil !== '0') params.append('numero_util', numeroUtil);
+                const url = `${API_BASE_URL}/profit_by_date?${params.toString()}`;
+
+                const response = await fetch(url, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                profitCache = await response.json();
+
+                const countElement = document.getElementById('profitCount');
+                const totalElement = document.getElementById('profitTotal');
+
+                countElement.textContent = profitCache.length;
+                countElement.classList.remove('hidden');
+                totalElement.textContent = `${parseFloat(profitCache.reduce((sum, p) => sum + parseFloat(p.profit || 0), 0)).toFixed(2)} DA`;
+
+                if (profitChart) {
+                    profitChart.destroy();
+                }
+
+                const ctx = document.getElementById('profitChart').getContext('2d');
+                profitChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: profitCache.map(p => p.date || 'N/A'),
+                        datasets: [{
+                            label: 'Bénéfice (DA)',
+                            data: profitCache.map(p => parseFloat(p.profit || 0)),
+                            backgroundColor: 'rgba(79, 70, 229, 0.6)',
+                            borderColor: 'rgba(79, 70, 229, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: { beginAtZero: true }
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return `${context.dataset.label}: ${context.raw.toFixed(2)} DA`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Erreur bénéfice:', error);
+                showToast(`Erreur chargement bénéfice: ${error.message}`, true);
+                document.getElementById('profitTotal').textContent = '0.00 DA';
+                document.getElementById('profitCount').classList.add('hidden');
+            }
+        }
+
+        async function chargerStockValue() {
+            console.log('Chargement de la valeur du stock...');
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir la valeur du stock', true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/stock_value`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                const stock = await response.json();
+                console.log('Stock values:', stock);
+
+                document.getElementById('stockValueAchat').textContent = `${parseFloat(stock.valeur_achat || 0).toLocaleString('fr-DZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DA`;
+                document.getElementById('stockValueVente').textContent = `${parseFloat(stock.valeur_vente || 0).toLocaleString('fr-DZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DA`;
+                document.getElementById('zakatValue').textContent = `${parseFloat(stock.zakat || 0).toLocaleString('fr-DZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DA`;
+            } catch (error) {
+                console.error('Erreur stock:', error);
+                showToast(`Erreur chargement stock: ${error.message}`, true);
+                document.getElementById('stockValueAchat').textContent = '0.00 DA';
+                document.getElementById('stockValueVente').textContent = '0.00 DA';
+                document.getElementById('zakatValue').textContent = '0.00 DA';
+            }
+        }
+
+        function showSaleDetails(numero, nature, type) {
+            let data;
+            if (type === 'Vente') {
+                data = [...dailySalesCache.tickets, ...dailySalesCache.bons].find(v => v.numero_comande === numero && v.nature === nature);
+            } else if (type === 'Réception') {
+                data = dailyPurchasesCache.receptions.find(r => r.numero_mouvement === numero && r.nature === nature);
+            }
+
+            if (!data) {
+                showToast(`${type} non trouvée`, true);
+                return;
+            }
+
+            document.getElementById('modalTitle').textContent = type;
+            document.getElementById('modalSaleNumber').textContent = type === 'Vente' ? data.numero_comande : data.numero_mouvement;
+            const saleDetailsList = document.getElementById('saleDetailsList');
+            saleDetailsList.innerHTML = '';
+
+            data.lignes.forEach(ligne => {
+                const quantite = type === 'Vente' ? ligne.quantite : ligne.qtea;
+                const prixUnitaire = type === 'Vente' ? (parseFloat(ligne.prixt) / parseFloat(ligne.quantite)).toFixed(2) : ligne.nprix;
+                const prixTotal = type === 'Vente' ? ligne.prixt : ligne.total_ligne;
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ligne.designation}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${quantite}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(prixUnitaire).toFixed(2)} DA</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(prixTotal).toFixed(2)} DA</td>
+                `;
+                saleDetailsList.appendChild(tr);
+            });
+
+            document.getElementById('saleDetailsModal').classList.remove('hidden');
+        }
+
+        function closeSaleDetailsModal() {
+            document.getElementById('saleDetailsModal').classList.add('hidden');
+        }
+
+        function printTicket(numeroComande, nature) {
+            const vente = [...dailySalesCache.tickets, ...dailySalesCache.bons].find(v => v.numero_comande === numeroComande && v.nature === nature);
+            if (!vente) {
+                showToast('Vente non trouvée', true);
+                return;
+            }
+
+            document.getElementById('ticketNumero').textContent = vente.numero_comande;
+            document.getElementById('ticketDate').textContent = new Date(vente.date_comande).toLocaleString('fr-FR');
+            document.getElementById('ticketClient').textContent = vente.client_nom || 'Comptoir';
+            document.getElementById('ticketUtilisateur').textContent = vente.utilisateur_nom || 'N/A';
+
+            const lignesTbody = document.getElementById('ticketLignes');
+            lignesTbody.innerHTML = '';
+            vente.lignes.forEach(ligne => {
+                const prixUnitaire = (parseFloat(ligne.prixt) / parseFloat(ligne.quantite)).toFixed(2);
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="padding: 2mm;">${ligne.designation}</td>
+                    <td style="text-align: center; padding: 2mm;">${ligne.quantite}</td>
+                    <td style="text-align: right; padding: 2mm;">${prixUnitaire} DA</td>
+                    <td style="text-align: right; padding: 2mm;">${parseFloat(ligne.prixt).toFixed(2)} DA</td>
+                `;
+                lignesTbody.appendChild(tr);
+            });
+
+            const total = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
+            document.getElementById('ticketTotal').textContent = total.toFixed(2);
+
+            window.print();
+        }
+
+        function printPurchaseTicket(numeroMouvement, nature) {
+            const reception = dailyPurchasesCache.receptions.find(r => r.numero_mouvement === numeroMouvement && r.nature === nature);
+            if (!reception) {
+                showToast('Réception non trouvée', true);
+                return;
+            }
+
+            document.getElementById('purchaseTicketNumero').textContent = reception.numero_mouvement;
+            document.getElementById('purchaseTicketDate').textContent = new Date(reception.date_m).toLocaleString('fr-FR');
+            document.getElementById('purchaseTicketFournisseur').textContent = reception.fournisseur_nom || 'N/A';
+            document.getElementById('purchaseTicketUtilisateur').textContent = reception.utilisateur_nom || 'N/A';
+
+            const lignesTbody = document.getElementById('purchaseTicketLignes');
+            lignesTbody.innerHTML = '';
+            reception.lignes.forEach(ligne => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="padding: 2mm;">${ligne.designation}</td>
+                    <td style="text-align: center; padding: 2mm;">${ligne.qtea}</td>
+                    <td style="text-align: right; padding: 2mm;">${parseFloat(ligne.nprix).toFixed(2)} DA</td>
+                    <td style="text-align: right; padding: 2mm;">${parseFloat(ligne.total_ligne).toFixed(2)} DA</td>
+                `;
+                lignesTbody.appendChild(tr);
+            });
+
+            const total = reception.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.total_ligne || 0), 0);
+            document.getElementById('purchaseTicketTotal').textContent = total.toFixed(2);
+
+            window.print();
+        }
+
+        function printA4() {
+            const date = document.getElementById('dateFilter').value || new Date().toISOString().split('T')[0];
+            const client = document.getElementById('clientFilter').value;
+            const clientText = document.getElementById('clientFilter').options[document.getElementById('clientFilter').selectedIndex]?.text || 'Tous';
+
+            // Ventes
+            document.getElementById('printDate').textContent = date;
+            document.getElementById('printClient').textContent = clientText;
+            const printTicketsList = document.getElementById('printTicketsList');
+            const printBonsList = document.getElementById('printBonsList');
+            printTicketsList.innerHTML = '';
+            printBonsList.innerHTML = '';
+            dailySalesCache.tickets.forEach(vente => {
+                const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="border border-gray-300 px-4 py-2">${vente.numero_comande}</td>
+                    <td class="border border-gray-300 px-4 py-2">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
+                    <td class="border border-gray-300 px-4 py-2">${vente.client_nom || 'Comptoir'}</td>
+                    <td class="border border-gray-300 px-4 py-2">${vente.utilisateur_nom || 'N/A'}</td>
+                    <td class="border border-gray-300 px-4 py-2">${totalVente.toFixed(2)} DA</td>
+                `;
+                printTicketsList.appendChild(tr);
+            });
+            dailySalesCache.bons.forEach(vente => {
+                const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="border border-gray-300 px-4 py-2">${vente.numero_comande}</td>
+                    <td class="border border-gray-300 px-4 py-2">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
+                    <td class="border border-gray-300 px-4 py-2">${vente.client_nom || 'Comptoir'}</td>
+                    <td class="border border-gray-300 px-4 py-2">${vente.utilisateur_nom || 'N/A'}</td>
+                    <td class="border border-gray-300 px-4 py-2">${totalVente.toFixed(2)} DA</td>
+                `;
+                printBonsList.appendChild(tr);
+            });
+            document.getElementById('printTotal').textContent = parseFloat(dailySalesCache.total).toFixed(2);
+
+            // Achats
+            document.getElementById('printPurchasesDate').textContent = date;
+            const printReceptionsList = document.getElementById('printReceptionsList');
+            printReceptionsList.innerHTML = '';
+            dailyPurchasesCache.receptions.forEach(reception => {
+                const totalReception = reception.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.total_ligne || 0), 0);
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="border border-gray-300 px-4 py-2">${reception.numero_mouvement}</td>
+                    <td class="border border-gray-300 px-4 py-2">${new Date(reception.date_m).toLocaleString('fr-FR')}</td>
+                    <td class="border border-gray-300 px-4 py-2">${reception.fournisseur_nom || 'N/A'}</td>
+                    <td class="border border-gray-300 px-4 py-2">${reception.utilisateur_nom || 'N/A'}</td>
+                    <td class="border border-gray-300 px-4 py-2">${totalReception.toFixed(2)} DA</td>
+                `;
+                printReceptionsList.appendChild(tr);
+            });
+            document.getElementById('printPurchasesTotal').textContent = parseFloat(dailyPurchasesCache.total).toFixed(2);
+
+            window.print();
+        }
+
+        function reloadData() {
+            const date = document.getElementById('dateFilter').value;
+            const client = document.getElementById('clientFilter').value;
+            const user = document.getElementById('userFilter').value;
+            const fournisseur = document.getElementById('fournisseurFilter').value;
+
+            console.log('Reload data with filters:', { date, client, user, fournisseur });
+
+            chargerVentesJour(date, client, user);
+            chargerArticlesPlusVendus(date, client, user);
+            chargerProfit(date, client, user);
+            chargerAchatsJour(date, user, fournisseur);
+            chargerStockValue();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const today = new Date().toISOString().split('T')[0];
+            flatpickr('#dateFilter', {
+                dateFormat: 'Y-m-d',
+                defaultDate: today,
+                onChange: (selectedDates, dateStr) => {
+                    console.log('Date selected:', dateStr);
+                    reloadData();
                 }
             });
+
+            document.getElementById('clientFilter').addEventListener('change', () => {
+                console.log('Client filter changed:', document.getElementById('clientFilter').value);
+                reloadData();
+            });
+
+                     document.getElementById('fournisseurFilter').addEventListener('change', () => {
+                console.log('Fournisseur filter changed:', document.getElementById('fournisseurFilter').value);
+                reloadData();
+            });
+
+            document.getElementById('userFilter').addEventListener('change', () => {
+                console.log('User filter changed:', document.getElementById('userFilter').value);
+                reloadData();
+            });
+
+            // Initial data load
+            const userId = localStorage.getItem('userId');
+            if (userId) {
+                chargerClients();
+                chargerFournisseurs();
+                chargerUtilisateurs();
+                reloadData();
+
+                const userEmail = localStorage.getItem('userEmail') || 'Utilisateur';
+                document.getElementById('userDisplay').textContent = userEmail;
+                document.getElementById('userDisplay').classList.remove('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i> Déconnexion';
+            } else {
+                showToast('Veuillez vous connecter', true);
+                window.location.href = 'index.html';
+            }
         });
     </script>
 </body>
 </html>
-       
