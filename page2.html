@@ -1016,12 +1016,6 @@
                 return;
             }
 
-            const password2 = prompt('Veuillez entrer votre mot de passe pour confirmer l\'annulation :');
-            if (!password2) {
-                showToast('Annulation annulée : mot de passe requis', true);
-                return;
-            }
-
             try {
                 const response = await fetch(`${API_BASE_URL}/annuler_vente`, {
                     method: 'POST',
@@ -1031,9 +1025,7 @@
                     },
                     body: JSON.stringify({
                         numero_comande: numeroComande,
-                        nature: nature,
-                        numero_util: userId,
-                        password2: password2
+                        nature: nature
                     })
                 });
 
@@ -1057,12 +1049,6 @@
                 return;
             }
 
-            const password2 = prompt('Veuillez entrer votre mot de passe pour confirmer l\'annulation :');
-            if (!password2) {
-                showToast('Annulation annulée : mot de passe requis', true);
-                return;
-            }
-
             try {
                 const response = await fetch(`${API_BASE_URL}/annuler_reception`, {
                     method: 'POST',
@@ -1072,9 +1058,7 @@
                     },
                     body: JSON.stringify({
                         numero_mouvement: numeroMouvement,
-                        nature: nature,
-                        numero_util: userId,
-                        password2: password2
+                        nature: nature
                     })
                 });
 
@@ -1252,66 +1236,61 @@
             window.print();
         }
 
-        function debugButtons() {
-            console.log('Debug: User ID:', localStorage.getItem('userId'));
-            console.log('Debug: Ventes:', dailySalesCache);
-            console.log('Debug: Achats:', dailyPurchasesCache);
-            const cancelButtons = document.querySelectorAll('.action-button.bg-red-600');
-            console.log('Debug: Nombre de boutons Annuler trouvés:', cancelButtons.length);
-            cancelButtons.forEach(btn => console.log('Bouton Annuler trouvé:', btn.outerHTML));
-        }
-
-        function reloadData() {
+        async function reloadData() {
             const date = document.getElementById('dateFilter').value;
             const client = document.getElementById('clientFilter').value;
             const fournisseur = document.getElementById('fournisseurFilter').value;
-            const utilisateur = document.getElementById('userFilter').value;
+            const user = document.getElementById('userFilter').value;
 
-    chargerVentesJour(date, client, utilisateur);
-            chargerAchatsJour(date, utilisateur, fournisseur);
-            chargerArticlesPlusVendus(date, client, utilisateur);
-            chargerProfit(date, client, utilisateur);
+            await Promise.all([
+                chargerVentesJour(date, client, user),
+                chargerAchatsJour(date, user, fournisseur),
+                chargerArticlesPlusVendus(date, client, user),
+                chargerProfit(date, client, user),
+                chargerStockValue()
+            ]);
+        }
+
+        function debugButtons() {
+            const buttons = document.querySelectorAll('.action-button');
+            buttons.forEach(button => {
+                button.style.display = 'inline-block';
+                button.style.visibility = 'visible';
+            });
         }
 
         document.addEventListener('DOMContentLoaded', async () => {
-            console.log('Initialisation de la page...');
             const userId = localStorage.getItem('userId');
             const userEmail = localStorage.getItem('userEmail');
-
-            if (!userId) {
+            if (userId && userEmail) {
+                document.getElementById('userDisplay').textContent = `Connecté: ${userEmail}`;
+                document.getElementById('userDisplay').classList.remove('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+            } else {
                 showToast('Veuillez vous connecter', true);
                 window.location.href = 'index.html';
                 return;
             }
 
-            document.getElementById('userDisplay').textContent = `Connecté: ${userEmail}`;
-            document.getElementById('userDisplay').classList.remove('hidden');
-            document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-
             flatpickr('#dateFilter', {
                 dateFormat: 'Y-m-d',
-                defaultDate: new Date(),
-                onChange: (selectedDates, dateStr) => {
-                    reloadData();
-                }
+                defaultDate: new Date().toISOString().split('T')[0],
+                locale: {
+                    firstDayOfWeek: 1
+                },
+                onChange: reloadData
             });
+
+            await Promise.all([
+                chargerClients(),
+                chargerFournisseurs(),
+                chargerUtilisateurs(),
+                reloadData()
+            ]);
 
             document.getElementById('clientFilter').addEventListener('change', reloadData);
             document.getElementById('fournisseurFilter').addEventListener('change', reloadData);
             document.getElementById('userFilter').addEventListener('change', reloadData);
-
-            try {
-                await Promise.all([
-                    chargerClients(),
-                    chargerFournisseurs(),
-                    chargerUtilisateurs(),
-                    chargerStockValue(),
-                    reloadData()
-                ]);
-            } catch (error) {
-                console.error('Erreur lors de l’initialisation:', error);
-                showToast('Erreur lors de l’initialisation: ' + error.message, true);
-            }
         });
     </script>
 </body>
