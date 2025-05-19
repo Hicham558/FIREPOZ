@@ -164,12 +164,6 @@
             flex-direction: column;
             overflow: hidden;
         }
-        .maximized .table-container {
-            flex: 1;
-            max-height: none;
-            overflow-y: auto;
-            overflow-x: auto;
-        }
         .maximized .p-6 {
             padding: 1rem;
         }
@@ -184,6 +178,21 @@
         .maximized-search {
             margin-bottom: 1rem;
             padding: 0 1rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            background: #fff;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .maximized .table-container {
+            flex: 1;
+            max-height: none;
+            overflow-y: auto;
+            overflow-x: auto;
+            padding: 1rem;
+        }
+        .maximized .table-container table {
+            width: 100%;
         }
         .added-product {
             animation: flashAdded 0.8s ease-out;
@@ -289,8 +298,22 @@
                         </button>
                     </div>
                 </div>
-                <div class="p-6 hidden" id="productsContent">
-                    <div class="mb-4 flex flex-col md:flex-row gap-4 maximized-search">
+                <div class="hidden" id="productsContent">
+                    <div class="maximized-header">
+                        <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                            <i class="fas fa-boxes mr-2 text-indigo-500"></i> Produits Disponibles
+                            <span id="productCountHeader" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                        </h2>
+                        <div class="flex space-x-2">
+                            <button id="maximizeProductsButtonHeader" onclick="toggleMaximizeProducts(event)" class="text-gray-600 hover:text-gray-800 transition maximize-button">
+                                <i class="fas fa-expand" id="maximizeIconHeader"></i>
+                            </button>
+                            <button class="text-gray-600 hover:text-gray-800 transition">
+                                <i class="fas fa-chevron-down" id="productsChevronHeader"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="maximized-search">
                         <div class="relative w-full md:w-1/2">
                             <input type="text" id="searchProduct" placeholder="Rechercher un produit..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
                             <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
@@ -794,6 +817,7 @@
                 console.log('Produits reçus:', produitsCache);
                 const tbody = document.getElementById('productsList');
                 const countElement = document.getElementById('productCount');
+                const countElementHeader = document.getElementById('productCountHeader');
 
                 produitsCache = produitsCache.map(produit => ({
                     ...produit,
@@ -806,7 +830,9 @@
                 if (produitsCache.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
                     countElement.textContent = '0';
+                    countElementHeader.textContent = '0';
                     countElement.classList.remove('hidden');
+                    countElementHeader.classList.remove('hidden');
                     return;
                 }
 
@@ -834,7 +860,9 @@
                     tbody.appendChild(tr);
                 });
                 countElement.textContent = produitsCache.length;
+                countElementHeader.textContent = produitsCache.length;
                 countElement.classList.remove('hidden');
+                countElementHeader.classList.remove('hidden');
             } catch (error) {
                 document.getElementById('productsList').innerHTML = `
                     <tr>
@@ -862,7 +890,7 @@
             }
 
             if (stock <= 0) {
-                showToast('Stock insuffisant pour ce produit', true);
+                showToast('Stock insuffisant pour ce produit', Provinciale);
                 return;
             }
 
@@ -1258,7 +1286,7 @@
 
             let ticketContent = `
                 <div class="printable">
-                    ${companyLogo ? `<img src="${companyLogo}" alt="Logo" style="max-width: 60mm; margin-bottom: 3mm; display: block; margin-left: auto; margin-right: auto;">` : ''}
+                    ${companyLogo ? `<img src="${companyLogo}"'alt="Logo" style="max-width: 60mm; margin-bottom: 3mm; display: block; margin-left: auto; margin-right: auto;">` : ''}
                     <h1>${companyName}</h1>
                     ${companyAddress ? `<p>${companyAddress}</p>` : ''}
                     ${companyPhone ? `<p>Tél: ${companyPhone}</p>` : ''}
@@ -1469,9 +1497,7 @@
                     <div class="total-section">
                         <p><strong>Total :</strong> ${total} DA</p>
                     </div>
-                    <footer>
-                        <p>Merci de votre achat !</p>
-                        ${companyAddress || companyPhone ? `<p>Contact : ${companyName} | ${companyPhone ? `Tél : ${companyPhone} | ` : ''}${companyAddress ? `Adresse : ${companyAddress}` : ''}</p>` : ''}
+                    <footer><p style="text-align: center; margin-top: 10mm;">Merci de votre achat !</p>
                     </footer>
                 </div>
             `;
@@ -1485,49 +1511,67 @@
             printWindow.document.write(`
                 <html>
                     <head>
-                        <title>Bon de Livraison A4 - ${companyName}</title>
+                        <title>Aperçu Impression A4 - ${companyName}</title>
                         <style>
-                            @page { size: A4; margin: 20mm; }
                             body {
                                 margin: 0;
-                                padding: 0;
+                                padding: 20mm;
+                                background: #fff;
                                 font-family: Arial, sans-serif;
-                                color: #333;
+                                font-size: 12pt;
+                                line-height: 1.5;
                             }
                             .printable {
                                 width: 190mm;
                                 margin: 0 auto;
+                                border: 1mm solid #000;
                                 padding: 10mm;
-                                background: #fff;
-                               border: 1mm solid #ddd;
-                                padding: 2mm;
-                                font-size: 10pt;
-                                text-align: left;
+                                box-shadow: 0 0 5mm rgba(0, 0, 0, 0.1);
                             }
-                            th {
+                            .printable header, .printable footer {
+                                margin-bottom: 10mm;
+                            }
+                            .printable .company-info {
+                                float: right;
+                                text-align: right;
+                            }
+                            .printable h1 {
+                                font-size: 18pt;
+                                margin-bottom: 5mm;
+                            }
+                            .printable h2 {
+                                font-size: 16pt;
+                                margin: 10mm 0;
+                                text-align: center;
+                            }
+                            .printable table {
+                                width: 100%;
+                                border-collapse: collapse;
+                                margin-bottom: 10mm;
+                            }
+                            .printable th, .printable td {
+                                border: 0.5mm solid #000;
+                                padding: 3mm;
+                                text-align: left;
+                                font-size: 10pt;
+                            }
+                            .printable th {
                                 background-color: #f3f4f6;
                                 font-weight: bold;
                             }
-                            .total-section {
+                            .printable .total-section {
                                 text-align: right;
                                 font-size: 12pt;
-                                margin-top: 5mm;
-                            }
-                            footer {
-                                text-align: center;
-                                margin-top: 10mm;
-                                border-top: 1mm solid #ddd;
-                                padding-top: 5mm;
-                                font-size: 10pt;
+                                font-weight: bold;
                             }
                             .print-controls {
                                 text-align: center;
-                                margin-top: 10mm;
+                                margin-top: 20mm;
                             }
                             .print-controls button {
                                 padding: 5mm 10mm;
                                 margin: 0 5mm;
-                                font-size: 10pt;
+                                font-size: 12pt;
                                 cursor: pointer;
                             }
                             @media print {
@@ -1553,8 +1597,7 @@
             printWindow.document.close();
         }
 
-        let isScanning = false;
-        let stream = null;
+        let scannerStream = null;
 
         async function startScanner() {
             console.log('Démarrage du scanner...');
@@ -1562,44 +1605,32 @@
             const scannerOverlay = document.getElementById('scannerOverlay');
             const closeScannerButton = document.getElementById('closeScannerButton');
 
-            if (isScanning) {
-                console.log('Scanner déjà actif.');
-                return;
-            }
-
             try {
-                stream = await navigator.mediaDevices.getUserMedia({
+                scannerStream = await navigator.mediaDevices.getUserMedia({
                     video: { facingMode: 'environment' }
                 });
-                scannerPreview.srcObject = stream;
+                scannerPreview.srcObject = scannerStream;
                 scannerPreview.style.display = 'block';
                 scannerOverlay.style.display = 'block';
-                isScanning = true;
+
+                closeScannerButton.onclick = stopScanner;
 
                 const barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
-                closeScannerButton.style.display = 'block';
-
-                async function scan() {
-                    if (!isScanning) return;
-
+                const scanInterval = setInterval(async () => {
                     try {
                         const barcodes = await barcodeDetector.detect(scannerPreview);
                         if (barcodes.length > 0) {
                             const barcode = barcodes[0].rawValue;
                             console.log('Code-barres détecté:', barcode);
-                            stopScanner();
                             document.getElementById('productBar').value = barcode;
-                            selectProductByBarcode(barcode);
-                        } else {
-                            setTimeout(scan, 100);
+                            stopScanner();
+                            clearInterval(scanInterval);
+                            chercherProduitParCode();
                         }
                     } catch (err) {
-                        console.error('Erreur lors du scan:', err);
-                        setTimeout(scan, 100);
+                        console.error('Erreur détection code-barres:', err);
                     }
-                }
-
-                scan();
+                }, 500);
             } catch (err) {
                 console.error('Erreur démarrage scanner:', err);
                 showToast('Erreur d\'accès à la caméra: ' + err.message, true);
@@ -1610,40 +1641,50 @@
             console.log('Arrêt du scanner...');
             const scannerPreview = document.getElementById('scannerPreview');
             const scannerOverlay = document.getElementById('scannerOverlay');
-            const closeScannerButton = document.getElementById('closeScannerButton');
 
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                stream = null;
+            if (scannerStream) {
+                scannerStream.getTracks().forEach(track => track.stop());
+                scannerStream = null;
             }
-
             scannerPreview.style.display = 'none';
             scannerOverlay.style.display = 'none';
-            closeScannerButton.style.display = 'none';
-            isScanning = false;
         }
 
-        document.getElementById('closeScannerButton').addEventListener('click', stopScanner);
-
-        function selectProductByBarcode(barcode) {
-            console.log('Recherche produit par code-barres:', barcode);
-            const produit = produitsCache.find(p => p.BAR === parseInt(barcode));
-            if (produit) {
-                selectProduct(
-                    produit.NUMERO_ITEM,
-                    produit.BAR,
-                    produit.PRIX,
-                    produit.PRIXBA,
-                    produit.QTE,
-                    produit.DESIGNATION
-                );
-            } else {
-                showToast('Produit non trouvé pour ce code-barres', true);
+        function chercherProduitParCode() {
+            const barcode = document.getElementById('productBar').value.trim();
+            console.log('Recherche produit par code:', barcode);
+            if (!barcode) {
+                showToast('Veuillez entrer un code-barres', true);
+                return;
             }
+
+            const produit = produitsCache.find(p => p.BAR.toString() === barcode);
+            if (!produit) {
+                showToast('Produit non trouvé', true);
+                return;
+            }
+
+            selectProduct(
+                produit.NUMERO_ITEM,
+                produit.BAR,
+                produit.PRIX,
+                produit.PRIXBA,
+                produit.QTE,
+                produit.DESIGNATION
+            );
+            document.getElementById('productBar').value = '';
         }
 
-        document.getElementById('searchProduct').addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase();
+        document.getElementById('productBar').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                chercherProduitParCode();
+            }
+        });
+
+        document.getElementById('searchProduct').addEventListener('input', () => {
+            const searchTerm = document.getElementById('searchProduct').value.toLowerCase();
+            console.log('Recherche produit:', searchTerm);
             const tbody = document.getElementById('productsList');
             tbody.innerHTML = '';
 
@@ -1678,44 +1719,37 @@
                 `;
                 tbody.appendChild(tr);
             });
-
-            document.getElementById('productCount').textContent = filteredProducts.length;
         });
 
-        document.getElementById('productBar').addEventListener('keypress', function(event) {
-            if (event.key === 'Enter') {
-                const barcode = this.value.trim();
-                if (barcode) {
-                    selectProductByBarcode(barcode);
-                    this.value = '';
-                }
-            }
-        });
-
-        // Variable pour suivre l'état maximisé
-        let isProductsMaximized = false;
-
-        // Fonction pour basculer entre maximisé et normal
         function toggleMaximizeProducts(event) {
             event.stopPropagation();
-            const productsSection = document.getElementById('productsSection');
-            const productsContent = document.getElementById('productsContent');
+            const section = document.getElementById('productsSection');
+            const content = document.getElementById('productsContent');
             const maximizeIcon = document.getElementById('maximizeIcon');
+            const maximizeIconHeader = document.getElementById('maximizeIconHeader');
 
-            isProductsMaximized = !isProductsMaximized;
+            section.classList.toggle('maximized');
+            const isMaximized = section.classList.contains('maximized');
 
-            if (isProductsMaximized) {
-                productsSection.classList.add('maximized');
-                productsContent.classList.remove('hidden');
-                maximizeIcon.classList.remove('fa-expand');
-                maximizeIcon.classList.add('fa-compress');
+            content.classList.remove('hidden');
+            maximizeIcon.classList.toggle('fa-expand', !isMaximized);
+            maximizeIcon.classList.toggle('fa-compress', isMaximized);
+            maximizeIconHeader.classList.toggle('fa-expand', !isMaximized);
+            maximizeIconHeader.classList.toggle('fa-compress', isMaximized);
+
+            if (isMaximized) {
                 document.getElementById('productsChevron').classList.add('fa-chevron-up');
                 document.getElementById('productsChevron').classList.remove('fa-chevron-down');
+                document.getElementById('productsChevronHeader').classList.add('fa-chevron-up');
+                document.getElementById('productsChevronHeader').classList.remove('fa-chevron-down');
             } else {
-                productsSection.classList.remove('maximized');
-                maximizeIcon.classList.remove('fa-compress');
-                maximizeIcon.classList.add('fa-expand');
+                document.getElementById('productsChevron').classList.add('fa-chevron-down');
+                document.getElementById('productsChevron').classList.remove('fa-chevron-up');
+                document.getElementById('productsChevronHeader').classList.add('fa-chevron-down');
+                document.getElementById('productsChevronHeader').classList.remove('fa-chevron-up');
             }
+
+            console.log('Section produits:', isMaximized ? 'Maximized' : 'Restored');
         }
     </script>
 </body>
