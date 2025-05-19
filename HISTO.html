@@ -353,6 +353,26 @@
         </div>
     </div>
 
+    <!-- Modal pour Annuler Versement -->
+    <div id="annulerVersementModal" class="modal">
+        <div class="modal-content">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Confirmer l'Annulation</h2>
+            <p>Veuillez entrer votre mot de passe pour confirmer l'annulation du versement.</p>
+            <div class="grid grid-cols-1 gap-4 mt-4">
+                <div class="relative password-input-container">
+                    <label class="text-sm font-medium text-gray-700">Mot de passe</label>
+                    <input type="password" id="annuler_password2" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Entrez le mot de passe">
+                    <i class="fas fa-eye password-toggle" id="annuler_togglePassword" onclick="toggleAnnulerPasswordVisibility()"></i>
+                </div>
+            </div>
+            <div class="mt-4 flex justify-end gap-2">
+                <button id="cancelAnnulerButton" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300">Annuler</button>
+                <button id="submitAnnulerButton" class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition duration-300">Confirmer</button>
+            </div>
+            <p id="annuler-message" class="mt-2 text-red-600 hidden"></p>
+        </div>
+    </div>
+
     <footer class="bg-gray-700 text-white text-center py-4 animate-fade-in">
         <p>Développé par Khelladi Hicham</p>
         <p>Tel: <a href="tel:00213553700900" class="underline hover:text-indigo-300 transition duration-300">00213553700900</a></p>
@@ -388,6 +408,20 @@
         function toggleEditPasswordVisibility() {
             const passwordInput = document.getElementById('edit_password2');
             const toggleIcon = document.getElementById('edit_togglePassword');
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.classList.remove('fa-eye');
+                toggleIcon.classList.add('fa-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                toggleIcon.classList.remove('fa-eye-slash');
+                toggleIcon.classList.add('fa-eye');
+            }
+        }
+
+        function toggleAnnulerPasswordVisibility() {
+            const passwordInput = document.getElementById('annuler_password2');
+            const toggleIcon = document.getElementById('annuler_togglePassword');
             if (passwordInput.type === 'password') {
                 passwordInput.type = 'text';
                 toggleIcon.classList.remove('fa-eye');
@@ -464,47 +498,44 @@
             }
         }
 
-       async function validerVendeur() {
-    const numeroUtil = document.getElementById('sellerSelect').value;
-    const password2 = document.getElementById('sellerPassword').value;
-    const userId = localStorage.getItem('userId');
+        async function validerVendeur() {
+            const numeroUtil = document.getElementById('sellerSelect').value;
+            const password2 = document.getElementById('sellerPassword').value;
+            const userId = localStorage.getItem('userId');
 
-    if (numeroUtil === '0') {
-        showToast('Veuillez sélectionner un vendeur', true);
-        return;
-    }
-    if (!password2) {
-        showToast('Veuillez entrer le mot de passe', true);
-        return;
-    }
+            if (numeroUtil === '0') {
+                showToast('Veuillez sélectionner un vendeur', true);
+                return;
+            }
+            if (!password2) {
+                showToast('Veuillez entrer le mot de passe', true);
+                return;
+            }
 
-    try {
-        // Pas d'appel API, on valide côté client pour l'instant
-        const selectedOption = document.getElementById('sellerSelect').options[document.getElementById('sellerSelect').selectedIndex];
-        const sellerName = selectedOption.text;
-        
-        // Stocker les informations du vendeur
-        localStorage.setItem('selectedSeller', JSON.stringify({
-            numero_util: numeroUtil,
-            nom: sellerName
-        }));
-        localStorage.setItem('sellerPassword', password2);
+            try {
+                const selectedOption = document.getElementById('sellerSelect').options[document.getElementById('sellerSelect').selectedIndex];
+                const sellerName = selectedOption.text;
+                
+                localStorage.setItem('selectedSeller', JSON.stringify({
+                    numero_util: numeroUtil,
+                    nom: sellerName
+                }));
+                localStorage.setItem('sellerPassword', password2);
 
-        // Mettre à jour l'interface
-        document.getElementById('selectedSellerName').textContent = sellerName;
-        document.getElementById('headerSellerName').textContent = sellerName;
-        document.getElementById('sellerPassword').disabled = true;
-        document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
-        document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
-        document.getElementById('sellerContent').classList.add('hidden');
-        document.getElementById('sellerChevron').classList.add('fa-chevron-down');
-        document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
-        showToast(`Vendeur ${sellerName} validé`);
-    } catch (error) {
-        showToast(`Erreur validation vendeur: ${error.message}`, true);
-        console.error('Erreur validation:', error);
-    }
-}
+                document.getElementById('selectedSellerName').textContent = sellerName;
+                document.getElementById('headerSellerName').textContent = sellerName;
+                document.getElementById('sellerPassword').disabled = true;
+                document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
+                document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
+                document.getElementById('sellerContent').classList.add('hidden');
+                document.getElementById('sellerChevron').classList.add('fa-chevron-down');
+                document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
+                showToast(`Vendeur ${sellerName} validé`);
+            } catch (error) {
+                showToast(`Erreur validation vendeur: ${error.message}`, true);
+                console.error('Erreur validation:', error);
+            }
+        }
 
         function changeAndValidateSeller() {
             document.getElementById('sellerSelect').value = '0';
@@ -601,64 +632,69 @@
         }
 
         async function loadHistorique(date = '', type = 'C') {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter', true);
-                return;
-            }
-            try {
-                let url = `${API_BASE_URL}/historique_versements?type=${type}`;
-                if (date) url += `&date=${date}`;
-                const response = await fetch(url, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                const versements = await response.json();
-                console.log('Réponse /historique_versements:', versements);
-                const tbody = document.getElementById('versements-table');
-                tbody.innerHTML = versements.length === 0
-                    ? '<tr><td colspan="8" class="text-center py-4 text-gray-500">Aucun versement trouvé</td></tr>'
-                    : '';
-                versements.forEach(v => {
-                    const apiType = ['C', 'F'].includes(v.cf) ? v.cf : (['C', 'F'].includes(v.type) ? v.type : 'C');
-                    const displayType = apiType === 'C' ? 'Client' : 'Fournisseur';
-                    const escapedNomCf = (v.nom_cf || 'N/A').replace(/'/g, "\\'");
-                    const escapedJustificatif = (v.justificatif || '').replace(/'/g, "\\'");
-                    const numeroCf = v.numero_cf || '';
-                    if (!numeroCf) {
-                        console.warn('numero_cf manquant pour versement:', v);
-                    }
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="px-6 py-4 text-sm text-gray-900">${v.date_mc}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500">${displayType}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">${v.nom_cf || 'N/A'}</td>
-                        <td class="px-6 py-4 text-sm ${parseFloat(v.montant) < 0 ? 'text-red-600' : 'text-green-600'}">${v.montant}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500">${v.justificatif || '-'}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500">${v.utilisateur_nom || 'N/A'}</td>
-                        <td class="px-6 py-4 text-sm">
-                            <button onclick="openEditModal(${v.numero_mc}, '${apiType}', '${numeroCf}', '${escapedNomCf}', ${v.montant}, '${escapedJustificatif}')" class="text-blue-600 hover:text-blue-800">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                        </td>
-                        <td class="px-6 py-4 text-sm">
-                            <button onclick="annulerVersement(${v.numero_mc}, '${apiType}', '${numeroCf}')" class="text-red-600 hover:text-red-800">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-            } catch (error) {
-                showToast(`Erreur chargement historique: ${error.message}`, true);
-                console.error('Erreur historique:', error);
-            }
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter', true);
+        return;
+    }
+    try {
+        let url = `${API_BASE_URL}/historique_versements?type=${type}`;
+        if (date) url += `&date=${date}`;
+        const response = await fetch(url, {
+            headers: { 'X-User-ID': userId }
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Erreur ${response.status}: ${errorText}`);
         }
-
+        const versements = await response.json();
+        console.log('Réponse /historique_versements:', versements);
+        const tbody = document.getElementById('versements-table');
+        tbody.innerHTML = versements.length === 0
+            ? '<tr><td colspan="8" class="text-center py-4 text-gray-500">Aucun versement trouvé</td></tr>'
+            : '';
+        versements.forEach(v => {
+            // Utiliser le type passé en paramètre (basé sur l'onglet actif)
+            const apiType = type; // 'C' pour Clients, 'F' pour Fournisseurs
+            const displayType = apiType === 'C' ? 'Client' : 'Fournisseur';
+            // Validation des données
+            if (!v.numero_cf) {
+                console.warn('numero_cf manquant pour versement:', v);
+            }
+            if (v.cf && v.cf !== apiType) {
+                console.warn(`Incohérence: cf=${v.cf} mais type attendu=${apiType}`, v);
+            }
+            const escapedNomCf = (v.nom_cf || 'N/A').replace(/'/g, "\\'");
+            const escapedJustificatif = (v.justificatif || '').replace(/'/g, "\\'");
+            const numeroCf = v.numero_cf || '';
+            const numeroUtilVersement = v.numero_util || '';
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-gray-50';
+            tr.innerHTML = `
+                <td class="px-6 py-4 text-sm text-gray-900">${v.date_mc}</td>
+                <td class="px-6 py-4 text-sm text-gray-500">${displayType}</td>
+                <td class="px-6 py-4 text-sm text-gray-900">${v.nom_cf || 'N/A'}</td>
+                <td class="px-6 py-4 text-sm ${parseFloat(v.montant) < 0 ? 'text-red-600' : 'text-green-600'}">${v.montant}</td>
+                <td class="px-6 py-4 text-sm text-gray-500">${v.justificatif || '-'}</td>
+                <td class="px-6 py-4 text-sm text-gray-500">${v.utilisateur_nom || 'N/A'}</td>
+                <td class="px-6 py-4 text-sm">
+                    <button onclick="openEditModal(${v.numero_mc}, '${apiType}', '${numeroCf}', '${escapedNomCf}', ${v.montant}, '${escapedJustificatif}', '${numeroUtilVersement}')" class="text-blue-600 hover:text-blue-800">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                </td>
+                <td class="px-6 py-4 text-sm">
+                    <button onclick="openAnnulerModal(${v.numero_mc}, '${apiType}', '${numeroCf}', '${numeroUtilVersement}')" class="text-red-600 hover:text-red-800">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (error) {
+        showToast(`Erreur chargement historique: ${error.message}`, true);
+        console.error('Erreur historique:', error);
+    }
+}
         async function loadSituation(type, numero_cf = '') {
             const userId = localStorage.getItem('userId');
             if (!userId) {
@@ -693,6 +729,7 @@
                     const escapedNomCf = (v.nom_cf || 'N/A').replace(/'/g, "\\'");
                     const escapedJustificatif = (v.justificatif || '').replace(/'/g, "\\'");
                     const numeroCf = v.numero_cf || '';
+                    const numeroUtilVersement = v.numero_util || '';
                     if (!numeroCf) {
                         console.warn('numero_cf manquant pour versement:', v);
                     }
@@ -704,12 +741,12 @@
                         <td class="px-6 py-4 text-sm text-gray-500">${v.justificatif || '-'}</td>
                         <td class="px-6 py-4 text-sm text-gray-500">${v.utilisateur_nom || 'N/A'}</td>
                         <td class="px-6 py-4 text-sm">
-                            <button onclick="openEditModal(${v.numero_mc}, '${apiType}', '${numeroCf}', '${escapedNomCf}', ${v.montant}, '${escapedJustificatif}')" class="text-blue-600 hover:text-blue-800">
+                            <button onclick="openEditModal(${v.numero_mc}, '${apiType}', '${numeroCf}', '${escapedNomCf}', ${v.montant}, '${escapedJustificatif}', '${numeroUtilVersement}')" class="text-blue-600 hover:text-blue-800">
                                 <i class="fas fa-edit"></i>
                             </button>
                         </td>
                         <td class="px-6 py-4 text-sm">
-                            <button onclick="annulerVersement(${v.numero_mc}, '${apiType}', '${numeroCf}')" class="text-red-600 hover:text-red-800">
+                            <button onclick="openAnnulerModal(${v.numero_mc}, '${apiType}', '${numeroCf}', '${numeroUtilVersement}')" class="text-red-600 hover:text-red-800">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </td>
@@ -856,8 +893,8 @@
             }
         }
 
-        function openEditModal(numero_mc, type, numero_cf, nom_cf, montant, justificatif) {
-            console.log('openEditModal appelé avec:', { numero_mc, type, numero_cf, nom_cf, montant, justificatif });
+        function openEditModal(numero_mc, type, numero_cf, nom_cf, montant, justificatif, numero_util_versement) {
+            console.log('openEditModal appelé avec:', { numero_mc, type, numero_cf, nom_cf, montant, justificatif, numero_util_versement });
             if (!['C', 'F'].includes(type)) {
                 showToast('Type de versement invalide (doit être C ou F)', true);
                 console.error('Type invalide:', type);
@@ -868,6 +905,19 @@
                 console.error('Données manquantes:', { numero_mc, numero_cf });
                 return;
             }
+
+            const storedSeller = localStorage.getItem('selectedSeller');
+            if (!storedSeller) {
+                showToast('Veuillez sélectionner un vendeur', true);
+                return;
+            }
+            const { numero_util } = JSON.parse(storedSeller);
+
+            if (numero_util_versement && numero_util_versement !== numero_util) {
+                showToast('Vous ne pouvez pas modifier un versement créé par un autre utilisateur', true);
+                return;
+            }
+
             document.getElementById('edit_numero_mc').value = numero_mc;
             document.getElementById('edit_type').value = type;
             document.getElementById('edit_numero_cf').value = numero_cf;
@@ -948,8 +998,8 @@
             }
         }
 
-        async function annulerVersement(numero_mc, type, numero_cf) {
-            console.log('annulerVersement appelé avec:', { numero_mc, type, numero_cf });
+        function openAnnulerModal(numero_mc, type, numero_cf, numero_util_versement) {
+            console.log('openAnnulerModal appelé avec:', { numero_mc, type, numero_cf, numero_util_versement });
             if (!['C', 'F'].includes(type)) {
                 showToast('Type de versement invalide (doit être C ou F)', true);
                 console.error('Type invalide:', type);
@@ -960,11 +1010,38 @@
                 console.error('Données manquantes:', { numero_mc, numero_cf });
                 return;
             }
-            if (!confirm('Voulez-vous vraiment annuler ce versement ?')) {
+
+            const storedSeller = localStorage.getItem('selectedSeller');
+            if (!storedSeller) {
+                showToast('Veuillez sélectionner un vendeur', true);
                 return;
             }
+            const { numero_util } = JSON.parse(storedSeller);
+
+            if (numero_util_versement && numero_util_versement !== numero_util) {
+                showToast('Vous ne pouvez pas annuler un versement créé par un autre utilisateur', true);
+                return;
+            }
+
+            const modal = document.getElementById('annulerVersementModal');
+            modal.dataset.numero_mc = numero_mc;
+            modal.dataset.type = type;
+            modal.dataset.numero_cf = numero_cf;
+            document.getElementById('annuler_password2').value = '';
+            document.getElementById('annuler-message').classList.add('hidden');
+            modal.style.display = 'flex';
+        }
+
+        async function confirmerAnnulerVersement() {
             const userId = localStorage.getItem('userId');
             const storedSeller = localStorage.getItem('selectedSeller');
+            const modal = document.getElementById('annulerVersementModal');
+            const numero_mc = modal.dataset.numero_mc;
+            const type = modal.dataset.type;
+            const numero_cf = modal.dataset.numero_cf;
+            const password2 = document.getElementById('annuler_password2').value;
+            const message = document.getElementById('annuler-message');
+
             if (!userId) {
                 showToast('Veuillez vous connecter', true);
                 return;
@@ -974,7 +1051,12 @@
                 return;
             }
             const { numero_util } = JSON.parse(storedSeller);
-            const password2 = localStorage.getItem('sellerPassword');
+
+            if (!password2) {
+                message.textContent = 'Mot de passe requis';
+                message.classList.remove('hidden');
+                return;
+            }
 
             try {
                 console.log('Envoi requête /annuler_versement:', { numero_mc, type, numero_cf, numero_util, password2 });
@@ -990,6 +1072,7 @@
                     const errorText = await response.text();
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
+                modal.style.display = 'none';
                 loadHistorique(document.getElementById('filter-date').value, type);
                 showToast('Versement annulé avec succès');
                 type === 'C' ? chargerClients() : chargerFournisseurs();
@@ -998,9 +1081,15 @@
                 if (clientFilter) loadSituation('C', clientFilter);
                 if (fournisseurFilter) loadSituation('F', fournisseurFilter);
             } catch (error) {
+                message.textContent = error.message;
+                message.classList.remove('hidden');
                 showToast(`Erreur annulation versement: ${error.message}`, true);
                 console.error('Erreur annulation versement:', error);
             }
+        }
+
+        function closeAnnulerModal() {
+            document.getElementById('annulerVersementModal').style.display = 'none';
         }
 
         function switchTab(tab) {
@@ -1090,6 +1179,8 @@
 
             document.getElementById('cancelEditButton').addEventListener('click', closeEditModal);
             document.getElementById('submitEditButton').addEventListener('click', modifierVersement);
+            document.getElementById('cancelAnnulerButton').addEventListener('click', closeAnnulerModal);
+            document.getElementById('submitAnnulerButton').addEventListener('click', confirmerAnnulerVersement);
             document.getElementById('filter-client').addEventListener('change', (e) => {
                 console.log('Filtre client changé: numero_clt=', e.target.value);
                 loadSituation('C', e.target.value);
