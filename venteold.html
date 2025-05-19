@@ -632,65 +632,69 @@
         }
 
         async function loadHistorique(date = '', type = 'C') {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter', true);
-                return;
-            }
-            try {
-                let url = `${API_BASE_URL}/historique_versements?type=${type}`;
-                if (date) url += `&date=${date}`;
-                const response = await fetch(url, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                const versements = await response.json();
-                console.log('Réponse /historique_versements:', versements);
-                const tbody = document.getElementById('versements-table');
-                tbody.innerHTML = versements.length === 0
-                    ? '<tr><td colspan="8" class="text-center py-4 text-gray-500">Aucun versement trouvé</td></tr>'
-                    : '';
-                versements.forEach(v => {
-                    const apiType = ['C', 'F'].includes(v.cf) ? v.cf : (['C', 'F'].includes(v.type) ? v.type : 'C');
-                    const displayType = apiType === 'C' ? 'Client' : 'Fournisseur';
-                    const escapedNomCf = (v.nom_cf || 'N/A').replace(/'/g, "\\'");
-                    const escapedJustificatif = (v.justificatif || '').replace(/'/g, "\\'");
-                    const numeroCf = v.numero_cf || '';
-                    const numeroUtilVersement = v.numero_util || '';
-                    if (!numeroCf) {
-                        console.warn('numero_cf manquant pour versement:', v);
-                    }
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="px-6 py-4 text-sm text-gray-900">${v.date_mc}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500">${displayType}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">${v.nom_cf || 'N/A'}</td>
-                        <td class="px-6 py-4 text-sm ${parseFloat(v.montant) < 0 ? 'text-red-600' : 'text-green-600'}">${v.montant}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500">${v.justificatif || '-'}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500">${v.utilisateur_nom || 'N/A'}</td>
-                        <td class="px-6 py-4 text-sm">
-                            <button onclick="openEditModal(${v.numero_mc}, '${apiType}', '${numeroCf}', '${escapedNomCf}', ${v.montant}, '${escapedJustificatif}', '${numeroUtilVersement}')" class="text-blue-600 hover:text-blue-800">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                        </td>
-                        <td class="px-6 py-4 text-sm">
-                            <button onclick="openAnnulerModal(${v.numero_mc}, '${apiType}', '${numeroCf}', '${numeroUtilVersement}')" class="text-red-600 hover:text-red-800">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-            } catch (error) {
-                showToast(`Erreur chargement historique: ${error.message}`, true);
-                console.error('Erreur historique:', error);
-            }
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter', true);
+        return;
+    }
+    try {
+        let url = `${API_BASE_URL}/historique_versements?type=${type}`;
+        if (date) url += `&date=${date}`;
+        const response = await fetch(url, {
+            headers: { 'X-User-ID': userId }
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Erreur ${response.status}: ${errorText}`);
         }
-
+        const versements = await response.json();
+        console.log('Réponse /historique_versements:', versements);
+        const tbody = document.getElementById('versements-table');
+        tbody.innerHTML = versements.length === 0
+            ? '<tr><td colspan="8" class="text-center py-4 text-gray-500">Aucun versement trouvé</td></tr>'
+            : '';
+        versements.forEach(v => {
+            // Utiliser le type passé en paramètre (basé sur l'onglet actif)
+            const apiType = type; // 'C' pour Clients, 'F' pour Fournisseurs
+            const displayType = apiType === 'C' ? 'Client' : 'Fournisseur';
+            // Validation des données
+            if (!v.numero_cf) {
+                console.warn('numero_cf manquant pour versement:', v);
+            }
+            if (v.cf && v.cf !== apiType) {
+                console.warn(`Incohérence: cf=${v.cf} mais type attendu=${apiType}`, v);
+            }
+            const escapedNomCf = (v.nom_cf || 'N/A').replace(/'/g, "\\'");
+            const escapedJustificatif = (v.justificatif || '').replace(/'/g, "\\'");
+            const numeroCf = v.numero_cf || '';
+            const numeroUtilVersement = v.numero_util || '';
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-gray-50';
+            tr.innerHTML = `
+                <td class="px-6 py-4 text-sm text-gray-900">${v.date_mc}</td>
+                <td class="px-6 py-4 text-sm text-gray-500">${displayType}</td>
+                <td class="px-6 py-4 text-sm text-gray-900">${v.nom_cf || 'N/A'}</td>
+                <td class="px-6 py-4 text-sm ${parseFloat(v.montant) < 0 ? 'text-red-600' : 'text-green-600'}">${v.montant}</td>
+                <td class="px-6 py-4 text-sm text-gray-500">${v.justificatif || '-'}</td>
+                <td class="px-6 py-4 text-sm text-gray-500">${v.utilisateur_nom || 'N/A'}</td>
+                <td class="px-6 py-4 text-sm">
+                    <button onclick="openEditModal(${v.numero_mc}, '${apiType}', '${numeroCf}', '${escapedNomCf}', ${v.montant}, '${escapedJustificatif}', '${numeroUtilVersement}')" class="text-blue-600 hover:text-blue-800">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                </td>
+                <td class="px-6 py-4 text-sm">
+                    <button onclick="openAnnulerModal(${v.numero_mc}, '${apiType}', '${numeroCf}', '${numeroUtilVersement}')" class="text-red-600 hover:text-red-800">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (error) {
+        showToast(`Erreur chargement historique: ${error.message}`, true);
+        console.error('Erreur historique:', error);
+    }
+}
         async function loadSituation(type, numero_cf = '') {
             const userId = localStorage.getItem('userId');
             if (!userId) {
