@@ -608,7 +608,7 @@
             }
         }
 
-        async function chargerUtilisateurs() {
+        async function chargerUtilisateurs(targetSelectId = 'userFilter') {
             console.log('Chargement des utilisateurs...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
@@ -625,13 +625,16 @@
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 const utilisateurs = await response.json();
-                const selectElement = document.getElementById('userFilter');
+                const selectElement = document.getElementById(targetSelectId);
 
-                selectElement.innerHTML = `<option value="0">Tous les utilisateurs</option>`;
+                selectElement.innerHTML = targetSelectId === 'userFilter' 
+                    ? `<option value="0">Tous les utilisateurs</option>`
+                    : `<option value="">Sélectionner un utilisateur</option>`;
                 utilisateurs.forEach(user => {
+                    if (targetSelectId !== 'userFilter' && user.statut !== 'admin') return; // Restriction aux admins pour annulation
                     const option = document.createElement('option');
                     option.value = user.numero_util;
-                    option.textContent = `${user.nom} (${user.statue})`;
+                    option.textContent = `${user.nom} (${user.statut})`;
                     selectElement.appendChild(option);
                 });
             } catch (error) {
@@ -683,8 +686,11 @@
                                 <button onclick="showSaleDetails(${vente.numero_comande}, '${vente.nature}', 'Vente')" class="bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition mr-2">
                                     <i class="fas fa-eye"></i> Voir
                                 </button>
-                                <button onclick="printTicket(${vente.numero_comande}, '${vente.nature}')" class="bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition">
+                                <button onclick="printTicket(${vente.numero_comande}, '${vente.nature}')" class="bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition mr-2">
                                     <i class="fas fa-print"></i> Ticket
+                                </button>
+                                <button onclick="annulerVente(${vente.numero_comande})" class="bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
+                                    <i class="fas fa-trash"></i> Annuler
                                 </button>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${vente.numero_comande}</td>
@@ -710,8 +716,11 @@
                                 <button onclick="showSaleDetails(${vente.numero_comande}, '${vente.nature}', 'Vente')" class="bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition mr-2">
                                     <i class="fas fa-eye"></i> Voir
                                 </button>
-                                <button onclick="printTicket(${vente.numero_comande}, '${vente.nature}')" class="bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition">
+                                <button onclick="printTicket(${vente.numero_comande}, '${vente.nature}')" class="bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition mr-2">
                                     <i class="fas fa-print"></i> Ticket
+                                </button>
+                                <button onclick="annulerVente(${vente.numero_comande})" class="bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
+                                    <i class="fas fa-trash"></i> Annuler
                                 </button>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${vente.numero_comande}</td>
@@ -784,8 +793,11 @@
                                 <button onclick="showSaleDetails(${reception.numero_mouvement}, '${reception.nature}', 'Réception')" class="bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition mr-2">
                                     <i class="fas fa-eye"></i> Voir
                                 </button>
-                                <button onclick="printPurchaseTicket(${reception.numero_mouvement}, '${reception.nature}')" class="bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition">
+                                <button onclick="printPurchaseTicket(${reception.numero_mouvement}, '${reception.nature}')" class="bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition mr-2">
                                     <i class="fas fa-print"></i> Ticket
+                                </button>
+                                <button onclick="annulerReception(${reception.numero_mouvement})" class="bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
+                                    <i class="fas fa-trash"></i> Annuler
                                 </button>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${reception.numero_mouvement}</td>
@@ -1154,63 +1166,202 @@
             window.print();
         }
 
-        function reloadData() {
-            const date = document.getElementById('dateFilter').value;
-            const client = document.getElementById('clientFilter').value;
-            const user = document.getElementById('userFilter').value;
-            const fournisseur = document.getElementById('fournisseurFilter').value;
+        // Nouvelle fonction pour annuler une vente
+        function annulerVente(numeroComande) {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center z-50 no-print';
+            modal.innerHTML = `
+                <div class="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold text-gray-800">Annuler Vente #${numeroComande}</h3>
+                        <button onclick="this.closest('.fixed').remove()" class="text-gray-600 hover:text-gray-800">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="mb-4">
+                        <label for="numero_util_vente" class="block text-sm font-medium text-gray-700">Utilisateur</label>
+                        <select id="numero_util_vente" class="mt-1 block w-full flatpickr-input">
+                            <option value="">Sélectionner un utilisateur</option>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label for="password2_vente" class="block text-sm font-medium text-gray-700">Mot de passe</label>
+                        <input id="password2_vente" type="password" class="mt-1 block w-full flatpickr-input">
+                    </div>
+                    <div class="flex justify-end">
+                        <button onclick="this.closest('.fixed').remove()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 mr-2">
+                            Fermer
+                        </button>
+                        <button onclick="confirmerAnnulerVente(${numeroComande})" class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700">
+                            Confirmer
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
 
-            console.log('Reload data with filters:', { date, client, user, fournisseur });
-
-            chargerVentesJour(date, client, user);
-            chargerArticlesPlusVendus(date, client, user);
-            chargerProfit(date, client, user);
-            chargerAchatsJour(date, user, fournisseur);
-            chargerStockValue();
+            chargerUtilisateurs('numero_util_vente');
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
-            const today = new Date().toISOString().split('T')[0];
+        // Nouvelle fonction pour confirmer l'annulation d'une vente
+        async function confirmerAnnulerVente(numeroComande) {
+            const numeroUtil = document.getElementById('numero_util_vente').value;
+            const password2 = document.getElementById('password2_vente').value;
+            const userId = localStorage.getItem('userId');
+
+            if (!numeroUtil || !password2) {
+                showToast('Veuillez sélectionner un utilisateur et entrer un mot de passe', true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/annuler_vente`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify({
+                        numero_comande: numeroComande,
+                        numero_util: numeroUtil,
+                        password2: password2
+                    })
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || `Erreur ${response.status}`);
+                }
+
+                showToast('Vente annulée avec succès');
+                document.querySelector('.fixed').remove();
+                reloadData();
+            } catch (error) {
+                showToast(`Erreur lors de l'annulation: ${error.message}`, true);
+                console.error('Erreur annulation vente:', error);
+            }
+        }
+
+    // Fonction pour annuler une réception
+        function annulerReception(numeroMouvement) {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center z-50 no-print';
+            modal.innerHTML = `
+                <div class="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold text-gray-800">Annuler Réception #${numeroMouvement}</h3>
+                        <button onclick="this.closest('.fixed').remove()" class="text-gray-600 hover:text-gray-800">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="mb-4">
+                        <label for="numero_util_reception" class="block text-sm font-medium text-gray-700">Utilisateur</label>
+                        <select id="numero_util_reception" class="mt-1 block w-full flatpickr-input">
+                            <option value="">Sélectionner un utilisateur</option>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label for="password2_reception" class="block text-sm font-medium text-gray-700">Mot de passe</label>
+                        <input id="password2_reception" type="password" class="mt-1 block w-full flatpickr-input">
+                    </div>
+                    <div class="flex justify-end">
+                        <button onclick="this.closest('.fixed').remove()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 mr-2">
+                            Fermer
+                        </button>
+                        <button onclick="confirmerAnnulerReception(${numeroMouvement})" class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700">
+                            Confirmer
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            chargerUtilisateurs('numero_util_reception');
+        }
+
+        // Fonction pour confirmer l'annulation d'une réception
+        async function confirmerAnnulerReception(numeroMouvement) {
+            const numeroUtil = document.getElementById('numero_util_reception').value;
+            const password2 = document.getElementById('password2_reception').value;
+            const userId = localStorage.getItem('userId');
+
+            if (!numeroUtil || !password2) {
+                showToast('Veuillez sélectionner un utilisateur et entrer un mot de passe', true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/annuler_reception`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify({
+                        numero_mouvement: numeroMouvement,
+                        numero_util: numeroUtil,
+                        password2: password2
+                    })
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || `Erreur ${response.status}`);
+                }
+
+                showToast('Réception annulée avec succès');
+                document.querySelector('.fixed').remove();
+                reloadData();
+            } catch (error) {
+                showToast(`Erreur lors de l'annulation: ${error.message}`, true);
+                console.error('Erreur annulation réception:', error);
+            }
+        }
+
+        async function reloadData() {
+            const date = document.getElementById('dateFilter').value;
+            const numeroClt = document.getElementById('clientFilter').value;
+            const numeroUtil = document.getElementById('userFilter').value;
+            const numeroFour = document.getElementById('fournisseurFilter').value;
+
+            await Promise.all([
+                chargerVentesJour(date, numeroClt, numeroUtil),
+                chargerAchatsJour(date, numeroUtil, numeroFour),
+                chargerArticlesPlusVendus(date, numeroClt, numeroUtil),
+                chargerProfit(date, numeroClt, numeroUtil),
+                chargerStockValue()
+            ]);
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const userId = localStorage.getItem('userId');
+            const userEmail = localStorage.getItem('userEmail');
+            if (!userId) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            const userDisplay = document.getElementById('userDisplay');
+            userDisplay.textContent = userEmail;
+            userDisplay.classList.remove('hidden');
+            document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i> Déconnexion';
+
             flatpickr('#dateFilter', {
                 dateFormat: 'Y-m-d',
-                defaultDate: today,
-                onChange: (selectedDates, dateStr) => {
-                    console.log('Date selected:', dateStr);
-                    reloadData();
-                }
+                defaultDate: new Date(),
+                onChange: (selectedDates, dateStr) => reloadData()
             });
 
-            document.getElementById('clientFilter').addEventListener('change', () => {
-                console.log('Client filter changed:', document.getElementById('clientFilter').value);
-                reloadData();
-            });
+            document.getElementById('clientFilter').addEventListener('change', reloadData);
+            document.getElementById('fournisseurFilter').addEventListener('change', reloadData);
+            document.getElementById('userFilter').addEventListener('change', reloadData);
 
-                     document.getElementById('fournisseurFilter').addEventListener('change', () => {
-                console.log('Fournisseur filter changed:', document.getElementById('fournisseurFilter').value);
-                reloadData();
-            });
-
-            document.getElementById('userFilter').addEventListener('change', () => {
-                console.log('User filter changed:', document.getElementById('userFilter').value);
-                reloadData();
-            });
-
-            // Initial data load
-            const userId = localStorage.getItem('userId');
-            if (userId) {
-                chargerClients();
-                chargerFournisseurs();
-                chargerUtilisateurs();
-                reloadData();
-
-                const userEmail = localStorage.getItem('userEmail') || 'Utilisateur';
-                document.getElementById('userDisplay').textContent = userEmail;
-                document.getElementById('userDisplay').classList.remove('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i> Déconnexion';
-            } else {
-                showToast('Veuillez vous connecter', true);
-                window.location.href = 'index.html';
-            }
+            await Promise.all([
+                chargerClients* Today's date and time is 11:42 AM CET on Monday, May 19, 2025. * clients(),
+                chargerFournisseurs(),
+                chargerUtilisateurs(),
+                reloadData()
+            ]);
         });
     </script>
 </body>
