@@ -149,9 +149,10 @@
             max-height: 80vh;
             overflow-y: auto;
         }
+        /* Styles pour le mode maximisé */
         #productsSection.maximized {
             position: fixed;
-            top: 80px;
+            top: 80px; /* Hauteur de la barre de navigation */
             left: 0;
             right: 0;
             bottom: 0;
@@ -163,14 +164,15 @@
             overflow: hidden;
         }
         #productsSection.maximized #productsContent {
-            display: block !important;
-            height: calc(100% - 120px);
+            display: block !important; /* Forcer l'affichage du contenu même si replié */
+            height: calc(100% - 120px); /* Hauteur totale moins la barre de recherche et l'en-tête */
             padding: 0 16px 16px;
         }
         #productsSection.maximized .table-container {
-            max-height: calc(100% - 80px);
+            max-height: calc(100% - 80px); /* Hauteur restante après la barre de recherche */
             overflow-y: auto;
         }
+        /* Ajustement de la barre de recherche en mode maximisé */
         #productsSection.maximized .mb-4.flex {
             position: sticky;
             top: 0;
@@ -179,8 +181,9 @@
             padding: 16px 0;
             border-bottom: 1px solid #e5e7eb;
         }
+        /* Style du bouton maximiser/restaurer */
         #maximizeProductsButton.restore::after {
-            content: '\f066';
+            content: '\f066'; /* Icône Font Awesome fa-compress */
             font-family: 'Font Awesome 6 Free';
             font-weight: 900;
         }
@@ -207,6 +210,7 @@
     </nav>
 
     <div class="container mx-auto px-4 pt-20">
+        <!-- Section vendeur en haut, repliable -->
         <div id="sellerSection" class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8">
             <div class="p-6 cursor-pointer" onclick="toggleSection('sellerSection')">
                 <div class="flex justify-between items-center">
@@ -275,7 +279,7 @@
                     </div>
                 </div>
                 <div class="p-6 hidden" id="productsContent">
-                    <div class="mb-4 flex flex-col md:flex-row gap-4">
+                    <div class="mb-4 flex flex-col Sermons md:flex-row gap-4">
                         <div class="relative w-full md:w-1/2">
                             <input type="text" id="searchProduct" placeholder="Rechercher un produit..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
                             <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
@@ -314,7 +318,6 @@
                         <i class="fas fa-receipt mr-2 text-indigo-500"></i> Ventes
                         <span id="saleItemCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
                     </h2>
-                    <span id="editModeIndicator" class="text-sm text-gray-600"></span>
                 </div>
                 <div class="p-6">
                     <div class="mb-6">
@@ -439,8 +442,6 @@
         let produitsCache = [];
         let clientsCache = [];
         let utilisateursCache = [];
-        let editMode = false;
-        let currentNumeroComande = null;
 
         function togglePaymentForm() {
             const paymentMode = document.getElementById('paymentMode').value;
@@ -466,6 +467,7 @@
             const section = document.getElementById(sectionId);
             const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
             const chevron = document.getElementById(`${sectionId.replace('Section', 'Chevron')}`);
+
             content.classList.toggle('hidden');
             chevron.classList.toggle('fa-chevron-down');
             chevron.classList.toggle('fa-chevron-up');
@@ -476,7 +478,9 @@
             const maximizeButton = document.getElementById('maximizeProductsButton');
             const productsContent = document.getElementById('productsContent');
             const productsChevron = document.getElementById('productsChevron');
+
             const isMaximized = productsSection.classList.contains('maximized');
+
             if (!isMaximized) {
                 productsSection.classList.add('maximized');
                 maximizeButton.classList.add('restore');
@@ -495,166 +499,52 @@
             }
         }
 
-        function updateValidateButton() {
-            const validateButton = document.getElementById('validateSaleButton');
-            const editModeIndicator = document.getElementById('editModeIndicator');
-            if (editMode) {
-                validateButton.innerHTML = '<i class="fas fa-edit mr-2"></i>Modifier la vente';
-                editModeIndicator.textContent = `Modification de la vente #${currentNumeroComande}`;
-            } else {
-                validateButton.innerHTML = '<i class="fas fa-check mr-2"></i>Valider la vente';
-                editModeIndicator.textContent = '';
-            }
-        }
-
-        async function chargerVentePourModification(numeroComande, nature) {
-            console.log('Chargement de la vente pour modification:', numeroComande, nature);
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                throw new Error('Utilisateur non connecté');
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/vente/${numeroComande}?nature=${nature}`, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText || 'Erreur inconnue'}`);
-                }
-                const vente = await response.json();
-                console.log('Données de la vente récupérées:', vente);
-
-                if (!vente || !vente.lignes) {
-                    throw new Error('Données de vente invalides ou vides');
-                }
-
-                document.getElementById('saleClientId').value = vente.numero_table || '0';
-                document.getElementById('paymentMode').value = vente.payment_mode || 'espece';
-                document.getElementById('amountPaid').value = vente.amount_paid || '';
-                togglePaymentForm();
-
-                tempSaleLines = [];
-                vente.lignes.forEach(ligne => {
-                    if (!ligne.numero_item || !ligne.quantite || !ligne.prixt) {
-                        console.warn('Ligne invalide:', ligne);
-                        return;
-                    }
-                    tempSaleLines.push({
-                        numero_item: parseInt(ligne.numero_item),
-                        produit_bar: ligne.produit_bar || '',
-                        designation: ligne.designation || 'N/A',
-                        quantite: parseFloat(ligne.quantite).toFixed(2),
-                        prixt: parseFloat(ligne.prixt).toFixed(2),
-                        remarque: parseFloat(ligne.remarque || ligne.prixt / ligne.quantite).toFixed(2),
-                        prixbh: parseFloat(ligne.prixbh) || 0
-                    });
-                });
-
-                if (tempSaleLines.length === 0) {
-                    throw new Error('Aucune ligne de vente valide trouvée');
-                }
-
-                updateTempSalesTable();
-                updateValidateButton();
-                document.querySelector('#salesSection h2').textContent = `Modification de la vente #${numeroComande} (${nature})`;
-                showToast(`Vente #${numeroComande} chargée pour modification`);
-            } catch (error) {
-                console.error('Erreur chargement vente:', error);
-                throw error;
-            }
-        }
-
-        function initialiserModeCreation() {
-            console.log('Initialisation mode création');
-            tempSaleLines = [];
-            document.getElementById('saleClientId').value = '0';
-            document.getElementById('paymentMode').value = 'espece';
-            document.getElementById('amountPaid').value = '';
-            editMode = false;
-            currentNumeroComande = null;
-            togglePaymentForm();
-            updateTempSalesTable();
-            updateValidateButton();
-            document.querySelector('#salesSection h2').textContent = 'Ventes';
-        }
-
-        document.addEventListener('DOMContentLoaded', async () => {
+        document.addEventListener('DOMContentLoaded', () => {
             console.log('Page chargée, vérification utilisateur...');
             const userId = localStorage.getItem('userId');
             const userEmail = localStorage.getItem('userEmail');
-            if (!userId || !userEmail) {
-                showToast('Aucun utilisateur connecté, redirection vers index.html', true);
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                window.location.href = 'index.html';
-                return;
-            }
-
-            console.log('Utilisateur connecté:', userId, userEmail);
-            document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
-            document.getElementById('userDisplay').classList.remove('hidden');
-            document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-            document.getElementById('sellerSelect').disabled = true;
-
-            const urlParams = new URLSearchParams(window.location.search);
-            const isEditMode = urlParams.get('edit') === 'true';
-            const numeroComande = urlParams.get('numero_comande');
-            const nature = urlParams.get('nature');
-
-            console.log('Paramètres URL:', { isEditMode, numeroComande, nature });
-
-            if (isEditMode) {
-                if (!numeroComande || !nature) {
-                    showToast('Paramètres de modification invalides (numero_comande ou nature manquant)', true);
-                    initialiserModeCreation();
-                } else if (isNaN(numeroComande) || !['vente', 'achat'].includes(nature.toLowerCase())) {
-                    showToast('Paramètres de modification invalides (numero_comande ou nature incorrect)', true);
-                    initialiserModeCreation();
-                } else {
-                    editMode = true;
-                    currentNumeroComande = numeroComande;
-                    try {
-                        await chargerVentePourModification(numeroComande, nature);
-                    } catch (error) {
-                        showToast(`Erreur lors du chargement de la vente: ${error.message}`, true);
-                        initialiserModeCreation();
-                    }
-                }
-            } else {
-                initialiserModeCreation();
-            }
-
-            try {
-                await chargerUtilisateurs();
-                const storedSeller = localStorage.getItem('selectedSeller');
-                if (storedSeller) {
-                    const { numero_util, nom } = JSON.parse(storedSeller);
-                    const sellerSelect = document.getElementById('sellerSelect');
-                    const optionExists = Array.from(sellerSelect.options).some(option => option.value === numero_util);
-                    if (optionExists) {
-                        sellerSelect.value = numero_util;
-                        document.getElementById('selectedSellerName').textContent = nom;
-                        document.getElementById('headerSellerName').textContent = nom;
-                        document.getElementById('sellerPassword').disabled = true;
-                        document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
-                        document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
-                        document.getElementById('sellerContent').classList.add('hidden');
-                        document.getElementById('sellerChevron').classList.add('fa-chevron-down');
-                        document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
+            if (userId && userEmail) {
+                console.log('Utilisateur connecté:', userId, userEmail);
+                document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
+                document.getElementById('userDisplay').classList.remove('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+                document.getElementById('sellerSelect').disabled = true;
+                chargerUtilisateurs().then(() => {
+                    const storedSeller = localStorage.getItem('selectedSeller');
+                    if (storedSeller) {
+                        const { numero_util, nom } = JSON.parse(storedSeller);
+                        const sellerSelect = document.getElementById('sellerSelect');
+                        const optionExists = Array.from(sellerSelect.options).some(option => option.value === numero_util);
+                        if (optionExists) {
+                            sellerSelect.value = numero_util;
+                            document.getElementById('selectedSellerName').textContent = nom;
+                            document.getElementById('headerSellerName').textContent = nom;
+                            document.getElementById('sellerPassword').disabled = true;
+                            document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
+                            document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
+                            document.getElementById('sellerContent').classList.add('hidden');
+                            document.getElementById('sellerChevron').classList.add('fa-chevron-down');
+                            document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
+                        } else {
+                            localStorage.removeItem('selectedSeller');
+                            localStorage.removeItem('sellerPassword');
+                            document.getElementById('sellerContent').classList.remove('hidden');
+                            document.getElementById('sellerChevron').classList.add('fa-chevron-up');
+                            document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
+                        }
                     } else {
-                        localStorage.removeItem('selectedSeller');
-                        localStorage.removeItem('sellerPassword');
                         document.getElementById('sellerContent').classList.remove('hidden');
                         document.getElementById('sellerChevron').classList.add('fa-chevron-up');
                         document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
                     }
-                }
-                await chargerClients();
-                await chargerProduits();
-                updateValidateButton();
-            } catch (error) {
-                showToast(`Erreur lors de l'initialisation: ${error.message}`, true);
-                console.error('Erreur initialisation:', error);
+                    sellerSelect.disabled = false;
+                });
+                chargerClients();
+                chargerProduits();
+            } else {
+                console.log('Aucun utilisateur connecté, redirection vers index.html');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                window.location.href = 'index.html';
             }
 
             fetch(`${API_BASE_URL}/`)
@@ -716,8 +606,10 @@
                 const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
                     headers: { 'X-User-ID': userId }
                 });
+                console.log('Réponse liste_utilisateurs:', response.status, response.statusText);
                 if (!response.ok) {
                     const errorText = await response.text();
+                    console.error('Erreur texte liste_utilisateurs:', errorText);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 utilisateursCache = await response.json();
@@ -778,6 +670,7 @@
 
                 if (!response.ok) {
                     const errorText = await response.text();
+                    console.error('Erreur validation vendeur:', errorText);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
 
@@ -838,8 +731,10 @@
                 const response = await fetch(`${API_BASE_URL}/liste_clients`, {
                     headers: { 'X-User-ID': userId }
                 });
+                console.log('Réponse liste_clients:', response.status, response.statusText);
                 if (!response.ok) {
                     const errorText = await response.text();
+                    console.error('Erreur texte liste_clients:', errorText);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 clientsCache = await response.json();
@@ -877,6 +772,7 @@
                 });
                 if (!response.ok) {
                     const errorText = await response.text();
+                    console.error('Erreur texte client_solde:', errorText);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 const soldes = await response.json();
@@ -904,8 +800,11 @@
                 const response = await fetch(`${API_BASE_URL}/liste_produits`, {
                     headers: { 'X-User-ID': userId }
                 });
+                console.log('Réponse liste_produits:', response.status, response.statusText);
                 if (!response.ok) {
                     const errorText = await response.text();
+                    console.error('Erreur texte liste_produits:', errorText);
+                    showToast(`Erreur chargement produits: ${errorText}`, true);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 produitsCache = await response.json();
@@ -921,11 +820,16 @@
                     QTE: parseFloat(produit.QTE) || 0
                 }));
 
-                tbody.innerHTML = produitsCache.length === 0
-                    ? '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>'
-                    : '';
+                if (produitsCache.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
+                    countElement.textContent = '0';
+                    countElement.classList.remove('hidden');
+                    return;
+                }
 
+                tbody.innerHTML = '';
                 produitsCache.forEach(produit => {
+                    console.log('Rendu produit:', produit);
                     const stockStatus = produit.QTE <= 0 ? 'Rupture' : produit.QTE <= 5 ? 'Stock faible' : produit.QTE.toFixed(2);
                     const stockClass = produit.QTE <= 0 ? 'stock-rupture' : produit.QTE <= 5 ? 'stock-faible' : '';
                     const buttonDisabled = produit.QTE <= 0 ? 'btn-disabled' : '';
@@ -1012,7 +916,6 @@
         }
 
         function updateTempSalesTable() {
-            console.log('Mise à jour du tableau des ventes:', tempSaleLines);
             const tbody = document.getElementById('tempSalesList');
             const totalElement = document.getElementById('totalSale');
             const itemCountElement = document.getElementById('saleItemCount');
@@ -1030,7 +933,6 @@
                 printButton80mm.disabled = true;
                 printButtonA4.disabled = true;
                 holdSaleButton.disabled = true;
-                console.log('Boutons désactivés: aucune ligne');
                 return;
             }
 
@@ -1039,6 +941,7 @@
             let totalItems = 0;
 
             tempSaleLines.forEach((ligne, index) => {
+                console.log('Ligne:', ligne);
                 const lineTotal = parseFloat(ligne.prixt) || 0;
                 total += lineTotal;
                 totalItems += parseFloat(ligne.quantite) || 0;
@@ -1077,7 +980,6 @@
             printButton80mm.disabled = false;
             printButtonA4.disabled = false;
             holdSaleButton.disabled = false;
-            console.log('Boutons activés:', { validate: !validateButton.disabled, print80mm: !printButton80mm.disabled, printA4: !printButtonA4.disabled, hold: !holdSaleButton.disabled });
         }
 
         function modifierQuantite(index, delta) {
@@ -1144,7 +1046,7 @@
         }
 
         async function validerVente() {
-            console.log(editMode ? 'Modification vente...' : 'Validation vente...');
+            console.log('Validation vente...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour valider la vente', true);
@@ -1164,6 +1066,7 @@
 
             const { numero_util } = JSON.parse(storedSeller);
             const password2 = localStorage.getItem('sellerPassword');
+
             const paymentMode = document.getElementById('paymentMode').value;
             const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
             const numeroTable = parseInt(document.getElementById('saleClientId').value) || 0;
@@ -1190,57 +1093,40 @@
                     quantite: parseFloat(ligne.quantite),
                     prixt: parseFloat(ligne.prixt),
                     remarque: ligne.remarque,
-                    prixbh: parseFloat(ligne.prixbh)
+                    prixbh: ligne.prixbh
                 }))
             };
 
-            if (editMode) {
-                venteData.numero_comande = currentNumeroComande;
-            }
-
-            console.log('Données envoyées:', venteData);
-
             try {
-                let response;
-                const endpoint = editMode ? `/modifier_vente/${currentNumeroComande}` : '/valider_vente';
-                const method = editMode ? 'PUT' : 'POST';
-                response = await fetch(`${API_BASE_URL}${endpoint}`, {
-                    method,
+                const response = await fetch(`${API_BASE_URL}/valider_vente`, {
+                    method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-User-ID': userId
                     },
                     body: JSON.stringify(venteData)
                 });
-
+                console.log('Réponse valider_vente:', response.status, response.statusText);
                 if (!response.ok) {
                     const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText || 'Erreur inconnue'}`);
+                    console.error('Erreur texte valider_vente:', errorText);
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
-
                 const result = await response.json();
-                console.log(editMode ? 'Vente modifiée:' : 'Vente validée:', result);
+                console.log('Vente validée:', result);
 
-                showToast(editMode ? `Vente #${result.numero_comande} modifiée avec succès` : `Vente #${result.numero_comande} validée avec succès`);
-                resetForm();
-                window.location.href = 'ventes_achats.html';
+                showToast(`Vente #${result.numero_comande} validée avec succès`);
+                tempSaleLines = [];
+                document.getElementById('paymentMode').value = 'espece';
+                document.getElementById('amountPaid').value = '';
+                togglePaymentForm();
+                updateTempSalesTable();
+                chargerProduits();
+                chargerClients();
             } catch (error) {
-                console.error(`Erreur ${editMode ? 'modification' : 'validation'} vente:`, error);
-                showToast(`Erreur ${editMode ? 'modification' : 'validation'} vente: ${error.message}`, true);
+                console.error('Erreur validation vente:', error);
+                showToast(`Erreur validation vente: ${error.message}`, true);
             }
-        }
-
-        function resetForm() {
-            tempSaleLines = [];
-            document.getElementById('paymentMode').value = 'espece';
-            document.getElementById('amountPaid').value = '';
-            document.getElementById('saleClientId').value = '0';
-            editMode = false;
-            currentNumeroComande = null;
-            togglePaymentForm();
-            updateTempSalesTable();
-            updateValidateButton();
-            document.querySelector('#salesSection h2').textContent = 'Ventes';
         }
 
         function holdSale() {
@@ -1256,7 +1142,6 @@
 
             const pendingSale = {
                 id: Date.now(),
-                numero_comande: editMode ? currentNumeroComande : null,
                 date: new Date().toLocaleString('fr-FR'),
                 lines: [...tempSaleLines],
                 paymentMode,
@@ -1268,7 +1153,13 @@
             pendingSales.push(pendingSale);
             localStorage.setItem('pendingSales', JSON.stringify(pendingSales));
 
-            resetForm();
+            tempSaleLines = [];
+            document.getElementById('paymentMode').value = 'espece';
+            document.getElementById('amountPaid').value = '';
+            document.getElementById('saleClientId').value = '0';
+            togglePaymentForm();
+            updateTempSalesTable();
+
             showToast('Vente mise en attente avec succès');
         }
 
@@ -1278,9 +1169,10 @@
             const pendingSalesList = document.getElementById('pendingSalesList');
             const pendingSales = JSON.parse(localStorage.getItem('pendingSales') || '[]');
 
-            pendingSalesList.innerHTML = pendingSales.length === 0
-                ? '<p class="text-center text-gray-500">Aucune vente en attente</p>'
-                : pendingSales.map(sale => `
+            if (pendingSales.length === 0) {
+                pendingSalesList.innerHTML = '<p class="text-center text-gray-500">Aucune vente en attente</p>';
+            } else {
+                pendingSalesList.innerHTML = pendingSales.map(sale => `
                     <div class="border p-4 rounded-md shadow-sm bg-gray-50">
                         <div class="flex justify-between items-center mb-2">
                             <h3 class="font-semibold">Vente #${sale.id} - ${sale.date}</h3>
@@ -1300,6 +1192,7 @@
                         <p><strong>Articles:</strong> ${sale.lines.length}</p>
                     </div>
                 `).join('');
+            }
 
             modal.style.display = 'flex';
         }
@@ -1318,11 +1211,8 @@
             document.getElementById('paymentMode').value = sale.paymentMode;
             document.getElementById('amountPaid').value = sale.amountPaid || '';
             document.getElementById('saleClientId').value = sale.clientId || '0';
-            editMode = !!sale.numero_comande;
-            currentNumeroComande = sale.numero_comande;
             togglePaymentForm();
             updateTempSalesTable();
-            updateValidateButton();
 
             deletePendingSale(saleId);
             closePendingSalesModal();
@@ -1446,6 +1336,7 @@
                                 font-size: 10pt;
                                 line-height: 1.2;
                                 color: #000;
+                                box-shadow: 0 0 5mm rgba(0, 0, 0, 0.1);
                                 text-align: center;
                             }
                             .printable h1 {
@@ -1461,33 +1352,42 @@
                             }
                             .printable th, .printable td {
                                 border: 0.5mm solid #000;
-                                padding: 1.5mm;
+                                padding: 1mm;
+                                font-size: 8pt;
                                 text-align: left;
-                                font-size: 9pt;
-                            }
-                            .printable th {
-                                background-color: #f0f0f0;
-                                font-weight: bold;
                             }
                             .printable .total {
-                                font-size: 12pt;
                                 font-weight: bold;
-                                margin-top: 3mm;
+                                font-size: 10pt;
                                 text-align: right;
+                            }
+                            .print-controls {
+                                text-align: center;
+                                margin-top: 10mm;
+                            }
+                            .print-controls button {
+                                padding: 5mm 10mm;
+                                margin: 0 5mm;
+                                font-size: 10pt;
+                                cursor: pointer;
                             }
                             @media print {
                                 body {
                                     margin: 0;
                                     padding: 0;
                                 }
-                                .printable {
-                                    box-shadow: none;
+                                .print-controls {
+                                    display: none;
                                 }
                             }
                         </style>
                     </head>
-                    <body onload="window.print(); setTimeout(() => window.close(), 1000);">
+                    <body>
                         ${ticketContent}
+                        <div class="print-controls">
+                            <button onclick="window.print(); window.close();" style="background-color: #4CAF50; color: white; border: none; border-radius: 5mm;">Imprimer</button>
+                            <button onclick="window.close();" style="background-color: #f44336; color: white; border: none; border-radius: 5mm;">Annuler</button>
+                        </div>
                     </body>
                 </html>
             `);
@@ -1513,41 +1413,48 @@
             const paymentMode = document.getElementById('paymentMode').value;
             const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
             const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0).toFixed(2);
+            const userEmail = localStorage.getItem('userEmail') || 'Utilisateur inconnu';
             const storedSeller = localStorage.getItem('selectedSeller');
             const sellerName = storedSeller ? JSON.parse(storedSeller).nom : 'Non spécifié';
             let soldeContent = '';
 
             if (paymentMode === 'a_terme' && clientValue !== '0') {
                 const client = clientsCache.find(c => c.numero_clt === parseInt(clientValue));
-              const soldeAvant = client ? parseFloat(client.solde) || 0 : 0;
+                const soldeAvant = client ? parseFloat(client.solde) || 0 : 0;
                 const soldeApres = soldeAvant + (amountPaid - parseFloat(total));
                 soldeContent = `
-                    <p><strong>Solde avant vente:</strong> ${soldeAvant.toFixed(2)} DA</p>
-                    <p><strong>Solde après vente:</strong> ${soldeApres.toFixed(2)} DA</p>
+                    <p><strong>Solde avant vente :</strong> ${soldeAvant.toFixed(2)} DA</p>
+                    <p><strong>Solde après vente :</strong> ${soldeApres.toFixed(2)} DA</p>
                 `;
             }
 
             let ticketContent = `
                 <div class="printable">
-                    ${companyLogo ? `<img src="${companyLogo}" alt="Logo" style="max-width: 150mm; margin-bottom: 10mm; display: block; margin-left: auto; margin-right: auto;">` : ''}
-                    <h1 style="font-size: 24pt; text-align: center;">${companyName}</h1>
-                    ${companyAddress ? `<p style="text-align: center;">${companyAddress}</p>` : ''}
-                    ${companyPhone ? `<p style="text-align: center;">Tél: ${companyPhone}</p>` : ''}
-                    <hr style="margin: 10mm 0;">
-                    <p><strong>Date:</strong> ${new Date().toLocaleString('fr-FR')}</p>
-                    <p><strong>Vendeur:</strong> ${sellerName}</p>
-                    <p><strong>Client:</strong> ${clientText}</p>
-                    <p><strong>Mode de paiement:</strong> ${paymentMode === 'espece' ? 'Espèce' : 'À terme'}</p>
-                    ${paymentMode === 'a_terme' ? `<p><strong>Montant versé:</strong> ${amountPaid.toFixed(2)} DA</p>` : ''}
-                    ${soldeContent}
-                    <table style="margin-top: 10mm;">
+                    <header>
+                        ${companyLogo ? `<img src="${companyLogo}" alt="Logo" style="max-width: 50mm; margin-bottom: 5mm; float: left;">` : ''}
+                        <div class="company-info">
+                            <h1>${companyName}</h1>
+                            ${companyAddress ? `<p>${companyAddress}</p>` : ''}
+                            ${companyPhone ? `<p>Tél: ${companyPhone}</p>` : ''}
+                        </div>
+                        <div style="clear: both;"></div>
+                        <h2>Bon de Livraison</h2>
+                        <p><strong>Émis par :</strong> ${userEmail}</p>
+                        <p><strong>Vendeur :</strong> ${sellerName}</p>
+                        <p><strong>Date :</strong> ${new Date().toLocaleString('fr-FR')}</p>
+                        <p><strong>Client :</strong> ${clientText}</p>
+                        <p><strong>Mode de paiement :</strong> ${paymentMode === 'espece' ? 'Espèce' : 'À terme'}</p>
+                        ${paymentMode === 'a_terme' ? `<p><strong>Montant versé :</strong> ${amountPaid.toFixed(2)} DA</p>` : ''}
+                        ${soldeContent}
+                    </header>
+                    <table>
                         <thead>
                             <tr>
                                 <th>ID</th>
                                 <th>Produit</th>
-                                <th>Qté</th>
-                                <th>Prix U.</th>
-                                <th>Total</th>
+                                <th>Quantité</th>
+                                <th>Prix Unitaire</th>
+                                <th>Prix Total</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1559,8 +1466,8 @@
                         <td>${ligne.numero_item || 'N/A'}</td>
                         <td>${ligne.designation || 'N/A'}</td>
                         <td>${parseFloat(ligne.quantite).toFixed(2)}</td>
-                        <td>${parseFloat(ligne.remarque || 0).toFixed(2)}</td>
-                        <td>${parseFloat(ligne.prixt || 0).toFixed(2)}</td>
+                        <td>${parseFloat(ligne.remarque || 0).toFixed(2)} DA</td>
+                        <td>${parseFloat(ligne.prixt || 0).toFixed(2)} DA</td>
                     </tr>
                 `;
             });
@@ -1568,8 +1475,13 @@
             ticketContent += `
                         </tbody>
                     </table>
-                    <p class="total">Total: ${total} DA</p>
-                    <p style="text-align: center; margin-top: 10mm;">Merci de votre achat !</p>
+                    <div class="total-section">
+                        <p><strong>Total :</strong> ${total} DA</p>
+                    </div>
+                    <footer>
+                        <p>Merci de votre achat !</p>
+                        ${companyAddress || companyPhone ? `<p>Contact : ${companyName} | ${companyPhone ? `Tél : ${companyPhone} | ` : ''}${companyAddress ? `Adresse : ${companyAddress}` : ''}</p>` : ''}
+                    </footer>
                 </div>
             `;
 
@@ -1582,93 +1494,160 @@
             printWindow.document.write(`
                 <html>
                     <head>
-                        <title>Aperçu Impression A4 - ${companyName}</title>
+                        <title>Bon de Livraison A4 - ${companyName}</title>
                         <style>
+                            @page { size: A4; margin: 20mm; }
                             body {
-                                margin: 20mm;
+                                margin: 0;
+                                padding: 0;
                                 font-family: Arial, sans-serif;
-                                font-size: 12pt;
-                                line-height: 1.5;
-                                color: #000;
+                                color: #333;
                             }
                             .printable {
                                 width: 190mm;
                                 margin: 0 auto;
+                                padding: 10mm;
+                                background: #fff;
+                                border: 1mm solid #ddd;
+                                box-shadow: 0 0 5mm rgba(0,0,0,0.1);
                             }
-                            .printable table {
+                            header {
+                                margin-bottom: 10mm;
+                                border-bottom: 1mm solid #ddd;
+                                padding-bottom: 5mm;
+                            }
+                            .company-info {
+                                text-align: right;
+                            }
+                            header h1 {
+                                font-size: 24pt;
+                                color: #4f46e5;
+                                margin: 0;
+                            }
+                            header h2 {
+                                font-size: 18pt;
+                                color: #333;
+                                margin-top: 5mm;
+                            }
+                            header p {
+                                margin: 2mm 0;
+                                font-size: 12pt;
+                            }
+                            table {
                                 width: 100%;
                                 border-collapse: collapse;
-                                margin-bottom: 10mm;
+                                margin: 10mm 0;
                             }
-                            .printable th, .printable td {
-                                border: 1mm solid #000;
+                            th, td {
+                                border: 0.5mm solid #ddd;
                                 padding: 3mm;
                                 text-align: left;
+                                font-size: 10pt;
                             }
-                            .printable th {
-                                background-color: #f0f0f0;
+                            th {
+                                background: #f8f8f8;
                                 font-weight: bold;
                             }
-                            .printable .total {
-                                font-size: 16pt;
-                                font-weight: bold;
+                            .total-section {
                                 text-align: right;
                                 margin-top: 10mm;
+                                font-size: 14pt;
+                            }
+                            footer {
+                                margin-top: 10mm;
+                                text-align: center;
+                                font-size: 10pt;
+                                color: #666;
+                                border-top: 1mm solid #ddd;
+                                padding-top: 5mm;
+                            }
+                            footer p {
+                                margin: 2mm 0;
+                            }
+                            .print-controls {
+                                text-align: center;
+                                margin-top: 10mm;
+                            }
+                            .print-controls button {
+                                padding: 5mm 10mm;
+                                margin: 0 5mm;
+                                font-size: 12pt;
+                                cursor: pointer;
+                                border: none;
+                                border-radius: 5mm;
                             }
                             @media print {
                                 body {
                                     margin: 0;
+                                    padding: 0;
+                                }
+                                .print-controls {
+                                    display: none;
+                                }
+                                .printable {
+                                    box-shadow: none;
+                                    border: none;
                                 }
                             }
                         </style>
                     </head>
-                    <body onload="window.print(); setTimeout(() => window.close(), 1000);">
+                    <body>
                         ${ticketContent}
+                        <div class="print-controls">
+                            <button onclick="window.print(); window.close();" style="background-color: #4CAF50; color: white;">Imprimer</button>
+                            <button onclick="window.close();" style="background-color: #f44336; color: white;">Annuler</button>
+                        </div>
                     </body>
                 </html>
             `);
             printWindow.document.close();
         }
 
-        let scanner = null;
+        let scannerStream = null;
 
-        function startScanner() {
+        async function startScanner() {
             console.log('Démarrage du scanner...');
             const scannerPreview = document.getElementById('scannerPreview');
             const scannerOverlay = document.getElementById('scannerOverlay');
+            const closeScannerButton = document.getElementById('closeScannerButton');
 
-            scannerPreview.style.display = 'block';
-            scannerOverlay.style.display = 'block';
-
-            scanner = new Instascan.Scanner({
-                video: scannerPreview,
-                mirror: false,
-                backgroundScan: false
-            });
-
-            scanner.addListener('scan', content => {
-                console.log('Code scanné:', content);
-                document.getElementById('productBar').value = content;
-                stopScanner();
-                chercherProduitParCodeBarres(content);
-            });
-
-            Instascan.Camera.getCameras()
-                .then(cameras => {
-                    if (cameras.length > 0) {
-                        scanner.start(cameras[cameras.length - 1]);
-                    } else {
-                        showToast('Aucune caméra détectée', true);
-                        stopScanner();
-                    }
-                })
-                .catch(err => {
-                    console.error('Erreur caméra:', err);
-                    showToast('Erreur d\'accès à la caméra', true);
-                    stopScanner();
+            try {
+                scannerStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' }
                 });
+                scannerPreview.srcObject = scannerStream;
+                scannerPreview.style.display = 'block';
+                scannerOverlay.style.display = 'block';
 
-            document.getElementById('closeScannerButton').onclick = stopScanner;
+                closeScannerButton.onclick = stopScanner;
+
+                const barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
+                let scanning = true;
+
+                async function scan() {
+                    if (!scanning || !scannerStream) return;
+
+                    try {
+                        const barcodes = await barcodeDetector.detect(scannerPreview);
+                        if (barcodes.length > 0) {
+                            const barcode = barcodes[0].rawValue;
+                            console.log('Code-barres détecté:', barcode);
+                            document.getElementById('productBar').value = barcode;
+                            stopScanner();
+                            handleBarcodeInput(barcode);
+                            return;
+                        }
+                    } catch (error) {
+                        console.error('Erreur lors de la détection du code-barres:', error);
+                    }
+                    requestAnimationFrame(scan);
+                }
+
+                scan();
+            } catch (error) {
+                console.error('Erreur démarrage scanner:', error);
+                showToast('Erreur d\'accès à la caméra: ' + error.message, true);
+            }
         }
 
         function stopScanner() {
@@ -1676,57 +1655,65 @@
             const scannerPreview = document.getElementById('scannerPreview');
             const scannerOverlay = document.getElementById('scannerOverlay');
 
-            if (scanner) {
-                scanner.stop();
-                scanner = null;
+            if (scannerStream) {
+                scannerStream.getTracks().forEach(track => track.stop());
+                scannerStream = null;
             }
 
             scannerPreview.style.display = 'none';
             scannerOverlay.style.display = 'none';
         }
 
-        function chercherProduitParCodeBarres(barcode) {
-            console.log('Recherche produit par code-barres:', barcode);
-            const produit = produitsCache.find(p => p.BAR.toString() === barcode.toString());
-            if (produit) {
-                selectProduct(
-                    produit.NUMERO_ITEM,
-                    produit.BAR,
-                    produit.PRIX,
-                    produit.PRIXBA,
-                    produit.QTE,
-                    produit.DESIGNATION
-                );
-                document.getElementById('productBar').value = '';
-            } else {
+        function handleBarcodeInput(barcode) {
+            console.log('Traitement code-barres:', barcode);
+            const produit = produitsCache.find(p => p.BAR.toString() === barcode);
+            if (!produit) {
                 showToast('Produit non trouvé pour ce code-barres', true);
+                return;
             }
+
+            selectProduct(
+                produit.NUMERO_ITEM,
+                produit.BAR,
+                produit.PRIX,
+                produit.PRIXBA,
+                produit.QTE,
+                produit.DESIGNATION
+            );
         }
 
-        document.getElementById('productBar').addEventListener('keypress', e => {
-            if (e.key === 'Enter') {
-                const barcode = e.target.value.trim();
-                if (barcode) {
-                    chercherProduitParCodeBarres(barcode);
-                } else {
-                    showToast('Veuillez entrer un code-barres', true);
-                }
+        document.getElementById('productBar').addEventListener('change', (event) => {
+            const barcode = event.target.value.trim();
+            if (barcode) {
+                handleBarcodeInput(barcode);
+                event.target.value = '';
             }
         });
 
-        document.getElementById('searchProduct').addEventListener('input', e => {
-            const query = e.target.value.toLowerCase();
-            console.log('Recherche produit:', query);
-            const filteredProducts = produitsCache.filter(p =>
-                p.DESIGNATION.toLowerCase().includes(query) ||
-                p.BAR.toString().includes(query)
+        document.getElementById('searchProduct').addEventListener('input', (event) => {
+            const searchTerm = event.target.value.trim().toLowerCase();
+            console.log('Recherche produit:', searchTerm);
+            const tbody = document.getElementById('productsList');
+            const countElement = document.getElementById('productCount');
+
+            if (!searchTerm) {
+                chargerProduits();
+                return;
+            }
+
+            const filteredProducts = produitsCache.filter(produit =>
+                produit.DESIGNATION.toLowerCase().includes(searchTerm) ||
+                produit.BAR.toString().includes(searchTerm)
             );
 
-            const tbody = document.getElementById('productsList');
-            tbody.innerHTML = filteredProducts.length === 0
-                ? '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>'
-                : '';
+            if (filteredProducts.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
+                countElement.textContent = '0';
+                countElement.classList.remove('hidden');
+                return;
+            }
 
+            tbody.innerHTML = '';
             filteredProducts.forEach(produit => {
                 const stockStatus = produit.QTE <= 0 ? 'Rupture' : produit.QTE <= 5 ? 'Stock faible' : produit.QTE.toFixed(2);
                 const stockClass = produit.QTE <= 0 ? 'stock-rupture' : produit.QTE <= 5 ? 'stock-faible' : '';
@@ -1749,10 +1736,11 @@
                 tbody.appendChild(tr);
             });
 
-            document.getElementById('productCount').textContent = filteredProducts.length;
-            document.getElementById('productCount').classList.remove('hidden');
+            countElement.textContent = filteredProducts.length;
+            countElement.classList.remove('hidden');
         });
     </script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/instascan/1.0.0/instascan.min.js"></script>
 </body>
 </html>
+                               
+                         
