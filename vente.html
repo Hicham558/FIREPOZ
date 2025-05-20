@@ -510,7 +510,76 @@
             }
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
+        async function chargerVentePourModification(numeroComande, nature) {
+            console.log('Chargement de la vente pour modification:', numeroComande, nature);
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour modifier une vente', true);
+                window.location.href = 'index.html';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/vente/${numeroComande}?nature=${nature}`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                const vente = await response.json();
+                console.log('Données de la vente récupérées:', vente);
+
+                // Mettre à jour les champs du formulaire
+                document.getElementById('saleClientId').value = vente.numero_table || '0';
+                document.getElementById('paymentMode').value = vente.payment_mode || 'espece';
+                document.getElementById('amountPaid').value = vente.amount_paid || '';
+                togglePaymentForm();
+
+                // Vider tempSaleLines et remplir avec les lignes de la vente
+                tempSaleLines = [];
+                vente.lignes.forEach(ligne => {
+                    tempSaleLines.push({
+                        numero_item: parseInt(ligne.numero_item),
+                        produit_bar: ligne.produit_bar || '',
+                        designation: ligne.designation || 'N/A',
+                        quantite: parseFloat(ligne.quantite).toFixed(2),
+                        prixt: parseFloat(ligne.prixt).toFixed(2),
+                        remarque: parseFloat(ligne.remarque || ligne.prixt / ligne.quantite).toFixed(2),
+                        prixbh: parseFloat(ligne.prixbh) || 0
+                    });
+                });
+
+                // Mettre à jour l'affichage
+                updateTempSalesTable();
+                updateValidateButton();
+
+                // Mettre à jour le titre de la section
+                document.querySelector('#salesSection h2').textContent = `Modification de la vente #${numeroComande} (${nature})`;
+
+                showToast(`Vente #${numeroComande} chargée pour modification`);
+            } catch (error) {
+                showToast(`Erreur lors du chargement de la vente: ${error.message}`, true);
+                console.error('Erreur chargement vente:', error);
+                resetForm();
+            }
+        }
+
+        function initialiserModeCreation() {
+            console.log('Initialisation mode création');
+            tempSaleLines = [];
+            document.getElementById('saleClientId').value = '0';
+            document.getElementById('paymentMode').value = 'espece';
+            document.getElementById('amountPaid').value = '';
+            editMode = false;
+            currentNumeroComande = null;
+            togglePaymentForm();
+            updateTempSalesTable();
+            updateValidateButton();
+            document.querySelector('#salesSection h2').textContent = 'Ventes';
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
             console.log('Page chargée, vérification utilisateur...');
             const userId = localStorage.getItem('userId');
             const userEmail = localStorage.getItem('userEmail');
@@ -520,7 +589,24 @@
                 document.getElementById('userDisplay').classList.remove('hidden');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
                 document.getElementById('sellerSelect').disabled = true;
-                chargerUtilisateurs().then(() => {
+
+                // Vérifier les paramètres d'URL pour le mode modification
+                const urlParams = new URLSearchParams(window.location.search);
+                const isEditMode = urlParams.get('edit') === 'true';
+                const numeroComande = urlParams.get('numero_comande');
+                const nature = urlParams.get('nature');
+
+                console.log('Paramètres URL:', { isEditMode, numeroComande, nature });
+
+                if (isEditMode && numeroComande && nature) {
+                    editMode = true;
+                    currentNumeroComande = numeroComande;
+                    await chargerVentePourModification(numeroComande, nature);
+                } else {
+                    initialiserModeCreation();
+                }
+
+                await chargerUtilisateurs().then(() => {
                     const storedSeller = localStorage.getItem('selectedSeller');
                     if (storedSeller) {
                         const { numero_util, nom } = JSON.parse(storedSeller);
@@ -552,7 +638,7 @@
                 });
                 chargerClients();
                 chargerProduits();
-                updateValidateButton(); // Initialiser le bouton en mode normal
+                updateValidateButton();
             } else {
                 console.log('Aucun utilisateur connecté, redirection vers index.html');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
@@ -1104,10 +1190,13 @@
                 }))
             };
 
+            if (editMode) {
+                venteData.numero_comande = currentNumeroComande;
+            }
+
             try {
                 let response;
                 if (editMode) {
-                    // Mode modification
                     response = await fetch(`${API_BASE_URL}/modifier_vente/${currentNumeroComande}`, {
                         method: 'PUT',
                         headers: {
@@ -1117,7 +1206,6 @@
                         body: JSON.stringify(venteData)
                     });
                 } else {
-                    // Mode création
                     response = await fetch(`${API_BASE_URL}/valider_vente`, {
                         method: 'POST',
                         headers: {
@@ -1140,6 +1228,7 @@
 
                 showToast(editMode ? `Vente #${result.numero_comande} modifiée avec succès` : `Vente #${result.numero_comande} validée avec succès`);
                 resetForm();
+                window.location.href = 'ventes_achats.html'; // Rediriger après succès
             } catch (error) {
                 console.error(`Erreur ${editMode ? 'modification' : 'validation'} vente:`, error);
                 showToast(`Erreur ${editMode ? 'modification' : 'validation'} vente: ${error.message}`, true);
@@ -1156,8 +1245,7 @@
             togglePaymentForm();
             updateTempSalesTable();
             updateValidateButton();
-            chargerProduits();
-            chargerClients();
+            document.querySelector('#salesSection h2').textContent = 'Ventes';
         }
 
         function holdSale() {
@@ -1373,48 +1461,39 @@
                             .printable p, .printable table {
                                 margin-bottom: 3mm;
                             }
-                            .printable table {
+                       .printable table {
                                 width: 100%;
                                 border-collapse: collapse;
                             }
                             .printable th, .printable td {
                                 border: 0.5mm solid #000;
-                                padding: 1mm;
-                                font-size: 8pt;
+                                padding: 1.5mm;
                                 text-align: left;
+                                font-size: 9pt;
+                            }
+                            .printable th {
+                                background-color: #f0f0f0;
+                                font-weight: bold;
                             }
                             .printable .total {
+                                font-size: 12pt;
                                 font-weight: bold;
-                                font-size: 10pt;
+                                margin-top: 3mm;
                                 text-align: right;
-                            }
-                            .print-controls {
-                                text-align: center;
-                                margin-top: 10mm;
-                            }
-                            .print-controls button {
-                                padding: 5mm 10mm;
-                                margin: 0 5mm;
-                                font-size: 10pt;
-                                cursor: pointer;
                             }
                             @media print {
                                 body {
                                     margin: 0;
                                     padding: 0;
                                 }
-                                .print-controls {
-                                    display: none;
+                                .printable {
+                                    box-shadow: none;
                                 }
                             }
                         </style>
                     </head>
-                    <body>
+                    <body onload="window.print(); setTimeout(() => window.close(), 1000);">
                         ${ticketContent}
-                        <div class="print-controls">
-                            <button onclick="window.print(); window.close();" style="background-color: #4CAF50; color: white; border: none; border-radius: 5mm;">Imprimer</button>
-                            <button onclick="window.close();" style="background-color: #f44336; color: white; border: none; border-radius: 5mm;">Annuler</button>
-                        </div>
                     </body>
                 </html>
             `);
@@ -1440,7 +1519,6 @@
             const paymentMode = document.getElementById('paymentMode').value;
             const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
             const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0).toFixed(2);
-            const userEmail = localStorage.getItem('userEmail') || 'Utilisateur inconnu';
             const storedSeller = localStorage.getItem('selectedSeller');
             const sellerName = storedSeller ? JSON.parse(storedSeller).nom : 'Non spécifié';
             let soldeContent = '';
@@ -1450,37 +1528,31 @@
                 const soldeAvant = client ? parseFloat(client.solde) || 0 : 0;
                 const soldeApres = soldeAvant + (amountPaid - parseFloat(total));
                 soldeContent = `
-                    <p><strong>Solde avant vente :</strong> ${soldeAvant.toFixed(2)} DA</p>
-                    <p><strong>Solde après vente :</strong> ${soldeApres.toFixed(2)} DA</p>
+                    <p><strong>Solde avant vente:</strong> ${soldeAvant.toFixed(2)} DA</p>
+                    <p><strong>Solde après vente:</strong> ${soldeApres.toFixed(2)} DA</p>
                 `;
             }
 
             let ticketContent = `
                 <div class="printable">
-                    <header>
-                        ${companyLogo ? `<img src="${companyLogo}" alt="Logo" style="max-width: 50mm; margin-bottom: 5mm; float: left;">` : ''}
-                        <div class="company-info">
-                            <h1>${companyName}</h1>
-                            ${companyAddress ? `<p>${companyAddress}</p>` : ''}
-                            ${companyPhone ? `<p>Tél: ${companyPhone}</p>` : ''}
-                        </div>
-                        <div style="clear: both;"></div>
-                        <h2>Bon de Livraison</h2>
-                        <p><strong>Émis par :</strong> ${userEmail}</p>
-                        <p><strong>Vendeur :</strong> ${sellerName}</p>
-                        <p><strong>Date :</strong> ${new Date().toLocaleString('fr-FR')}</p>
-                        <p><strong>Client :</strong> ${clientText}</p>
-                        <p><strong>Mode de paiement :</strong> ${paymentMode === 'espece' ? 'Espèce' : 'À terme'}</p>
-                   ${paymentMode === 'a_terme' ? `<p><strong>Montant versé :</strong> ${amountPaid.toFixed(2)} DA</p>` : ''}
-                        ${soldeContent}
-                    </header>
-                    <table>
+                    ${companyLogo ? `<img src="${companyLogo}" alt="Logo" style="max-width: 150mm; margin-bottom: 10mm; display: block; margin-left: auto; margin-right: auto;">` : ''}
+                    <h1 style="font-size: 24pt; text-align: center;">${companyName}</h1>
+                    ${companyAddress ? `<p style="text-align: center;">${companyAddress}</p>` : ''}
+                    ${companyPhone ? `<p style="text-align: center;">Tél: ${companyPhone}</p>` : ''}
+                    <hr style="margin: 10mm 0;">
+                    <p><strong>Date:</strong> ${new Date().toLocaleString('fr-FR')}</p>
+                    <p><strong>Vendeur:</strong> ${sellerName}</p>
+                    <p><strong>Client:</strong> ${clientText}</p>
+                    <p><strong>Mode de paiement:</strong> ${paymentMode === 'espece' ? 'Espèce' : 'À terme'}</p>
+                    ${paymentMode === 'a_terme' ? `<p><strong>Montant versé:</strong> ${amountPaid.toFixed(2)} DA</p>` : ''}
+                    ${soldeContent}
+                    <table style="margin-top: 10mm;">
                         <thead>
                             <tr>
                                 <th>ID</th>
                                 <th>Produit</th>
-                                <th>Quantité</th>
-                                <th>Prix Unitaire</th>
+                                <th>Qté</th>
+                                <th>Prix U.</th>
                                 <th>Total</th>
                             </tr>
                         </thead>
@@ -1502,12 +1574,8 @@
             ticketContent += `
                         </tbody>
                     </table>
-                    <footer>
-                        <p class="total">Total: ${total} DA</p>
-                        ${paymentMode === 'a_terme' && amountPaid > 0 ? `<p>Montant versé: ${amountPaid.toFixed(2)} DA</p>` : ''}
-                        ${paymentMode === 'a_terme' ? `<p>Reste à payer: ${(parseFloat(total) - amountPaid).toFixed(2)} DA</p>` : ''}
-                        <p class="thank-you">Merci de votre achat !</p>
-                    </footer>
+                    <p class="total">Total: ${total} DA</p>
+                    <p style="text-align: center; margin-top: 10mm;">Merci de votre achat !</p>
                 </div>
             `;
 
@@ -1520,155 +1588,93 @@
             printWindow.document.write(`
                 <html>
                     <head>
-                        <title>Bon de Livraison A4 - ${companyName}</title>
+                        <title>Aperçu Impression A4 - ${companyName}</title>
                         <style>
                             body {
-                                margin: 0;
-                                padding: 20mm;
-                                background: #fff;
+                                margin: 20mm;
                                 font-family: Arial, sans-serif;
                                 font-size: 12pt;
                                 line-height: 1.5;
                                 color: #000;
                             }
                             .printable {
-                                max-width: 210mm;
+                                width: 190mm;
                                 margin: 0 auto;
-                                box-shadow: 0 0 10mm rgba(0, 0, 0, 0.1);
                             }
-                            header {
-                                border-bottom: 1mm solid #000;
-                                padding-bottom: 5mm;
-                                margin-bottom: 10mm;
-                            }
-                            .company-info {
-                                float: right;
-                                text-align: right;
-                            }
-                            h1 {
-                                font-size: 18pt;
-                                margin: 0;
-                            }
-                            h2 {
-                                font-size: 16pt;
-                                margin: 5mm 0;
-                                text-align: center;
-                            }
-                            p {
-                                margin: 2mm 0;
-                            }
-                            table {
+                            .printable table {
                                 width: 100%;
                                 border-collapse: collapse;
-                                margin: 10mm 0;
+                                margin-bottom: 10mm;
                             }
-                            th, td {
-                                border: 0.5mm solid #000;
+                            .printable th, .printable td {
+                                border: 1mm solid #000;
                                 padding: 3mm;
                                 text-align: left;
                             }
-                            th {
-                                background-color: #f5f5f5;
+                            .printable th {
+                                background-color: #f0f0f0;
                                 font-weight: bold;
                             }
-                            .total {
+                            .printable .total {
+                                font-size: 16pt;
                                 font-weight: bold;
-                                font-size: 14pt;
                                 text-align: right;
-                                margin-top: 5mm;
-                            }
-                            .thank-you {
-                                text-align: center;
                                 margin-top: 10mm;
-                                font-style: italic;
-                            }
-                            .print-controls {
-                                text-align: center;
-                                margin-top: 20mm;
-                            }
-                            .print-controls button {
-                                padding: 10mm 20mm;
-                                margin: 0 10mm;
-                                font-size: 12pt;
-                                cursor: pointer;
                             }
                             @media print {
                                 body {
                                     margin: 0;
-                                    padding: 0;
-                                }
-                                .print-controls {
-                                    display: none;
                                 }
                             }
                         </style>
                     </head>
-                    <body>
+                    <body onload="window.print(); setTimeout(() => window.close(), 1000);">
                         ${ticketContent}
-                        <div class="print-controls">
-                            <button onclick="window.print(); window.close();" style="background-color: #4CAF50; color: white; border: none; border-radius: 5mm;">Imprimer</button>
-                            <button onclick="window.close();" style="background-color: #f44336; color: white; border: none; border-radius: 5mm;">Annuler</button>
-                        </div>
                     </body>
                 </html>
             `);
             printWindow.document.close();
         }
 
-        let scannerStream = null;
+        let scanner = null;
 
-        async function startScanner() {
+        function startScanner() {
             console.log('Démarrage du scanner...');
             const scannerPreview = document.getElementById('scannerPreview');
             const scannerOverlay = document.getElementById('scannerOverlay');
-            const closeScannerButton = document.getElementById('closeScannerButton');
 
-            try {
-                scannerStream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment' }
+            scannerPreview.style.display = 'block';
+            scannerOverlay.style.display = 'block';
+
+            scanner = new Instascan.Scanner({
+                video: scannerPreview,
+                mirror: false,
+                backgroundScan: false
+            });
+
+            scanner.addListener('scan', content => {
+                console.log('Code scanné:', content);
+                document.getElementById('productBar').value = content;
+                stopScanner();
+                chercherProduitParCodeBarres(content);
+            });
+
+            Instascan.Camera.getCameras()
+                .then(cameras => {
+                    if (cameras.length > 0) {
+                        scanner.start(cameras[cameras.length - 1]);
+                    } else {
+                        showToast('Aucune caméra détectée', true);
+                        stopScanner();
+                    }
+                })
+                .catch(err => {
+                    console.error('Erreur caméra:', err);
+                    showToast('Erreur d\'accès à la caméra', true);
+                    stopScanner();
                 });
-                scannerPreview.srcObject = scannerStream;
-                scannerPreview.style.display = 'block';
-                scannerOverlay.style.display = 'block';
 
-                const barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
-
-                async function scan() {
-                    if (scannerPreview.readyState === scannerPreview.HAVE_ENOUGH_DATA) {
-                        const canvas = document.createElement('canvas');
-                        canvas.width = scannerPreview.videoWidth;
-                        canvas.height = scannerPreview.videoHeight;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(scannerPreview, 0, 0, canvas.width, canvas.height);
-
-                        try {
-                            const barcodes = await barcodeDetector.detect(canvas);
-                            if (barcodes.length > 0) {
-                                const barcode = barcodes[0].rawValue;
-                                console.log('Code-barres détecté:', barcode);
-                                stopScanner();
-                                document.getElementById('productBar').value = barcode;
-                                handleBarcode(barcode);
-                            }
-                        } catch (err) {
-                            console.error('Erreur détection code-barres:', err);
-                        }
-                    }
-                    if (scannerPreview.style.display === 'block') {
-                        requestAnimationFrame(scan);
-                    }
-                }
-
-                scannerPreview.play();
-                scan();
-            } catch (err) {
-                console.error('Erreur accès caméra:', err);
-                showToast('Impossible d\'accéder à la caméra: ' + err.message, true);
-                scannerPreview.style.display = 'none';
-                scannerOverlay.style.display = 'none';
-            }
-
-            closeScannerButton.onclick = stopScanner;
+            document.getElementById('closeScannerButton').onclick = stopScanner;
         }
 
         function stopScanner() {
@@ -1676,61 +1682,56 @@
             const scannerPreview = document.getElementById('scannerPreview');
             const scannerOverlay = document.getElementById('scannerOverlay');
 
-            if (scannerStream) {
-                scannerStream.getTracks().forEach(track => track.stop());
-                scannerStream = null;
+            if (scanner) {
+                scanner.stop();
+                scanner = null;
             }
+
             scannerPreview.style.display = 'none';
             scannerOverlay.style.display = 'none';
         }
 
-        function handleBarcode(barcode) {
-            console.log('Traitement du code-barres:', barcode);
-            const produit = produitsCache.find(p => p.BAR === parseInt(barcode));
-            if (!produit) {
+        function chercherProduitParCodeBarres(barcode) {
+            console.log('Recherche produit par code-barres:', barcode);
+            const produit = produitsCache.find(p => p.BAR.toString() === barcode.toString());
+            if (produit) {
+                selectProduct(
+                    produit.NUMERO_ITEM,
+                    produit.BAR,
+                    produit.PRIX,
+                    produit.PRIXBA,
+                    produit.QTE,
+                    produit.DESIGNATION
+                );
+                document.getElementById('productBar').value = '';
+            } else {
                 showToast('Produit non trouvé pour ce code-barres', true);
-                return;
             }
-
-            if (produit.QTE <= 0) {
-                showToast('Stock insuffisant pour ce produit', true);
-                return;
-            }
-
-            selectProduct(
-                produit.NUMERO_ITEM,
-                produit.BAR,
-                produit.PRIX,
-                produit.PRIXBA,
-                produit.QTE,
-                produit.DESIGNATION
-            );
         }
 
-        document.getElementById('productBar').addEventListener('keypress', (e) => {
+        document.getElementById('productBar').addEventListener('keypress', e => {
             if (e.key === 'Enter') {
                 const barcode = e.target.value.trim();
                 if (barcode) {
-                    handleBarcode(barcode);
-                    e.target.value = '';
+                    chercherProduitParCodeBarres(barcode);
+                } else {
+                    showToast('Veuillez entrer un code-barres', true);
                 }
             }
         });
 
-        document.getElementById('searchProduct').addEventListener('input', (e) => {
-            const searchTerm = e.target.value.toLowerCase();
-            const tbody = document.getElementById('productsList');
-            tbody.innerHTML = '';
-
-            const filteredProducts = produitsCache.filter(produit =>
-                produit.DESIGNATION.toLowerCase().includes(searchTerm) ||
-                produit.BAR.toString().includes(searchTerm)
+        document.getElementById('searchProduct').addEventListener('input', e => {
+            const query = e.target.value.toLowerCase();
+            console.log('Recherche produit:', query);
+            const filteredProducts = produitsCache.filter(p =>
+                p.DESIGNATION.toLowerCase().includes(query) ||
+                p.BAR.toString().includes(query)
             );
 
-            if (filteredProducts.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
-                return;
-            }
+            const tbody = document.getElementById('productsList');
+            tbody.innerHTML = filteredProducts.length === 0
+                ? '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>'
+                : '';
 
             filteredProducts.forEach(produit => {
                 const stockStatus = produit.QTE <= 0 ? 'Rupture' : produit.QTE <= 5 ? 'Stock faible' : produit.QTE.toFixed(2);
@@ -1756,16 +1757,7 @@
 
             document.getElementById('productCount').textContent = filteredProducts.length;
         });
-
-        // Gestion du clic hors du modal pour le fermer
-        document.getElementById('pendingSalesModal').addEventListener('click', (e) => {
-            if (e.target === document.getElementById('pendingSalesModal')) {
-                closePendingSalesModal();
-            }
-        });
-
-        // Gestion du clic sur l'overlay du scanner pour le fermer
-        document.getElementById('scannerOverlay').addEventListener('click', stopScanner);
     </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/instascan/1.0.0/instascan.min.js"></script>
 </body>
 </html>
