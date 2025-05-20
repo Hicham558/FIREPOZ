@@ -3,530 +3,557 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion des Versements</title>
+    <title>Ventes & Achats</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        .password-input-container {
-            position: relative;
-            display: inline-block;
-        }
-        .password-toggle {
-            position: absolute;
-            right: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            cursor: pointer;
-        }
         @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes userPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        @keyframes countPulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        @keyframes totalPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
         @keyframes smoothBlink { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
         .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
+        .animate-pulse { animation: pulse 2s infinite ease-in-out; }
         .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
+        .animate-total-pulse { animation: totalPulse 1.5s ease-in-out; }
+        #dailySalesSection { animation-delay: 0.3s; }
+        #dailyPurchasesSection { animation-delay: 0.4s; }
+        #topArticlesSection { animation-delay: 0.5s; }
+        #profitSection { animation-delay: 0.7s; }
+        #stockValueSection { animation-delay: 0.9s; }
+        footer { animation-delay: 1s; }
+        .user-anim { animation: userPulse 1.5s infinite ease-in-out; }
+        .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
         .seller-anim { animation: smoothBlink 1.5s infinite ease-in-out; }
-        .user-anim { animation: smoothBlink 1.5s infinite ease-in-out; }
         .small-email { font-size: 0.75rem; line-height: 1rem; }
-        .solde-negatif { color: red; font-size: 0.75rem; }
-        .solde-positif { color: black; font-size: 0.75rem; }
-        select, input {
-            transition: all 0.3s ease;
+        .total-large {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #4f46e5;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
         }
-        select:focus, input:focus {
-            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
-        }
-        select option {
-            padding: 8px;
-            background: #fff;
-            color: #333;
-        }
-        .table-container {
+        #dailySalesContent .table-container,
+        #dailyPurchasesContent .table-container {
             max-height: 300px;
             overflow-y: auto;
             overflow-x: auto;
         }
-        .table-container table {
+        #dailySalesContent .table-container table,
+        #dailyPurchasesContent .table-container table {
             width: 100%;
         }
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-        .modal-content {
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            width: 90%;
+        #topArticlesContent .chart-container,
+        #profitContent .chart-container {
             max-width: 500px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin: 0 auto;
+        }
+        .flatpickr-input, select {
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            padding: 0.5rem 2.5rem 0.5rem 0.75rem;
+            width: 100%;
+            background: white;
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke%3D%22%236B7280%22%3E%3Cpath%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%222%22%20d%3D%22M19%209l-7%207-7-7%22%2F%3E%3C%2Fsvg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 1.5em;
+            transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            color: #1f2937;
+        }
+        .flatpickr-input:focus, select:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+        }
+        select:disabled {
+            background-color: #f3f4f6;
+            cursor: not-allowed;
+        }
+        .action-button {
+            display: inline-block !important;
+            visibility: visible !important;
+            margin-right: 0.5rem;
+        }
+        @media print and (min-width: 210mm) {
+            body * { visibility: hidden; }
+            #printAreaA4, #printAreaA4 *, #printAreaPurchasesA4, #printAreaPurchasesA4 * { visibility: visible; }
+            #printAreaA4, #printAreaPurchasesA4 {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 210mm;
+                font-size: 12pt;
+            }
+            .table-container { max-height: none; overflow: visible; }
+            table { page-break-inside: auto; }
+            tr { page-break-inside: avoid; page-break-after: auto; }
+            .no-print { display: none; }
+        }
+        @media print and (max-width: 80mm) {
+            body * { visibility: hidden; }
+            #printAreaTicket, #printAreaTicket *, #printAreaPurchaseTicket, #printAreaPurchaseTicket * { visibility: visible; }
+            #printAreaTicket, #printAreaPurchaseTicket {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 80mm;
+                font-size: 10pt;
+                line-height: 1.2;
+            }
+            .no-print { display: none; }
         }
     </style>
 </head>
 <body class="bg-gray-100">
-    <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-slide-in">
+    <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-slide-in no-print">
         <div class="container mx-auto flex justify-between items-center">
             <div class="flex flex-col">
                 <h1 class="text-2xl font-bold flex items-center">
-                    <i class="fas fa-fire mr-2 text-amber-400"></i> FirePoz
+                    <i class="fas fa-fire mr-2 text-amber-400 animate-pulse"></i> FirePoz
                 </h1>
                 <span id="userDisplay" class="small-email user-anim hidden"></span>
+                <span id="selectedSellerDisplay" class="small-email hidden"></span>
             </div>
             <div class="space-x-4 flex items-center">
+                <a href="vente.html" class="hover:text-indigo-200 transition flex items-center">
+                    <i class="fas fa-shopping-cart mr-1"></i> Ventes
+                </a>
                 <a href="index.html" class="hover:text-indigo-200 transition flex items-center">
                     <i class="fas fa-home mr-1"></i> Accueil
                 </a>
                 <button id="loginLogoutButton" onclick="loginLogout()" class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition flex items-center">
-                    <i class="fas fa-sign-out-alt mr-1"></i>Déconnexion
+                    <i class="fas fa-sign-out-alt mr-1"></i> Déconnexion
                 </button>
             </div>
         </div>
     </nav>
 
-    <div class="container mx-auto px-4 pt-20">
-        <!-- Section vendeur -->
-        <div id="sellerSection" class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8">
-            <div class="p-6 cursor-pointer" onclick="toggleSection('sellerSection')">
-                <div class="flex justify-between items-center">
-                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-user mr-2 text-indigo-500"></i> Sélection du Vendeur
-                    </h2>
-                    <button class="text-gray-600 hover:text-gray-800 transition">
-                        <i class="fas fa-chevron-down" id="sellerChevron"></i>
-                    </button>
-                </div>
-                <div class="mt-2">
-                    <span class="text-sm font-medium text-gray-700">Vendeur: </span>
-                    <span id="headerSellerName" class="text-sm text-indigo-600 seller-anim">-</span>
-                </div>
+    <div class="container mx-auto px-4 py-16 mt-16">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-indigo-700">Ventes & Achats</h1>
+            <p class="text-gray-600 flex items-center">
+                <i class="fas fa-calendar-day mr-2 text-indigo-500"></i> Résumé des ventes et achats
+            </p>
+        </header>
+
+        <div class="mb-6 flex flex-col md:flex-row gap-4 no-print">
+            <div class="relative w-full md:w-1/5">
+                <label for="dateFilter" class="text-sm font-medium text-gray-700">Date</label>
+                <input type="text" id="dateFilter" placeholder="Sélectionner une date" class="flatpickr-input mt-1" aria-describedby="dateFilterHelp">
+                <p id="dateFilterHelp" class="sr-only">Sélectionnez une date au format AAAA-MM-JJ</p>
             </div>
-            <div class="p-6 hidden" id="sellerContent">
-                <div class="flex flex-col md:flex-row gap-4 mb-4">
-                    <div class="relative w-full md:w-1/3">
-                        <span class="text-sm font-medium text-gray-700 mr-2">Vendeur: </span>
-                        <select id="sellerSelect" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300">
-                            <option value="0">Sélectionner un vendeur</option>
-                        </select>
-                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700 top-6">
-                            <i class="fas fa-chevron-down"></i>
-                        </div>
-                    </div>
-                    <div class="relative w-full md:w-1/3 password-input-container">
-                        <span class="text-sm font-medium text-gray-700 mr-2">Mot de passe: </span>
-                        <input type="password" id="sellerPassword" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Entrez le mot de passe">
-                        <i class="fas fa-eye password-toggle" id="togglePassword" onclick="togglePasswordVisibility()"></i>
-                    </div>
-                    <div class="w-full md:w-1/3">
-                        <button id="validateSellerButton" onclick="validerVendeur()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300">
-                            <i class="fas fa-check mr-2"></i>Valider
-                        </button>
-                    </div>
-                </div>
-                <div>
-                    <span class="text-sm font-medium text-gray-700">Vendeur sélectionné: </span>
-                    <span id="selectedSellerName" class="text-sm text-indigo-600 seller-anim">-</span>
-                </div>
+            <div class="relative w-full md:w-1/5">
+                <label for="clientFilter" class="text-sm font-medium text-gray-700">Client</label>
+                <select id="clientFilter" class="mt-1 block w-full" aria-label="Filtrer par client">
+                    <option value="">Tous les clients</option>
+                    <option value="0">Comptoir</option>
+                </select>
+            </div>
+            <div class="relative w-full md:w-1/5">
+                <label for="fournisseurFilter" class="text-sm font-medium text-gray-700">Fournisseur</label>
+                <select id="fournisseurFilter" class="mt-1 block w-full" aria-label="Filtrer par fournisseur">
+                    <option value="">Tous les fournisseurs</option>
+                </select>
+            </div>
+            <div class="relative w-full md:w-1/5">
+                <label for="userFilter" class="text-sm font-medium text-gray-700">Utilisateur</label>
+                <select id="userFilter" class="mt-1 block w-full" aria-label="Filtrer par utilisateur">
+                    <option value="0">Tous les utilisateurs</option>
+                </select>
+            </div>
+            <div class="relative w-full md:w-1/5 flex items-end">
+                <button onclick="printA4()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition w-full">
+                    <i class="fas fa-print mr-1"></i> Imprimer A4
+                </button>
             </div>
         </div>
 
-        <div class="mt-8">
-            <header class="mb-8">
-                <h1 class="text-3xl font-bold text-indigo-700">Gestion des Versements</h1>
-                <p class="text-gray-600 flex items-center">
-                    <i class="fas fa-money-bill-wave mr-2 text-indigo-500"></i> Versements en temps réel
-                </p>
-            </header>
-
-            <!-- Onglets -->
-            <div class="mb-4">
-                <ul class="flex border-b">
-                    <li class="mr-1">
-                        <button id="tab-clients" class="bg-white inline-block py-2 px-4 text-blue-600 font-semibold border-b-2 border-blue-600">Clients</button>
-                    </li>
-                    <li class="mr-1">
-                        <button id="tab-fournisseurs" class="bg-white inline-block py-2 px-4 text-gray-600 font-semibold">Fournisseurs</button>
-                    </li>
-                </ul>
+        <!-- Liste des Ventes -->
+        <section class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="dailySalesSection">
+            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('dailySalesSection')">
+                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                    <i class="fas fa-calendar-day mr-2 text-indigo-500"></i> Liste des Ventes
+                    <span id="dailySalesCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                </h2>
+                <button class="text-gray-600 hover:text-gray-800 transition">
+                    <i class="fas fa-chevron-down" id="dailySalesChevron"></i>
+                </button>
             </div>
-
-            <!-- Formulaire Versement -->
-            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8">
-                <div class="p-6">
-                    <h2 id="form-title" class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-plus-circle mr-2 text-indigo-500"></i> Ajouter un Versement
-                    </h2>
+            <div class="p-6 hidden" id="dailySalesContent">
+                <div class="mb-4">
+                    <h3 class="text-lg font-medium text-gray-700">Total: <span id="dailySalesTotal" class="text-indigo-600 font-bold">0.00 DA</span></h3>
                 </div>
-                <div class="p-6">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="relative">
-                            <label class="text-sm font-medium text-gray-700">Client/Fournisseur</label>
-                            <select id="numero_cf" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300">
-                                <option value="">Sélectionner...</option>
-                            </select>
-                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700 top-8">
-                                <i class="fas fa-chevron-down"></i>
-                            </div>
-                        </div>
+                <div class="mb-6">
+                    <h4 class="text-md font-medium text-gray-600 mb-2">Tickets (Ventes Comptoir)</h4>
+                    <div class="table-container">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Commande</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fait par</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ticketsList" class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td colspan="6" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div>
+                    <h4 class="text-md font-medium text-gray-600 mb-2">Bons de Livraison</h4>
+                    <div class="table-container">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Commande</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fait par</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bonsList" class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td colspan="6" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Liste des Achats -->
+        <section class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="dailyPurchasesSection">
+            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('dailyPurchasesSection')">
+                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                    <i class="fas fa-truck-loading mr-2 text-indigo-500"></i> Liste des Achats
+                    <span id="dailyPurchasesCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                </h2>
+                <button class="text-gray-600 hover:text-gray-800 transition">
+                    <i class="fas fa-chevron-down" id="dailyPurchasesChevron"></i>
+                </button>
+            </div>
+            <div class="p-6 hidden" id="dailyPurchasesContent">
+                <div class="mb-4">
+                    <h3 class="text-lg font-medium text-gray-700">Total: <span id="dailyPurchasesTotal" class="text-indigo-600 font-bold">0.00 DA</span></h3>
+                </div>
+                <div class="mb-6">
+                    <h4 class="text-md font-medium text-gray-600 mb-2">Bons de Réception</h4>
+                    <div class="table-container">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Réception</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fournisseur</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fait par</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="receptionsList" class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td colspan="6" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Articles les plus vendus -->
+        <section class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="topArticlesSection">
+            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('topArticlesSection')">
+                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                    <i class="fas fa-chart-pie mr-2 text-indigo-500"></i> Articles les Plus Vendus
+                    <span id="topArticlesCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                </h2>
+                <button class="text-gray-600 hover:text-gray-800 transition">
+                    <i class="fas fa-chevron-down" id="topArticlesChevron"></i>
+                </button>
+            </div>
+            <div class="p-6 hidden" id="topArticlesContent">
+                <div class="mb-4">
+                    <h3 class="text-lg font-medium text-gray-700">Total Quantité Vendue: <span id="topArticlesTotal" class="text-indigo-600 font-bold">0</span></h3>
+                </div>
+                <div class="flex justify-center">
+                    <canvas id="topArticlesChart" width="400" height="400"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Bénéfice -->
+        <section class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="profitSection">
+            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('profitSection')">
+                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                    <i class="fas fa-chart-line mr-2 text-indigo-500"></i> Bénéfice
+                    <span id="profitCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                </h2>
+                <button class="text-gray-600 hover:text-gray-800 transition">
+                    <i class="fas fa-chevron-down" id="profitChevron"></i>
+                </button>
+            </div>
+            <div class="p-6 hidden" id="profitContent">
+                <div class="mb-4">
+                    <h3 class="text-lg font-medium text-gray-700">Bénéfice Total (Date Sélectionnée): <span id="profitTotal" class="text-indigo-600 font-bold">0.00 DA</span></h3>
+                </div>
+                <div class="flex justify-center">
+                    <canvas id="profitChart" width="400" height="300"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Valeur du Stock -->
+        <section class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="stockValueSection">
+            <div class="p-6 flex justify-between items-center cursor-pointer no-print" onclick="toggleSection('stockValueSection')">
+                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                    <i class="fas fa-warehouse mr-2 text-indigo-500"></i> Valeur du Stock et Zakat
+                </h2>
+                <button class="text-gray-600 hover:text-gray-800 transition">
+                    <i class="fas fa-chevron-down" id="stockValueChevron"></i>
+                </button>
+            </div>
+            <div class="p-6 hidden" id="stockValueContent">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-gray-50 p-4 rounded-md">
+                        <h3 class="text-lg font-medium text-gray-700">Valeur Stock (Achat)</h3>
+                        <p id="stockValueAchat" class="text-indigo-600 font-bold text-2xl">0.00 DA</p>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-md">
+                        <h3 class="text-lg font-medium text-gray-700">Valeur Stock (Vente)</h3>
+                        <p id="stockValueVente" class="text-indigo-600 font-bold text-2xl">0.00 DA</p>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-md flex items-center">
+                        <svg class="w-8 h-8 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2-2 4 4"></path>
+                        </svg>
                         <div>
-                            <label class="text-sm font-medium text-gray-700">Montant (positif/négatif)</label>
-                            <input type="number" id="montant" step="0.01" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Ex: 100.00 ou -100.00">
-                        </div>
-                        <div>
-                            <label class="text-sm font-medium text-gray-700">Justificatif</label>
-                            <input type="text" id="justificatif" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Ex: Paiement facture">
+                            <h3 class="text-lg font-medium text-gray-700">زكاتي (Zakat)</h3>
+                            <p id="zakatValue" class="text-green-600 font-bold text-2xl">0.00 DA</p>
                         </div>
                     </div>
-                    <button id="submit-versement" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition duration-300">
-                        <i class="fas fa-check mr-2"></i>Ajouter Versement
-                    </button>
-                    <p id="form-message" class="mt-2 text-red-600 hidden"></p>
                 </div>
             </div>
+        </section>
 
-            <!-- Historique -->
-            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8">
-                <div class="p-6 flex justify-between items-center">
-                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-history mr-2 text-indigo-500"></i> Historique des Versements
-                    </h2>
-                </div>
-                <div class="p-6">
-                    <div class="mb-4">
-                        <label class="text-sm font-medium text-gray-700">Filtrer par date</label>
-                        <input type="date" id="filter-date" class="w-full md:w-1/4 px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    </div>
-                    <div class="table-container">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Justificatif</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fait par</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modifier</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Annuler</th>
-                                </tr>
-                            </thead>
-                            <tbody id="versements-table" class="bg-white divide-y divide-gray-200">
-                                <tr>
-                                    <td colspan="8" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+        <!-- Zone d'impression A4 pour les ventes -->
+        <div id="printAreaA4" class="hidden">
+            <h1 class="text-2xl font-bold mb-4">Rapport des Ventes</h1>
+            <p class="mb-2">Date: <span id="printDate"></span></p>
+            <p class="mb-4">Client: <span id="printClient"></span></p>
+            <h2 class="text-xl font-semibold mb-2">Tickets (Ventes Comptoir)</h2>
+            <table class="min-w-full border-collapse border border-gray-300 mb-6">
+                <thead>
+                    <tr class="bg-gray-100">
+                        <th class="border border-gray-300 px-4 py-2 text-left">N° Commande</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Date</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Client</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Fait par</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Total</th>
+                    </tr>
+                </thead>
+                <tbody id="printTicketsList"></tbody>
+            </table>
+            <h2 class="text-xl font-semibold mb-2">Bons de Livraison</h2>
+            <table class="min-w-full border-collapse border border-gray-300 mb-6">
+                <thead>
+                    <tr class="bg-gray-100">
+                        <th class="border border-gray-300 px-4 py-2 text-left">N° Commande</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Date</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Client</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Fait par</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Total</th>
+                    </tr>
+                </thead>
+                <tbody id="printBonsList"></tbody>
+            </table>
+            <p class="text-lg font-bold">Total: <span id="printTotal"></span> DA</p>
+        </div>
+
+        <!-- Zone d'impression A4 pour les achats -->
+        <div id="printAreaPurchasesA4" class="hidden">
+            <h1 class="text-2xl font-bold mb-4">Rapport des Achats</h1>
+            <p class="mb-2">Date: <span id="printPurchasesDate"></span></p>
+            <h2 class="text-xl font-semibold mb-2">Bons de Réception</h2>
+            <table class="min-w-full border-collapse border border-gray-300 mb-6">
+                <thead>
+                    <tr class="bg-gray-100">
+                        <th class="border border-gray-300 px-4 py-2 text-left">N° Réception</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Date</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Fournisseur</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Fait par</th>
+                        <th class="border border-gray-300 px-4 py-2 text-left">Total</th>
+                    </tr>
+                </thead>
+                <tbody id="printReceptionsList"></tbody>
+            </table>
+            <p class="text-lg font-bold">Total: <span id="printPurchasesTotal"></span> DA</p>
+        </div>
+
+        <!-- Zone d'impression ticket 80mm pour les ventes -->
+        <div id="printAreaTicket" class="hidden">
+            <div style="width: 80mm; padding: 5mm; font-family: Arial, sans-serif;">
+                <h1 style="text-align: center; font-size: 14pt; margin-bottom: 5mm;">FirePoz</h1>
+                <p style="text-align: center; margin: 2mm 0;">Vente #<span id="ticketNumero"></span></p>
+                <p style="margin: 2mm 0;">Date: <span id="ticketDate"></span></p>
+                <p style="margin: 2mm 0;">Client: <span id="ticketClient"></span></p>
+                <p style="margin: 2mm 0;">Fait par: <span id="ticketUtilisateur"></span></p>
+                <table style="width: 100%; border-collapse: collapse; margin: 5mm 0;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid #000;">
+                            <th style="text-align: left; padding: 2mm;">Produit</th>
+                            <th style="text-align: center; padding: 2mm;">Qté</th>
+                            <th style="text-align: right; padding: 2mm;">Prix</th>
+                            <th style="text-align: right; padding: 2mm;">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ticketLignes"></tbody>
+                </table>
+                <p style="text-align: right; font-weight: bold; margin: 5mm 0;">Total: <span id="ticketTotal"></span> DA</p>
+                <p style="text-align: center; margin: 5mm 0;">Merci de votre visite !</p>
             </div>
+        </div>
 
-            <!-- Situation Client -->
-            <div id="clientSituationSection" class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8">
-                <div class="p-6 cursor-pointer" onclick="toggleSection('clientSituationSection')">
-                    <div class="flex justify-between items-center">
-                        <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                            <i class="fas fa-user mr-2 text-indigo-500"></i> Situation Client
-                        </h2>
-                        <button class="text-gray-600 hover:text-gray-800 transition">
-                            <i class="fas fa-chevron-down" id="clientSituationChevron"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="p-6 hidden" id="clientSituationContent">
-                    <div class="mb-4">
-                        <label class="text-sm font-medium text-gray-700">Filtrer par client</label>
-                        <select id="filter-client" class="w-full md:w-1/4 px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <option value="">Tous les clients</option>
-                        </select>
-                    </div>
-                    <div class="table-container">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Justificatif</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fait par</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modifier</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Annuler</th>
-                                </tr>
-                            </thead>
-                            <tbody id="clientSituationTable" class="bg-white divide-y divide-gray-200">
-                                <tr>
-                                    <td colspan="6" class="text-center py-4 text-gray-500">Sélectionnez un client...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="mt-4">
-                        <button onclick="printSituation('C')" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300">
-                            <i class="fas fa-print mr-2"></i>Imprimer Situation Client
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Situation Fournisseur -->
-            <div id="fournisseurSituationSection" class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8">
-                <div class="p-6 cursor-pointer" onclick="toggleSection('fournisseurSituationSection')">
-                    <div class="flex justify-between items-center">
-                        <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                            <i class="fas fa-truck mr-2 text-indigo-500"></i> Situation Fournisseur
-                        </h2>
-                        <button class="text-gray-600 hover:text-gray-800 transition">
-                            <i class="fas fa-chevron-down" id="fournisseurSituationChevron"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="p-6 hidden" id="fournisseurSituationContent">
-                    <div class="mb-4">
-                        <label class="text-sm font-medium text-gray-700">Filtrer par fournisseur</label>
-                        <select id="filter-fournisseur" class="w-full md:w-1/4 px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <option value="">Tous les fournisseurs</option>
-                        </select>
-                    </div>
-                    <div class="table-container">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Justificatif</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fait par</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modifier</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Annuler</th>
-                                </tr>
-                            </thead>
-                            <tbody id="fournisseurSituationTable" class="bg-white divide-y divide-gray-200">
-                                <tr>
-                                    <td colspan="6" class="text-center py-4 text-gray-500">Sélectionnez un fournisseur...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="mt-4">
-                        <button onclick="printSituation('F')" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300">
-                            <i class="fas fa-print mr-2"></i>Imprimer Situation Fournisseur
-                        </button>
-                    </div>
-                </div>
+        <!-- Zone d'impression ticket 80mm pour les achats -->
+        <div id="printAreaPurchaseTicket" class="hidden">
+            <div style="width: 80mm; padding: 5mm; font-family: Arial, sans-serif;">
+                <h1 style="text-align: center; font-size: 14pt; margin-bottom: 5mm;">FirePoz</h1>
+                <p style="text-align: center; margin: 2mm 0;">Réception #<span id="purchaseTicketNumero"></span></p>
+                <p style="margin: 2mm 0;">Date: <span id="purchaseTicketDate"></span></p>
+                <p style="margin: 2mm 0;">Fournisseur: <span id="purchaseTicketFournisseur"></span></p>
+                <p style="margin: 2mm 0;">Fait par: <span id="purchaseTicketUtilisateur"></span></p>
+                <table style="width: 100%; border-collapse: collapse; margin: 5mm 0;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid #000;">
+                            <th style="text-align: left; padding: 2mm;">Produit</th>
+                            <th style="text-align: center; padding: 2mm;">Qté</th>
+                            <th style="text-align: right; padding: 2mm;">Prix</th>
+                            <th style="text-align: right; padding: 2mm;">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="purchaseTicketLignes"></tbody>
+                </table>
+                <p style="text-align: right; font-weight: bold; margin: 5mm 0;">Total: <span id="purchaseTicketTotal"></span> DA</p>
+                <p style="text-align: center; margin: 5mm 0;">Merci à notre fournisseur !</p>
             </div>
         </div>
     </div>
 
-    <!-- Modal pour Modifier Versement -->
-    <div id="editVersementModal" class="modal">
-        <div class="modal-content">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4">Modifier Versement</h2>
-            <div class="grid grid-cols-1 gap-4">
-                <div>
-                    <label class="text-sm font-medium text-gray-700">Client/Fournisseur</label>
-                    <input type="text" id="edit_numero_cf_name" class="w-full px-4 py-2 border rounded-md bg-gray-100" disabled>
-                    <input type="hidden" id="edit_numero_mc">
-                    <input type="hidden" id="edit_type">
-                    <input type="hidden" id="edit_numero_cf">
-                </div>
-                <div>
-                    <label class="text-sm font-medium text-gray-700">Montant (positif/négatif)</label>
-                    <input type="number" id="edit_montant" step="0.01" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Ex: 100.00 ou -100.00">
-                </div>
-                <div>
-                    <label class="text-sm font-medium text-gray-700">Justificatif</label>
-                    <input type="text" id="edit_justificatif" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Ex: Paiement facture">
-                </div>
-                <div class="relative password-input-container">
-                    <label class="text-sm font-medium text-gray-700">Mot de passe</label>
-                    <input type="password" id="edit_password2" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Entrez le mot de passe">
-                    <i class="fas fa-eye password-toggle" id="edit_togglePassword" onclick="toggleEditPasswordVisibility()"></i>
-                </div>
-            </div>
-            <div class="mt-4 flex justify-end gap-2">
-                <button id="cancelEditButton" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300">Annuler</button>
-                <button id="submitEditButton" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition duration-300">Modifier</button>
-            </div>
-            <p id="edit-message" class="mt-2 text-red-600 hidden"></p>
-        </div>
-    </div>
-
-    <footer class="bg-gray-700 text-white text-center py-4 animate-fade-in">
+    <footer class="bg-gray-700 text-white text-center py-4 animate-fade-in no-print">
         <p>Développé par Khelladi Hicham</p>
         <p>Tel: <a href="tel:00213553700900" class="underline hover:text-indigo-300 transition duration-300">00213553700900</a></p>
         <p>Email: <a href="mailto:Hicham.khelladi@gmail.com" class="underline hover:text-indigo-300 transition duration-300">Hicham.khelladi@gmail.com</a></p>
     </footer>
 
-    <div id="toast" class="fixed bottom-4 right-4 hidden">
+    <div id="toast" class="fixed bottom-4 right-4 hidden no-print">
         <div class="flex items-center px-6 py-3 rounded-md shadow-lg">
             <i id="toastIcon" class="mr-2"></i>
             <span id="toastMessage"></span>
         </div>
     </div>
 
+    <div id="saleDetailsModal" class="fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center hidden z-50 no-print">
+        <div class="bg-white rounded-lg shadow-lg max-w-2xl w-full p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-semibold text-gray-800">Détails <span id="modalTitle"></span> #<span id="modalSaleNumber"></span></h3>
+                <button onclick="closeSaleDetailsModal()" class="text-gray-600 hover:text-gray-800">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="table-container max-h-96 overflow-y-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Unitaire</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="saleDetailsList" class="bg-white divide-y divide-gray-200"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <script>
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
+        let dailySalesCache = { tickets: [], bons: [], total: 0 };
+        let dailyPurchasesCache = { receptions: [], total: 0 };
         let clientsCache = [];
-        let fournisseursCache = [];
-
-        function togglePasswordVisibility() {
-            const passwordInput = document.getElementById('sellerPassword');
-            const toggleIcon = document.getElementById('togglePassword');
-            if (passwordInput.type === 'password') {
-                passwordInput.type = 'text';
-                toggleIcon.classList.remove('fa-eye');
-                toggleIcon.classList.add('fa-eye-slash');
-            } else {
-                passwordInput.type = 'password';
-                toggleIcon.classList.remove('fa-eye-slash');
-                toggleIcon.classList.add('fa-eye');
-            }
-        }
-
-        function toggleEditPasswordVisibility() {
-            const passwordInput = document.getElementById('edit_password2');
-            const toggleIcon = document.getElementById('edit_togglePassword');
-            if (passwordInput.type === 'password') {
-                passwordInput.type = 'text';
-                toggleIcon.classList.remove('fa-eye');
-                toggleIcon.classList.add('fa-eye-slash');
-            } else {
-                passwordInput.type = 'password';
-                toggleIcon.classList.remove('fa-eye-slash');
-                toggleIcon.classList.add('fa-eye');
-            }
-        }
-
-        function toggleSection(sectionId) {
-            const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
-            const chevron = document.getElementById(`${sectionId.replace('Section', 'Chevron')}`);
-            content.classList.toggle('hidden');
-            chevron.classList.toggle('fa-chevron-down');
-            chevron.classList.toggle('fa-chevron-up');
-        }
+        let topArticlesCache = [];
+        let profitCache = [];
+        let topArticlesChart = null;
+        let profitChart = null;
 
         function showToast(message, isError = false) {
             const toast = document.getElementById('toast');
             const toastMessage = document.getElementById('toastMessage');
             const toastIcon = document.getElementById('toastIcon');
+
             toast.className = isError
                 ? 'fixed bottom-4 right-4 flex items-center bg-red-500 text-white px-6 py-3 rounded-md shadow-lg'
                 : 'fixed bottom-4 right-4 flex items-center bg-green-500 text-white px-6 py-3 rounded-md shadow-lg';
+
             toastIcon.className = isError
                 ? 'fas fa-exclamation-circle mr-2'
                 : 'fas fa-check-circle mr-2';
+
             toastMessage.textContent = message;
             toast.classList.remove('hidden');
-            setTimeout(() => toast.classList.add('hidden'), 3000);
+
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
+        }
+
+        function toggleSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
+            const chevron = document.getElementById(`${sectionId.replace('Section', 'Chevron')}`);
+
+            content.classList.toggle('hidden');
+            chevron.classList.toggle('fa-chevron-down');
+            chevron.classList.toggle('fa-chevron-up');
         }
 
         function loginLogout() {
-            localStorage.removeItem('userId');
-            localStorage.removeItem('userEmail');
-            localStorage.removeItem('selectedSeller');
-            localStorage.removeItem('sellerPassword');
-            document.getElementById('userDisplay').textContent = '';
-            document.getElementById('userDisplay').classList.add('hidden');
-            document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-            window.location.href = 'index.html';
-        }
-
-        async function chargerUtilisateurs() {
+            console.log('Déconnexion en cours...');
             const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter', true);
-                return false;
+            if (userId) {
+                localStorage.removeItem('userId');
+                localStorage.removeItem('userEmail');
+                document.getElementById('userDisplay').textContent = '';
+                document.getElementById('userDisplay').classList.add('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                window.location.href = 'index.html';
             }
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                const utilisateurs = await response.json();
-                const sellerSelect = document.getElementById('sellerSelect');
-                sellerSelect.innerHTML = '<option value="0">Sélectionner un vendeur</option>';
-                utilisateurs.forEach(utilisateur => {
-                    const option = document.createElement('option');
-                    option.value = utilisateur.numero;
-                    option.textContent = utilisateur.nom;
-                    sellerSelect.appendChild(option);
-                });
-                return true;
-            } catch (error) {
-                showToast(`Erreur chargement utilisateurs: ${error.message}`, true);
-                console.error('Erreur utilisateurs:', error);
-                return false;
-            }
-        }
-
-       async function validerVendeur() {
-    const numeroUtil = document.getElementById('sellerSelect').value;
-    const password2 = document.getElementById('sellerPassword').value;
-    const userId = localStorage.getItem('userId');
-
-    if (numeroUtil === '0') {
-        showToast('Veuillez sélectionner un vendeur', true);
-        return;
-    }
-    if (!password2) {
-        showToast('Veuillez entrer le mot de passe', true);
-        return;
-    }
-
-    try {
-        // Pas d'appel API, on valide côté client pour l'instant
-        const selectedOption = document.getElementById('sellerSelect').options[document.getElementById('sellerSelect').selectedIndex];
-        const sellerName = selectedOption.text;
-        
-        // Stocker les informations du vendeur
-        localStorage.setItem('selectedSeller', JSON.stringify({
-            numero_util: numeroUtil,
-            nom: sellerName
-        }));
-        localStorage.setItem('sellerPassword', password2);
-
-        // Mettre à jour l'interface
-        document.getElementById('selectedSellerName').textContent = sellerName;
-        document.getElementById('headerSellerName').textContent = sellerName;
-        document.getElementById('sellerPassword').disabled = true;
-        document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
-        document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
-        document.getElementById('sellerContent').classList.add('hidden');
-        document.getElementById('sellerChevron').classList.add('fa-chevron-down');
-        document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
-        showToast(`Vendeur ${sellerName} validé`);
-    } catch (error) {
-        showToast(`Erreur validation vendeur: ${error.message}`, true);
-        console.error('Erreur validation:', error);
-    }
-}
-
-        function changeAndValidateSeller() {
-            document.getElementById('sellerSelect').value = '0';
-            document.getElementById('sellerPassword').value = '';
-            document.getElementById('sellerPassword').disabled = false;
-            document.getElementById('selectedSellerName').textContent = '-';
-            document.getElementById('headerSellerName').textContent = '-';
-            document.getElementById('validateSellerButton').textContent = 'Valider';
-            document.getElementById('validateSellerButton').onclick = validerVendeur;
-            document.getElementById('sellerContent').classList.remove('hidden');
-            document.getElementById('sellerChevron').classList.add('fa-chevron-up');
-            document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
-            localStorage.removeItem('selectedSeller');
-            localStorage.removeItem('sellerPassword');
         }
 
         async function chargerClients() {
+            console.log('Chargement des clients...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Veuillez vous connecter', true);
+                showToast('Veuillez vous connecter pour voir les clients', true);
                 return;
             }
+
             try {
                 const response = await fetch(`${API_BASE_URL}/liste_clients`, {
                     headers: { 'X-User-ID': userId }
@@ -536,20 +563,32 @@
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 clientsCache = await response.json();
-                updateCFSelect('clients');
-                updateSituationFilters();
+                const selectElement = document.getElementById('clientFilter');
+
+                selectElement.innerHTML = `
+                    <option value="">Tous les clients</option>
+                    <option value="0">Comptoir</option>
+                `;
+                clientsCache.forEach(client => {
+                    const option = document.createElement('option');
+                    option.value = client.numero_clt;
+                    option.textContent = `${client.nom} (ID: ${client.numero_clt})`;
+                    selectElement.appendChild(option);
+                });
             } catch (error) {
-                showToast(`Erreur chargement clients: ${error.message}`, true);
+                showToast('Erreur lors du chargement des clients: ' + error.message, true);
                 console.error('Erreur clients:', error);
             }
         }
 
         async function chargerFournisseurs() {
+            console.log('Chargement des fournisseurs...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Veuillez vous connecter', true);
+                showToast('Veuillez vous connecter pour voir les fournisseurs', true);
                 return;
             }
+
             try {
                 const response = await fetch(`${API_BASE_URL}/liste_fournisseurs`, {
                     headers: { 'X-User-ID': userId }
@@ -558,57 +597,70 @@
                     const errorText = await response.text();
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
-                fournisseursCache = await response.json();
-                updateCFSelect('fournisseurs');
-                updateSituationFilters();
+                const fournisseurs = await response.json();
+                const selectElement = document.getElementById('fournisseurFilter');
+
+                selectElement.innerHTML = `<option value="">Tous les fournisseurs</option>`;
+                fournisseurs.forEach(fournisseur => {
+                    const option = document.createElement('option');
+                    option.value = fournisseur.numero_fou;
+                    option.textContent = `${fournisseur.nom} (ID: ${fournisseur.numero_fou})`;
+                    selectElement.appendChild(option);
+                });
             } catch (error) {
-                showToast(`Erreur chargement fournisseurs: ${error.message}`, true);
+                showToast('Erreur lors du chargement des fournisseurs: ' + error.message, true);
                 console.error('Erreur fournisseurs:', error);
             }
         }
 
-        function updateCFSelect(type) {
-            const select = document.getElementById('numero_cf');
-            select.innerHTML = '<option value="">Sélectionner...</option>';
-            const data = type === 'clients' ? clientsCache : fournisseursCache;
-            data.forEach(item => {
-                const solde = parseFloat(item.solde) || 0;
-                const soldeClass = solde < 0 ? 'solde-negatif' : 'solde-positif';
-                const option = document.createElement('option');
-                option.value = type === 'clients' ? item.numero_clt : item.numero_fou;
-                option.innerHTML = `${item.nom} <span class="${soldeClass}">[Solde: ${solde.toFixed(2)} DA]</span>`;
-                select.appendChild(option);
-            });
-        }
-
-        function updateSituationFilters() {
-            const clientSelect = document.getElementById('filter-client');
-            const fournisseurSelect = document.getElementById('filter-fournisseur');
-            clientSelect.innerHTML = '<option value="">Tous les clients</option>';
-            fournisseurSelect.innerHTML = '<option value="">Tous les fournisseurs</option>';
-            clientsCache.forEach(client => {
-                const option = document.createElement('option');
-                option.value = client.numero_clt;
-                option.textContent = client.nom;
-                clientSelect.appendChild(option);
-            });
-            fournisseursCache.forEach(fournisseur => {
-                const option = document.createElement('option');
-                option.value = fournisseur.numero_fou;
-                option.textContent = fournisseur.nom;
-                fournisseurSelect.appendChild(option);
-            });
-        }
-
-        async function loadHistorique(date = '', type = 'C') {
+        async function chargerUtilisateurs() {
+            console.log('Chargement des utilisateurs...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Veuillez vous connecter', true);
+                showToast('Veuillez vous connecter pour voir les utilisateurs', true);
                 return;
             }
+
             try {
-                let url = `${API_BASE_URL}/historique_versements?type=${type}`;
-                if (date) url += `&date=${date}`;
+                const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                const utilisateurs = await response.json();
+                const selectElement = document.getElementById('userFilter');
+
+                selectElement.innerHTML = `<option value="0">Tous les utilisateurs</option>`;
+                utilisateurs.forEach(user => {
+                    const option = document.createElement('option');
+                    option.value = user.numero_util;
+                    option.textContent = `${user.nom} (${user.statue})`;
+                    selectElement.appendChild(option);
+                });
+            } catch (error) {
+                showToast('Erreur lors du chargement des utilisateurs: ' + error.message, true);
+                console.error('Erreur utilisateurs:', error);
+            }
+        }
+
+        async function chargerVentesJour(date = '', numeroClt = '', numeroUtil = '0') {
+            console.log('Chargement des ventes...', { date, numeroClt, numeroUtil });
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir les ventes', true);
+                window.location.href = 'index.html';
+                return;
+            }
+
+            try {
+                const params = new URLSearchParams();
+                if (date) params.append('date', date);
+                if (numeroClt) params.append('numero_clt', numeroClt);
+                if (numeroUtil && numeroUtil !== '0') params.append('numero_util', numeroUtil);
+                const url = `${API_BASE_URL}/ventes_jour?${params.toString()}`;
+
                 const response = await fetch(url, {
                     headers: { 'X-User-ID': userId }
                 });
@@ -616,65 +668,106 @@
                     const errorText = await response.text();
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
-                const versements = await response.json();
-                console.log('Réponse /historique_versements:', versements);
-                const tbody = document.getElementById('versements-table');
-                tbody.innerHTML = versements.length === 0
-                    ? '<tr><td colspan="8" class="text-center py-4 text-gray-500">Aucun versement trouvé</td></tr>'
-                    : '';
-                versements.forEach(v => {
-                    const apiType = ['C', 'F'].includes(v.cf) ? v.cf : (['C', 'F'].includes(v.type) ? v.type : 'C');
-                    const displayType = apiType === 'C' ? 'Client' : 'Fournisseur';
-                    const escapedNomCf = (v.nom_cf || 'N/A').replace(/'/g, "\\'");
-                    const escapedJustificatif = (v.justificatif || '').replace(/'/g, "\\'");
-                    const numeroCf = v.numero_cf || '';
-                    if (!numeroCf) {
-                        console.warn('numero_cf manquant pour versement:', v);
-                    }
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="px-6 py-4 text-sm text-gray-900">${v.date_mc}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500">${displayType}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">${v.nom_cf || 'N/A'}</td>
-                        <td class="px-6 py-4 text-sm ${parseFloat(v.montant) < 0 ? 'text-red-600' : 'text-green-600'}">${v.montant}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500">${v.justificatif || '-'}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500">${v.utilisateur_nom || 'N/A'}</td>
-                        <td class="px-6 py-4 text-sm">
-                            <button onclick="openEditModal(${v.numero_mc}, '${apiType}', '${numeroCf}', '${escapedNomCf}', ${v.montant}, '${escapedJustificatif}')" class="text-blue-600 hover:text-blue-800">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                        </td>
-                        <td class="px-6 py-4 text-sm">
-                            <button onclick="annulerVersement(${v.numero_mc}, '${apiType}', '${numeroCf}')" class="text-red-600 hover:text-red-800">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
-                });
+                dailySalesCache = await response.json();
+                console.log('Ventes reçues:', dailySalesCache);
+
+                const ticketsTbody = document.getElementById('ticketsList');
+                const bonsTbody = document.getElementById('bonsList');
+                const countElement = document.getElementById('dailySalesCount');
+                const totalElement = document.getElementById('dailySalesTotal');
+
+                if (dailySalesCache.tickets.length === 0) {
+                    ticketsTbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun ticket</td></tr>';
+                } else {
+                    ticketsTbody.innerHTML = '';
+                    dailySalesCache.tickets.forEach(vente => {
+                        const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
+                        const tr = document.createElement('tr');
+                        tr.className = 'hover:bg-gray-50';
+                        tr.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <button onclick="showSaleDetails(${vente.numero_comande}, '${vente.nature}', 'Vente')" class="action-button bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition">
+                                    <i class="fas fa-eye"></i> Voir
+                                </button>
+                                <button onclick="printTicket(${vente.numero_comande}, '${vente.nature}')" class="action-button bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition">
+                                    <i class="fas fa-print"></i> Ticket
+                                </button>
+                                <button onclick="annulerVente(${vente.numero_comande}, '${vente.nature}')" class="action-button bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
+                                    <i class="fas fa-times"></i> Annuler
+                                </button>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${vente.numero_comande}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.client_nom || 'Comptoir'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.utilisateur_nom || 'N/A'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalVente.toFixed(2)} DA</td>
+                        `;
+                        ticketsTbody.appendChild(tr);
+                    });
+                }
+
+                if (dailySalesCache.bons.length === 0) {
+                    bonsTbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun bon de livraison</td></tr>';
+                } else {
+                    bonsTbody.innerHTML = '';
+                    dailySalesCache.bons.forEach(vente => {
+                        const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
+                        const tr = document.createElement('tr');
+                        tr.className = 'hover:bg-gray-50';
+                        tr.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <button onclick="showSaleDetails(${vente.numero_comande}, '${vente.nature}', 'Vente')" class="action-button bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition">
+                                    <i class="fas fa-eye"></i> Voir
+                                </button>
+                                <button onclick="printTicket(${vente.numero_comande}, '${vente.nature}')" class="action-button bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition">
+                                    <i class="fas fa-print"></i> Ticket
+                                </button>
+                                <button onclick="annulerVente(${vente.numero_comande}, '${vente.nature}')" class="action-button bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
+                                    <i class="fas fa-times"></i> Annuler
+                                </button>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${vente.numero_comande}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.client_nom || 'Comptoir'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vente.utilisateur_nom || 'N/A'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalVente.toFixed(2)} DA</td>
+                        `;
+                        bonsTbody.appendChild(tr);
+                    });
+                }
+
+                countElement.textContent = dailySalesCache.tickets.length + dailySalesCache.bons.length;
+                countElement.classList.remove('hidden');
+                totalElement.textContent = `${parseFloat(dailySalesCache.total).toFixed(2)} DA`;
+                debugButtons();
             } catch (error) {
-                showToast(`Erreur chargement historique: ${error.message}`, true);
-                console.error('Erreur historique:', error);
+                document.getElementById('ticketsList').innerHTML = `
+                    <tr><td colspan="6" class="text-center py-4 text-red-500">Erreur de chargement: ${error.message}</td></tr>
+                `;
+                document.getElementById('bonsList').innerHTML = `
+                    <tr><td colspan="6" class="text-center py-4 text-red-500">Erreur de chargement: ${error.message}</td></tr>
+                `;
+                console.error('Erreur ventes:', error);
+                showToast(`Erreur chargement ventes: ${error.message}`, true);
             }
         }
 
-        async function loadSituation(type, numero_cf = '') {
+        async function chargerAchatsJour(date = '', numeroUtil = '0', numeroFour = '') {
+            console.log('Chargement des achats avec:', { date, numeroUtil, numeroFour });
             const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Veuillez vous connecter', true);
+                showToast('Veuillez vous connecter pour voir les achats', true);
+                window.location.href = 'index.html';
                 return;
             }
-            try {
-                console.log(`Chargement situation: type=${type}, numero_cf=${numero_cf}`);
-                const tbody = document.getElementById(type === 'C' ? 'clientSituationTable' : 'fournisseurSituationTable');
-                
-                if (!numero_cf) {
-                    tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-gray-500">Sélectionnez un ${type === 'C' ? 'client' : 'fournisseur'}...</td></tr>`;
-                    return;
-                }
 
-                const url = `${API_BASE_URL}/situation_versements?type=${type}&numero_cf=${encodeURIComponent(numero_cf)}`;
+            try {
+                const params = new URLSearchParams();
+                if (date) params.append('date', date);
+                if (numeroUtil && numeroUtil !== '0') params.append('numero_util', numeroUtil);
+                if (numeroFour && numeroFour !== '') params.append('numero_four', numeroFour);
+                const url = `${API_BASE_URL}/receptions_jour?${params.toString()}`;
+
                 const response = await fetch(url, {
                     headers: { 'X-User-ID': userId }
                 });
@@ -682,431 +775,534 @@
                     const errorText = await response.text();
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
-                const versements = await response.json();
-                console.log(`Versements reçus pour ${type === 'C' ? 'client' : 'fournisseur'} ${numero_cf}:`, versements);
+                dailyPurchasesCache = await response.json();
+                console.log('Achats reçus:', dailyPurchasesCache);
 
-                tbody.innerHTML = versements.length === 0
-                    ? `<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun versement pour cet ${type === 'C' ? 'client' : 'fournisseur'}</td></tr>`
-                    : '';
-                versements.forEach(v => {
-                    const apiType = v.cf;
-                    const escapedNomCf = (v.nom_cf || 'N/A').replace(/'/g, "\\'");
-                    const escapedJustificatif = (v.justificatif || '').replace(/'/g, "\\'");
-                    const numeroCf = v.numero_cf || '';
-                    if (!numeroCf) {
-                        console.warn('numero_cf manquant pour versement:', v);
+                const receptionsTbody = document.getElementById('receptionsList');
+                const countElement = document.getElementById('dailyPurchasesCount');
+                const totalElement = document.getElementById('dailyPurchasesTotal');
+
+                receptionsTbody.innerHTML = '';
+
+                if (dailyPurchasesCache.receptions.length === 0) {
+                    receptionsTbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun bon de réception</td></tr>';
+                } else {
+                    dailyPurchasesCache.receptions.forEach(reception => {
+                        const totalReception = reception.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.total_ligne || 0), 0);
+                        const tr = document.createElement('tr');
+                        tr.className = 'hover:bg-gray-50';
+                        tr.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <button onclick="showSaleDetails(${reception.numero_mouvement}, '${reception.nature}', 'Réception')" class="action-button bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition">
+                                    <i class="fas fa-eye"></i> Voir
+                                </button>
+                                <button onclick="printPurchaseTicket(${reception.numero_mouvement}, '${reception.nature}')" class="action-button bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition">
+                                    <i class="fas fa-print"></i> Ticket
+                                </button>
+                                <button onclick="annulerReception(${reception.numero_mouvement}, '${reception.nature}')" class="action-button bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
+                                    <i class="fas fa-times"></i> Annuler
+                                </button>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${reception.numero_mouvement}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(reception.date_m).toLocaleString('fr-FR')}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${reception.fournisseur_nom || 'N/A'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${reception.utilisateur_nom || 'N/A'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalReception.toFixed(2)} DA</td>
+                        `;
+                        receptionsTbody.appendChild(tr);
+                    });
+                }
+
+                countElement.textContent = dailyPurchasesCache.receptions.length;
+                countElement.classList.remove('hidden');
+                totalElement.textContent = `${parseFloat(dailyPurchasesCache.total).toFixed(2)} DA`;
+                debugButtons();
+            } catch (error) {
+                document.getElementById('receptionsList').innerHTML = `
+                    <tr><td colspan="6" class="text-center py-4 text-red-500">Erreur de chargement: ${error.message}</td></tr>
+                `;
+                console.error('Erreur achats:', error);
+                showToast(`Erreur chargement achats: ${error.message}`, true);
+            }
+        }
+
+        async function chargerArticlesPlusVendus(date = '', numeroClt = '', numeroUtil = '0') {
+            console.log('Chargement des articles les plus vendus...', { date, numeroClt, numeroUtil });
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir les articles', true);
+                return;
+            }
+
+            try {
+                const params = new URLSearchParams();
+                if (date) params.append('date', date);
+                if (numeroClt) params.append('numero_clt', numeroClt);
+                if (numeroUtil && numeroUtil !== '0') params.append('numero_util', numeroUtil);
+                const url = `${API_BASE_URL}/articles_plus_vendus?${params.toString()}`;
+
+                const response = await fetch(url, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                topArticlesCache = await response.json();
+
+                const countElement = document.getElementById('topArticlesCount');
+                const totalElement = document.getElementById('topArticlesTotal');
+
+                const totalQuantite = topArticlesCache.reduce((sum, article) => sum + parseInt(article.quantite || 0), 0);
+
+                countElement.textContent = topArticlesCache.length;
+                countElement.classList.remove('hidden');
+                totalElement.textContent = totalQuantite;
+
+                const labels = topArticlesCache.map(article => article.designation || 'N/A');
+                const quantites = topArticlesCache.map(article => parseInt(article.quantite || 0));
+
+                const backgroundColors = quantites.map((_, index) => `hsl(${(index * 360) / quantites.length}, 70%, 60%)`);
+                const borderColors = quantites.map((_, index) => `hsl(${(index * 360) / quantites.length}, 70%, 40%)`);
+
+                if (topArticlesChart) {
+                    topArticlesChart.destroy();
+                }
+
+                const ctx = document.getElementById('topArticlesChart').getContext('2d');
+                topArticlesChart = new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: quantites,
+                            backgroundColor: backgroundColors,
+                            borderColor: borderColors,
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { position: 'top' },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const value = context.raw || 0;
+                                        return `${label}: ${value} unités`;
+                                    }
+                                }
+                            }
+                        }
                     }
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="px-6 py-4 text-sm text-gray-900">${v.date_mc}</td>
-                        <td class="px-6 py-4 text-sm ${parseFloat(v.montant) < 0 ? 'text-red-600' : 'text-green-600'}">${v.montant}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500">${v.justificatif || '-'}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500">${v.utilisateur_nom || 'N/A'}</td>
-                        <td class="px-6 py-4 text-sm">
-                            <button onclick="openEditModal(${v.numero_mc}, '${apiType}', '${numeroCf}', '${escapedNomCf}', ${v.montant}, '${escapedJustificatif}')" class="text-blue-600 hover:text-blue-800">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                        </td>
-                        <td class="px-6 py-4 text-sm">
-                            <button onclick="annulerVersement(${v.numero_mc}, '${apiType}', '${numeroCf}')" class="text-red-600 hover:text-red-800">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
                 });
             } catch (error) {
-                showToast(`Erreur chargement situation: ${error.message}`, true);
-                console.error('Erreur situation:', error);
+                console.error('Erreur articles:', error);
+                showToast(`Erreur chargement articles: ${error.message}`, true);
+                document.getElementById('topArticlesTotal').textContent = '0';
+                document.getElementById('topArticlesCount').classList.add('hidden');
             }
         }
 
-        function printSituation(type) {
-            const select = document.getElementById(type === 'C' ? 'filter-client' : 'filter-fournisseur');
-            const numero_cf = select.value;
-            if (!numero_cf) {
-                showToast(`Veuillez sélectionner un ${type === 'C' ? 'client' : 'fournisseur'}`, true);
-                return;
-            }
-
-            const data = type === 'C' ? clientsCache : fournisseursCache;
-            const entity = data.find(item => item[type === 'C' ? 'numero_clt' : 'numero_fou'] == numero_cf);
-            if (!entity) {
-                showToast(`Erreur : ${type === 'C' ? 'Client' : 'Fournisseur'} non trouvé`, true);
-                return;
-            }
-
-            const nom = entity.nom || 'N/A';
-            const solde = parseFloat(entity.solde || 0).toFixed(2);
-            const title = type === 'C' ? 'Situation Client' : 'Situation Fournisseur';
-            const table = document.getElementById(type === 'C' ? 'clientSituationTable' : 'fournisseurSituationTable');
-            
-            const filteredTable = document.createElement('table');
-            filteredTable.innerHTML = table.innerHTML;
-            const rows = filteredTable.querySelectorAll('tr');
-            rows.forEach(row => {
-                const cells = row.querySelectorAll('td, th');
-                if (cells.length >= 6) {
-                    row.removeChild(cells[5]);
-                    row.removeChild(cells[4]);
-                }
-            });
-
-            const printWindow = window.open('', '_blank');
-            printWindow.document.write(`
-                <html>
-                <head>
-                    <title>${title}</title>
-                    <style>
-                        body { font-family: Arial, sans-serif; margin: 20px; }
-                        h1 { text-align: center; color: #4f46e5; }
-                        .info { margin-bottom: 20px; }
-                        .info p { margin: 5px 0; font-size: 16px; }
-                        .solde-negatif { color: #dc2626; }
-                        .solde-positif { color: #16a34a; }
-                        table { width: 100%; border-collapse: collapse; }
-                        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                        th { background-color: #f3f4f6; color: #374151; }
-                        tr:nth-child(even) { background-color: #f9fafb; }
-                        .text-red-600 { color: #dc2626; }
-                        .text-green-600 { color: #16a34a; }
-                    </style>
-                </head>
-                <body>
-                    <h1>${title}</h1>
-                    <div class="info">
-                        <p><strong>Nom :</strong> ${nom}</p>
-                        <p><strong>Solde :</strong> <span class="${solde < 0 ? 'solde-negatif' : 'solde-positif'}">${solde} DA</span></p>
-                    </div>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Montant</th>
-                                <th>Justificatif</th>
-                                <th>Fait par</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${filteredTable.querySelector('tbody').innerHTML}
-                        </tbody>
-                    </table>
-                </body>
-                </html>
-            `);
-            printWindow.document.close();
-            printWindow.print();
-        }
-
-        async function submitVersement() {
+        async function chargerProfit(date = '', numeroClt = '', numeroUtil = '0') {
+            console.log('Chargement du bénéfice...', { date, numeroClt, numeroUtil });
             const userId = localStorage.getItem('userId');
-            const storedSeller = localStorage.getItem('selectedSeller');
             if (!userId) {
-                showToast('Veuillez vous connecter', true);
+                showToast('Veuillez vous connecter pour voir le bénéfice', true);
                 return;
             }
-            if (!storedSeller) {
-                showToast('Veuillez sélectionner un vendeur', true);
-                return;
-            }
-            const { numero_util } = JSON.parse(storedSeller);
-            const password2 = localStorage.getItem('sellerPassword');
-            const type = document.getElementById('tab-clients').classList.contains('border-blue-600') ? 'C' : 'F';
-            const numero_cf = document.getElementById('numero_cf').value;
-            const montant = document.getElementById('montant').value;
-            const justificatif = document.getElementById('justificatif').value;
-            const message = document.getElementById('form-message');
-            if (!numero_cf || !montant) {
-                message.textContent = 'Client/Fournisseur et montant requis';
-                message.classList.remove('hidden');
-                return;
-            }
+
             try {
-                const response = await fetch(`${API_BASE_URL}/ajouter_versement`, {
+                const params = new URLSearchParams();
+                if (date) params.append('date', date);
+                if (numeroClt) params.append('numero_clt', numeroClt);
+                if (numeroUtil && numeroUtil !== '0') params.append('numero_util', numeroUtil);
+                const url = `${API_BASE_URL}/profit_by_date?${params.toString()}`;
+
+                const response = await fetch(url, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                profitCache = await response.json();
+
+                const countElement = document.getElementById('profitCount');
+                const totalElement = document.getElementById('profitTotal');
+
+                countElement.textContent = profitCache.length;
+                countElement.classList.remove('hidden');
+                totalElement.textContent = `${parseFloat(profitCache.reduce((sum, p) => sum + parseFloat(p.profit || 0), 0)).toFixed(2)} DA`;
+
+                if (profitChart) {
+                    profitChart.destroy();
+                }
+
+                const ctx = document.getElementById('profitChart').getContext('2d');
+                profitChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: profitCache.map(p => p.date || 'N/A'),
+                        datasets: [{
+                            label: 'Bénéfice (DA)',
+                            data: profitCache.map(p => parseFloat(p.profit || 0)),
+                            backgroundColor: 'rgba(79, 70, 229, 0.6)',
+                            borderColor: 'rgba(79, 70, 229, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: { beginAtZero: true }
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return `${context.dataset.label}: ${context.raw.toFixed(2)} DA`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Erreur bénéfice:', error);
+                showToast(`Erreur chargement bénéfice: ${error.message}`, true);
+                document.getElementById('profitTotal').textContent = '0.00 DA';
+                document.getElementById('profitCount').classList.add('hidden');
+            }
+        }
+
+        async function chargerStockValue() {
+            console.log('Chargement de la valeur du stock...');
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir la valeur du stock', true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/stock_value`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                const stock = await response.json();
+                console.log('Stock values:', stock);
+
+                document.getElementById('stockValueAchat').textContent = `${parseFloat(stock.valeur_achat || 0).toLocaleString('fr-DZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DA`;
+                document.getElementById('stockValueVente').textContent = `${parseFloat(stock.valeur_vente || 0).toLocaleString('fr-DZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DA`;
+                document.getElementById('zakatValue').textContent = `${parseFloat(stock.zakat || 0).toLocaleString('fr-DZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DA`;
+            } catch (error) {
+                console.error('Erreur stock:', error);
+                showToast(`Erreur chargement stock: ${error.message}`, true);
+                document.getElementById('stockValueAchat').textContent = '0.00 DA';
+                document.getElementById('stockValueVente').textContent = '0.00 DA';
+                document.getElementById('zakatValue').textContent = '0.00 DA';
+            }
+        }
+
+        async function annulerVente(numeroComande, nature) {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour annuler une vente', true);
+                return;
+            }
+
+            const password2 = prompt('Veuillez entrer le mot de passe de l\'utilisateur qui a effectué cette vente :');
+            if (!password2) {
+                showToast('Mot de passe requis pour annuler la vente', true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/annuler_vente`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-User-ID': userId
                     },
-                    body: JSON.stringify({ type, numero_cf, montant, justificatif, numero_util, password2 })
+                    body: JSON.stringify({
+                        numero_comande: numeroComande,
+                        password2: password2
+                    })
                 });
+
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                    const errorData = await response.json();
+                    throw new Error(`Erreur ${response.status}: ${errorData.error || 'Erreur inconnue'}`);
                 }
-                message.textContent = 'Versement ajouté avec succès';
-                message.classList.remove('text-red-600', 'hidden');
-                message.classList.add('text-green-600');
-                document.getElementById('numero_cf').value = '';
-                document.getElementById('montant').value = '';
-                document.getElementById('justificatif').value = '';
-                loadHistorique(document.getElementById('filter-date').value, type);
-                showToast('Versement ajouté avec succès');
-                type === 'C' ? chargerClients() : chargerFournisseurs();
-                const clientFilter = document.getElementById('filter-client').value;
-                const fournisseurFilter = document.getElementById('filter-fournisseur').value;
-                if (clientFilter) loadSituation('C', clientFilter);
-                if (fournisseurFilter) loadSituation('F', fournisseurFilter);
+
+                showToast('Vente annulée avec succès', false);
+                reloadData();
             } catch (error) {
-                message.textContent = error.message;
-                message.classList.remove('hidden');
-                showToast(`Erreur ajout versement: ${error.message}`, true);
-                console.error('Erreur ajout versement:', error);
+                showToast(`Erreur lors de l'annulation de la vente: ${error.message}`, true);
+                console.error('Erreur annulation vente:', error);
             }
         }
 
-        function openEditModal(numero_mc, type, numero_cf, nom_cf, montant, justificatif) {
-            console.log('openEditModal appelé avec:', { numero_mc, type, numero_cf, nom_cf, montant, justificatif });
-            if (!['C', 'F'].includes(type)) {
-                showToast('Type de versement invalide (doit être C ou F)', true);
-                console.error('Type invalide:', type);
-                return;
-            }
-            if (!numero_mc || !numero_cf) {
-                showToast('Numéro de versement ou identifiant client/fournisseur manquant', true);
-                console.error('Données manquantes:', { numero_mc, numero_cf });
-                return;
-            }
-            document.getElementById('edit_numero_mc').value = numero_mc;
-            document.getElementById('edit_type').value = type;
-            document.getElementById('edit_numero_cf').value = numero_cf;
-            document.getElementById('edit_numero_cf_name').value = nom_cf;
-            document.getElementById('edit_montant').value = montant;
-            document.getElementById('edit_justificatif').value = justificatif;
-            document.getElementById('edit_password2').value = '';
-            document.getElementById('edit-message').classList.add('hidden');
-            document.getElementById('editVersementModal').style.display = 'flex';
-        }
-
-        function closeEditModal() {
-            document.getElementById('editVersementModal').style.display = 'none';
-        }
-
-        async function modifierVersement() {
+        async function annulerReception(numeroMouvement, nature) {
             const userId = localStorage.getItem('userId');
-            const storedSeller = localStorage.getItem('selectedSeller');
             if (!userId) {
-                showToast('Veuillez vous connecter', true);
+                showToast('Veuillez vous connecter pour annuler une réception', true);
                 return;
             }
-            if (!storedSeller) {
-                showToast('Veuillez sélectionner un vendeur', true);
-                return;
-            }
-            const { numero_util } = JSON.parse(storedSeller);
-            const numero_mc = document.getElementById('edit_numero_mc').value;
-            const type = document.getElementById('edit_type').value;
-            const numero_cf = document.getElementById('edit_numero_cf').value;
-            const montant = document.getElementById('edit_montant').value;
-            const justificatif = document.getElementById('edit_justificatif').value;
-            const password2 = document.getElementById('edit_password2').value;
-            const message = document.getElementById('edit-message');
 
-            console.log('modifierVersement appelé avec:', { numero_mc, type, numero_cf, montant, justificatif, numero_util, password2 });
-
-            if (!['C', 'F'].includes(type)) {
-                message.textContent = 'Type de versement invalide (doit être C ou F)';
-                message.classList.remove('hidden');
-                showToast('Type de versement invalide', true);
-                return;
-            }
-            if (!montant || !password2 || !numero_mc || !numero_cf) {
-                message.textContent = 'Montant, mot de passe, numéro de versement ou identifiant client/fournisseur requis';
-                message.classList.remove('hidden');
-                showToast('Données manquantes', true);
+            const password2 = prompt('Veuillez entrer le mot de passe de l\'utilisateur qui a effectué cette réception :');
+            if (!password2) {
+                showToast('Mot de passe requis pour annuler la réception', true);
                 return;
             }
 
             try {
-                console.log('Envoi requête /modifier_versement:', { numero_mc, type, numero_cf, montant, justificatif, numero_util, password2 });
-                const response = await fetch(`${API_BASE_URL}/modifier_versement`, {
-                    method: 'PUT',
+                const response = await fetch(`${API_BASE_URL}/annuler_reception`, {
+                    method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-User-ID': userId
                     },
-                    body: JSON.stringify({ numero_mc, type, numero_cf, montant, justificatif, numero_util, password2 })
+                    body: JSON.stringify({
+                        numero_mouvement: numeroMouvement,
+                        password2: password2
+                    })
                 });
+
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                    const errorData = await response.json();
+                    throw new Error(`Erreur ${response.status}: ${errorData.error || 'Erreur inconnue'}`);
                 }
-                closeEditModal();
-                loadHistorique(document.getElementById('filter-date').value, type);
-                showToast('Versement modifié avec succès');
-                type === 'C' ? chargerClients() : chargerFournisseurs();
-                const clientFilter = document.getElementById('filter-client').value;
-                const fournisseurFilter = document.getElementById('filter-fournisseur').value;
-                if (clientFilter) loadSituation('C', clientFilter);
-                if (fournisseurFilter) loadSituation('F', fournisseurFilter);
+
+                showToast('Réception annulée avec succès', false);
+                reloadData();
             } catch (error) {
-                message.textContent = error.message;
-                message.classList.remove('hidden');
-                showToast(`Erreur modification versement: ${error.message}`, true);
-                console.error('Erreur modification versement:', error);
+                showToast(`Erreur lors de l'annulation de la réception: ${error.message}`, true);
+                console.error('Erreur annulation réception:', error);
             }
         }
 
-        async function annulerVersement(numero_mc, type, numero_cf) {
-            console.log('annulerVersement appelé avec:', { numero_mc, type, numero_cf });
-            if (!['C', 'F'].includes(type)) {
-                showToast('Type de versement invalide (doit être C ou F)', true);
-                console.error('Type invalide:', type);
-                return;
+        function showSaleDetails(numero, nature, type) {
+            let data;
+            if (type === 'Vente') {
+                data = [...dailySalesCache.tickets, ...dailySalesCache.bons].find(v => v.numero_comande === numero && v.nature === nature);
+            } else if (type === 'Réception') {
+                data = dailyPurchasesCache.receptions.find(r => r.numero_mouvement === numero && r.nature === nature);
             }
-            if (!numero_mc || !numero_cf) {
-                showToast('Numéro de versement ou identifiant client/fournisseur manquant', true);
-                console.error('Données manquantes:', { numero_mc, numero_cf });
-                return;
-            }
-            if (!confirm('Voulez-vous vraiment annuler ce versement ?')) {
-                return;
-            }
-            const userId = localStorage.getItem('userId');
-            const storedSeller = localStorage.getItem('selectedSeller');
-            if (!userId) {
-                showToast('Veuillez vous connecter', true);
-                return;
-            }
-            if (!storedSeller) {
-                showToast('Veuillez sélectionner un vendeur', true);
-                return;
-            }
-            const { numero_util } = JSON.parse(storedSeller);
-            const password2 = localStorage.getItem('sellerPassword');
 
-            try {
-                console.log('Envoi requête /annuler_versement:', { numero_mc, type, numero_cf, numero_util, password2 });
-                const response = await fetch(`${API_BASE_URL}/annuler_versement`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({ numero_mc, type, numero_cf, numero_util, password2 })
-                });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                loadHistorique(document.getElementById('filter-date').value, type);
-                showToast('Versement annulé avec succès');
-                type === 'C' ? chargerClients() : chargerFournisseurs();
-                const clientFilter = document.getElementById('filter-client').value;
-                const fournisseurFilter = document.getElementById('filter-fournisseur').value;
-                if (clientFilter) loadSituation('C', clientFilter);
-                if (fournisseurFilter) loadSituation('F', fournisseurFilter);
-            } catch (error) {
-                showToast(`Erreur annulation versement: ${error.message}`, true);
-                console.error('Erreur annulation versement:', error);
+            if (!data) {
+                showToast(`${type} non trouvée`, true);
+                return;
             }
+
+            document.getElementById('modalTitle').textContent = type;
+            document.getElementById('modalSaleNumber').textContent = type === 'Vente' ? data.numero_comande : data.numero_mouvement;
+            const saleDetailsList = document.getElementById('saleDetailsList');
+            saleDetailsList.innerHTML = '';
+
+            data.lignes.forEach(ligne => {
+                const quantite = type === 'Vente' ? ligne.quantite : ligne.qtea;
+                const prixUnitaire = type === 'Vente' ? (parseFloat(ligne.prixt) / parseFloat(ligne.quantite)).toFixed(2) : ligne.nprix;
+                const prixTotal = type === 'Vente' ? ligne.prixt : ligne.total_ligne;
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ligne.designation}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${quantite}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(prixUnitaire).toFixed(2)} DA</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(prixTotal).toFixed(2)} DA</td>
+                `;
+                saleDetailsList.appendChild(tr);
+            });
+
+            document.getElementById('saleDetailsModal').classList.remove('hidden');
         }
 
-        function switchTab(tab) {
-            const clientTab = document.getElementById('tab-clients');
-            const fournisseurTab = document.getElementById('tab-fournisseurs');
-            const formTitle = document.getElementById('form-title');
-            if (tab === 'clients') {
-                clientTab.classList.add('text-blue-600', 'border-blue-600');
-                clientTab.classList.remove('text-gray-600');
-                fournisseurTab.classList.remove('text-blue-600', 'border-blue-600');
-                fournisseurTab.classList.add('text-gray-600');
-                formTitle.textContent = 'Ajouter un Versement (Client)';
-                updateCFSelect('clients');
-                loadHistorique(document.getElementById('filter-date').value, 'C');
-            } else {
-                fournisseurTab.classList.add('text-blue-600', 'border-blue-600');
-                fournisseurTab.classList.remove('text-gray-600');
-                clientTab.classList.remove('text-blue-600', 'border-blue-600');
-                clientTab.classList.add('text-gray-600');
-                formTitle.textContent = 'Ajouter un Versement (Fournisseur)';
-                updateCFSelect('fournisseurs');
-                loadHistorique(document.getElementById('filter-date').value, 'F');
-            }
+        function closeSaleDetailsModal() {
+            document.getElementById('saleDetailsModal').classList.add('hidden');
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
+        function printTicket(numeroComande, nature) {
+            const vente = [...dailySalesCache.tickets, ...dailySalesCache.bons].find(v => v.numero_comande === numeroComande && v.nature === nature);
+            if (!vente) {
+                showToast('Vente non trouvée', true);
+                return;
+            }
+
+            document.getElementById('ticketNumero').textContent = vente.numero_comande;
+            document.getElementById('ticketDate').textContent = new Date(vente.date_comande).toLocaleString('fr-FR');
+            document.getElementById('ticketClient').textContent = vente.client_nom || 'Comptoir';
+            document.getElementById('ticketUtilisateur').textContent = vente.utilisateur_nom || 'N/A';
+
+            const lignesTbody = document.getElementById('ticketLignes');
+            lignesTbody.innerHTML = '';
+            vente.lignes.forEach(ligne => {
+                const prixUnitaire = (parseFloat(ligne.prixt) / parseFloat(ligne.quantite)).toFixed(2);
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="padding: 2mm;">${ligne.designation}</td>
+                    <td style="text-align: center; padding: 2mm;">${ligne.quantite}</td>
+                    <td style="text-align: right; padding: 2mm;">${prixUnitaire} DA</td>
+                    <td style="text-align: right; padding: 2mm;">${parseFloat(ligne.prixt).toFixed(2)} DA</td>
+                `;
+                lignesTbody.appendChild(tr);
+            });
+
+            const total = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
+            document.getElementById('ticketTotal').textContent = total.toFixed(2);
+
+            window.print();
+        }
+
+        function printPurchaseTicket(numeroMouvement, nature) {
+            const reception = dailyPurchasesCache.receptions.find(r => r.numero_mouvement === numeroMouvement && r.nature === nature);
+            if (!reception) {
+                showToast('Réception non trouvée', true);
+                return;
+            }
+
+            document.getElementById('purchaseTicketNumero').textContent = reception.numero_mouvement;
+            document.getElementById('purchaseTicketDate').textContent = new Date(reception.date_m).toLocaleString('fr-FR');
+            document.getElementById('purchaseTicketFournisseur').textContent = reception.fournisseur_nom || 'N/A';
+            document.getElementById('purchaseTicketUtilisateur').textContent = reception.utilisateur_nom || 'N/A';
+
+            const lignesTbody = document.getElementById('purchaseTicketLignes');
+            lignesTbody.innerHTML = '';
+            reception.lignes.forEach(ligne => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="padding: 2mm;">${ligne.designation}</td>
+                    <td style="text-align: center; padding: 2mm;">${ligne.qtea}</td>
+                    <td style="text-align: right; padding: 2mm;">${parseFloat(ligne.nprix).toFixed(2)} DA</td>
+                    <td style="text-align: right; padding: 2mm;">${parseFloat(ligne.total_ligne).toFixed(2)} DA</td>
+                `;
+                lignesTbody.appendChild(tr);
+            });
+
+            const total = reception.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.total_ligne || 0), 0);
+            document.getElementById('purchaseTicketTotal').textContent = total.toFixed(2);
+
+            window.print();
+        }
+
+        function printA4() {
+            const date = document.getElementById('dateFilter').value || new Date().toISOString().split('T')[0];
+            const client = document.getElementById('clientFilter').value;
+            const clientText = document.getElementById('clientFilter').options[document.getElementById('clientFilter').selectedIndex]?.text || 'Tous';
+
+            // Ventes
+            document.getElementById('printDate').textContent = date;
+            document.getElementById('printClient').textContent = clientText;
+            const printTicketsList = document.getElementById('printTicketsList');
+            const printBonsList = document.getElementById('printBonsList');
+            printTicketsList.innerHTML = '';
+            printBonsList.innerHTML = '';
+            dailySalesCache.tickets.forEach(vente => {
+                const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="border border-gray-300 px-4 py-2">${vente.numero_comande}</td>
+                    <td class="border border-gray-300 px-4 py-2">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
+                    <td class="border border-gray-300 px-4 py-2">${vente.client_nom || 'Comptoir'}</td>
+                    <td class="border border-gray-300 px-4 py-2">${vente.utilisateur_nom || 'N/A'}</td>
+                    <td class="border border-gray-300 px-4 py-2">${totalVente.toFixed(2)} DA</td>
+                `;
+                printTicketsList.appendChild(tr);
+            });
+            dailySalesCache.bons.forEach(vente => {
+                const totalVente = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="border border-gray-300 px-4 py-2">${vente.numero_comande}</td>
+                    <td class="border border-gray-300 px-4 py-2">${new Date(vente.date_comande).toLocaleString('fr-FR')}</td>
+                    <td class="border border-gray-300 px-4 py-2">${vente.client_nom || 'Comptoir'}</td>
+                    <td class="border border-gray-300 px-4 py-2">${vente.utilisateur_nom || 'N/A'}</td>
+                    <td class="border border-gray-300 px-4 py-2">${totalVente.toFixed(2)} DA</td>
+                `;
+                printBonsList.appendChild(tr);
+            });
+            document.getElementById('printTotal').textContent = parseFloat(dailySalesCache.total).toFixed(2);
+
+            // Achats
+            document.getElementById('printPurchasesDate').textContent = date;
+            const printReceptionsList = document.getElementById('printReceptionsList');
+            printReceptionsList.innerHTML = '';
+            dailyPurchasesCache.receptions.forEach(reception => {
+                const totalReception = reception.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.total_ligne || 0), 0);
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="border border-gray-300 px-4 py-2">${reception.numero_mouvement}</td>
+                    <td class="border border-gray-300 px-4 py-2">${new Date(reception.date_m).toLocaleString('fr-FR')}</td>
+                    <td class="border border-gray-300 px-4 py-2">${reception.fournisseur_nom || 'N/A'}</td>
+                    <td class="border border-gray-300 px-4 py-2">${reception.utilisateur_nom || 'N/A'}</td>
+                    <td class="border border-gray-300 px-4 py-2">${totalReception.toFixed(2)} DA</td>
+                `;
+                printReceptionsList.appendChild(tr);
+            });
+            document.getElementById('printPurchasesTotal').textContent = parseFloat(dailyPurchasesCache.total).toFixed(2);
+
+            window.print();
+        }
+
+        async function reloadData() {
+            const date = document.getElementById('dateFilter').value;
+            const client = document.getElementById('clientFilter').value;
+            const fournisseur = document.getElementById('fournisseurFilter').value;
+            const user = document.getElementById('userFilter').value;
+
+            await Promise.all([
+                chargerVentesJour(date, client, user),
+                chargerAchatsJour(date, user, fournisseur),
+                chargerArticlesPlusVendus(date, client, user),
+                chargerProfit(date, client, user),
+                chargerStockValue()
+            ]);
+        }
+
+        function debugButtons() {
+            const buttons = document.querySelectorAll('.action-button');
+            buttons.forEach(button => {
+                button.style.display = 'inline-block';
+                button.style.visibility = 'visible';
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
             const userId = localStorage.getItem('userId');
             const userEmail = localStorage.getItem('userEmail');
             if (userId && userEmail) {
-                document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
+                document.getElementById('userDisplay').textContent = `Connecté: ${userEmail}`;
                 document.getElementById('userDisplay').classList.remove('hidden');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                document.getElementById('sellerSelect').disabled = true;
-                chargerUtilisateurs().then((success) => {
-                    if (!success) {
-                        document.getElementById('sellerContent').classList.remove('hidden');
-                        document.getElementById('sellerChevron').classList.add('fa-chevron-up');
-                        document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
-                        return;
-                    }
-                    const storedSeller = localStorage.getItem('selectedSeller');
-                    if (storedSeller) {
-                        try {
-                            const { numero_util, nom } = JSON.parse(storedSeller);
-                            const sellerSelect = document.getElementById('sellerSelect');
-                            const optionExists = Array.from(sellerSelect.options).some(option => option.value === numero_util);
-                            if (optionExists) {
-                                sellerSelect.value = numero_util;
-                                document.getElementById('selectedSellerName').textContent = nom;
-                                document.getElementById('headerSellerName').textContent = nom;
-                                document.getElementById('sellerPassword').disabled = true;
-                                document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
-                                document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
-                                document.getElementById('sellerContent').classList.add('hidden');
-                                document.getElementById('sellerChevron').classList.add('fa-chevron-down');
-                                document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
-                            } else {
-                                localStorage.removeItem('selectedSeller');
-                                localStorage.removeItem('sellerPassword');
-                                document.getElementById('sellerContent').classList.remove('hidden');
-                                document.getElementById('sellerChevron').classList.add('fa-chevron-up');
-                                document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
-                                showToast('Vendeur non valide, veuillez sélectionner un vendeur', true);
-                            }
-                        } catch (error) {
-                            localStorage.removeItem('selectedSeller');
-                            localStorage.removeItem('sellerPassword');
-                            document.getElementById('sellerContent').classList.remove('hidden');
-                            document.getElementById('sellerChevron').classList.add('fa-chevron-up');
-                            document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
-                            showToast('Erreur chargement vendeur', true);
-                        }
-                    } else {
-                        document.getElementById('sellerContent').classList.remove('hidden');
-                        document.getElementById('sellerChevron').classList.add('fa-chevron-up');
-                        document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
-                    }
-                    document.getElementById('sellerSelect').disabled = false;
-                });
-                chargerClients();
-                chargerFournisseurs();
-                loadHistorique('', 'C');
             } else {
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+           showToast('Veuillez vous connecter', true);
                 window.location.href = 'index.html';
+                return;
             }
 
-            document.getElementById('cancelEditButton').addEventListener('click', closeEditModal);
-            document.getElementById('submitEditButton').addEventListener('click', modifierVersement);
-            document.getElementById('filter-client').addEventListener('change', (e) => {
-                console.log('Filtre client changé: numero_clt=', e.target.value);
-                loadSituation('C', e.target.value);
+            flatpickr('#dateFilter', {
+                dateFormat: 'Y-m-d',
+                defaultDate: new Date(),
+                onChange: function(selectedDates, dateStr) {
+                    reloadData();
+                }
             });
-            document.getElementById('filter-fournisseur').addEventListener('change', (e) => {
-                console.log('Filtre fournisseur changé: numero_fou=', e.target.value);
-                loadSituation('F', e.target.value);
-            });
-        });
 
-        document.getElementById('tab-clients').addEventListener('click', () => switchTab('clients'));
-        document.getElementById('tab-fournisseurs').addEventListener('click', () => switchTab('fournisseurs'));
-        document.getElementById('submit-versement').addEventListener('click', submitVersement);
-        document.getElementById('filter-date').addEventListener('change', (e) => {
-            const type = document.getElementById('tab-clients').classList.contains('border-blue-600') ? 'C' : 'F';
-            loadHistorique(e.target.value, type);
+            document.getElementById('clientFilter').addEventListener('change', reloadData);
+            document.getElementById('fournisseurFilter').addEventListener('change', reloadData);
+            document.getElementById('userFilter').addEventListener('change', reloadData);
+
+            await Promise.all([
+                chargerClients(),
+                chargerFournisseurs(),
+                chargerUtilisateurs(),
+                reloadData()
+            ]);
         });
     </script>
 </body>
-</html>
+</html> 
