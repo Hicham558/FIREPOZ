@@ -546,6 +546,10 @@
             }
         }
 
+        function editSale(numeroComande, nature) {
+            window.location.href = `vente.html?edit=true&numero_comande=${numeroComande}&nature=${nature}`;
+        }
+
         async function chargerClients() {
             console.log('Chargement des clients...');
             const userId = localStorage.getItem('userId');
@@ -689,6 +693,9 @@
                                 <button onclick="showSaleDetails(${vente.numero_comande}, '${vente.nature}', 'Vente')" class="action-button bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition">
                                     <i class="fas fa-eye"></i> Voir
                                 </button>
+                                <button onclick="editSale(${vente.numero_comande}, '${vente.nature}')" class="action-button bg-yellow-600 text-white px-2 py-1 rounded-md hover:bg-yellow-700 transition">
+                                    <i class="fas fa-edit"></i> Modifier
+                                </button>
                                 <button onclick="printTicket(${vente.numero_comande}, '${vente.nature}')" class="action-button bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition">
                                     <i class="fas fa-print"></i> Ticket
                                 </button>
@@ -718,6 +725,9 @@
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                 <button onclick="showSaleDetails(${vente.numero_comande}, '${vente.nature}', 'Vente')" class="action-button bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition">
                                     <i class="fas fa-eye"></i> Voir
+                                </button>
+                                <button onclick="editSale(${vente.numero_comande}, '${vente.nature}')" class="action-button bg-yellow-600 text-white px-2 py-1 rounded-md hover:bg-yellow-700 transition">
+                                    <i class="fas fa-edit"></i> Modifier
                                 </button>
                                 <button onclick="printTicket(${vente.numero_comande}, '${vente.nature}')" class="action-button bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition">
                                     <i class="fas fa-print"></i> Ticket
@@ -1277,32 +1287,42 @@
             if (userId && userEmail) {
                 document.getElementById('userDisplay').textContent = `Connecté: ${userEmail}`;
                 document.getElementById('userDisplay').classList.remove('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i> Déconnexion';
             } else {
-           showToast('Veuillez vous connecter', true);
                 window.location.href = 'index.html';
                 return;
             }
 
+            // Initialiser Flatpickr pour le sélecteur de date
             flatpickr('#dateFilter', {
                 dateFormat: 'Y-m-d',
-                defaultDate: new Date(),
-                onChange: function(selectedDates, dateStr) {
+                defaultDate: new Date().toISOString().split('T')[0],
+                locale: {
+                    firstDayOfWeek: 1 // Lundi comme premier jour
+                },
+                onChange: (selectedDates, dateStr) => {
                     reloadData();
                 }
             });
 
+            // Écouteurs d'événements pour les filtres
             document.getElementById('clientFilter').addEventListener('change', reloadData);
             document.getElementById('fournisseurFilter').addEventListener('change', reloadData);
             document.getElementById('userFilter').addEventListener('change', reloadData);
 
-            await Promise.all([
-                chargerClients(),
-                chargerFournisseurs(),
-                chargerUtilisateurs(),
-                reloadData()
-            ]);
+            // Charger les données initiales
+            try {
+                await Promise.all([
+                    chargerClients(),
+                    chargerFournisseurs(),
+                    chargerUtilisateurs(),
+                    reloadData()
+                ]);
+            } catch (error) {
+                showToast('Erreur lors du chargement initial: ' + error.message, true);
+                console.error('Erreur chargement initial:', error);
+            }
         });
     </script>
 </body>
-</html> 
+</html>
