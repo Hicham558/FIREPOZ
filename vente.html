@@ -149,10 +149,9 @@
             max-height: 80vh;
             overflow-y: auto;
         }
-        /* Styles pour le mode maximisé */
         #productsSection.maximized {
             position: fixed;
-            top: 80px; /* Hauteur de la barre de navigation */
+            top: 80px;
             left: 0;
             right: 0;
             bottom: 0;
@@ -164,15 +163,14 @@
             overflow: hidden;
         }
         #productsSection.maximized #productsContent {
-            display: block !important; /* Forcer l'affichage du contenu même si replié */
-            height: calc(100% - 120px); /* Hauteur totale moins la barre de recherche et l'en-tête */
+            display: block !important;
+            height: calc(100% - 120px);
             padding: 0 16px 16px;
         }
         #productsSection.maximized .table-container {
-            max-height: calc(100% - 80px); /* Hauteur restante après la barre de recherche */
+            max-height: calc(100% - 80px);
             overflow-y: auto;
         }
-        /* Ajustement de la barre de recherche en mode maximisé */
         #productsSection.maximized .mb-4.flex {
             position: sticky;
             top: 0;
@@ -181,9 +179,8 @@
             padding: 16px 0;
             border-bottom: 1px solid #e5e7eb;
         }
-        /* Style du bouton maximiser/restaurer */
         #maximizeProductsButton.restore::after {
-            content: '\f066'; /* Icône Font Awesome fa-compress */
+            content: '\f066';
             font-family: 'Font Awesome 6 Free';
             font-weight: 900;
         }
@@ -210,7 +207,6 @@
     </nav>
 
     <div class="container mx-auto px-4 pt-20">
-        <!-- Section vendeur en haut, repliable -->
         <div id="sellerSection" class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8">
             <div class="p-6 cursor-pointer" onclick="toggleSection('sellerSection')">
                 <div class="flex justify-between items-center">
@@ -279,7 +275,7 @@
                     </div>
                 </div>
                 <div class="p-6 hidden" id="productsContent">
-                    <div class="mb-4 flex flex-col Sermons md:flex-row gap-4">
+                    <div class="mb-4 flex flex-col md:flex-row gap-4">
                         <div class="relative w-full md:w-1/2">
                             <input type="text" id="searchProduct" placeholder="Rechercher un produit..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
                             <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
@@ -318,6 +314,7 @@
                         <i class="fas fa-receipt mr-2 text-indigo-500"></i> Ventes
                         <span id="saleItemCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
                     </h2>
+                    <span id="editModeIndicator" class="text-sm text-gray-600"></span>
                 </div>
                 <div class="p-6">
                     <div class="mb-6">
@@ -442,6 +439,8 @@
         let produitsCache = [];
         let clientsCache = [];
         let utilisateursCache = [];
+        let editMode = false; // Mode normal par défaut
+        let currentNumeroComande = null; // Stocke le numero_comande en mode modification
 
         function togglePaymentForm() {
             const paymentMode = document.getElementById('paymentMode').value;
@@ -499,6 +498,18 @@
             }
         }
 
+        function updateValidateButton() {
+            const validateButton = document.getElementById('validateSaleButton');
+            const editModeIndicator = document.getElementById('editModeIndicator');
+            if (editMode) {
+                validateButton.innerHTML = '<i class="fas fa-edit mr-2"></i>Modifier la vente';
+                editModeIndicator.textContent = `Modification de la vente #${currentNumeroComande}`;
+            } else {
+                validateButton.innerHTML = '<i class="fas fa-check mr-2"></i>Valider la vente';
+                editModeIndicator.textContent = '';
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             console.log('Page chargée, vérification utilisateur...');
             const userId = localStorage.getItem('userId');
@@ -541,6 +552,7 @@
                 });
                 chargerClients();
                 chargerProduits();
+                updateValidateButton(); // Initialiser le bouton en mode normal
             } else {
                 console.log('Aucun utilisateur connecté, redirection vers index.html');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
@@ -820,16 +832,11 @@
                     QTE: parseFloat(produit.QTE) || 0
                 }));
 
-                if (produitsCache.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
-                    countElement.textContent = '0';
-                    countElement.classList.remove('hidden');
-                    return;
-                }
+                tbody.innerHTML = produitsCache.length === 0
+                    ? '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>'
+                    : '';
 
-                tbody.innerHTML = '';
                 produitsCache.forEach(produit => {
-                    console.log('Rendu produit:', produit);
                     const stockStatus = produit.QTE <= 0 ? 'Rupture' : produit.QTE <= 5 ? 'Stock faible' : produit.QTE.toFixed(2);
                     const stockClass = produit.QTE <= 0 ? 'stock-rupture' : produit.QTE <= 5 ? 'stock-faible' : '';
                     const buttonDisabled = produit.QTE <= 0 ? 'btn-disabled' : '';
@@ -1046,7 +1053,7 @@
         }
 
         async function validerVente() {
-            console.log('Validation vente...');
+            console.log(editMode ? 'Modification vente...' : 'Validation vente...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour valider la vente', true);
@@ -1093,40 +1100,64 @@
                     quantite: parseFloat(ligne.quantite),
                     prixt: parseFloat(ligne.prixt),
                     remarque: ligne.remarque,
-                    prixbh: ligne.prixbh
+                    prixbh: parseFloat(ligne.prixbh)
                 }))
             };
 
             try {
-                const response = await fetch(`${API_BASE_URL}/valider_vente`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify(venteData)
-                });
-                console.log('Réponse valider_vente:', response.status, response.statusText);
+                let response;
+                if (editMode) {
+                    // Mode modification
+                    response = await fetch(`${API_BASE_URL}/modifier_vente/${currentNumeroComande}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-User-ID': userId
+                        },
+                        body: JSON.stringify(venteData)
+                    });
+                } else {
+                    // Mode création
+                    response = await fetch(`${API_BASE_URL}/valider_vente`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-User-ID': userId
+                        },
+                        body: JSON.stringify(venteData)
+                    });
+                }
+
+                console.log(`Réponse ${editMode ? 'modifier_vente' : 'valider_vente'}:`, response.status, response.statusText);
                 if (!response.ok) {
                     const errorText = await response.text();
-                    console.error('Erreur texte valider_vente:', errorText);
+                    console.error(`Erreur texte ${editMode ? 'modifier_vente' : 'valider_vente'}:`, errorText);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
-                const result = await response.json();
-                console.log('Vente validée:', result);
 
-                showToast(`Vente #${result.numero_comande} validée avec succès`);
-                tempSaleLines = [];
-                document.getElementById('paymentMode').value = 'espece';
-                document.getElementById('amountPaid').value = '';
-                togglePaymentForm();
-                updateTempSalesTable();
-                chargerProduits();
-                chargerClients();
+                const result = await response.json();
+                console.log(editMode ? 'Vente modifiée:' : 'Vente validée:', result);
+
+                showToast(editMode ? `Vente #${result.numero_comande} modifiée avec succès` : `Vente #${result.numero_comande} validée avec succès`);
+                resetForm();
             } catch (error) {
-                console.error('Erreur validation vente:', error);
-                showToast(`Erreur validation vente: ${error.message}`, true);
+                console.error(`Erreur ${editMode ? 'modification' : 'validation'} vente:`, error);
+                showToast(`Erreur ${editMode ? 'modification' : 'validation'} vente: ${error.message}`, true);
             }
+        }
+
+        function resetForm() {
+            tempSaleLines = [];
+            document.getElementById('paymentMode').value = 'espece';
+            document.getElementById('amountPaid').value = '';
+            document.getElementById('saleClientId').value = '0';
+            editMode = false;
+            currentNumeroComande = null;
+            togglePaymentForm();
+            updateTempSalesTable();
+            updateValidateButton();
+            chargerProduits();
+            chargerClients();
         }
 
         function holdSale() {
@@ -1142,6 +1173,7 @@
 
             const pendingSale = {
                 id: Date.now(),
+                numero_comande: editMode ? currentNumeroComande : null,
                 date: new Date().toLocaleString('fr-FR'),
                 lines: [...tempSaleLines],
                 paymentMode,
@@ -1153,13 +1185,7 @@
             pendingSales.push(pendingSale);
             localStorage.setItem('pendingSales', JSON.stringify(pendingSales));
 
-            tempSaleLines = [];
-            document.getElementById('paymentMode').value = 'espece';
-            document.getElementById('amountPaid').value = '';
-            document.getElementById('saleClientId').value = '0';
-            togglePaymentForm();
-            updateTempSalesTable();
-
+            resetForm();
             showToast('Vente mise en attente avec succès');
         }
 
@@ -1169,10 +1195,9 @@
             const pendingSalesList = document.getElementById('pendingSalesList');
             const pendingSales = JSON.parse(localStorage.getItem('pendingSales') || '[]');
 
-            if (pendingSales.length === 0) {
-                pendingSalesList.innerHTML = '<p class="text-center text-gray-500">Aucune vente en attente</p>';
-            } else {
-                pendingSalesList.innerHTML = pendingSales.map(sale => `
+            pendingSalesList.innerHTML = pendingSales.length === 0
+                ? '<p class="text-center text-gray-500">Aucune vente en attente</p>'
+                : pendingSales.map(sale => `
                     <div class="border p-4 rounded-md shadow-sm bg-gray-50">
                         <div class="flex justify-between items-center mb-2">
                             <h3 class="font-semibold">Vente #${sale.id} - ${sale.date}</h3>
@@ -1192,7 +1217,6 @@
                         <p><strong>Articles:</strong> ${sale.lines.length}</p>
                     </div>
                 `).join('');
-            }
 
             modal.style.display = 'flex';
         }
@@ -1211,8 +1235,11 @@
             document.getElementById('paymentMode').value = sale.paymentMode;
             document.getElementById('amountPaid').value = sale.amountPaid || '';
             document.getElementById('saleClientId').value = sale.clientId || '0';
+            editMode = !!sale.numero_comande; // Activer le mode modification si numero_comande existe
+            currentNumeroComande = sale.numero_comande;
             togglePaymentForm();
             updateTempSalesTable();
+            updateValidateButton();
 
             deletePendingSale(saleId);
             closePendingSalesModal();
@@ -1444,7 +1471,7 @@
                         <p><strong>Date :</strong> ${new Date().toLocaleString('fr-FR')}</p>
                         <p><strong>Client :</strong> ${clientText}</p>
                         <p><strong>Mode de paiement :</strong> ${paymentMode === 'espece' ? 'Espèce' : 'À terme'}</p>
-                        ${paymentMode === 'a_terme' ? `<p><strong>Montant versé :</strong> ${amountPaid.toFixed(2)} DA</p>` : ''}
+                   ${paymentMode === 'a_terme' ? `<p><strong>Montant versé :</strong> ${amountPaid.toFixed(2)} DA</p>` : ''}
                         ${soldeContent}
                     </header>
                     <table>
@@ -1454,7 +1481,7 @@
                                 <th>Produit</th>
                                 <th>Quantité</th>
                                 <th>Prix Unitaire</th>
-                                <th>Prix Total</th>
+                                <th>Total</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1466,8 +1493,8 @@
                         <td>${ligne.numero_item || 'N/A'}</td>
                         <td>${ligne.designation || 'N/A'}</td>
                         <td>${parseFloat(ligne.quantite).toFixed(2)}</td>
-                        <td>${parseFloat(ligne.remarque || 0).toFixed(2)} DA</td>
-                        <td>${parseFloat(ligne.prixt || 0).toFixed(2)} DA</td>
+                        <td>${parseFloat(ligne.remarque || 0).toFixed(2)}</td>
+                        <td>${parseFloat(ligne.prixt || 0).toFixed(2)}</td>
                     </tr>
                 `;
             });
@@ -1475,12 +1502,11 @@
             ticketContent += `
                         </tbody>
                     </table>
-                    <div class="total-section">
-                        <p><strong>Total :</strong> ${total} DA</p>
-                    </div>
                     <footer>
-                        <p>Merci de votre achat !</p>
-                        ${companyAddress || companyPhone ? `<p>Contact : ${companyName} | ${companyPhone ? `Tél : ${companyPhone} | ` : ''}${companyAddress ? `Adresse : ${companyAddress}` : ''}</p>` : ''}
+                        <p class="total">Total: ${total} DA</p>
+                        ${paymentMode === 'a_terme' && amountPaid > 0 ? `<p>Montant versé: ${amountPaid.toFixed(2)} DA</p>` : ''}
+                        ${paymentMode === 'a_terme' ? `<p>Reste à payer: ${(parseFloat(total) - amountPaid).toFixed(2)} DA</p>` : ''}
+                        <p class="thank-you">Merci de votre achat !</p>
                     </footer>
                 </div>
             `;
@@ -1496,42 +1522,40 @@
                     <head>
                         <title>Bon de Livraison A4 - ${companyName}</title>
                         <style>
-                            @page { size: A4; margin: 20mm; }
                             body {
                                 margin: 0;
-                                padding: 0;
+                                padding: 20mm;
+                                background: #fff;
                                 font-family: Arial, sans-serif;
-                                color: #333;
+                                font-size: 12pt;
+                                line-height: 1.5;
+                                color: #000;
                             }
                             .printable {
-                                width: 190mm;
+                                max-width: 210mm;
                                 margin: 0 auto;
-                                padding: 10mm;
-                                background: #fff;
-                                border: 1mm solid #ddd;
-                                box-shadow: 0 0 5mm rgba(0,0,0,0.1);
+                                box-shadow: 0 0 10mm rgba(0, 0, 0, 0.1);
                             }
                             header {
-                                margin-bottom: 10mm;
-                                border-bottom: 1mm solid #ddd;
+                                border-bottom: 1mm solid #000;
                                 padding-bottom: 5mm;
+                                margin-bottom: 10mm;
                             }
                             .company-info {
+                                float: right;
                                 text-align: right;
                             }
-                            header h1 {
-                                font-size: 24pt;
-                                color: #4f46e5;
+                            h1 {
+                                font-size: 18pt;
                                 margin: 0;
                             }
-                            header h2 {
-                                font-size: 18pt;
-                                color: #333;
-                                margin-top: 5mm;
+                            h2 {
+                                font-size: 16pt;
+                                margin: 5mm 0;
+                                text-align: center;
                             }
-                            header p {
+                            p {
                                 margin: 2mm 0;
-                                font-size: 12pt;
                             }
                             table {
                                 width: 100%;
@@ -1539,42 +1563,34 @@
                                 margin: 10mm 0;
                             }
                             th, td {
-                                border: 0.5mm solid #ddd;
+                                border: 0.5mm solid #000;
                                 padding: 3mm;
                                 text-align: left;
-                                font-size: 10pt;
                             }
                             th {
-                                background: #f8f8f8;
+                                background-color: #f5f5f5;
                                 font-weight: bold;
                             }
-                            .total-section {
-                                text-align: right;
-                                margin-top: 10mm;
+                            .total {
+                                font-weight: bold;
                                 font-size: 14pt;
+                                text-align: right;
+                                margin-top: 5mm;
                             }
-                            footer {
-                                margin-top: 10mm;
+                            .thank-you {
                                 text-align: center;
-                                font-size: 10pt;
-                                color: #666;
-                                border-top: 1mm solid #ddd;
-                                padding-top: 5mm;
-                            }
-                            footer p {
-                                margin: 2mm 0;
+                                margin-top: 10mm;
+                                font-style: italic;
                             }
                             .print-controls {
                                 text-align: center;
-                                margin-top: 10mm;
+                                margin-top: 20mm;
                             }
                             .print-controls button {
-                                padding: 5mm 10mm;
-                                margin: 0 5mm;
+                                padding: 10mm 20mm;
+                                margin: 0 10mm;
                                 font-size: 12pt;
                                 cursor: pointer;
-                                border: none;
-                                border-radius: 5mm;
                             }
                             @media print {
                                 body {
@@ -1584,18 +1600,14 @@
                                 .print-controls {
                                     display: none;
                                 }
-                                .printable {
-                                    box-shadow: none;
-                                    border: none;
-                                }
                             }
                         </style>
                     </head>
                     <body>
                         ${ticketContent}
                         <div class="print-controls">
-                            <button onclick="window.print(); window.close();" style="background-color: #4CAF50; color: white;">Imprimer</button>
-                            <button onclick="window.close();" style="background-color: #f44336; color: white;">Annuler</button>
+                            <button onclick="window.print(); window.close();" style="background-color: #4CAF50; color: white; border: none; border-radius: 5mm;">Imprimer</button>
+                            <button onclick="window.close();" style="background-color: #f44336; color: white; border: none; border-radius: 5mm;">Annuler</button>
                         </div>
                     </body>
                 </html>
@@ -1619,35 +1631,44 @@
                 scannerPreview.style.display = 'block';
                 scannerOverlay.style.display = 'block';
 
-                closeScannerButton.onclick = stopScanner;
-
                 const barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
-                let scanning = true;
 
                 async function scan() {
-                    if (!scanning || !scannerStream) return;
+                    if (scannerPreview.readyState === scannerPreview.HAVE_ENOUGH_DATA) {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = scannerPreview.videoWidth;
+                        canvas.height = scannerPreview.videoHeight;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(scannerPreview, 0, 0, canvas.width, canvas.height);
 
-                    try {
-                        const barcodes = await barcodeDetector.detect(scannerPreview);
-                        if (barcodes.length > 0) {
-                            const barcode = barcodes[0].rawValue;
-                            console.log('Code-barres détecté:', barcode);
-                            document.getElementById('productBar').value = barcode;
-                            stopScanner();
-                            handleBarcodeInput(barcode);
-                            return;
+                        try {
+                            const barcodes = await barcodeDetector.detect(canvas);
+                            if (barcodes.length > 0) {
+                                const barcode = barcodes[0].rawValue;
+                                console.log('Code-barres détecté:', barcode);
+                                stopScanner();
+                                document.getElementById('productBar').value = barcode;
+                                handleBarcode(barcode);
+                            }
+                        } catch (err) {
+                            console.error('Erreur détection code-barres:', err);
                         }
-                    } catch (error) {
-                        console.error('Erreur lors de la détection du code-barres:', error);
                     }
-                    requestAnimationFrame(scan);
+                    if (scannerPreview.style.display === 'block') {
+                        requestAnimationFrame(scan);
+                    }
                 }
 
+                scannerPreview.play();
                 scan();
-            } catch (error) {
-                console.error('Erreur démarrage scanner:', error);
-                showToast('Erreur d\'accès à la caméra: ' + error.message, true);
+            } catch (err) {
+                console.error('Erreur accès caméra:', err);
+                showToast('Impossible d\'accéder à la caméra: ' + err.message, true);
+                scannerPreview.style.display = 'none';
+                scannerOverlay.style.display = 'none';
             }
+
+            closeScannerButton.onclick = stopScanner;
         }
 
         function stopScanner() {
@@ -1659,16 +1680,20 @@
                 scannerStream.getTracks().forEach(track => track.stop());
                 scannerStream = null;
             }
-
             scannerPreview.style.display = 'none';
             scannerOverlay.style.display = 'none';
         }
 
-        function handleBarcodeInput(barcode) {
-            console.log('Traitement code-barres:', barcode);
-            const produit = produitsCache.find(p => p.BAR.toString() === barcode);
+        function handleBarcode(barcode) {
+            console.log('Traitement du code-barres:', barcode);
+            const produit = produitsCache.find(p => p.BAR === parseInt(barcode));
             if (!produit) {
                 showToast('Produit non trouvé pour ce code-barres', true);
+                return;
+            }
+
+            if (produit.QTE <= 0) {
+                showToast('Stock insuffisant pour ce produit', true);
                 return;
             }
 
@@ -1682,24 +1707,20 @@
             );
         }
 
-        document.getElementById('productBar').addEventListener('change', (event) => {
-            const barcode = event.target.value.trim();
-            if (barcode) {
-                handleBarcodeInput(barcode);
-                event.target.value = '';
+        document.getElementById('productBar').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const barcode = e.target.value.trim();
+                if (barcode) {
+                    handleBarcode(barcode);
+                    e.target.value = '';
+                }
             }
         });
 
-        document.getElementById('searchProduct').addEventListener('input', (event) => {
-            const searchTerm = event.target.value.trim().toLowerCase();
-            console.log('Recherche produit:', searchTerm);
+        document.getElementById('searchProduct').addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
             const tbody = document.getElementById('productsList');
-            const countElement = document.getElementById('productCount');
-
-            if (!searchTerm) {
-                chargerProduits();
-                return;
-            }
+            tbody.innerHTML = '';
 
             const filteredProducts = produitsCache.filter(produit =>
                 produit.DESIGNATION.toLowerCase().includes(searchTerm) ||
@@ -1708,12 +1729,9 @@
 
             if (filteredProducts.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
-                countElement.textContent = '0';
-                countElement.classList.remove('hidden');
                 return;
             }
 
-            tbody.innerHTML = '';
             filteredProducts.forEach(produit => {
                 const stockStatus = produit.QTE <= 0 ? 'Rupture' : produit.QTE <= 5 ? 'Stock faible' : produit.QTE.toFixed(2);
                 const stockClass = produit.QTE <= 0 ? 'stock-rupture' : produit.QTE <= 5 ? 'stock-faible' : '';
@@ -1736,11 +1754,18 @@
                 tbody.appendChild(tr);
             });
 
-            countElement.textContent = filteredProducts.length;
-            countElement.classList.remove('hidden');
+            document.getElementById('productCount').textContent = filteredProducts.length;
         });
+
+        // Gestion du clic hors du modal pour le fermer
+        document.getElementById('pendingSalesModal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('pendingSalesModal')) {
+                closePendingSalesModal();
+            }
+        });
+
+        // Gestion du clic sur l'overlay du scanner pour le fermer
+        document.getElementById('scannerOverlay').addEventListener('click', stopScanner);
     </script>
 </body>
 </html>
-                               
-                         
