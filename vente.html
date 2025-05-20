@@ -572,61 +572,81 @@
                 });
         });
 
-        async function loadSaleData(numeroComande) {
-            console.log(`Chargement des données de la vente #${numeroComande}...`);
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter', true);
-                return;
-            }
+       async function loadSaleData(numeroComande) {
+    console.log(`Chargement des données de la vente #${numeroComande}...`);
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter', true);
+        return;
+    }
 
-            try {
-                const response = await fetch(`${API_BASE_URL}/vente/${numeroComande}`, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                const saleData = await response.json();
-                console.log('Données de la vente:', saleData);
+    try {
+        const response = await fetch(`${API_BASE_URL}/vente/${numeroComande}`, {
+            headers: { 'X-User-ID': userId }
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Erreur ${response.status}: ${errorText}`);
+        }
+        const saleData = await response.json();
+        console.log('Données de la vente:', saleData);
 
-                // Pré-remplir les champs
-                tempSaleLines = saleData.lignes.map(ligne => ({
-                    numero_item: ligne.numero_item,
-                    produit_bar: ligne.numero_item.toString(),
-                    designation: ligne.designation,
-                    quantite: parseFloat(ligne.quantite).toFixed(2),
-                    prixt: parseFloat(ligne.prixt).toFixed(2),
-                    remarque: parseFloat(ligne.prixt / ligne.quantite).toFixed(2),
-                    prixbh: parseFloat(ligne.prixbh)
-                }));
+        // Vérifier si saleData.lignes existe et est un tableau
+        if (!Array.isArray(saleData.lignes)) {
+            throw new Error('Les lignes de vente sont manquantes ou invalides');
+        }
 
-                document.getElementById('saleClientId').value = saleData.numero_table || '0';
-                document.getElementById('paymentMode').value = saleData.nature === 'TICKET' ? 'espece' : 'a_terme';
-                if (saleData.nature === 'BON DE L.') {
-                    document.getElementById('amountPaid').value = '0.00'; // À ajuster si l'API fournit le montant versé
-                }
-                togglePaymentForm();
-                updateTempSalesTable();
+        // Pré-remplir les champs en filtrant les lignes invalides
+        tempSaleLines = saleData.lignes
+            .filter(ligne => ligne.numero_item != null) // Filtrer les lignes sans numero_item
+            .map(ligne => {
+                // Vérifier que les propriétés nécessaires existent
+                const numeroItem = ligne.numero_item ?? 0; // Valeur par défaut si undefined
+                const quantite = parseFloat(ligne.quantite) || 0;
+                const prixt = parseFloat(ligne.prixt) || 0;
 
-                // Pré-sélectionner le vendeur
-                const storedSeller = localStorage.getItem('selectedSeller');
-                if (storedSeller) {
-                    const { numero_util } = JSON.parse(storedSeller);
-                    if (numero_util !== saleData.numero_util.toString()) {
-                        document.getElementById('sellerSelect').value = saleData.numero_util;
-                        document.getElementById('sellerPassword').value = '';
-                        document.getElementById('sellerPassword').disabled = false;
-                        document.getElementById('selectedSellerName').textContent = saleData.utilisateur_nom || '-';
-                        document.getElementById('headerSellerName').textContent = saleData.utilisateur_nom || '-';
-                    }
-                }
-            } catch (error) {
-                showToast(`Erreur lors du chargement de la vente: ${error.message}`, true);
-                console.error('Erreur chargement vente:', error);
+                return {
+                    numero_item: numeroItem,
+                    produit_bar: numeroItem.toString(), // Safe car numeroItem est défini
+                    designation: ligne.designation || 'N/A',
+                    quantite: quantite.toFixed(2),
+                    prixt: prixt.toFixed(2),
+                    remarque: quantite > 0 ? (prixt / quantite).toFixed(2) : '0.00', // Éviter division par 0
+                    prixbh: parseFloat(ligne.prixbh) || 0
+                };
+            });
+
+        // Vérifier si des lignes ont été filtrées
+        if (saleData.lignes.length !== tempSaleLines.length) {
+            showToast('Certaines lignes invalides ont été ignorées', true);
+        }
+
+        // Pré-sélectionner le client
+        document.getElementById('saleClientId').value = saleData.numero_table || '0';
+        document.getElementById('paymentMode').value = saleData.nature === 'TICKET' ? 'espece' : 'a_terme';
+        if (saleData.nature === 'BON DE L.') {
+            document.getElementById('amountPaid').value = '0.00'; // À ajuster si API fournit montant
+        }
+        togglePaymentForm();
+        updateTempSalesTable();
+
+        // Pré-sélectionner le vendeur
+        const storedSeller = localStorage.getItem('selectedSeller');
+        if (storedSeller) {
+            const { numero_util } = JSON.parse(storedSeller);
+            if (numero_util !== saleData.numero_util?.toString()) {
+                document.getElementById('sellerSelect').value = saleData.numero_util || '0';
+                document.getElementById('sellerPassword').value = '';
+                document.getElementById('sellerPassword').disabled = false;
+                document.getElementById('selectedSellerName').textContent = saleData.utilisateur_nom || '-';
+                document.getElementById('headerSellerName').textContent = saleData.utilisateur_nom || '-';
             }
         }
+    } catch (error) {
+        showToast(`Erreur lors du chargement de la vente: ${error.message}`, true);
+        console.error('Erreur chargement vente:', error);
+    }
+}
 
         async function modifierVente() {
             console.log(`Modification de la vente #${editNumeroComande}...`);
@@ -712,7 +732,7 @@
                 updateTempSalesTable();
                 chargerProduits();
                 chargerClients();
-                window.location.href = 'ventes_achats.html';
+                window.location.href = 'page2.html';
             } catch (error) {
                 console.error('Erreur modification vente:', error);
                 showToast(`Erreur modification vente: ${error.message}`, true);
