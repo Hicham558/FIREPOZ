@@ -439,8 +439,8 @@
         let produitsCache = [];
         let clientsCache = [];
         let utilisateursCache = [];
-        let editMode = false; // Mode normal par défaut
-        let currentNumeroComande = null; // Stocke le numero_comande en mode modification
+        let editMode = false;
+        let currentNumeroComande = null;
 
         function togglePaymentForm() {
             const paymentMode = document.getElementById('paymentMode').value;
@@ -466,7 +466,6 @@
             const section = document.getElementById(sectionId);
             const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
             const chevron = document.getElementById(`${sectionId.replace('Section', 'Chevron')}`);
-
             content.classList.toggle('hidden');
             chevron.classList.toggle('fa-chevron-down');
             chevron.classList.toggle('fa-chevron-up');
@@ -477,9 +476,7 @@
             const maximizeButton = document.getElementById('maximizeProductsButton');
             const productsContent = document.getElementById('productsContent');
             const productsChevron = document.getElementById('productsChevron');
-
             const isMaximized = productsSection.classList.contains('maximized');
-
             if (!isMaximized) {
                 productsSection.classList.add('maximized');
                 maximizeButton.classList.add('restore');
@@ -514,9 +511,7 @@
             console.log('Chargement de la vente pour modification:', numeroComande, nature);
             const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Veuillez vous connecter pour modifier une vente', true);
-                window.location.href = 'index.html';
-                return;
+                throw new Error('Utilisateur non connecté');
             }
 
             try {
@@ -525,20 +520,26 @@
                 });
                 if (!response.ok) {
                     const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                    throw new Error(`Erreur ${response.status}: ${errorText || 'Erreur inconnue'}`);
                 }
                 const vente = await response.json();
                 console.log('Données de la vente récupérées:', vente);
 
-                // Mettre à jour les champs du formulaire
+                if (!vente || !vente.lignes) {
+                    throw new Error('Données de vente invalides ou vides');
+                }
+
                 document.getElementById('saleClientId').value = vente.numero_table || '0';
                 document.getElementById('paymentMode').value = vente.payment_mode || 'espece';
                 document.getElementById('amountPaid').value = vente.amount_paid || '';
                 togglePaymentForm();
 
-                // Vider tempSaleLines et remplir avec les lignes de la vente
                 tempSaleLines = [];
                 vente.lignes.forEach(ligne => {
+                    if (!ligne.numero_item || !ligne.quantite || !ligne.prixt) {
+                        console.warn('Ligne invalide:', ligne);
+                        return;
+                    }
                     tempSaleLines.push({
                         numero_item: parseInt(ligne.numero_item),
                         produit_bar: ligne.produit_bar || '',
@@ -550,18 +551,17 @@
                     });
                 });
 
-                // Mettre à jour l'affichage
+                if (tempSaleLines.length === 0) {
+                    throw new Error('Aucune ligne de vente valide trouvée');
+                }
+
                 updateTempSalesTable();
                 updateValidateButton();
-
-                // Mettre à jour le titre de la section
                 document.querySelector('#salesSection h2').textContent = `Modification de la vente #${numeroComande} (${nature})`;
-
                 showToast(`Vente #${numeroComande} chargée pour modification`);
             } catch (error) {
-                showToast(`Erreur lors du chargement de la vente: ${error.message}`, true);
                 console.error('Erreur chargement vente:', error);
-                resetForm();
+                throw error;
             }
         }
 
@@ -583,66 +583,78 @@
             console.log('Page chargée, vérification utilisateur...');
             const userId = localStorage.getItem('userId');
             const userEmail = localStorage.getItem('userEmail');
-            if (userId && userEmail) {
-                console.log('Utilisateur connecté:', userId, userEmail);
-                document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
-                document.getElementById('userDisplay').classList.remove('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                document.getElementById('sellerSelect').disabled = true;
+            if (!userId || !userEmail) {
+                showToast('Aucun utilisateur connecté, redirection vers index.html', true);
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                window.location.href = 'index.html';
+                return;
+            }
 
-                // Vérifier les paramètres d'URL pour le mode modification
-                const urlParams = new URLSearchParams(window.location.search);
-                const isEditMode = urlParams.get('edit') === 'true';
-                const numeroComande = urlParams.get('numero_comande');
-                const nature = urlParams.get('nature');
+            console.log('Utilisateur connecté:', userId, userEmail);
+            document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
+            document.getElementById('userDisplay').classList.remove('hidden');
+            document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+            document.getElementById('sellerSelect').disabled = true;
 
-                console.log('Paramètres URL:', { isEditMode, numeroComande, nature });
+            const urlParams = new URLSearchParams(window.location.search);
+            const isEditMode = urlParams.get('edit') === 'true';
+            const numeroComande = urlParams.get('numero_comande');
+            const nature = urlParams.get('nature');
 
-                if (isEditMode && numeroComande && nature) {
+            console.log('Paramètres URL:', { isEditMode, numeroComande, nature });
+
+            if (isEditMode) {
+                if (!numeroComande || !nature) {
+                    showToast('Paramètres de modification invalides (numero_comande ou nature manquant)', true);
+                    initialiserModeCreation();
+                } else if (isNaN(numeroComande) || !['vente', 'achat'].includes(nature.toLowerCase())) {
+                    showToast('Paramètres de modification invalides (numero_comande ou nature incorrect)', true);
+                    initialiserModeCreation();
+                } else {
                     editMode = true;
                     currentNumeroComande = numeroComande;
-                    await chargerVentePourModification(numeroComande, nature);
-                } else {
-                    initialiserModeCreation();
+                    try {
+                        await chargerVentePourModification(numeroComande, nature);
+                    } catch (error) {
+                        showToast(`Erreur lors du chargement de la vente: ${error.message}`, true);
+                        initialiserModeCreation();
+                    }
                 }
+            } else {
+                initialiserModeCreation();
+            }
 
-                await chargerUtilisateurs().then(() => {
-                    const storedSeller = localStorage.getItem('selectedSeller');
-                    if (storedSeller) {
-                        const { numero_util, nom } = JSON.parse(storedSeller);
-                        const sellerSelect = document.getElementById('sellerSelect');
-                        const optionExists = Array.from(sellerSelect.options).some(option => option.value === numero_util);
-                        if (optionExists) {
-                            sellerSelect.value = numero_util;
-                            document.getElementById('selectedSellerName').textContent = nom;
-                            document.getElementById('headerSellerName').textContent = nom;
-                            document.getElementById('sellerPassword').disabled = true;
-                            document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
-                            document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
-                            document.getElementById('sellerContent').classList.add('hidden');
-                            document.getElementById('sellerChevron').classList.add('fa-chevron-down');
-                            document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
-                        } else {
-                            localStorage.removeItem('selectedSeller');
-                            localStorage.removeItem('sellerPassword');
-                            document.getElementById('sellerContent').classList.remove('hidden');
-                            document.getElementById('sellerChevron').classList.add('fa-chevron-up');
-                            document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
-                        }
+            try {
+                await chargerUtilisateurs();
+                const storedSeller = localStorage.getItem('selectedSeller');
+                if (storedSeller) {
+                    const { numero_util, nom } = JSON.parse(storedSeller);
+                    const sellerSelect = document.getElementById('sellerSelect');
+                    const optionExists = Array.from(sellerSelect.options).some(option => option.value === numero_util);
+                    if (optionExists) {
+                        sellerSelect.value = numero_util;
+                        document.getElementById('selectedSellerName').textContent = nom;
+                        document.getElementById('headerSellerName').textContent = nom;
+                        document.getElementById('sellerPassword').disabled = true;
+                        document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
+                        document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
+                        document.getElementById('sellerContent').classList.add('hidden');
+                        document.getElementById('sellerChevron').classList.add('fa-chevron-down');
+                        document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
                     } else {
+                        localStorage.removeItem('selectedSeller');
+                        localStorage.removeItem('sellerPassword');
                         document.getElementById('sellerContent').classList.remove('hidden');
                         document.getElementById('sellerChevron').classList.add('fa-chevron-up');
                         document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
                     }
-                    sellerSelect.disabled = false;
-                });
-                chargerClients();
-                chargerProduits();
+                }
+                await chargerClients();
+                await chargerProduits();
                 updateValidateButton();
-            } else {
-                console.log('Aucun utilisateur connecté, redirection vers index.html');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                window.location.href = 'index.html';
+            } catch (error) {
+                showToast(`Erreur lors de l'initialisation: ${error.message}`, true);
+                console.error('Erreur initialisation:', error);
             }
 
             fetch(`${API_BASE_URL}/`)
@@ -704,10 +716,8 @@
                 const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
                     headers: { 'X-User-ID': userId }
                 });
-                console.log('Réponse liste_utilisateurs:', response.status, response.statusText);
                 if (!response.ok) {
                     const errorText = await response.text();
-                    console.error('Erreur texte liste_utilisateurs:', errorText);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 utilisateursCache = await response.json();
@@ -768,7 +778,6 @@
 
                 if (!response.ok) {
                     const errorText = await response.text();
-                    console.error('Erreur validation vendeur:', errorText);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
 
@@ -829,10 +838,8 @@
                 const response = await fetch(`${API_BASE_URL}/liste_clients`, {
                     headers: { 'X-User-ID': userId }
                 });
-                console.log('Réponse liste_clients:', response.status, response.statusText);
                 if (!response.ok) {
                     const errorText = await response.text();
-                    console.error('Erreur texte liste_clients:', errorText);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 clientsCache = await response.json();
@@ -870,7 +877,6 @@
                 });
                 if (!response.ok) {
                     const errorText = await response.text();
-                    console.error('Erreur texte client_solde:', errorText);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 const soldes = await response.json();
@@ -898,11 +904,8 @@
                 const response = await fetch(`${API_BASE_URL}/liste_produits`, {
                     headers: { 'X-User-ID': userId }
                 });
-                console.log('Réponse liste_produits:', response.status, response.statusText);
                 if (!response.ok) {
                     const errorText = await response.text();
-                    console.error('Erreur texte liste_produits:', errorText);
-                    showToast(`Erreur chargement produits: ${errorText}`, true);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 produitsCache = await response.json();
@@ -1009,6 +1012,7 @@
         }
 
         function updateTempSalesTable() {
+            console.log('Mise à jour du tableau des ventes:', tempSaleLines);
             const tbody = document.getElementById('tempSalesList');
             const totalElement = document.getElementById('totalSale');
             const itemCountElement = document.getElementById('saleItemCount');
@@ -1026,6 +1030,7 @@
                 printButton80mm.disabled = true;
                 printButtonA4.disabled = true;
                 holdSaleButton.disabled = true;
+                console.log('Boutons désactivés: aucune ligne');
                 return;
             }
 
@@ -1034,7 +1039,6 @@
             let totalItems = 0;
 
             tempSaleLines.forEach((ligne, index) => {
-                console.log('Ligne:', ligne);
                 const lineTotal = parseFloat(ligne.prixt) || 0;
                 total += lineTotal;
                 totalItems += parseFloat(ligne.quantite) || 0;
@@ -1073,6 +1077,7 @@
             printButton80mm.disabled = false;
             printButtonA4.disabled = false;
             holdSaleButton.disabled = false;
+            console.log('Boutons activés:', { validate: !validateButton.disabled, print80mm: !printButton80mm.disabled, printA4: !printButtonA4.disabled, hold: !holdSaleButton.disabled });
         }
 
         function modifierQuantite(index, delta) {
@@ -1159,7 +1164,6 @@
 
             const { numero_util } = JSON.parse(storedSeller);
             const password2 = localStorage.getItem('sellerPassword');
-
             const paymentMode = document.getElementById('paymentMode').value;
             const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
             const numeroTable = parseInt(document.getElementById('saleClientId').value) || 0;
@@ -1194,33 +1198,24 @@
                 venteData.numero_comande = currentNumeroComande;
             }
 
+            console.log('Données envoyées:', venteData);
+
             try {
                 let response;
-                if (editMode) {
-                    response = await fetch(`${API_BASE_URL}/modifier_vente/${currentNumeroComande}`, {
-                        method: 'PUT',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-User-ID': userId
-                        },
-                        body: JSON.stringify(venteData)
-                    });
-                } else {
-                    response = await fetch(`${API_BASE_URL}/valider_vente`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-User-ID': userId
-                        },
-                        body: JSON.stringify(venteData)
-                    });
-                }
+                const endpoint = editMode ? `/modifier_vente/${currentNumeroComande}` : '/valider_vente';
+                const method = editMode ? 'PUT' : 'POST';
+                response = await fetch(`${API_BASE_URL}${endpoint}`, {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify(venteData)
+                });
 
-                console.log(`Réponse ${editMode ? 'modifier_vente' : 'valider_vente'}:`, response.status, response.statusText);
                 if (!response.ok) {
                     const errorText = await response.text();
-                    console.error(`Erreur texte ${editMode ? 'modifier_vente' : 'valider_vente'}:`, errorText);
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                    throw new Error(`Erreur ${response.status}: ${errorText || 'Erreur inconnue'}`);
                 }
 
                 const result = await response.json();
@@ -1228,7 +1223,7 @@
 
                 showToast(editMode ? `Vente #${result.numero_comande} modifiée avec succès` : `Vente #${result.numero_comande} validée avec succès`);
                 resetForm();
-                window.location.href = 'ventes_achats.html'; // Rediriger après succès
+                window.location.href = 'ventes_achats.html';
             } catch (error) {
                 console.error(`Erreur ${editMode ? 'modification' : 'validation'} vente:`, error);
                 showToast(`Erreur ${editMode ? 'modification' : 'validation'} vente: ${error.message}`, true);
@@ -1323,7 +1318,7 @@
             document.getElementById('paymentMode').value = sale.paymentMode;
             document.getElementById('amountPaid').value = sale.amountPaid || '';
             document.getElementById('saleClientId').value = sale.clientId || '0';
-            editMode = !!sale.numero_comande; // Activer le mode modification si numero_comande existe
+            editMode = !!sale.numero_comande;
             currentNumeroComande = sale.numero_comande;
             togglePaymentForm();
             updateTempSalesTable();
@@ -1451,7 +1446,6 @@
                                 font-size: 10pt;
                                 line-height: 1.2;
                                 color: #000;
-                                box-shadow: 0 0 5mm rgba(0, 0, 0, 0.1);
                                 text-align: center;
                             }
                             .printable h1 {
@@ -1461,7 +1455,7 @@
                             .printable p, .printable table {
                                 margin-bottom: 3mm;
                             }
-                       .printable table {
+                            .printable table {
                                 width: 100%;
                                 border-collapse: collapse;
                             }
@@ -1525,7 +1519,7 @@
 
             if (paymentMode === 'a_terme' && clientValue !== '0') {
                 const client = clientsCache.find(c => c.numero_clt === parseInt(clientValue));
-                const soldeAvant = client ? parseFloat(client.solde) || 0 : 0;
+              const soldeAvant = client ? parseFloat(client.solde) || 0 : 0;
                 const soldeApres = soldeAvant + (amountPaid - parseFloat(total));
                 soldeContent = `
                     <p><strong>Solde avant vente:</strong> ${soldeAvant.toFixed(2)} DA</p>
@@ -1756,6 +1750,7 @@
             });
 
             document.getElementById('productCount').textContent = filteredProducts.length;
+            document.getElementById('productCount').classList.remove('hidden');
         });
     </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/instascan/1.0.0/instascan.min.js"></script>
