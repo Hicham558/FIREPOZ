@@ -264,7 +264,7 @@
                             </div>
                         </div>
                         <div class="mt-4 flex justify-end">
-                            <button id="validateReceptionButton" onclick="validerReception()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105" disabled>
+                            <button id="validateReceptionButton" onclick="validerReception(event)" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105" disabled>
                                 <i class="fas fa-check mr-2"></i>Valider la réception
                             </button>
                         </div>
@@ -370,39 +370,48 @@
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour charger la réception', true);
+                redirectToAchat();
                 return;
             }
             if (!numeroMouvement || isNaN(parseInt(numeroMouvement))) {
                 showToast('Numéro de réception invalide', true);
-                window.location.href = 'achat.html';
+                redirectToAchat();
                 return;
             }
             try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000); // Timeout de 5s
                 const response = await fetch(`${API_BASE_URL}/details_reception?numero_mouvement=${encodeURIComponent(numeroMouvement)}`, {
-                    headers: { 'X-User-ID': userId }
+                    headers: { 'X-User-ID': userId },
+                    signal: controller.signal
                 });
+                clearTimeout(timeoutId);
                 if (!response.ok) {
                     const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                    throw new Error(`Erreur ${response.status}: ${errorText || 'Réponse serveur non valide'}`);
                 }
                 const receptionData = await response.json();
-                if (!receptionData || !receptionData.lignes) {
-                    throw new Error('Données de réception invalides');
+                if (!receptionData || !Array.isArray(receptionData.lignes) || receptionData.lignes.length === 0) {
+                    throw new Error('Données de réception vides ou invalides');
                 }
                 tempReceptionLines = receptionData.lignes.map(ligne => ({
-                    numero_item: parseInt(ligne.numero_item),
+                    numero_item: parseInt(ligne.numero_item) || 0,
                     designation: ligne.designation || 'N/A',
-                    qtea: parseFloat(ligne.qtea).toFixed(2),
-                    prixbh: parseFloat(ligne.prixbh).toFixed(2)
+                    qtea: parseFloat(ligne.qtea || 0).toFixed(2),
+                    prixbh: parseFloat(ligne.prixbh || 0).toFixed(2)
                 }));
-                document.getElementById('receptionFournisseurId').value = receptionData.numero_four || '0';
+                document.getElementById('receptionFournisseurId').value = receptionData.numero_four ? String(receptionData.numero_four) : '0';
                 updateTempReceptionTable();
                 showToast('Réception chargée avec succès');
             } catch (error) {
-                showToast(`Erreur lors du chargement de la réception: ${error.message}`, true);
                 console.error('Erreur chargement réception:', error);
-                window.location.href = 'achat.html';
+                showToast(`Erreur lors du chargement: ${error.message}`, true);
+                redirectToAchat();
             }
+        }
+
+        function redirectToAchat() {
+            window.location.replace('achat.html');
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -462,7 +471,7 @@
             } else {
                 console.log('Aucun utilisateur connecté, redirection vers index.html');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                window.location.href = 'index.html';
+                window.location.replace('index.html');
             }
 
             fetch(`${API_BASE_URL}/`)
@@ -490,7 +499,7 @@
                 document.getElementById('userDisplay').textContent = '';
                 document.getElementById('userDisplay').classList.add('hidden');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                window.location.href = 'index.html';
+                window.location.replace('index.html');
             }
         }
 
@@ -643,8 +652,8 @@
                 produitsCache = await response.json();
                 produitsCache = produitsCache.map(produit => ({
                     ...produit,
-                    NUMERO_ITEM: parseInt(produit.NUMERO_ITEM),
-                    BAR: parseInt(produit.BAR),
+                    NUMERO_ITEM: parseInt(produit.NUMERO_ITEM) || 0,
+                    BAR: parseInt(produit.BAR) || 0,
                     PRIXBA: parseFloat(produit.PRIXBA) || 0.0,
                     QTE: parseFloat(produit.QTE) || 0
                 }));
@@ -676,7 +685,7 @@
                 tr.className = 'hover:bg-gray-50';
                 tr.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <button onclick="selectProduct(${produit.NUMERO_ITEM}, ${produit.PRIXBA}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition duration-300">
+                        <button onclick="selectProduct(${produit.NUMERO_ITEM}, ${produit.PRIXBA}, '${produit.DESIGNATION.replace(/'/g, "\\'")}')" class="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition duration-300">
                             <i class="fas fa-plus"></i>
                         </button>
                     </td>
@@ -790,7 +799,7 @@
 
         function modifierPrix(index, newPrice) {
             const price = parseFloat(newPrice);
-            if (isNaN(price) || price <= 0) {
+            if (isNaN(price) || price < 0) {
                 showToast('Prix d\'achat invalide', true);
                 return;
             }
@@ -887,7 +896,8 @@
             document.getElementById('pendingReceptionsModal').style.display = 'none';
         }
 
-        async function validerReception() {
+        async function validerReception(event) {
+            event.preventDefault();
             console.log('Validation réception...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
@@ -942,9 +952,9 @@
                 tempReceptionLines = [];
                 document.getElementById('receptionFournisseurId').value = '0';
                 updateTempReceptionTable();
-                chargerProduits();
-                chargerFournisseurs();
-                window.location.href = 'achat.html';
+                await chargerProduits();
+                await chargerFournisseurs();
+                redirectToAchat();
             } catch (error) {
                 showToast(`Erreur ${isEditMode ? 'modification' : 'validation'} réception: ${error.message}`, true);
                 console.error('Erreur validation réception:', error);
