@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestion des Achats</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         .password-input-container { position: relative; display: inline-block; }
@@ -61,27 +60,6 @@
             max-height: 80vh;
             overflow-y: auto;
         }
-        #qrScannerModal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-        }
-        #qrScannerModal .modal-content {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            width: 90%;
-            max-width: 500px;
-            text-align: center;
-        }
-        #qrReader { width: 100%; max-width: 400px; height: 300px; margin: 0 auto; }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -178,11 +156,6 @@
                         <div class="relative w-full md:w-1/2">
                             <input type="text" id="searchProduct" placeholder="Rechercher un produit..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
                             <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                        </div>
-                        <div class="w-full md:w-1/2 flex justify-end">
-                            <button id="scanBarcodeButton" onclick="openScanner()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300">
-                                <i class="fas fa-barcode mr-2"></i> Scanner
-                            </button>
                         </div>
                     </div>
                     <div class="table-container">
@@ -288,18 +261,6 @@
         </div>
     </div>
 
-    <div id="qrScannerModal">
-        <div class="modal-content">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-semibold text-gray-800">Scanner un code-barres</h2>
-                <button onclick="closeScanner()" class="text-gray-600 hover:text-gray-800 transition">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div id="qrReader"></div>
-        </div>
-    </div>
-
     <footer class="bg-gray-700 text-white text-center py-4 animate-fade-in">
         <p>Développé par Khelladi Hicham</p>
         <p>Tel: <a href="tel:00213553700900" class="underline hover:text-indigo-300 transition duration-300">00213553700900</a></p>
@@ -319,7 +280,6 @@
         let produitsCache = [];
         let fournisseursCache = [];
         let utilisateursCache = [];
-        let html5QrcodeScanner = null;
         let isEditMode = false;
         let numeroMouvement = null;
 
@@ -381,7 +341,7 @@
             try {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 5000); // Timeout de 5s
-                const response = await fetch(`${API_BASE_URL}/details_reception?numero_mouvement=${encodeURIComponent(numeroMouvement)}`, {
+                const response = await fetch(`${API_BASE_URL}/reception/${encodeURIComponent(numeroMouvement)}`, {
                     headers: { 'X-User-ID': userId },
                     signal: controller.signal
                 });
@@ -398,7 +358,7 @@
                     numero_item: parseInt(ligne.numero_item) || 0,
                     designation: ligne.designation || 'N/A',
                     qtea: parseFloat(ligne.qtea || 0).toFixed(2),
-                    prixbh: parseFloat(ligne.prixbh || 0).toFixed(2)
+                    prixbh: parseFloat(ligne.nprix || 0).toFixed(2) // Utiliser nprix comme prixbh
                 }));
                 document.getElementById('receptionFournisseurId').value = receptionData.numero_four ? String(receptionData.numero_four) : '0';
                 updateTempReceptionTable();
@@ -533,11 +493,14 @@
                 const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
                     headers: { 'X-User-ID': userId }
                 });
+                console.log('Réponse liste_utilisateurs:', response.status, response.statusText);
                 if (!response.ok) {
                     const errorText = await response.text();
+                    console.error('Erreur texte liste_utilisateurs:', errorText);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 utilisateursCache = await response.json();
+                console.log('Utilisateurs reçus:', utilisateursCache);
                 sellerSelect.innerHTML = '<option value="0">Sélectionner un utilisateur</option>';
                 utilisateursCache.forEach(utilisateur => {
                     const option = document.createElement('option');
@@ -559,6 +522,7 @@
             const sellerSelect = document.getElementById('sellerSelect');
             const numeroUtil = sellerSelect.value;
             const password2 = document.getElementById('sellerPassword').value;
+            console.log('Valeur de sellerSelect:', numeroUtil);
             if (!numeroUtil || numeroUtil === '0') {
                 showToast('Veuillez sélectionner un utilisateur', true);
                 return;
@@ -613,11 +577,14 @@
                 const response = await fetch(`${API_BASE_URL}/liste_fournisseurs`, {
                     headers: { 'X-User-ID': userId }
                 });
+                console.log('Réponse liste_fournisseurs:', response.status, response.statusText);
                 if (!response.ok) {
                     const errorText = await response.text();
+                    console.error('Erreur texte liste_fournisseurs:', errorText);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 fournisseursCache = await response.json();
+                console.log('Fournisseurs reçus:', fournisseursCache);
                 const selectElement = document.getElementById('receptionFournisseurId');
                 selectElement.innerHTML = '<option value="0">Sélectionner un fournisseur</option>';
                 fournisseursCache.forEach(fournisseur => {
@@ -645,11 +612,14 @@
                 const response = await fetch(`${API_BASE_URL}/liste_produits`, {
                     headers: { 'X-User-ID': userId }
                 });
+                console.log('Réponse liste_produits:', response.status, response.statusText);
                 if (!response.ok) {
                     const errorText = await response.text();
+                    console.error('Erreur texte liste_produits:', errorText);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 produitsCache = await response.json();
+                console.log('Produits reçus:', produitsCache);
                 produitsCache = produitsCache.map(produit => ({
                     ...produit,
                     NUMERO_ITEM: parseInt(produit.NUMERO_ITEM) || 0,
@@ -666,6 +636,7 @@
                         </td>
                     </tr>
                 `;
+                console.error('Erreur produits:', error);
                 showToast(`Erreur chargement produits: ${error.message}`, true);
             }
         }
@@ -927,24 +898,26 @@
                 lignes: tempReceptionLines.map(ligne => ({
                     numero_item: ligne.numero_item,
                     qtea: parseFloat(ligne.qtea),
-                    prixbh: parseFloat(ligne.prixbh)
+                    nprix: parseFloat(ligne.prixbh) // Utiliser nprix pour l'API
                 }))
             };
             if (isEditMode) {
                 receptionData.numero_mouvement = parseInt(numeroMouvement);
             }
             try {
-                const endpoint = isEditMode ? '/modifier_reception' : '/valider_reception';
+                const endpoint = isEditMode ? `/modifier_reception/${numeroMouvement}` : '/valider_reception';
                 const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-                    method: 'POST',
+                    method: isEditMode ? 'PUT' : 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-User-ID': userId
                     },
                     body: JSON.stringify(receptionData)
                 });
+                console.log('Réponse validation:', response.status, response.statusText);
                 if (!response.ok) {
                     const errorText = await response.text();
+                    console.error('Erreur texte validation:', errorText);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 const result = await response.json();
@@ -956,44 +929,9 @@
                 await chargerFournisseurs();
                 redirectToAchat();
             } catch (error) {
-                showToast(`Erreur ${isEditMode ? 'modification' : 'validation'} réception: ${error.message}`, true);
                 console.error('Erreur validation réception:', error);
+                showToast(`Erreur ${isEditMode ? 'modification' : 'validation'} réception: ${error.message}`, true);
             }
-        }
-
-        function openScanner() {
-            console.log('Ouverture du scanner...');
-            const modal = document.getElementById('qrScannerModal');
-            modal.style.display = 'flex';
-            html5QrcodeScanner = new Html5QrcodeScanner(
-                'qrReader',
-                { fps: 10, qrbox: { width: 250, height: 250 } },
-                false
-            );
-            html5QrcodeScanner.render(
-                (decodedText) => {
-                    console.log('Code-barres scanné:', decodedText);
-                    const product = produitsCache.find(p => p.BAR.toString() === decodedText);
-                    if (product) {
-                        selectProduct(product.NUMERO_ITEM, product.PRIXBA, product.DESIGNATION);
-                        closeScanner();
-                    } else {
-                        showToast('Produit non trouvé', true);
-                    }
-                },
-                (error) => {
-                    console.warn('Erreur scanner:', error);
-                }
-            );
-        }
-
-        function closeScanner() {
-            console.log('Fermeture du scanner...');
-            if (html5QrcodeScanner) {
-                html5QrcodeScanner.clear();
-                html5QrcodeScanner = null;
-            }
-            document.getElementById('qrScannerModal').style.display = 'none';
         }
 
         document.getElementById('searchProduct').addEventListener('input', function(e) {
