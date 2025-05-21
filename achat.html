@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestion des Achats</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         .password-input-container { position: relative; display: inline-block; }
@@ -39,7 +40,7 @@
         .btn-disabled { background-color: #d1d5db !important; cursor: not-allowed !important; }
         .solde-negatif { color: #ef4444; }
         .solde-positif { color: #10b981; }
-        #pendingReceptionsModal, #validatedReceptionsModal {
+        #pendingReceptionsModal {
             display: none;
             position: fixed;
             top: 0;
@@ -51,7 +52,7 @@
             justify-content: center;
             align-items: center;
         }
-        #pendingReceptionsModal .modal-content, #validatedReceptionsModal .modal-content {
+        #pendingReceptionsModal .modal-content {
             background: white;
             padding: 20px;
             border-radius: 8px;
@@ -60,6 +61,27 @@
             max-height: 80vh;
             overflow-y: auto;
         }
+        #qrScannerModal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        #qrScannerModal .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+            text-align: center;
+        }
+        #qrReader { width: 100%; max-width: 400px; height: 300px; margin: 0 auto; }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -134,7 +156,7 @@
 
         <div class="mt-8">
             <header class="mb-8">
-                <h1 class="text-3xl font-bold text-indigo-700">Gestion des Achats</h1>
+                <h1 id="pageTitle" class="text-3xl font-bold text-indigo-700">Gestion des Achats</h1>
                 <p class="text-gray-600 flex items-center">
                     <i class="fas fa-truck mr-2 text-indigo-500"></i> Réceptions de stock en temps réel
                 </p>
@@ -156,6 +178,11 @@
                         <div class="relative w-full md:w-1/2">
                             <input type="text" id="searchProduct" placeholder="Rechercher un produit..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
                             <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                        </div>
+                        <div class="w-full md:w-1/2 flex justify-end">
+                            <button id="scanBarcodeButton" onclick="openScanner()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300">
+                                <i class="fas fa-barcode mr-2"></i> Scanner
+                            </button>
                         </div>
                     </div>
                     <div class="table-container">
@@ -234,14 +261,11 @@
                                 <button id="pendingReceptionsButton" onclick="showPendingReceptions()" class="flex-1 bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700 transition duration-300 transform hover:scale-105">
                                     <i class="fas fa-list mr-2"></i>Liste d'attente
                                 </button>
-                                <button id="validatedReceptionsButton" onclick="showValidatedReceptions()" class="flex-1 bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition duration-300 transform hover:scale-105">
-                                    <i class="fas fa-history mr-2"></i>Réceptions validées
-                                </button>
                             </div>
                         </div>
                         <div class="mt-4 flex justify-end">
                             <button id="validateReceptionButton" onclick="validerReception()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105" disabled>
-                                <i class="fas fa-check mr-2"></i><span id="validateButtonText">Valider la réception</span>
+                                <i class="fas fa-check mr-2"></i>Valider la réception
                             </button>
                         </div>
                     </div>
@@ -264,17 +288,15 @@
         </div>
     </div>
 
-    <div id="validatedReceptionsModal">
+    <div id="qrScannerModal">
         <div class="modal-content">
             <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-semibold text-gray-800">Réceptions validées</h2>
-                <button onclick="closeValidatedReceptionsModal()" class="text-gray-600 hover:text-gray-800 transition">
+                <h2 class="text-xl font-semibold text-gray-800">Scanner un code-barres</h2>
+                <button onclick="closeScanner()" class="text-gray-600 hover:text-gray-800 transition">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <div id="validatedReceptionsList" class="space-y-4">
-                <!-- Liste des réceptions validées -->
-            </div>
+            <div id="qrReader"></div>
         </div>
     </div>
 
@@ -297,8 +319,9 @@
         let produitsCache = [];
         let fournisseursCache = [];
         let utilisateursCache = [];
+        let html5QrcodeScanner = null;
         let isEditMode = false;
-        let currentReceptionNumber = null;
+        let numeroMouvement = null;
 
         function togglePasswordVisibility() {
             const passwordInput = document.getElementById('sellerPassword');
@@ -318,44 +341,77 @@
             const section = document.getElementById(sectionId);
             const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
             const chevron = document.getElementById(`${sectionId.replace('Section', 'Chevron')}`);
-
             content.classList.toggle('hidden');
             chevron.classList.toggle('fa-chevron-down');
             chevron.classList.toggle('fa-chevron-up');
         }
 
         function calculerTotalAchat() {
-            let total = 0;
-            tempReceptionLines.forEach(ligne => {
-                const qtea = parseFloat(ligne.qtea) || 0;
-                const prixbh = parseFloat(ligne.prixbh) || 0;
-                if (isNaN(qtea) || isNaN(prixbh) || prixbh <= 0) {
-                    console.warn('Valeurs invalides dans calculerTotalAchat:', { qtea, prixbh, ligne });
-                }
-                total += qtea * prixbh;
-            });
+            const total = tempReceptionLines.reduce((sum, ligne) => {
+                return sum + (parseFloat(ligne.qtea) * parseFloat(ligne.prixbh));
+            }, 0);
+            document.getElementById('totalAchat').textContent = total.toFixed(2) + ' DA';
             const totalElement = document.getElementById('totalAchat');
-            totalElement.textContent = total.toFixed(2) + ' DA';
             totalElement.classList.remove('animate-total-pulse');
             void totalElement.offsetWidth;
             totalElement.classList.add('animate-total-pulse');
-            console.log('Total calculé:', total);
-            return total;
         }
 
-        function resetReceptionForm() {
-            tempReceptionLines = [];
-            isEditMode = false;
-            currentReceptionNumber = null;
-            document.getElementById('receptionFournisseurId').value = '0';
-            document.getElementById('validateButtonText').textContent = 'Valider la réception';
-            updateTempReceptionTable();
+        function getQueryParams() {
+            const params = new URLSearchParams(window.location.search);
+            return {
+                edit: params.get('edit') === 'true',
+                numero_mouvement: params.get('numero_mouvement')
+            };
+        }
+
+        async function loadReceptionData(numeroMouvement) {
+            console.log('Chargement des données de la réception:', numeroMouvement);
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour charger la réception', true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/details_reception?numero_mouvement=${numeroMouvement}`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                const receptionData = await response.json();
+                console.log('Données réception:', receptionData);
+
+                tempReceptionLines = receptionData.lignes.map(ligne => ({
+                    numero_item: parseInt(ligne.numero_item),
+                    designation: ligne.designation || 'N/A',
+                    qtea: parseFloat(ligne.qtea).toFixed(2),
+                    prixbh: parseFloat(ligne.prixbh).toFixed(2)
+                }));
+                document.getElementById('receptionFournisseurId').value = receptionData.numero_four || '0';
+                updateTempReceptionTable();
+                showToast('Réception chargée avec succès');
+            } catch (error) {
+                showToast(`Erreur lors du chargement de la réception: ${error.message}`, true);
+                console.error('Erreur chargement réception:', error);
+            }
         }
 
         document.addEventListener('DOMContentLoaded', () => {
             console.log('Page chargée, vérification utilisateur...');
             const userId = localStorage.getItem('userId');
             const userEmail = localStorage.getItem('userEmail');
+            const { edit, numero_mouvement } = getQueryParams();
+
+            if (edit && numero_mouvement) {
+                isEditMode = true;
+                numeroMouvement = numero_mouvement;
+                document.getElementById('pageTitle').textContent = `Modifier la Réception #${numeroMouvement}`;
+                document.getElementById('validateReceptionButton').innerHTML = '<i class="fas fa-check mr-2"></i>Modifier la réception';
+            }
+
             if (userId && userEmail) {
                 console.log('Utilisateur connecté:', userId, userEmail);
                 document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
@@ -394,6 +450,9 @@
                 });
                 chargerFournisseurs();
                 chargerProduits();
+                if (isEditMode) {
+                    loadReceptionData(numeroMouvement);
+                }
             } else {
                 console.log('Aucun utilisateur connecté, redirection vers index.html');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
@@ -410,6 +469,11 @@
         });
 
         function loginLogout() {
+            if (tempReceptionLines.length > 0) {
+                if (!confirm('Vous avez des modifications non enregistrées. Voulez-vous vraiment vous déconnecter ?')) {
+                    return;
+                }
+            }
             console.log('Déconnexion en cours...');
             const userId = localStorage.getItem('userId');
             if (userId) {
@@ -428,18 +492,14 @@
             const toast = document.getElementById('toast');
             const toastMessage = document.getElementById('toastMessage');
             const toastIcon = document.getElementById('toastIcon');
-
             toast.className = isError
                 ? 'fixed bottom-4 right-4 flex items-center bg-red-500 text-white px-6 py-3 rounded-md shadow-lg'
                 : 'fixed bottom-4 right-4 flex items-center bg-green-500 text-white px-6 py-3 rounded-md shadow-lg';
-
             toastIcon.className = isError
                 ? 'fas fa-exclamation-circle mr-2'
                 : 'fas fa-check-circle mr-2';
-
             toastMessage.textContent = message;
             toast.classList.remove('hidden');
-
             setTimeout(() => {
                 toast.classList.add('hidden');
             }, 3000);
@@ -452,30 +512,24 @@
                 showToast('Veuillez vous connecter pour voir les utilisateurs', true);
                 return;
             }
-
             try {
                 const sellerSelect = document.getElementById('sellerSelect');
                 const currentSelection = sellerSelect.value;
                 const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
                     headers: { 'X-User-ID': userId }
                 });
-                console.log('Réponse liste_utilisateurs:', response.status, response.statusText);
                 if (!response.ok) {
                     const errorText = await response.text();
-                    console.error('Erreur texte liste_utilisateurs:', errorText);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 utilisateursCache = await response.json();
-                console.log('Utilisateurs reçus:', utilisateursCache);
-
-                sellerSelect.innerHTML = '<option value="0">Sélectionner un vendeur</option>';
+                sellerSelect.innerHTML = '<option value="0">Sélectionner un utilisateur</option>';
                 utilisateursCache.forEach(utilisateur => {
                     const option = document.createElement('option');
                     option.value = utilisateur.numero;
                     option.textContent = utilisateur.nom;
                     sellerSelect.appendChild(option);
                 });
-
                 if (currentSelection !== '0' && utilisateursCache.some(u => u.numero === currentSelection)) {
                     sellerSelect.value = currentSelection;
                 }
@@ -490,37 +544,29 @@
             const sellerSelect = document.getElementById('sellerSelect');
             const numeroUtil = sellerSelect.value;
             const password2 = document.getElementById('sellerPassword').value;
-
-            console.log('Valeur de sellerSelect:', numeroUtil);
             if (!numeroUtil || numeroUtil === '0') {
                 showToast('Veuillez sélectionner un utilisateur', true);
                 return;
             }
-
             if (!password2) {
                 showToast('Veuillez entrer le mot de passe', true);
                 return;
             }
-
             const selectedOption = sellerSelect.options[sellerSelect.selectedIndex];
             const sellerName = selectedOption.text;
-
             localStorage.setItem('selectedSeller', JSON.stringify({
                 numero_util: numeroUtil,
                 nom: sellerName
             }));
             localStorage.setItem('sellerPassword', password2);
-
             document.getElementById('selectedSellerName').textContent = sellerName;
             document.getElementById('headerSellerName').textContent = sellerName;
             document.getElementById('sellerPassword').disabled = true;
             document.getElementById('validateSellerButton').textContent = 'Changer d\'utilisateur';
             document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
-
             document.getElementById('sellerContent').classList.add('hidden');
             document.getElementById('sellerChevron').classList.add('fa-chevron-down');
             document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
-
             showToast(`Utilisateur ${sellerName} validé`);
         }
 
@@ -533,48 +579,12 @@
             document.getElementById('selectedSellerName').textContent = '-';
             document.getElementById('headerSellerName').textContent = '-';
             document.getElementById('validateSellerButton').textContent = 'Valider';
+            document.getElementById('validateSellerButton').onclick = validerVendeur;
             document.getElementById('sellerContent').classList.remove('hidden');
             document.getElementById('sellerChevron').classList.add('fa-chevron-up');
             document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
-
             localStorage.removeItem('selectedSeller');
             localStorage.removeItem('sellerPassword');
-
-            const numeroUtil = sellerSelect.value;
-            const password2 = document.getElementById('sellerPassword').value;
-
-            console.log('Valeur de sellerSelect dans changeAndValidateSeller:', numeroUtil);
-
-            if (!numeroUtil || numeroUtil === '0') {
-                showToast('Veuillez sélectionner un utilisateur', true);
-                return;
-            }
-
-            if (!password2) {
-                showToast('Veuillez entrer le mot de passe', true);
-                return;
-            }
-
-            const selectedOption = sellerSelect.options[sellerSelect.selectedIndex];
-            const sellerName = selectedOption.text;
-
-            localStorage.setItem('selectedSeller', JSON.stringify({
-                numero_util: numeroUtil,
-                nom: sellerName
-            }));
-            localStorage.setItem('sellerPassword', password2);
-
-            document.getElementById('selectedSellerName').textContent = sellerName;
-            document.getElementById('headerSellerName').textContent = sellerName;
-            document.getElementById('sellerPassword').disabled = true;
-            document.getElementById('validateSellerButton').textContent = 'Changer d\'utilisateur';
-            document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
-
-            document.getElementById('sellerContent').classList.add('hidden');
-            document.getElementById('sellerChevron').classList.add('fa-chevron-down');
-            document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
-
-            showToast(`Utilisateur ${sellerName} validé`);
         }
 
         async function chargerFournisseurs() {
@@ -584,21 +594,16 @@
                 showToast('Veuillez vous connecter pour voir les fournisseurs', true);
                 return;
             }
-
             try {
                 const response = await fetch(`${API_BASE_URL}/liste_fournisseurs`, {
                     headers: { 'X-User-ID': userId }
                 });
-                console.log('Réponse liste_fournisseurs:', response.status, response.statusText);
                 if (!response.ok) {
                     const errorText = await response.text();
-                    console.error('Erreur texte liste_fournisseurs:', errorText);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 fournisseursCache = await response.json();
-                console.log('Fournisseurs reçus:', fournisseursCache);
                 const selectElement = document.getElementById('receptionFournisseurId');
-
                 selectElement.innerHTML = '<option value="0">Sélectionner un fournisseur</option>';
                 fournisseursCache.forEach(fournisseur => {
                     const solde = parseFloat(fournisseur.solde) || 0;
@@ -621,22 +626,15 @@
                 showToast('Veuillez vous connecter pour voir les produits', true);
                 return;
             }
-
             try {
                 const response = await fetch(`${API_BASE_URL}/liste_produits`, {
                     headers: { 'X-User-ID': userId }
                 });
-                console.log('Réponse liste_produits:', response.status, response.statusText);
                 if (!response.ok) {
                     const errorText = await response.text();
-                    console.error('Erreur texte liste_produits:', errorText);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 produitsCache = await response.json();
-                console.log('Produits reçus:', produitsCache);
-                const tbody = document.getElementById('productsList');
-                const countElement = document.getElementById('productCount');
-
                 produitsCache = produitsCache.map(produit => ({
                     ...produit,
                     NUMERO_ITEM: parseInt(produit.NUMERO_ITEM),
@@ -644,34 +642,7 @@
                     PRIXBA: parseFloat(produit.PRIXBA) || 0.0,
                     QTE: parseFloat(produit.QTE) || 0
                 }));
-
-                if (produitsCache.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
-                    countElement.textContent = '0';
-                    countElement.classList.remove('hidden');
-                    return;
-                }
-
-                tbody.innerHTML = '';
-                produitsCache.forEach(produit => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <button onclick="selectProduct(${produit.NUMERO_ITEM}, ${produit.PRIXBA}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition duration-300">
-                                <i class="fas fa-plus"></i>
-                            </button>
-                        </td>
-                        <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE.toFixed(2)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.NUMERO_ITEM || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || 0).toFixed(2)}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-                countElement.textContent = produitsCache.length;
-                countElement.classList.remove('hidden');
+                updateProductTable();
             } catch (error) {
                 document.getElementById('productsList').innerHTML = `
                     <tr>
@@ -680,23 +651,48 @@
                         </td>
                     </tr>
                 `;
-                console.error('Erreur produits:', error);
                 showToast(`Erreur chargement produits: ${error.message}`, true);
             }
         }
 
-        function selectProduct(numeroItem, prixba, designation) {
-            console.log('Produit sélectionné:', { numeroItem, prixba, designation });
-            if (!numeroItem) {
-                showToast('Erreur: Numéro d\'article invalide', true);
+        function updateProductTable(filteredProducts = produitsCache) {
+            const tbody = document.getElementById('productsList');
+            const countElement = document.getElementById('productCount');
+            if (filteredProducts.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
+                countElement.textContent = '0';
+                countElement.classList.remove('hidden');
                 return;
             }
+            tbody.innerHTML = '';
+            filteredProducts.forEach(produit => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50';
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <button onclick="selectProduct(${produit.NUMERO_ITEM}, ${produit.PRIXBA}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition duration-300">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE.toFixed(2)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.NUMERO_ITEM || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || 0).toFixed(2)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+            countElement.textContent = filteredProducts.length;
+            countElement.classList.remove('hidden');
+        }
+
+        function selectProduct(numeroItem, prixba, designation) {
+            console.log('Produit sélectionné:', numeroItem, prixba, designation);
             const numeroItemInt = parseInt(numeroItem);
             const prixbaFloat = parseFloat(prixba) || 0;
             const qtea = 1.0;
-            if (isNaN(numeroItemInt) || prixbaFloat <= 0) {
-                showToast('Produit invalide ou prix d\'achat nul/invalide', true);
-                console.error('Données invalides:', { numeroItemInt, prixbaFloat });
+            if (isNaN(numeroItemInt) || prixbaFloat < 0) {
+                showToast('Produit invalide ou prix d\'achat incorrect', true);
                 return;
             }
             const existingLineIndex = tempReceptionLines.findIndex(line => line.numero_item === numeroItemInt);
@@ -710,9 +706,8 @@
                     prixbh: prixbaFloat.toFixed(2)
                 });
             }
-            console.log('Ligne ajoutée/mise à jour:', tempReceptionLines[existingLineIndex] || tempReceptionLines[tempReceptionLines.length - 1]);
             updateTempReceptionTable();
-            showToast(`Produit ajouté: ${designation}`);
+            showToast(`Produit ajouté : ${designation}`);
         }
 
         function updateTempReceptionTable() {
@@ -720,7 +715,6 @@
             const itemCountElement = document.getElementById('receptionItemCount');
             const validateButton = document.getElementById('validateReceptionButton');
             const holdReceptionButton = document.getElementById('holdReceptionButton');
-
             if (tempReceptionLines.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucune ligne ajoutée</td></tr>';
                 itemCountElement.textContent = '0';
@@ -730,10 +724,8 @@
                 document.getElementById('totalAchat').textContent = '0.00 DA';
                 return;
             }
-
             tbody.innerHTML = '';
             let totalItems = 0;
-
             tempReceptionLines.forEach((ligne, index) => {
                 totalItems += parseFloat(ligne.qtea) || 0;
                 const totalPrixAchat = (parseFloat(ligne.qtea) * parseFloat(ligne.prixbh)).toFixed(2);
@@ -760,7 +752,6 @@
                 `;
                 tbody.appendChild(tr);
             });
-
             itemCountElement.textContent = totalItems.toFixed(2);
             itemCountElement.classList.remove('hidden');
             validateButton.disabled = false;
@@ -771,12 +762,10 @@
         function modifierQuantite(index, delta) {
             const ligne = tempReceptionLines[index];
             const newQuantity = parseFloat(ligne.qtea) + delta;
-
             if (newQuantity <= 0) {
                 supprimerLigne(index);
                 return;
             }
-
             ligne.qtea = newQuantity.toFixed(2);
             updateTempReceptionTable();
             showToast(`Quantité mise à jour: ${ligne.qtea}`);
@@ -788,7 +777,6 @@
                 showToast('Quantité invalide', true);
                 return;
             }
-
             tempReceptionLines[index].qtea = quantity.toFixed(2);
             updateTempReceptionTable();
             showToast(`Quantité mise à jour: ${tempReceptionLines[index].qtea}`);
@@ -800,7 +788,6 @@
                 showToast('Prix d\'achat invalide', true);
                 return;
             }
-
             tempReceptionLines[index].prixbh = price.toFixed(2);
             updateTempReceptionTable();
             showToast('Prix d\'achat mis à jour');
@@ -819,21 +806,19 @@
                 showToast('Aucune ligne à mettre en attente', true);
                 return;
             }
-
             const fournisseurId = document.getElementById('receptionFournisseurId').value;
-
             const pendingReception = {
                 id: Date.now(),
                 date: new Date().toLocaleString('fr-FR'),
                 lines: [...tempReceptionLines],
                 fournisseurId
             };
-
             const pendingReceptions = JSON.parse(localStorage.getItem('pendingReceptions') || '[]');
             pendingReceptions.push(pendingReception);
             localStorage.setItem('pendingReceptions', JSON.stringify(pendingReceptions));
-
-            resetReceptionForm();
+            tempReceptionLines = [];
+            document.getElementById('receptionFournisseurId').value = '0';
+            updateTempReceptionTable();
             showToast('Réception mise en attente avec succès');
         }
 
@@ -842,7 +827,6 @@
             const modal = document.getElementById('pendingReceptionsModal');
             const pendingReceptionsList = document.getElementById('pendingReceptionsList');
             const pendingReceptions = JSON.parse(localStorage.getItem('pendingReceptions') || '[]');
-
             if (pendingReceptions.length === 0) {
                 pendingReceptionsList.innerHTML = '<p class="text-center text-gray-500">Aucune réception en attente</p>';
             } else {
@@ -865,7 +849,6 @@
                     </div>
                 `).join('');
             }
-
             modal.style.display = 'flex';
         }
 
@@ -873,16 +856,13 @@
             console.log('Chargement de la réception en attente:', receptionId);
             const pendingReceptions = JSON.parse(localStorage.getItem('pendingReceptions') || '[]');
             const reception = pendingReceptions.find(r => r.id === receptionId);
-
             if (!reception) {
                 showToast('Réception en attente non trouvée', true);
                 return;
             }
-
             tempReceptionLines = [...reception.lines];
             document.getElementById('receptionFournisseurId').value = reception.fournisseurId || '0';
             updateTempReceptionTable();
-
             deletePendingReception(receptionId);
             closePendingReceptionsModal();
             showToast('Réception en attente chargée avec succès');
@@ -901,226 +881,140 @@
             document.getElementById('pendingReceptionsModal').style.display = 'none';
         }
 
-        async function showValidatedReceptions() {
-            console.log('Affichage des réceptions validées...');
-            const modal = document.getElementById('validatedReceptionsModal');
-            const validatedReceptionsList = document.getElementById('validatedReceptionsList');
-            const userId = localStorage.getItem('userId');
-
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les réceptions validées', true);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_receptions`, {
-                    headers: { 'X-User-ID': userId }
-                });
-                console.log('Réponse liste_receptions:', response.status, response.statusText);
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('Erreur texte liste_receptions:', errorText);
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                const receptions = await response.json();
-                console.log('Réceptions validées reçues:', receptions);
-
-                if (receptions.length === 0) {
-                    validatedReceptionsList.innerHTML = '<p class="text-center text-gray-500">Aucune réception validée</p>';
-                } else {
-                    validatedReceptionsList.innerHTML = receptions.map(reception => `
-                        <div class="border p-4 rounded-md shadow-sm bg-gray-50">
-                            <div class="flex justify-between items-center mb-2">
-                                <h3 class="font-semibold">Réception #${reception.numero_mouvement} - ${new Date(reception.date).toLocaleString('fr-FR')}</h3>
-                                <div class="space-x-2">
-                                    <button onclick="editReception(${reception.numero_mouvement})" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition">
-                                        <i class="fas fa-edit mr-1"></i> Modifier
-                                    </button>
-                                </div>
-                            </div>
-                            <p><strong>Fournisseur:</strong> ${fournisseursCache.find(f => f.numero_fou === reception.numero_four)?.nom || 'Inconnu'}</p>
-                            <p><strong>Total:</strong> ${reception.lignes.reduce((sum, line) => sum + (parseFloat(line.qtea) * parseFloat(line.nprix)), 0).toFixed(2)} DA</p>
-                            <p><strong>Articles:</strong> ${reception.lignes.length}</p>
-                        </div>
-                    `).join('');
-                }
-
-                modal.style.display = 'flex';
-            } catch (error) {
-                showToast('Erreur lors du chargement des réceptions validées: ' + error.message, true);
-                console.error('Erreur réceptions validées:', error);
-            }
-        }
-
-        async function editReception(numeroMouvement) {
-            console.log('Chargement de la réception pour modification:', numeroMouvement);
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour modifier la réception', true);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/reception/${numeroMouvement}`, {
-                    headers: { 'X-User-ID': userId }
-                });
-                console.log('Réponse reception:', response.status, response.statusText);
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('Erreur texte reception:', errorText);
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                const reception = await response.json();
-                console.log('Réception reçue:', reception);
-
-                tempReceptionLines = reception.lignes.map(ligne => ({
-                    numero_item: parseInt(ligne.numero_item),
-                    designation: ligne.designation || 'N/A',
-                    qtea: parseFloat(ligne.qtea).toFixed(2),
-                    prixbh: parseFloat(ligne.nprix).toFixed(2)
-                }));
-                document.getElementById('receptionFournisseurId').value = reception.numero_four;
-                isEditMode = true;
-                currentReceptionNumber = numeroMouvement;
-                document.getElementById('validateButtonText').textContent = 'Modifier la réception';
-                updateTempReceptionTable();
-                closeValidatedReceptionsModal();
-                showToast(`Réception #${numeroMouvement} chargée pour modification`);
-            } catch (error) {
-                showToast(`Erreur chargement réception: ${error.message}`, true);
-                console.error('Erreur chargement réception:', error);
-            }
-        }
-
-        function closeValidatedReceptionsModal() {
-            document.getElementById('validatedReceptionsModal').style.display = 'none';
-        }
-
         async function validerReception() {
-            console.log(isEditMode ? 'Modification réception...' : 'Validation réception...');
+            console.log('Validation réception...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour valider la réception', true);
                 return;
             }
-
             if (tempReceptionLines.length === 0) {
                 showToast('Aucune ligne à valider', true);
                 return;
             }
-
             const storedSeller = localStorage.getItem('selectedSeller');
             if (!storedSeller) {
                 showToast('Veuillez sélectionner et valider un utilisateur', true);
                 return;
             }
-
             const { numero_util } = JSON.parse(storedSeller);
             const password2 = localStorage.getItem('sellerPassword');
             const numeroFournisseur = document.getElementById('receptionFournisseurId').value;
-
             if (numeroFournisseur === '0') {
                 showToast('Veuillez sélectionner un fournisseur', true);
                 return;
             }
-
-            for (const ligne of tempReceptionLines) {
-                const qtea = parseFloat(ligne.qtea);
-                const prixbh = parseFloat(ligne.prixbh);
-                if (isNaN(qtea) || qtea <= 0 || isNaN(prixbh) || prixbh <= 0) {
-                    showToast(`Ligne invalide: ${ligne.designation} (Quantité: ${qtea}, Prix: ${prixbh})`, true);
-                    console.error('Ligne invalide:', ligne);
-                    return;
-                }
-            }
-
-            const totalAchat = calculerTotalAchat();
-            if (totalAchat <= 0) {
-                showToast('Le total d\'achat est invalide ou nul', true);
-                console.error('Total achat invalide:', totalAchat);
-                return;
-            }
-
             const receptionData = {
                 numero_four: parseInt(numeroFournisseur),
                 numero_util: parseInt(numero_util),
                 password2: password2,
-                total_achat: totalAchat,
                 lignes: tempReceptionLines.map(ligne => ({
-                    numero_item: parseInt(ligne.numero_item),
+                    numero_item: ligne.numero_item,
                     qtea: parseFloat(ligne.qtea),
-                    nprix: parseFloat(ligne.prixbh)
+                    prixbh: parseFloat(ligne.prixbh)
                 }))
             };
-
-            console.log('Données envoyées à l\'API:', receptionData);
-
+            if (isEditMode) {
+                receptionData.numero_mouvement = parseInt(numeroMouvement);
+            }
             try {
-                const url = isEditMode
-                    ? `${API_BASE_URL}/modifier_reception/${currentReceptionNumber}`
-                    : `${API_BASE_URL}/valider_reception`;
-                const method = isEditMode ? 'PUT' : 'POST';
-                const response = await fetch(url, {
-                    method: method,
+                const endpoint = isEditMode ? '/modifier_reception' : '/valider_reception';
+                const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+                    method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-User-ID': userId
                     },
                     body: JSON.stringify(receptionData)
                 });
-                console.log(`Réponse ${isEditMode ? 'modifier_reception' : 'valider_reception'}:`, response.status, response.statusText);
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    console.error(`Erreur texte ${isEditMode ? 'modifier_reception' : 'valider_reception'}:`, errorData);
-                    throw new Error(errorData.error || `Erreur ${response.status}`);
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 const result = await response.json();
-                console.log(isEditMode ? 'Réception modifiée:' : 'Réception validée:', result);
-                showToast(isEditMode
-                    ? `Réception #${result.numero_mouvement} modifiée avec succès`
-                    : `Réception #${result.numero_mouvement} validée avec succès`);
-                resetReceptionForm();
-                await Promise.all([chargerProduits(), chargerFournisseurs()]);
+                showToast(`Réception #${result.numero_mouvement} ${isEditMode ? 'modifiée' : 'validée'} avec succès`);
+                tempReceptionLines = [];
+                document.getElementById('receptionFournisseurId').value = '0';
+                updateTempReceptionTable();
+                chargerProduits();
+                chargerFournisseurs();
+                if (!isEditMode) {
+                    printReception(result.numero_mouvement);
+                } else {
+                    window.location.href = 'achat.html';
+                }
             } catch (error) {
-                console.error(`Erreur ${isEditMode ? 'modification' : 'validation'} réception:`, error);
                 showToast(`Erreur ${isEditMode ? 'modification' : 'validation'} réception: ${error.message}`, true);
+                console.error('Erreur validation réception:', error);
             }
+        }
+
+        async function printReception(numeroMouvement) {
+            const print80mm = confirm('Voulez-vous imprimer en format 80mm ? (Cliquez sur Annuler pour A4)');
+            const endpoint = print80mm ? '/imprimer_reception_80mm' : '/imprimer_reception_a4';
+            try {
+                const response = await fetch(`${API_BASE_URL}${endpoint}?numero_mouvement=${numeroMouvement}`, {
+                    headers: { 'X-User-ID': localStorage.getItem('userId') }
+                });
+                if (!response.ok) {
+                    throw new Error('Erreur lors de l\'impression');
+                }
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `reception_${numeroMouvement}.${print80mm ? 'pdf' : 'pdf'}`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+            } catch (error) {
+                showToast(`Erreur impression: ${error.message}`, true);
+            }
+        }
+
+        function openScanner() {
+            console.log('Ouverture du scanner...');
+            const modal = document.getElementById('qrScannerModal');
+            modal.style.display = 'flex';
+            html5QrcodeScanner = new Html5QrcodeScanner(
+                'qrReader',
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                false
+            );
+            html5QrcodeScanner.render(
+                (decodedText) => {
+                    console.log('Code-barres scanné:', decodedText);
+                    const product = produitsCache.find(p => p.BAR.toString() === decodedText);
+                    if (product) {
+                        selectProduct(product.NUMERO_ITEM, product.PRIXBA, product.DESIGNATION);
+                        closeScanner();
+                    } else {
+                        showToast('Produit non trouvé', true);
+                    }
+                },
+                (error) => {
+                    console.warn('Erreur scanner:', error);
+                }
+            );
+        }
+
+        function closeScanner() {
+            console.log('Fermeture du scanner...');
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.clear();
+                html5QrcodeScanner = null;
+            }
+            document.getElementById('qrScannerModal').style.display = 'none';
         }
 
         document.getElementById('searchProduct').addEventListener('input', function(e) {
             console.log('Recherche produit:', e.target.value);
             const searchTerm = e.target.value.toLowerCase();
-            const tbody = document.getElementById('productsList');
-
-            tbody.innerHTML = '';
             const filteredProducts = produitsCache.filter(produit =>
                 produit.NUMERO_ITEM.toString().includes(searchTerm) ||
                 produit.BAR.toString().includes(searchTerm) ||
                 produit.DESIGNATION.toLowerCase().includes(searchTerm)
             );
-
-            if (filteredProducts.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
-                return;
-            }
-
-            filteredProducts.forEach(produit => {
-                const tr = document.createElement('tr');
-                tr.className = 'hover:bg-gray-50';
-                tr.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <button onclick="selectProduct(${produit.NUMERO_ITEM}, ${produit.PRIXBA}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition duration-300">
-                            <i class="fas fa-plus"></i>
-                        </button>
-                    </td>
-                    <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE.toFixed(2)}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.NUMERO_ITEM || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || 0).toFixed(2)}</td>
-                `;
-                tbody.appendChild(tr);
-            });
+            updateProductTable(filteredProducts);
         });
     </script>
 </body>
