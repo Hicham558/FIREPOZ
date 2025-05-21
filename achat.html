@@ -326,14 +326,22 @@
         }
 
         function calculerTotalAchat() {
-            const total = tempReceptionLines.reduce((sum, ligne) => {
-                return sum + (parseFloat(ligne.qtea || 0) * parseFloat(ligne.prixbh || 0));
-            }, 0);
+            let total = 0;
+            tempReceptionLines.forEach(ligne => {
+                const qtea = parseFloat(ligne.qtea) || 0;
+                const prixbh = parseFloat(ligne.prixbh) || 0;
+                if (isNaN(qtea) || isNaN(prixbh) || prixbh <= 0) {
+                    console.warn('Valeurs invalides dans calculerTotalAchat:', { qtea, prixbh, ligne });
+                }
+                total += qtea * prixbh;
+            });
             const totalElement = document.getElementById('totalAchat');
             totalElement.textContent = total.toFixed(2) + ' DA';
             totalElement.classList.remove('animate-total-pulse');
             void totalElement.offsetWidth;
             totalElement.classList.add('animate-total-pulse');
+            console.log('Total calculé:', total);
+            return total;
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -376,7 +384,6 @@
                 });
                 chargerFournisseurs();
                 chargerProduits();
-                // Check for edit mode
                 const urlParams = new URLSearchParams(window.location.search);
                 const editMode = urlParams.get('edit');
                 const numeroMouvement = urlParams.get('numero_mouvement');
@@ -389,7 +396,6 @@
                 window.location.href = 'index.html';
             }
 
-            // Verify API connectivity
             fetch(`${API_BASE_URL}/`)
                 .then(response => response.text())
                 .then(text => console.log('Statut API:', text))
@@ -501,7 +507,7 @@
             console.log('Changement et validation de l\'utilisateur...');
             const sellerSelect = document.getElementById('sellerSelect');
             sellerSelect.value = '0';
-            document.getElementById('sellerPassword').value = '';
+            document.getElement reducer.getElementById('sellerPassword').value = '';
             document.getElementById('sellerPassword').disabled = false;
             document.getElementById('selectedSellerName').textContent = '-';
             document.getElementById('headerSellerName').textContent = '-';
@@ -621,7 +627,7 @@
         }
 
         function selectProduct(numeroItem, prixba, designation) {
-            console.log('Produit sélectionné:', numeroItem, prixba, designation);
+            console.log('Produit sélectionné:', { numeroItem, prixba, designation });
             if (!numeroItem) {
                 showToast('Erreur: Numéro d\'article invalide', true);
                 return;
@@ -631,6 +637,7 @@
             const qtea = 1.0;
             if (isNaN(numeroItemInt) || prixbaFloat < 0) {
                 showToast('Produit invalide ou prix d\'achat incorrect', true);
+                console.error('Données invalides:', { numeroItemInt, prixbaFloat });
                 return;
             }
             const existingLineIndex = tempReceptionLines.findIndex(line => line.numero_item === numeroItemInt);
@@ -644,6 +651,7 @@
                     prixbh: prixbaFloat.toFixed(2)
                 });
             }
+            console.log('Ligne ajoutée/mise à jour:', tempReceptionLines[existingLineIndex] || tempReceptionLines[tempReceptionLines.length - 1]);
             updateTempReceptionTable();
             showToast(`Produit ajouté: ${designation}`);
         }
@@ -671,8 +679,10 @@
                     console.warn('Ligne sans numero_item:', ligne);
                     return;
                 }
-                totalItems += parseFloat(ligne.qtea) || 0;
-                const totalPrixAchat = (parseFloat(ligne.qtea) * parseFloat(ligne.prixbh)).toFixed(2);
+                const qtea = parseFloat(ligne.qtea) || 0;
+                const prixbh = parseFloat(ligne.prixbh) || 0;
+                totalItems += qtea;
+                const totalPrixAchat = (qtea * prixbh).toFixed(2);
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-gray-50';
                 tr.innerHTML = `
@@ -714,6 +724,7 @@
                 return;
             }
             ligne.qtea = newQuantity.toFixed(2);
+            console.log('Quantité modifiée:', ligne);
             updateTempReceptionTable();
             showToast(`Quantité mise à jour: ${ligne.qtea}`);
         }
@@ -725,6 +736,7 @@
                 return;
             }
             tempReceptionLines[index].qtea = quantity.toFixed(2);
+            console.log('Quantité modifiée directement:', tempReceptionLines[index]);
             updateTempReceptionTable();
             showToast(`Quantité mise à jour: ${tempReceptionLines[index].qtea}`);
         }
@@ -736,6 +748,7 @@
                 return;
             }
             tempReceptionLines[index].prixbh = price.toFixed(2);
+            console.log('Prix modifié:', tempReceptionLines[index]);
             updateTempReceptionTable();
             showToast('Prix d\'achat mis à jour');
         }
@@ -743,6 +756,7 @@
         function supprimerLigne(index) {
             const ligne = tempReceptionLines[index];
             tempReceptionLines.splice(index, 1);
+            console.log('Ligne supprimée:', ligne);
             updateTempReceptionTable();
             showToast(`Ligne "${ligne.designation}" supprimée`);
         }
@@ -773,8 +787,9 @@
                     numero_item: parseInt(ligne.numero_item),
                     designation: ligne.designation || 'N/A',
                     qtea: parseFloat(ligne.qtea).toFixed(2),
-                    prixbh: parseFloat(ligne.nprix).toFixed(2)
+                    prixbh: parseFloat(ligne.nprix || 0).toFixed(2)
                 }));
+                console.log('Lignes chargées pour modification:', tempReceptionLines);
                 updateTempReceptionTable();
                 showToast(`Réception #${reception.numero_mouvement} chargée pour modification`);
             } catch (error) {
@@ -887,16 +902,34 @@
                 showToast('Veuillez sélectionner un fournisseur', true);
                 return;
             }
+            // Validate lines
+            for (const ligne of tempReceptionLines) {
+                const qtea = parseFloat(ligne.qtea);
+                const prixbh = parseFloat(ligne.prixbh);
+                if (isNaN(qtea) || qtea <= 0 || isNaN(prixbh) || prixbh < 0) {
+                    showToast(`Ligne invalide: ${ligne.designation} (Quantité: ${qtea}, Prix: ${prixbh})`, true);
+                    console.error('Ligne invalide:', ligne);
+                    return;
+                }
+            }
+            const totalAchat = calculerTotalAchat();
+            if (totalAchat <= 0) {
+                showToast('Le total d\'achat est invalide ou nul', true);
+                console.error('Total achat invalide:', totalAchat);
+                return;
+            }
             const receptionData = {
                 numero_four: parseInt(numeroFournisseur),
                 numero_util: parseInt(numero_util),
                 password2: password2,
+                total_achat: totalAchat,
                 lignes: tempReceptionLines.map(ligne => ({
                     numero_item: parseInt(ligne.numero_item),
                     qtea: parseFloat(ligne.qtea),
                     nprix: parseFloat(ligne.prixbh)
                 }))
             };
+            console.log('Données envoyées à l\'API:', receptionData);
             try {
                 const url = isEditMode
                     ? `${API_BASE_URL}/modifier_reception/${currentReceptionNumber}`
@@ -946,7 +979,7 @@
             }
             const fournisseurId = document.getElementById('receptionFournisseurId').value;
             const fournisseur = fournisseursCache.find(f => f.numero_fou === parseInt(fournisseurId)) || { nom: 'Inconnu' };
-            const total = tempReceptionLines.reduce((sum, ligne) => sum + (parseFloat(ligne.qtea) * parseFloat(ligne.prixbh)), 0).toFixed(2);
+            const total = calculerTotalAchat();
             const date = new Date().toLocaleString('fr-FR');
             const receptionNumber = currentReceptionNumber || 'N/A';
             let printHtml = `
@@ -982,7 +1015,7 @@
                         </tbody>
                     </table>
                     <hr style="margin: 10px 0;">
-                    <p style="text-align: right; font-weight: bold;">Total: ${total} DA</p>
+                    <p style="text-align: right; font-weight: bold;">Total: ${total.toFixed(2)} DA</p>
                     <p style="text-align: center; margin-top: 20px; font-size: ${format === '80mm' ? '10px' : '12px'};">
                         Développé par Khelladi Hicham - Tel: 00213553700900
                     </p>
