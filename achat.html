@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        .password-input-container { position: relative; display: inline-block; }
+        .password-input-container { position.contents { position: relative; display: inline-block; }
         .password-toggle { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; }
         @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
@@ -142,6 +142,7 @@
 
             <!-- Section produits -->
             <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="productsSection">
+                < क्रियेटिव
                 <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('productsSection')">
                     <h2 class="text-xl font-semibold text-gray-800 flex items-center">
                         <i class="fas fa-boxes mr-2 text-indigo-500"></i> Produits Disponibles
@@ -340,7 +341,7 @@
             }
             try {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000); // Timeout de 5s
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
                 const response = await fetch(`${API_BASE_URL}/reception/${encodeURIComponent(numeroMouvement)}`, {
                     headers: { 'X-User-ID': userId },
                     signal: controller.signal
@@ -354,12 +355,18 @@
                 if (!receptionData || !Array.isArray(receptionData.lignes) || receptionData.lignes.length === 0) {
                     throw new Error('Données de réception vides ou invalides');
                 }
-                tempReceptionLines = receptionData.lignes.map(ligne => ({
-                    numero_item: parseInt(ligne.numero_item) || 0,
-                    designation: ligne.designation || 'N/A',
-                    qtea: parseFloat(ligne.qtea || 0).toFixed(2),
-                    prixbh: parseFloat(ligne.nprix || 0).toFixed(2) // Utiliser nprix comme prixbh
-                }));
+                tempReceptionLines = receptionData.lignes.map(ligne => {
+                    const prixbh = parseFloat(ligne.nprix || 0);
+                    if (prixbh <= 0) {
+                        console.warn(`Prix d'achat nul pour l'article ${ligne.numero_item}`);
+                    }
+                    return {
+                        numero_item: parseInt(ligne.numero_item) || 0,
+                        designation: ligne.designation || 'N/A',
+                        qtea: parseFloat(ligne.qtea || 0).toFixed(2),
+                        prixbh: prixbh.toFixed(2)
+                    };
+                });
                 document.getElementById('receptionFournisseurId').value = receptionData.numero_four ? String(receptionData.numero_four) : '0';
                 updateTempReceptionTable();
                 showToast('Réception chargée avec succès');
@@ -673,7 +680,7 @@
         }
 
         function selectProduct(numeroItem, prixba, designation) {
-            console.log('Produit sélectionné:', numeroItem, prixba, designation);
+            console.log('Produit sélectionné:', { numeroItem, prixba, designation });
             const numeroItemInt = parseInt(numeroItem);
             const prixbaFloat = parseFloat(prixba) || 0;
             const qtea = 1.0;
@@ -681,9 +688,12 @@
                 showToast('Produit invalide ou prix d\'achat incorrect', true);
                 return;
             }
-            const existingLineIndex = tempReceptionLines.findIndex(line => line.numero_item === numeroItemInt);
+            const existingLineIndex = tempReceptionLines.findIndex(line => parseInt(line.numero_item) === numeroItemInt);
+            console.log('Index de ligne existante:', existingLineIndex);
             if (existingLineIndex >= 0) {
-                tempReceptionLines[existingLineIndex].qtea = (parseFloat(tempReceptionLines[existingLineIndex].qtea) + qtea).toFixed(2);
+                const currentQtea = parseFloat(tempReceptionLines[existingLineIndex].qtea) || 0;
+                tempReceptionLines[existingLineIndex].qtea = (currentQtea + qtea).toFixed(2);
+                console.log('Quantité mise à jour:', tempReceptionLines[existingLineIndex].qtea);
             } else {
                 tempReceptionLines.push({
                     numero_item: numeroItemInt,
@@ -691,6 +701,7 @@
                     qtea: qtea.toFixed(2),
                     prixbh: prixbaFloat.toFixed(2)
                 });
+                console.log('Nouvelle ligne ajoutée:', tempReceptionLines[tempReceptionLines.length - 1]);
             }
             updateTempReceptionTable();
             showToast(`Produit ajouté : ${designation}`);
@@ -891,6 +902,11 @@
                 showToast('Veuillez sélectionner un fournisseur', true);
                 return;
             }
+            const hasInvalidPrice = tempReceptionLines.some(ligne => parseFloat(ligne.prixbh) <= 0);
+            if (hasInvalidPrice) {
+                showToast('Certains produits ont un prix d\'achat nul ou négatif', true);
+                return;
+            }
             const receptionData = {
                 numero_four: parseInt(numeroFournisseur),
                 numero_util: parseInt(numero_util),
@@ -898,7 +914,7 @@
                 lignes: tempReceptionLines.map(ligne => ({
                     numero_item: ligne.numero_item,
                     qtea: parseFloat(ligne.qtea),
-                    nprix: parseFloat(ligne.prixbh) // Utiliser nprix pour l'API
+                    prixbh: parseFloat(ligne.prixbh)
                 }))
             };
             if (isEditMode) {
@@ -906,6 +922,7 @@
             }
             try {
                 const endpoint = isEditMode ? `/modifier_reception/${numeroMouvement}` : '/valider_reception';
+                console.log('Envoi à l\'endpoint:', endpoint, receptionData);
                 const response = await fetch(`${API_BASE_URL}${endpoint}`, {
                     method: isEditMode ? 'PUT' : 'POST',
                     headers: {
