@@ -372,9 +372,13 @@
                 showToast('Veuillez vous connecter pour charger la réception', true);
                 return;
             }
-
+            if (!numeroMouvement || isNaN(parseInt(numeroMouvement))) {
+                showToast('Numéro de réception invalide', true);
+                window.location.href = 'achat.html';
+                return;
+            }
             try {
-                const response = await fetch(`${API_BASE_URL}/details_reception?numero_mouvement=${numeroMouvement}`, {
+                const response = await fetch(`${API_BASE_URL}/details_reception?numero_mouvement=${encodeURIComponent(numeroMouvement)}`, {
                     headers: { 'X-User-ID': userId }
                 });
                 if (!response.ok) {
@@ -382,8 +386,9 @@
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 const receptionData = await response.json();
-                console.log('Données réception:', receptionData);
-
+                if (!receptionData || !receptionData.lignes) {
+                    throw new Error('Données de réception invalides');
+                }
                 tempReceptionLines = receptionData.lignes.map(ligne => ({
                     numero_item: parseInt(ligne.numero_item),
                     designation: ligne.designation || 'N/A',
@@ -396,6 +401,7 @@
             } catch (error) {
                 showToast(`Erreur lors du chargement de la réception: ${error.message}`, true);
                 console.error('Erreur chargement réception:', error);
+                window.location.href = 'achat.html';
             }
         }
 
@@ -938,36 +944,10 @@
                 updateTempReceptionTable();
                 chargerProduits();
                 chargerFournisseurs();
-                if (!isEditMode) {
-                    printReception(result.numero_mouvement);
-                } else {
-                    window.location.href = 'achat.html';
-                }
+                window.location.href = 'achat.html';
             } catch (error) {
                 showToast(`Erreur ${isEditMode ? 'modification' : 'validation'} réception: ${error.message}`, true);
                 console.error('Erreur validation réception:', error);
-            }
-        }
-
-        async function printReception(numeroMouvement) {
-            const print80mm = confirm('Voulez-vous imprimer en format 80mm ? (Cliquez sur Annuler pour A4)');
-            const endpoint = print80mm ? '/imprimer_reception_80mm' : '/imprimer_reception_a4';
-            try {
-                const response = await fetch(`${API_BASE_URL}${endpoint}?numero_mouvement=${numeroMouvement}`, {
-                    headers: { 'X-User-ID': localStorage.getItem('userId') }
-                });
-                if (!response.ok) {
-                    throw new Error('Erreur lors de l\'impression');
-                }
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `reception_${numeroMouvement}.${print80mm ? 'pdf' : 'pdf'}`;
-                a.click();
-                window.URL.revokeObjectURL(url);
-            } catch (error) {
-                showToast(`Erreur impression: ${error.message}`, true);
             }
         }
 
