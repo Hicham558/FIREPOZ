@@ -3,16 +3,81 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion des Adresses - FirePoz</title>
+    <title>Gestion Commerciale</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <style>
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
-        .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes userPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        @keyframes countPulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        @keyframes kpiPop { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        @keyframes clientPulse { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
+        .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
         .animate-pulse { animation: pulse 2s infinite ease-in-out; }
+        .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
+        .animate-kpi-pop { animation: kpiPop 0.5s ease-out forwards; }
+        .top-client-updated { animation: clientPulse 0.6s ease-in-out; }
+        #clientsSection { animation-delay: 0.2s; }
+        #fournisseursSection { animation-delay: 0.4s; }
+        #productsSection { animation-delay: 0.6s; }
+        #utilisateursSection { animation-delay: 0.8s; }
+        footer { animation-delay: 1.2s; }
+        #scannerPreview { width: 100%; max-width: 300px; height: 200px; border: 2px solid #e5e7eb; margin-bottom: 1rem; display: none; background: #000; }
+        .user-anim { animation: userPulse 1.5s infinite ease-in-out; }
+        .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
+        .small-email { font-size: 0.75rem; line-height: 1rem; }
+        .kpi-card { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .kpi-card:hover { transform: scale(1.03); box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1); }
+        .kpi-section { transition: opacity 0.5s ease; }
+        .kpi-updated { animation: pulse 0.5s ease-in-out; }
+        .dynamic-icon { transition: color 0.3s ease; }
+        .chart-container { animation-delay: 1s; }
+        #kpiSection {
+            border-bottom: 2px solid #e5e7eb;
+            transition: all 0.3s ease;
+        }
+        #kpiSection:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .kpi-card {
+            border-left: 4px solid #4F46E5;
+            transition: all 0.3s ease;
+        }
+        .kpi-card:hover {
+            transform: translateY(-2px);
+        }
+        .fixed-buttons {
+            position: sticky;
+            top: 64px;
+            z-index: 9;
+            background: #f3f4f6;
+            padding: 1rem 0;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .table-container {
+            max-height: 350px;
+            overflow-y: auto;
+            position: relative;
+        }
+        .table-container table {
+            width: 100%;
+        }
+        .table-container thead {
+            position: sticky;
+            top: 0;
+            background: #f9fafb;
+            z-index: 1;
+        }
+        .hidden-id {
+            display: none;
+        }
+        /* Styles pour le modal de carte */
         #mapModal { transition: opacity 0.3s ease; }
         #mapContainer { height: 500px; width: 100%; border: 2px solid #e5e7eb; border-radius: 8px; }
         .form-container { max-height: 600px; overflow-y: auto; }
@@ -25,7 +90,28 @@
     </style>
 </head>
 <body class="bg-gray-100">
-    <!-- Map Modal -->
+    <!-- Formulaire de connexion -->
+    <div id="loginModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-20 hidden">
+        <form id="loginForm" class="bg-white rounded-lg p-6 w-full max-w-md">
+            <h2 class="text-xl font-semibold mb-4">Connexion</h2>
+            <p class="text-sm text-red-500 mb-4">⚠️ Le mot de passe ne doit pas être celui de votre email.</p>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Adresse Email*</label>
+                <input type="email" id="userEmail" name="username" autocomplete="username" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre email" required>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe*</label>
+                <input type="password" id="userPassword" name="password" autocomplete="current-password" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre mot de passe" required>
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button type="submit" onclick="loginWithCredentials(event)" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
+                    <i class="fas fa-sign-in-alt mr-2"></i>Se connecter
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Modal de carte -->
     <div id="mapModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-30 hidden animate-fade-in">
         <div class="bg-white rounded-lg p-6 w-full max-w-4xl form-container">
             <div class="flex justify-between items-center mb-4">
@@ -76,6 +162,459 @@
         </div>
     </div>
 
+    <!-- Menu de navigation -->
+    <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-slide-in">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex flex-col">
+                <h1 class="text-2xl font-bold flex items-center">
+                    <i class="fas fa-fire mr-2 text-amber-400 animate-pulse"></i> FirePoz
+                </h1>
+                <span id="userDisplay" class="small-email user-anim hidden"></span>
+            </div>
+            <div class="space-x-4 flex items-center">
+                <a href="page1.html" class="hover:text-indigo-200 transition flex items-center">
+                    <i class="fas fa-barcode mr-1"></i> Scanner Produit
+                </a>
+                <button id="loginLogoutButton" onclick="loginLogout()" class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition flex items-center">
+                    <i class="fas fa-sign-out-alt mr-1"></i>Déconnexion
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Contenu principal -->
+    <div class="container mx-auto px-4 py-16 mt-16">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-indigo-700">KHsphers software</h1>
+            <p class="text-gray-600 flex items-center">
+                <i class="fas fa-database mr-2 text-indigo-500"></i> Fueled by PostgreSQL
+            </p>
+        </header>
+
+        <!-- Boutons Vente et Achat fixés -->
+        <div class="fixed-buttons flex">
+            <a href="vente.html" class="w-1/2 bg-green-600 text-white py-6 flex items-center justify-center hover:bg-green-700 transition-all duration-300 transform hover:scale-105 animate-pulse">
+                <i class="fas fa-shopping-cart text-4xl mr-3"></i>
+                <span class="text-2xl font-semibold">Vente</span>
+            </a>
+            <a href="achat.html" class="w-1/2 bg-blue-600 text-white py-6 flex items-center justify-center hover:bg-blue-700 transition-all duration-300 transform hover:scale-105 animate-pulse">
+                <i class="fas fa-box-open text-4xl mr-3"></i>
+                <span class="text-2xl font-semibold">Achat</span>
+            </a>
+        </div>
+
+        <!-- Section KPI améliorée -->
+        <div id="kpiSection" class="w-full bg-gradient-to-r from-indigo-100 to-white shadow-lg rounded-lg p-4 mb-8 z-10 animate-fade-in">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                    <i class="fas fa-chart-line mr-2 text-indigo-500 animate-pulse"></i> Tableau de Bord
+                </h2>
+                <select id="kpiPeriod" class="border p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm">
+                    <option value="day">Aujourd'hui</option>
+                    <option value="week">Cette Semaine</option>
+                </select>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24">
+                    <h3 class="text-xs font-medium text-gray-600 flex items-center">
+                        <i id="caIcon" class="fas fa-money-bill-wave mr-1 text-green-500 dynamic-icon"></i> Chiffre d'Affaires
+                    </h3>
+                    <p id="totalCA" class="text-lg font-bold text-indigo-600">0.00 DA</p>
+                </div>
+                <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24">
+                    <h3 class="text-xs font-medium text-gray-600 flex items-center">
+                        <i id="profitIcon" class="fas fa-chart-pie mr-1 text-blue-500 dynamic-icon"></i> Bénéfice Total
+                    </h3>
+                    <p id="totalProfit" class="text-lg font-bold text-indigo-600">0.00 DA</p>
+                </div>
+                <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24">
+                    <h3 class="text-xs font-medium text-gray-600 flex items-center">
+                        <i id="salesIcon" class="fas fa-shopping-cart mr-1 text-yellow-500 dynamic-icon"></i> Ventes
+                    </h3>
+                    <p id="salesCount" class="text-lg font-bold text-indigo-600">0</p>
+                </div>
+                <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24">
+                    <h3 class="text-xs font-medium text-gray-600 flex items-center">
+                        <i id="stockIcon" class="fas fa-exclamation-triangle mr-1 text-red-500 dynamic-icon"></i> Ruptures
+                    </h3>
+                    <p id="lowStockItems" class="text-lg font-bold text-indigo-600">0</p>
+                </div>
+                <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24 col-span-2 sm:col-span-1 lg:col-span-2">
+                    <h3 class="text-xs font-medium text-gray-600 flex items-center">
+                        <i id="clientIcon" class="fas fa-user-check mr-1 text-purple-500 dynamic-icon"></i> Top Client
+                    </h3>
+                    <p id="topClient" class="text-sm font-bold text-indigo-600 overflow-hidden text-ellipsis whitespace-nowrap" title="N/A">N/A</p>
+                    <p id="topClientCA" class="text-xs text-gray-500">0.00 DA</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Graphique en dessous -->
+        <div class="w-full bg-white p-4 rounded-lg shadow-md animate-fade-in chart-container mt-4">
+            <h3 class="text-lg font-medium text-gray-700 mb-4 flex items-center">
+                <i class="fas fa-chart-area mr-2 text-indigo-500"></i> Évolution du Chiffre d'Affaires
+            </h3>
+            <canvas id="caChart" height="100"></canvas>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            <!-- Gestion Clients -->
+            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="clientsSection">
+                <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('clientsSection')">
+                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-users mr-2 text-indigo-500"></i> Gestion Clients
+                        <span id="clientCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                    </h2>
+                    <button class="text-gray-600 hover:text-gray-800 transition">
+                        <i class="fas fa-chevron-down" id="clientsChevron"></i>
+                    </button>
+                </div>
+                <div class="p-6 hidden" id="clientsContent">
+                    <div class="mb-4">
+                        <div class="relative">
+                            <input type="text" id="searchClient" placeholder="Rechercher des clients..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                        </div>
+                        <div class="flex justify-end mt-2">
+                            <button onclick="toggleClientForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
+                                <i class="fas fa-plus mr-2"></i>Ajouter
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="clientForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
+                        <h3 class="font-medium mb-3" id="clientFormTitle">Nouveau Client</h3>
+                        <input type="hidden" id="clientId">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
+                                <input type="text" id="clientNom" class="w-full px-3 py-2 border rounded-md" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Contact</label>
+                                <input type="text" id="clientContact" class="w-full px-3 py-2 border rounded-md">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
+                                <input type="text" id="clientAdresse" class="w-full px-3 py-2 border rounded-md">
+                            </div>
+                        </div>
+                        <div class="flex justify-end space-x-3 mt-4">
+                            <button onclick="resetClientForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
+                                <i class="fas fa-times mr-2"></i>Annuler
+                            </button>
+                            <button onclick="saveClient()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
+                                <i class="fas fa-save mr-2"></i>Enregistrer
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-container">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="hidden-id">ID</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="clientsList" class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td colspan="7" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gestion Fournisseurs -->
+            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="fournisseursSection">
+                <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('fournisseursSection')">
+                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-truck mr-2 text-indigo-500"></i> Gestion Fournisseurs
+                        <span id="fournisseurCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                    </h2>
+                    <button class="text-gray-600 hover:text-gray-800 transition">
+                        <i class="fas fa-chevron-down" id="fournisseursChevron"></i>
+                    </button>
+                </div>
+                <div class="p-6 hidden" id="fournisseursContent">
+                    <div class="mb-4">
+                        <div class="relative">
+                            <input type="text" id="searchFournisseur" placeholder="Rechercher des fournisseurs..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                        </div>
+                        <div class="flex justify-end mt-2">
+                            <button onclick="toggleFournisseurForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
+                                <i class="fas fa-plus mr-2"></i>Ajouter
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="fournisseurForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
+                        <h3 class="font-medium mb-3" id="fournisseurFormTitle">Nouveau Fournisseur</h3>
+                        <input type="hidden" id="fournisseurId">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
+                                <input type="text" id="fournisseurNom" class="w-full px-3 py-2 border rounded-md" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Contact</label>
+                                <input type="text" id="fournisseurContact" class="w-full px-3 py-2 border rounded-md">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
+                                <input type="text" id="fournisseurAdresse" class="w-full px-3 py-2 border rounded-md">
+                            </div>
+                        </div>
+                        <div class="flex justify-end space-x-3 mt-4">
+                            <button onclick="resetFournisseurForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
+                                <i class="fas fa-times mr-2"></i>Annuler
+                            </button>
+                            <button onclick="saveFournisseur()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
+                                <i class="fas fa-save mr-2"></i>Enregistrer
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-container">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="hidden-id">ID</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fournisseursList" class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td colspan="7" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Liste des Produits -->
+            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="productsSection">
+                <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('productsSection')">
+                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-boxes mr-2 text-indigo-500"></i> Liste des Produits
+                        <span id="productCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                    </h2>
+                    <button class="text-gray-600 hover:text-gray-800 transition">
+                        <i class="fas fa-chevron-down" id="productsChevron"></i>
+                    </button>
+                </div>
+                <div class="p-6 hidden" id="productsContent">
+                    <div class="mb-4">
+                        <div class="relative">
+                            <input type="text" id="searchProduct" placeholder="Rechercher des produits..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                        </div>
+                        <div class="flex justify-end mt-2">
+                            <button onclick="toggleProductForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
+                                <i class="fas fa-plus mr-2"></i>Ajouter
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="productForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
+                        <h3 class="font-medium mb-3" id="productFormTitle">Nouveau Produit</h3>
+                        <input type="hidden" id="productId">
+                        <div id="scannerPreview"></div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Désignation*</label>
+                                <input type="text" id="productDesignation" class="w-full px-3 py-2 border rounded-md" required>
+                            </div>
+                            <div class="relative">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Code Barre*</label>
+                                <input type="text" id="productBar" class="w-full px-3 py-2 border rounded-md" required>
+                                <button id="scanButton" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition duration-300" onclick="startScanner()">
+                                    <i class="fas fa-camera"></i> Scanner
+                                </button>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Prix Vente*</label>
+                                <input type="number" id="productPrix" step="0.01" class="w-full px-3 py-2 border rounded-md" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Prix Achat</label>
+                                <input type="number" id="productPrixba" step="0.01" class="w-full px-3 py-2 border rounded-md" placeholder="Ex: 300.00">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Quantité*</label>
+                                <input type="number" id="productQte" class="w-full px-3 py-2 border rounded-md" required>
+                            </div>
+                        </div>
+                        <div class="flex justify-end space-x-3 mt-4">
+                            <button onclick="stopScanner()" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition duration-300 transform hover:scale-105">
+                                <i class="fas fa-stop mr-2"></i>Arrêter
+                            </button>
+                            <button onclick="resetProductForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
+                                <i class="fas fa-times mr-2"></i>Annuler
+                            </button>
+                            <button onclick="saveProduct()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
+                                <i class="fas fa-save mr-2"></i>Enregistrer
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-container">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="hidden-id">ID</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Désignation</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code Barre</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Vente</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Achat</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productsList" class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td colspan="8" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gestion Utilisateurs -->
+            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="utilisateursSection">
+                <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('utilisateursSection')">
+                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-user-tie mr-2 text-indigo-500"></i> Gestion Utilisateurs
+                        <span id="utilisateurCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                    </h2>
+                    <button class="text-gray-600 hover:text-gray-800 transition">
+                        <i class="fas fa-chevron-down" id="utilisateursChevron"></i>
+                    </button>
+                </div>
+                <div class="p-6 hidden" id="utilisateursContent">
+                    <div class="mb-4">
+                        <div class="relative">
+                            <input type="text" id="searchUtilisateur" placeholder="Rechercher des utilisateurs..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                        </div>
+                        <div class="flex justify-end mt-2">
+                            <button onclick="toggleUtilisateurForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
+                                <i class="fas fa-plus mr-2"></i>Ajouter
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="utilisateurForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
+                        <h3 class="font-medium mb-3" id="utilisateurFormTitle">Nouvel Utilisateur</h3>
+                        <input type="hidden" id="utilisateurId">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
+                                <input type="text" id="utilisateurNom" class="w-full px-3 py-2 border rounded-md" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe*</label>
+                                <input type="password" id="utilisateurPassword" class="w-full px-3 py-2 border rounded-md">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Statut*</label>
+                                <select id="utilisateurStatut" class="w-full px-3 py-2 border rounded-md">
+                                    <option value="admin">Admin</option>
+                                    <option value="emplo">Employé</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="flex justify-end space-x-3 mt-4">
+                            <button onclick="resetUtilisateurForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
+                                <i class="fas fa-times mr-2"></i>Annuler
+                            </button>
+                            <button onclick="saveUtilisateur()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
+                                <i class="fas fa-save mr-2"></i>Enregistrer
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-container">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="utilisateursList" class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td colspan="4" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panneau Actions Rapides -->
+            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="actionsSection">
+                <div class="p-6">
+                    <h2 class="text-xl font-semibold text-gray-800 flex items-center mb-4">
+                        <i class="fas fa-bolt mr-2 text-indigo-500"></i> Actions Rapides
+                    </h2>
+                    <div class="grid grid-cols-2 gap-4">
+                        <a href="page2.html" class="bg-indigo-600 text-white p-4 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105 flex items-center justify-center">
+                            <i class="fas fa-chart-bar mr-2 text-xl"></i>
+                            <span class="font-medium">Journal</span>
+                        </a>
+                        <a href="HISTO.html" class="bg-blue-600 text-white p-4 rounded-md hover:bg-blue-700 transition duration-300 transform hover:scale-105 flex items-center justify-center">
+                            <i class="fas fa-money-check-alt mr-2 text-xl"></i>
+                            <span class="font-medium">Versement</span>
+                        </a>
+                        <a href="PARAM.html" class="bg-gray-600 text-white p-4 rounded-md hover:bg-gray-700 transition duration-300 transform hover:scale-105 flex items-center justify-center">
+                            <i class="fas fa-cog mr-2 text-xl"></i>
+                            <span class="font-medium">Réglage</span>
+                        </a>
+                        <a href="HELP.html" class="bg-green-600 text-white p-4 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105 flex items-center justify-center">
+                            <i class="fas fa-question-circle mr-2 text-xl"></i>
+                            <span class="font-medium">Aide</span>
+                        </a>
+                        <a onclick="openMapModal()" class="bg-purple-600 text-white p-4 rounded-md hover:bg-purple-700 transition duration-300 transform hover:scale-105 flex items-center justify-center">
+                            <i class="fas fa-map-marked-alt mr-2 text-xl"></i>
+                            <span class="font-medium">Carte des Adresses</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-gray-700 text-white text-center py-4 mt-8 animate-fade-in">
+        <p>Développé par Khelladi Hicham</p>
+        <p>Tel: <a href="tel:00213553700900" class="underline hover:text-indigo-300 transition duration-300">00213553700900</a></p>
+        <p>Email: <a href="mailto:Hicham.khelladi@gmail.com" class="underline hover:text-indigo-300 transition duration-300">Hicham.khelladi@gmail.com</a></p>
+    </footer>
+
+    <!-- Bouton flottant pour remonter en haut -->
+    <button id="scrollTopButton" class="hidden fixed bottom-4 right-4 bg-indigo-600 text-white p-3 rounded-full shadow-lg hover:bg-indigo-700 transition transform hover:scale-110 animate-fade-in z-30" title="Remonter en haut">
+        <i class="fas fa-arrow-up"></i>
+    </button>
+
     <!-- Toast Notification -->
     <div id="toast" class="fixed bottom-4 right-4 hidden">
         <div class="flex items-center px-6 py-3 rounded-md shadow-lg">
@@ -86,179 +625,354 @@
 
     <script>
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
+        let caChartInstance = null;
+        let stream = null;
+        let barcodeDetector = null;
+        let isScanning = false;
         let map, marker;
         let clients = [], suppliers = [];
         const NOMINATIM_URL = 'https://nominatim.openstreetmap.org';
 
-        // Initialize map on modal open
-        function initMap() {
-            if (map) map.remove();
-            map = L.map('mapContainer').setView([36.7538, 3.0588], 6); // Center on Algeria
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-                maxZoom: 19
-            }).addTo(map);
+        // Générer un user_id basé sur l'email et le mot de passe
+        function generateUniqueUserId(email, password) {
+            const combined = `${email.toLowerCase()}:${password}`;
+            return btoa(combined);
+        }
 
-            // Add click event for reverse geocoding
-            map.on('click', async (e) => {
-                const { lat, lng } = e.latlng;
-                try {
-                    const response = await fetch(`${NOMINATIM_URL}/reverse?format=json&lat=${lat}&lon=${lng}`);
-                    const data = await response.json();
-                    if (data.display_name) {
-                        document.getElementById('entityAddress').value = data.display_name;
-                        setMarker(lat, lng, data.display_name);
-                    } else {
-                        showToast('Aucune adresse trouvée à cet emplacement', true);
+        // Vérifier si l'utilisateur est connecté au chargement de la page
+        document.addEventListener('DOMContentLoaded', () => {
+            const userId = localStorage.getItem('userId');
+            const userEmail = localStorage.getItem('userEmail');
+            if (userId && userEmail) {
+                const userDisplay = document.getElementById('userDisplay');
+                if (userDisplay) {
+                    userDisplay.textContent = userEmail.toLowerCase();
+                    userDisplay.classList.remove('hidden');
+                }
+                const loginLogoutButton = document.getElementById('loginLogoutButton');
+                if (loginLogoutButton) {
+                    loginLogoutButton.innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+                }
+                const loginModal = document.getElementById('loginModal');
+                if (loginModal) {
+                    loginModal.classList.add('hidden');
+                }
+                chargerClients();
+                chargerFournisseurs();
+                chargerProduits();
+                chargerUtilisateurs();
+                chargerKPI();
+            } else {
+                const loginLogoutButton = document.getElementById('loginLogoutButton');
+                if (loginLogoutButton) {
+                    loginLogoutButton.innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                }
+                const loginModal = document.getElementById('loginModal');
+                if (loginModal) {
+                    loginModal.classList.remove('hidden');
+                }
+            }
+
+            // Vérification de la connexion API
+            fetch(`${API_BASE_URL}/`)
+                .then(response => response.text())
+                .then(text => console.log('Statut API:', text))
+                .catch(err => {
+                    console.error('API non disponible:', err);
+                    showToast('Erreur de connexion à l\'API', true);
+                });
+
+            // Écouteur pour le sélecteur de période KPI
+            const kpiPeriod = document.getElementById('kpiPeriod');
+            if (kpiPeriod) {
+                kpiPeriod.addEventListener('change', () => {
+                    const kpiSection = document.getElementById('kpiSection');
+                    if (kpiSection) {
+                        kpiSection.style.opacity = '0.5';
                     }
-                } catch (error) {
-                    showToast('Erreur de géocodage inversé', true);
-                    console.error('Reverse geocode error:', error);
+                    setTimeout(chargerKPI, 300);
+                });
+            }
+
+            // Bouton remonter en haut
+            window.addEventListener('scroll', () => {
+                const scrollTopButton = document.getElementById('scrollTopButton');
+                if (scrollTopButton) {
+                    if (window.scrollY > 300) {
+                        scrollTopButton.classList.remove('hidden');
+                    } else {
+                        scrollTopButton.classList.add('hidden');
+                    }
                 }
             });
 
-            // Load entities on map
-            loadEntitiesOnMap();
-        }
-
-        // Set or update marker
-        function setMarker(lat, lng, address, isEntity = false, entityType = '', name = '', balance = 0) {
-            if (marker) marker.remove();
-            marker = L.marker([lat, lng], {
-                icon: L.divIcon({
-                    className: entityType === 'client' ? 'client-pin' : 'supplier-pin',
-                    html: `<i class="fas fa-map-marker-alt fa-2x"></i>`,
-                    iconSize: [30, 30],
-                    iconAnchor: [15, 30]
-                })
-            }).addTo(map);
-            if (isEntity) {
-                marker.bindPopup(`
-                    <b>${name}</b><br>
-                    Type: ${entityType === 'client' ? 'Client' : 'Fournisseur'}<br>
-                    Solde: ${balance.toFixed(2)} DA<br>
-                    Adresse: ${address}
-                `);
-            } else {
-                marker.bindPopup(`Adresse: ${address}`);
+            const scrollTopButton = document.getElementById('scrollTopButton');
+            if (scrollTopButton) {
+                scrollTopButton.addEventListener('click', () => {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                });
             }
-            map.setView([lat, lng], 15);
-        }
+        });
 
-        // Load clients and suppliers on map
-        async function loadEntitiesOnMap() {
+        // Fonction pour charger les KPI
+        async function chargerKPI() {
             const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Veuillez vous connecter pour charger les entités', true);
+                showToast('Veuillez vous connecter pour voir les KPI', true);
                 return;
             }
 
+            const period = document.getElementById('kpiPeriod')?.value || 'day';
             try {
-                // Fetch clients
-                const clientResponse = await fetch(`${API_BASE_URL}/liste_clients`, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!clientResponse.ok) throw new Error('Erreur chargement clients');
-                clients = await clientResponse.json();
-
-                // Fetch suppliers
-                const supplierResponse = await fetch(`${API_BASE_URL}/liste_fournisseurs`, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!supplierResponse.ok) throw new Error('Erreur chargement fournisseurs');
-                suppliers = await supplierResponse.json();
-
-                // Geocode and add markers for clients
-                for (const client of clients) {
-                    if (client.adresse) {
-                        try {
-                            const response = await fetch(`${NOMINATIM_URL}/search?format=json&q=${encodeURIComponent(client.adresse)}&limit=1`);
-                            const data = await response.json();
-                            if (data.length > 0) {
-                                const { lat, lon } = data[0];
-                                L.marker([lat, lon], {
-                                    icon: L.divIcon({
-                                        className: 'client-pin',
-                                        html: `<i class="fas fa-map-marker-alt fa-2x"></i>`,
-                                        iconSize: [30, 30],
-                                        iconAnchor: [15, 30]
-                                    })
-                                }).addTo(map).bindPopup(`
-                                    <b>${client.nom}</b><br>
-                                    Type: Client<br>
-                                    Solde: ${client.solde.toFixed(2)} DA<br>
-                                    Adresse: ${client.adresse}
-                                `);
-                            }
-                        } catch (error) {
-                            console.warn(`Geocoding failed for client ${client.nom}:`, error);
-                        }
+                const response = await fetch(`${API_BASE_URL}/dashboard?period=${period}`, {
+                    headers: {
+                        'X-User-ID': userId
                     }
+                });
+                if (!response.ok) {
+                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                }
+                const kpi = await response.json();
+
+                // Mettre à jour les KPI
+                const totalCA = document.getElementById('totalCA');
+                if (totalCA) totalCA.textContent = `${kpi.total_ca.toFixed(2)} DA`;
+                const totalProfit = document.getElementById('totalProfit');
+                if (totalProfit) totalProfit.textContent = `${kpi.total_profit.toFixed(2)} DA`;
+                const salesCount = document.getElementById('salesCount');
+                if (salesCount) salesCount.textContent = kpi.sales_count;
+                const lowStockItems = document.getElementById('lowStockItems');
+                if (lowStockItems) lowStockItems.textContent = kpi.low_stock_items;
+                const topClient = document.getElementById('topClient');
+                if (topClient) {
+                    topClient.textContent = kpi.top_client.name || 'N/A';
+                    topClient.title = kpi.top_client.name || 'N/A';
+                }
+                const topClientCA = document.getElementById('topClientCA');
+                if (topClientCA) topClientCA.textContent = `${kpi.top_client.ca.toFixed(2)} DA`;
+
+                // Animation de mise à jour
+                const kpiCards = document.querySelectorAll('.kpi-card');
+                kpiCards.forEach(card => {
+                    card.classList.add('kpi-updated');
+                    setTimeout(() => card.classList.remove('kpi-updated'), 500);
+                });
+
+                // Animation spécifique pour Top Client
+                const topClientCard = document.getElementById('topClient')?.parentElement;
+                if (topClientCard) {
+                    topClientCard.classList.add('top-client-updated');
+                    setTimeout(() => topClientCard.classList.remove('top-client-updated'), 600);
                 }
 
-                // Geocode and add markers for suppliers
-                for (const supplier of suppliers) {
-                    if (supplier.adresse) {
-                        try {
-                            const response = await fetch(`${NOMINATIM_URL}/search?format=json&q=${encodeURIComponent(supplier.adresse)}&limit=1`);
-                            const data = await response.json();
-                            if (data.length > 0) {
-                                const { lat, lon } = data[0];
-                                L.marker([lat, lon], {
-                                    icon: L.divIcon({
-                                        className: 'supplier-pin',
-                                        html: `<i class="fas fa-map-marker-alt fa-2x"></i>`,
-                                        iconSize: [30, 30],
-                                        iconAnchor: [15, 30]
-                                    })
-                                }).addTo(map).bindPopup(`
-                                    <b>${supplier.nom}</b><br>
-                                    Type: Fournisseur<br>
-                                    Solde: ${supplier.solde.toFixed(2)} DA<br>
-                                    Adresse: ${supplier.adresse}
-                                `);
-                            }
-                        } catch (error) {
-                            console.warn(`Geocoding failed for supplier ${supplier.nom}:`, error);
-                        }
-                    }
-                }
+                // Mettre à jour les icônes dynamiques
+                const caIcon = document.getElementById('caIcon');
+                if (caIcon) caIcon.className = `fas fa-money-bill-wave mr-1 dynamic-icon ${kpi.total_ca > 0 ? 'text-green-500 animate-pulse' : 'text-gray-400'}`;
+                const profitIcon = document.getElementById('profitIcon');
+                if (profitIcon) profitIcon.className = `fas fa-chart-pie mr-1 dynamic-icon ${kpi.total_profit > 0 ? 'text-blue-500 animate-pulse' : 'text-gray-400'}`;
+                const salesIcon = document.getElementById('salesIcon');
+                if (salesIcon) salesIcon.className = `fas fa-shopping-cart mr-1 dynamic-icon ${kpi.sales_count > 0 ? 'text-yellow-500 animate-pulse' : 'text-gray-400'}`;
+                const stockIcon = document.getElementById('stockIcon');
+                if (stockIcon) stockIcon.className = `fas fa-exclamation-triangle mr-1 dynamic-icon ${kpi.low_stock_items > 0 ? 'text-red-500 animate-pulse' : 'text-gray-400'}`;
+                const clientIcon = document.getElementById('clientIcon');
+                if (clientIcon) clientIcon.className = `fas fa-user-check mr-1 dynamic-icon ${kpi.top_client.ca > 0 ? 'text-purple-500 animate-pulse' : 'text-gray-400'}`;
+
+                // Mettre à jour le graphique
+                updateChart(kpi.chart_data.labels, kpi.chart_data.values);
+
+                // Réactiver l'opacité
+                const kpiSection = document.getElementById('kpiSection');
+                if (kpiSection) kpiSection.style.opacity = '1';
             } catch (error) {
-                showToast('Erreur de chargement des entités', true);
-                console.error('Load entities error:', error);
+                showToast(`Erreur de chargement des KPI: ${error.message}`, true);
+                console.error('Erreur KPI:', error);
+                const kpiSection = document.getElementById('kpiSection');
+                if (kpiSection) kpiSection.style.opacity = '1';
             }
         }
 
-        // Open map modal
-        function openMapModal() {
-            document.getElementById('mapModal').classList.remove('hidden');
-            setTimeout(initMap, 100); // Delay to ensure modal is rendered
+        // Fonction pour mettre à jour le graphique
+        function updateChart(labels, values) {
+            const caChart = document.getElementById('caChart');
+            if (!caChart) return;
+            const ctx = caChart.getContext('2d');
+            if (caChartInstance) {
+                caChartInstance.destroy();
+            }
+            caChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Chiffre d\'Affaires (DA)',
+                        data: values,
+                        borderColor: '#4F46E5',
+                        backgroundColor: 'rgba(79, 70, 229, 0.2)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Date' }
+                        },
+                        y: {
+                            title: { display: true, text: 'CA (DA)' },
+                            beginAtZero: true
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: context => `${context.parsed.y.toFixed(2)} DA`
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 1000,
+                        easing: 'easeOutQuart'
+                    }
+                }
+            });
         }
 
-        // Close map modal
-        function closeMapModal() {
-            document.getElementById('mapModal').classList.add('hidden');
-            if (map) map.remove();
-            clearForm();
+        // Connexion avec email et mot de passe
+        function loginWithCredentials(event) {
+            event.preventDefault();
+            const userEmail = document.getElementById('userEmail');
+            const userPassword = document.getElementById('userPassword');
+            if (!userEmail || !userPassword) {
+                showToast('Formulaire de connexion introuvable', true);
+                return;
+            }
+            const email = userEmail.value.trim();
+            const password = userPassword.value.trim();
+            if (!email || !password) {
+                showToast('Veuillez entrer un email et un mot de passe valides', true);
+                return;
+            }
+
+            const emailLowerCase = email.toLowerCase();
+            const storedUserId = localStorage.getItem('userId');
+            const storedEmail = localStorage.getItem('userEmail');
+
+            const userId = generateUniqueUserId(emailLowerCase, password);
+
+            if (storedUserId && storedEmail === emailLowerCase && storedUserId === userId) {
+                const userDisplay = document.getElementById('userDisplay');
+                if (userDisplay) {
+                    userDisplay.textContent = emailLowerCase;
+                    userDisplay.classList.remove('hidden');
+                }
+                const loginLogoutButton = document.getElementById('loginLogoutButton');
+                if (loginLogoutButton) {
+                    loginLogoutButton.innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+                }
+                const loginModal = document.getElementById('loginModal');
+                if (loginModal) {
+                    loginModal.classList.add('hidden');
+                }
+                chargerClients();
+                chargerFournisseurs();
+                chargerProduits();
+                chargerUtilisateurs();
+                chargerKPI();
+            } else {
+                localStorage.setItem('userId', userId);
+                localStorage.setItem('userEmail', emailLowerCase);
+                const userDisplay = document.getElementById('userDisplay');
+                if (userDisplay) {
+                    userDisplay.textContent = emailLowerCase;
+                    userDisplay.classList.remove('hidden');
+                }
+                const loginLogoutButton = document.getElementById('loginLogoutButton');
+                if (loginLogoutButton) {
+                    loginLogoutButton.innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+                }
+                const loginModal = document.getElementById('loginModal');
+                if (loginModal) {
+                    loginModal.classList.add('hidden');
+                }
+                chargerClients();
+                chargerFournisseurs();
+                chargerProduits();
+                chargerUtilisateurs();
+                chargerKPI();
+                showToast('Nouveau compte créé avec succès');
+            }
         }
 
-        // Clear form
-        function clearForm() {
-            document.getElementById('entityType').value = 'client';
-            document.getElementById('entityName').value = '';
-            document.getElementById('entityAddress').value = '';
-            document.getElementById('entityBalance').value = '';
-            document.getElementById('nameSuggestions').classList.add('hidden');
-            document.getElementById('addressSuggestions').classList.add('hidden');
-            if (marker) marker.remove();
-            updateNameSuggestions('');
+        // Fonction de déconnexion
+        function loginLogout() {
+            const userId = localStorage.getItem('userId');
+            if (userId) {
+                localStorage.removeItem('userId');
+                localStorage.removeItem('userEmail');
+                const userDisplay = document.getElementById('userDisplay');
+                if (userDisplay) {
+                    userDisplay.textContent = '';
+                    userDisplay.classList.add('hidden');
+                }
+                const loginLogoutButton = document.getElementById('loginLogoutButton');
+                if (loginLogoutButton) {
+                    loginLogoutButton.innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                }
+                const loginModal = document.getElementById('loginModal');
+                if (loginModal) {
+                    loginModal.classList.remove('hidden');
+                }
+                const clientsList = document.getElementById('clientsList');
+                if (clientsList) {
+                    clientsList.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+                }
+                const fournisseursList = document.getElementById('fournisseursList');
+                if (fournisseursList) {
+                    fournisseursList.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+                }
+                const productsList = document.getElementById('productsList');
+                if (productsList) {
+                    productsList.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+                }
+                const utilisateursList = document.getElementById('utilisateursList');
+                if (utilisateursList) {
+                    utilisateursList.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+                }
+                const clientCount = document.getElementById('clientCount');
+                if (clientCount) clientCount.classList.add('hidden');
+                const fournisseurCount = document.getElementById('fournisseurCount');
+                if (fournisseurCount) fournisseurCount.classList.add('hidden');
+                const productCount = document.getElementById('productCount');
+                if (productCount) productCount.classList.add('hidden');
+                const utilisateurCount = document.getElementById('utilisateurCount');
+                if (utilisateurCount) utilisateurCount.classList.add('hidden');
+                const totalCA = document.getElementById('totalCA');
+                if (totalCA) totalCA.textContent = '0.00 DA';
+                const totalProfit = document.getElementById('totalProfit');
+                if (totalProfit) totalProfit.textContent = '0.00 DA';
+                const salesCount = document.getElementById('salesCount');
+                if (salesCount) salesCount.textContent = '0';
+                const lowStockItems = document.getElementById('lowStockItems');
+                if (lowStockItems) lowStockItems.textContent = '0';
+                const topClient = document.getElementById('topClient');
+                if (topClient) topClient.textContent = 'N/A';
+                const topClientCA = document.getElementById('topClientCA');
+                if (topClientCA) topClientCA.textContent = '0.00 DA';
+                if (caChartInstance) {
+                    caChartInstance.destroy();
+                    caChartInstance = null;
+                }
+            }
         }
 
-        // Show toast notification
+        // Fonction pour afficher les notifications
         function showToast(message, isError = false) {
             const toast = document.getElementById('toast');
             const toastMessage = document.getElementById('toastMessage');
             const toastIcon = document.getElementById('toastIcon');
+            if (!toast || !toastMessage || !toastIcon) return;
 
             toast.className = isError
                 ? 'fixed bottom-4 right-4 flex items-center bg-red-500 text-white px-6 py-3 rounded-md shadow-lg'
@@ -276,118 +990,161 @@
             }, 3000);
         }
 
-        // Autocomplete name suggestions
-        document.getElementById('entityName').addEventListener('input', async (e) => {
-            const searchTerm = e.target.value.trim().toLowerCase();
-            updateNameSuggestions(searchTerm);
-        });
+        // Fonction pour gérer l'animation développer/envelopper
+        function toggleSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
+            const chevron = document.getElementById(`${sectionId.replace('Section', 'Chevron')}`);
+            if (!section || !content || !chevron) return;
 
-        function updateNameSuggestions(searchTerm) {
-            const type = document.getElementById('entityType').value;
-            const suggestions = type === 'client' ? clients : suppliers;
-            const filtered = suggestions.filter(entity => entity.nom.toLowerCase().includes(searchTerm));
-            const suggestionsDiv = document.getElementById('nameSuggestions');
-
-            if (filtered.length === 0 || !searchTerm) {
-                suggestionsDiv.classList.add('hidden');
-                return;
-            }
-
-            suggestionsDiv.innerHTML = filtered.map(entity => `
-                <div class="px-4 py-2 hover:bg-indigo-100 cursor-pointer" onclick="selectEntity('${entity.nom}', '${entity.adresse || ''}', ${entity.solde}, '${type}', '${entity.numero_clt || entity.numero_fou}')">
-                    ${entity.nom} (Solde: ${entity.solde.toFixed(2)} DA)
-                </div>
-            `).join('');
-            suggestionsDiv.classList.remove('hidden');
+            content.classList.toggle('hidden');
+            chevron.classList.toggle('fa-chevron-down');
+            chevron.classList.toggle('fa-chevron-up');
         }
 
-        // Select entity from suggestions
-        window.selectEntity = async (name, address, balance, type, id) => {
-            document.getElementById('entityName').value = name;
-            document.getElementById('entityAddress').value = address;
-            document.getElementById('entityBalance').value = `${balance.toFixed(2)} DA`;
-            document.getElementById('nameSuggestions').classList.add('hidden');
-
-            if (address) {
-                try {
-                    const response = await fetch(`${NOMINATIM_URL}/search?format=json&q=${encodeURIComponent(address)}&limit=1`);
-                    const data = await response.json();
-                    if (data.length > 0) {
-                        const { lat, lon } = data[0];
-                        setMarker(lat, lon, address, true, type, name, balance);
-                    } else {
-                        showToast('Adresse non géolocalisable', true);
-                    }
-                } catch (error) {
-                    showToast('Erreur de géocodage', true);
-                    console.error('Geocode error:', error);
-                }
-            }
-        };
-
-        // Autocomplete address suggestions
-        document.getElementById('entityAddress').addEventListener('input', async (e) => {
-            const searchTerm = e.target.value.trim();
-            if (searchTerm.length < 3) {
-                document.getElementById('addressSuggestions').classList.add('hidden');
+        // --- Gestion des clients ---
+        async function chargerClients() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir les clients', true);
                 return;
             }
 
             try {
-                const response = await fetch(`${NOMINATIM_URL}/search?format=json&q=${encodeURIComponent(searchTerm)}&limit=5`);
-                const data = await response.json();
-                const suggestionsDiv = document.getElementById('addressSuggestions');
+                const response = await fetch(`${API_BASE_URL}/liste_clients`, {
+                    headers: {
+                        'X-User-ID': userId
+                    }
+                });
+                if (!response.ok) {
+                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                }
+                const clients = await response.json();
+                const tbody = document.getElementById('clientsList');
+                const countElement = document.getElementById('clientCount');
+                if (!tbody || !countElement) return;
 
-                if (data.length === 0) {
-                    suggestionsDiv.classList.add('hidden');
+                if (clients.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun client trouvé</td></tr>';
+                    countElement.textContent = '0';
+                    countElement.classList.remove('hidden');
                     return;
                 }
 
-                suggestionsDiv.innerHTML = data.map(item => `
-                    <div class="px-4 py-2 hover:bg-indigo-100 cursor-pointer" onclick="selectAddress('${item.display_name}', ${item.lat}, ${item.lon})">
-                        ${item.display_name}
-                    </div>
-                `).join('');
-                suggestionsDiv.classList.remove('hidden');
+                tbody.innerHTML = '';
+                clients.forEach(client => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-gray-50';
+                    tr.innerHTML = `
+                        <td class="hidden-id">${client.numero_clt || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${client.nom || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.solde || '0'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.reference || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.contact || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.adresse || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <button onclick="modifierClient('${client.numero_clt}', '${client.nom}', '${client.contact}', '${client.adresse}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
+                                <i class="fas fa-edit"></i> Modifier
+                            </button>
+                            <button onclick="supprimerClient('${client.numero_clt}')" class="text-red-600 hover:text-red-800 transition">
+                                <i class="fas fa-trash-alt"></i> Supprimer
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                countElement.textContent = clients.length;
+                countElement.classList.remove('hidden');
             } catch (error) {
-                showToast('Erreur de recherche d\'adresse', true);
-                console.error('Address search error:', error);
+                const tbody = document.getElementById('clientsList');
+                if (tbody) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="7" class="text-center py-4 text-red-500">
+                                Erreur de chargement: ${error.message}
+                            </td>
+                        </tr>
+                    `;
+                }
+                console.error('Erreur clients:', error);
             }
-        });
+        }
 
-        // Select address from suggestions
-        window.selectAddress = (address, lat, lon) => {
-            document.getElementById('entityAddress').value = address;
-            document.getElementById('addressSuggestions').classList.add('hidden');
-            setMarker(lat, lon, address);
-        };
+        function modifierClient(id, nom, contact, adresse) {
+            const clientId = document.getElementById('clientId');
+            const clientNom = document.getElementById('clientNom');
+            const clientContact = document.getElementById('clientContact');
+            const clientAdresse = document.getElementById('clientAdresse');
+            const clientFormTitle = document.getElementById('clientFormTitle');
+            const clientForm = document.getElementById('clientForm');
+            if (!clientId || !clientNom || !clientContact || !clientAdresse || !clientFormTitle || !clientForm) return;
 
-        // Save entity
-        async function saveEntity() {
+            clientId.value = id;
+            clientNom.value = nom;
+            clientContact.value = contact;
+            clientAdresse.value = adresse;
+            clientFormTitle.textContent = 'Modifier Client';
+            clientForm.classList.remove('hidden');
+        }
+
+        async function supprimerClient(id) {
             const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Veuillez vous connecter pour sauvegarder', true);
+                showToast('Veuillez vous connecter pour supprimer un client', true);
                 return;
             }
 
-            const type = document.getElementById('entityType').value;
-            const name = document.getElementById('entityName').value.trim();
-            const address = document.getElementById('entityAddress').value.trim();
-
-            if (!name || !address) {
-                showToast('Veuillez remplir tous les champs obligatoires', true);
+            if (!confirm('Voulez-vous vraiment supprimer ce client ?')) {
                 return;
             }
 
             try {
-                // Check if entity exists to decide between add or update
-                const entities = type === 'client' ? clients : suppliers;
-                const existingEntity = entities.find(entity => entity.nom.toLowerCase() === name.toLowerCase());
-                const url = existingEntity
-                    ? `${API_BASE_URL}/${type === 'client' ? 'modifier_client' : 'modifier_fournisseur'}/${existingEntity.numero_clt || existingEntity.numero_fou}`
-                    : `${API_BASE_URL}/${type === 'client' ? 'ajouter_client' : 'ajouter_fournisseur'}`;
-                const method = existingEntity ? 'PUT' : 'POST';
+                const response = await fetch(`${API_BASE_URL}/supprimer_client/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-User-ID': userId
+                    }
+                });
 
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.erreur || 'Erreur lors de la suppression');
+                }
+
+                showToast('Client supprimé avec succès');
+                chargerClients();
+            } catch (error) {
+                showToast(error.message, true);
+                console.error('Erreur suppression client:', error);
+            }
+        }
+
+        async function saveClient() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour sauvegarder un client', true);
+                return;
+            }
+
+            const clientId = document.getElementById('clientId');
+            const clientNom = document.getElementById('clientNom');
+            const clientContact = document.getElementById('clientContact');
+            const clientAdresse = document.getElementById('clientAdresse');
+            if (!clientId || !clientNom || !clientContact || !clientAdresse) return;
+
+            const id = clientId.value;
+            const nom = clientNom.value.trim();
+            const contact = clientContact.value.trim();
+            const adresse = clientAdresse.value.trim();
+
+            if (!nom) {
+                showToast('Veuillez remplir le champ Nom', true);
+                return;
+            }
+
+            try {
+                const url = id ? `${API_BASE_URL}/modifier_client/${id}` : `${API_BASE_URL}/ajouter_client`;
+                const method = id ? 'PUT' : 'POST';
                 const response = await fetch(url, {
                     method: method,
                     headers: {
@@ -395,9 +1152,9 @@
                         'X-User-ID': userId
                     },
                     body: JSON.stringify({
-                        nom: name,
-                        adresse: address,
-                        contact: existingEntity?.contact || '' // Preserve existing contact if updating
+                        nom,
+                        contact,
+                        adresse
                     })
                 });
 
@@ -406,29 +1163,96 @@
                     throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
                 }
 
-                showToast(existingEntity ? `${type === 'client' ? 'Client' : 'Fournisseur'} modifié avec succès` : `${type === 'client' ? 'Client' : 'Fournisseur'} ajouté avec succès`);
-                closeMapModal();
-                // Reload main page data if needed
-                if (window.chargerClients) window.chargerClients();
-                if (window.chargerFournisseurs) window.chargerFournisseurs();
+                showToast(id ? 'Client modifié avec succès' : 'Client ajouté avec succès');
+                resetClientForm();
+                chargerClients();
             } catch (error) {
                 showToast(error.message, true);
-                console.error('Save entity error:', error);
+                console.error('Erreur sauvegarde client:', error);
             }
         }
 
-        // Add button to main page (example, add this to your main page's Actions Rapides section)
-        document.addEventListener('DOMContentLoaded', () => {
-            // This is a placeholder; add the button to your main page's HTML
-            const actionsSection = document.getElementById('actionsSection');
-            if (actionsSection) {
-                const mapButton = document.createElement('a');
-                mapButton.className = 'bg-purple-600 text-white p-4 rounded-md hover:bg-purple-700 transition duration-300 transform hover:scale-105 flex items-center justify-center';
-                mapButton.innerHTML = '<i class="fas fa-map-marked-alt mr-2 text-xl"></i><span class="font-medium">Carte des Adresses</span>';
-                mapButton.onclick = openMapModal;
-                actionsSection.querySelector('.grid').appendChild(mapButton);
-            }
+        function resetClientForm() {
+            const clientId = document.getElementById('clientId');
+            const clientNom = document.getElementById('clientNom');
+            const clientContact = document.getElementById('clientContact');
+            const clientAdresse = document.getElementById('clientAdresse');
+            const clientFormTitle = document.getElementById('clientFormTitle');
+            const clientForm = document.getElementById('clientForm');
+            if (!clientId || !clientNom || !clientContact || !clientAdresse || !clientFormTitle || !clientForm) return;
+
+            clientId.value = '';
+            clientNom.value = '';
+            clientContact.value = '';
+            clientAdresse.value = '';
+            clientFormTitle.textContent = 'Nouveau Client';
+            clientForm.classList.add('hidden');
+        }
+
+        function toggleClientForm() {
+            const clientForm = document.getElementById('clientForm');
+            if (clientForm) clientForm.classList.toggle('hidden');
+        }
+
+        document.getElementById('searchClient')?.addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('#clientsList tr');
+
+            rows.forEach(row => {
+                const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
+                const reference = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
+                const contact = row.querySelector('td:nth-child(5)')?.textContent.toLowerCase();
+                const adresse = row.querySelector('td:nth-child(6)')?.textContent.toLowerCase();
+                if (nom?.includes(searchTerm) || reference?.includes(searchTerm) || contact?.includes(searchTerm) || adresse?.includes(searchTerm)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
         });
-    </script>
-</body>
-</html>
+
+        // --- Gestion des fournisseurs ---
+        async function chargerFournisseurs() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir les fournisseurs', true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_fournisseurs`, {
+                    headers: {
+                        'X-User-ID': userId
+                    }
+                });
+                if (!response.ok) {
+                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                }
+                const fournisseurs = await response.json();
+                const tbody = document.getElementById('fournisseursList');
+                const countElement = document.getElementById('fournisseurCount');
+                if (!tbody || !countElement) return;
+
+                if (fournisseurs.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun fournisseur trouvé</td></tr>';
+                    countElement.textContent = '0';
+                    countElement.classList.remove('hidden');
+                    return;
+                }
+
+                tbody.innerHTML = '';
+                fournisseurs.forEach(fournisseur => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-gray-50';
+                    tr.innerHTML = `
+                        <td class="hidden-id">${fournisseur.numero_fou || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${fournisseur.nom || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.solde || '0'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.reference || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.contact || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.adresse || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <button onclick="modifierFournisseur('${fournisseur.numero_fou}', '${fournisseur.nom}', '${fournisseur.contact}', '${fournisseur.adresse}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
+                                <i class="fas fa-edit"></i> Modifier
+                            </button>
+                            <
