@@ -502,75 +502,80 @@
         }
 
         document.addEventListener('DOMContentLoaded', async () => {
-            console.log('Page chargée, vérification utilisateur...');
-            const userId = localStorage.getItem('userId');
-            const userEmail = localStorage.getItem('userEmail');
-            if (userId && userEmail) {
-                console.log('Utilisateur connecté:', userId, userEmail);
-                document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
-                document.getElementById('userDisplay').classList.remove('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                document.getElementById('sellerSelect').disabled = true;
-                await chargerUtilisateurs();
-                const storedSeller = localStorage.getItem('selectedSeller');
-                if (storedSeller) {
-                    const { numero_util, nom } = JSON.parse(storedSeller);
-                    const sellerSelect = document.getElementById('sellerSelect');
-                    const optionExists = Array.from(sellerSelect.options).some(option => option.value === numero_util);
-                    if (optionExists) {
-                        sellerSelect.value = numero_util;
-                        document.getElementById('selectedSellerName').textContent = nom;
-                        document.getElementById('headerSellerName').textContent = nom;
-                        document.getElementById('sellerPassword').disabled = true;
-                        document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
-                        document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
-                        document.getElementById('sellerContent').classList.add('hidden');
-                        document.getElementById('sellerChevron').classList.add('fa-chevron-down');
-                        document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
-                    } else {
-                        localStorage.removeItem('selectedSeller');
-                        localStorage.removeItem('sellerPassword');
-                        document.getElementById('sellerContent').classList.remove('hidden');
-                        document.getElementById('sellerChevron').classList.add('fa-chevron-up');
-                        document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
-                    }
-                } else {
-                    document.getElementById('sellerContent').classList.remove('hidden');
-                    document.getElementById('sellerChevron').classList.add('fa-chevron-up');
-                    document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
-                }
-                sellerSelect.disabled = false;
-
-                // Vérifier si mode édition
-                const urlParams = new URLSearchParams(window.location.search);
-                isEditMode = urlParams.get('edit') === 'true';
-                editNumeroComande = urlParams.get('numero_comande');
-                const nature = urlParams.get('nature');
-
-                if (isEditMode && editNumeroComande && nature) {
-                    document.querySelector('header h1').textContent = `Modifier la vente #${editNumeroComande}`;
-                    const validateButton = document.getElementById('validateSaleButton');
-                    validateButton.innerHTML = '<i class="fas fa-edit mr-2"></i>Modifier la vente';
-                    validateButton.onclick = modifierVente;
-                    await loadSaleData(editNumeroComande);
-                }
-
-                await chargerClients();
-                await chargerProduits();
+    console.log('Page chargée, vérification utilisateur...');
+    const userId = localStorage.getItem('userId');
+    const userEmail = localStorage.getItem('userEmail');
+    if (userId && userEmail) {
+        console.log('Utilisateur connecté:', userId, userEmail);
+        document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
+        document.getElementById('userDisplay').classList.remove('hidden');
+        document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+        document.getElementById('sellerSelect').disabled = true;
+        await chargerUtilisateurs();
+        const storedSeller = localStorage.getItem('selectedSeller');
+        if (storedSeller) {
+            const { numero_util, nom } = JSON.parse(storedSeller);
+            const sellerSelect = document.getElementById('sellerSelect');
+            const optionExists = Array.from(sellerSelect.options).some(option => option.value === numero_util);
+            if (optionExists) {
+                sellerSelect.value = numero_util;
+                document.getElementById('selectedSellerName').textContent = nom;
+                document.getElementById('headerSellerName').textContent = nom;
+                document.getElementById('sellerPassword').disabled = true;
+                document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
+                document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
+                document.getElementById('sellerContent').classList.add('hidden');
+                document.getElementById('sellerChevron').classList.add('fa-chevron-down');
+                document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
             } else {
-                console.log('Aucun utilisateur connecté, redirection vers index.html');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                window.location.href = 'index.html';
+                localStorage.removeItem('selectedSeller');
+                localStorage.removeItem('sellerPassword');
+                document.getElementById('sellerContent').classList.remove('hidden');
+                document.getElementById('sellerChevron').classList.add('fa-chevron-up');
+                document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
             }
+        } else {
+            document.getElementById('sellerContent').classList.remove('hidden');
+            document.getElementById('sellerChevron').classList.add('fa-chevron-up');
+            document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
+        }
+        sellerSelect.disabled = false;
 
-            fetch(`${API_BASE_URL}/`)
-                .then(response => response.text())
-                .then(text => console.log('Statut API:', text))
-                .catch(err => {
-                    console.error('API non disponible:', err);
-                    showToast('Erreur de connexion à l\'API', true);
-                });
+        // Vérifier si mode édition
+        const urlParams = new URLSearchParams(window.location.search);
+        isEditMode = urlParams.get('edit') === 'true';
+        editNumeroComande = urlParams.get('numero_comande');
+        const nature = urlParams.get('nature');
+
+        if (isEditMode && editNumeroComande && nature) {
+            document.querySelector('header h1').textContent = `Modifier la vente #${editNumeroComande}`;
+            const validateButton = document.getElementById('validateSaleButton');
+            validateButton.innerHTML = '<i class="fas fa-edit mr-2"></i>Modifier la vente';
+            validateButton.onclick = modifierVente;
+            await loadSaleData(editNumeroComande);
+
+            
+            // Désactiver les boutons "Mise en attente" et "Liste d'attente" en mode modification
+            document.getElementById('holdSaleButton').disabled = true;
+            document.getElementById('pendingSalesButton').disabled = true;
+        }
+
+        await chargerClients();
+        await chargerProduits();
+    } else {
+        console.log('Aucun utilisateur connecté, redirection vers index.html');
+        document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+        window.location.href = 'index.html';
+    }
+
+    fetch(`${API_BASE_URL}/`)
+        .then(response => response.text())
+        .then(text => console.log('Statut API:', text))
+        .catch(err => {
+            console.error('API non disponible:', err);
+            showToast('Erreur de connexion à l\'API', true);
         });
+});
 
        async function loadSaleData(numeroComande) {
     console.log(`Chargement des données de la vente #${numeroComande}...`);
