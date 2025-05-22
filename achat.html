@@ -213,16 +213,16 @@
                                 </tbody>
                             </table>
                         </div>
-                        <div class="mt-4 flex justify-end space-x-2">
-                            <div class="w-full flex space-x-2">
-                                <button id="holdReceptionButton" onclick="holdReception()" class="flex-1 bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 transition duration-300">
-                                    <i class="fas fa-pause mr-2"></i>Mettre en attente
-                                </button>
-                                <button id="pendingReceptionsButton" onclick="showPendingReceptions()" class="flex-1 bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700 transition duration-300">
-                                    <i class="fas fa-list mr-2"></i>Liste d'attente
-                                </button>
-                            </div>
-                        </div>
+                       <div class="mt-4 flex justify-end space-x-2" id="pendingButtonsContainer">
+    <div class="w-full flex space-x-2">
+        <button id="holdReceptionButton" onclick="holdReception()" class="flex-1 bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 transition duration-300">
+            <i class="fas fa-pause mr-2"></i>Mettre en attente
+        </button>
+        <button id="pendingReceptionsButton" onclick="showPendingReceptions()" class="flex-1 bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700 transition duration-300">
+            <i class="fas fa-list mr-2"></i>Liste d'attente
+        </button>
+    </div>
+</div>
                         <div class="mt-4 flex justify-end">
                             <button id="validateReceptionButton" onclick="validerReception(event)" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300" disabled>
                                 <i class="fas fa-check mr-2"></i>Valider la réception
@@ -364,74 +364,81 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            console.log('Page chargée, vérification utilisateur...');
-            const userId = localStorage.getItem('userId');
-            const userEmail = localStorage.getItem('userEmail');
-            const { edit, numero_mouvement } = getQueryParams();
+    console.log('Page chargée, vérification utilisateur...');
+    const userId = localStorage.getItem('userId');
+    const userEmail = localStorage.getItem('userEmail');
+    const { edit, numero_mouvement } = getQueryParams();
 
-            if (edit && numero_mouvement) {
-                isEditMode = true;
-                numeroMouvement = numero_mouvement;
-                document.getElementById('pageTitle').textContent = `Modifier la Réception #${numeroMouvement}`;
-                document.getElementById('validateReceptionButton').innerHTML = '<i class="fas fa-check mr-2"></i>Modifier la réception';
-            }
+    if (edit && numero_mouvement) {
+        isEditMode = true;
+        numeroMouvement = numero_mouvement;
+        document.getElementById('pageTitle').textContent = `Modifier la Réception #${numeroMouvement}`;
+        document.getElementById('validateReceptionButton').innerHTML = '<i class="fas fa-check mr-2"></i>Modifier la réception';
+    }
 
-            if (userId && userEmail) {
-                console.log('Utilisateur connecté:', userId, userEmail);
-                document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
-                document.getElementById('userDisplay').classList.remove('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                document.getElementById('sellerSelect').disabled = true;
-                chargerUtilisateurs().then(() => {
-                    const storedSeller = localStorage.getItem('selectedSeller');
-                    if (storedSeller) {
-                        const { numero_util, nom } = JSON.parse(storedSeller);
-                        const sellerSelect = document.getElementById('sellerSelect');
-                        const optionExists = Array.from(sellerSelect.options).some(option => option.value === numero_util);
-                        if (optionExists) {
-                            sellerSelect.value = numero_util;
-                            document.getElementById('selectedSellerName').textContent = nom;
-                            document.getElementById('headerSellerName').textContent = nom;
-                            document.getElementById('sellerPassword').disabled = true;
-                            document.getElementById('validateSellerButton').textContent = 'Changer d\'utilisateur';
-                            document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
-                            document.getElementById('sellerContent').classList.add('hidden');
-                            document.getElementById('sellerChevron').classList.add('fa-chevron-down');
-                            document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
-                        } else {
-                            localStorage.removeItem('selectedSeller');
-                            localStorage.removeItem('sellerPassword');
-                            document.getElementById('sellerContent').classList.remove('hidden');
-                            document.getElementById('sellerChevron').classList.add('fa-chevron-up');
-                            document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
-                        }
-                    } else {
-                        document.getElementById('sellerContent').classList.remove('hidden');
-                        document.getElementById('sellerChevron').classList.add('fa-chevron-up');
-                        document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
-                    }
-                    sellerSelect.disabled = false;
-                });
-                chargerFournisseurs();
-                chargerProduits();
-                if (isEditMode) {
-                    loadReceptionData(numeroMouvement);
+    // Hide pending buttons in edit mode
+    const pendingButtonsContainer = document.getElementById('pendingButtonsContainer');
+    if (isEditMode) {
+        pendingButtonsContainer.classList.add('hidden');
+    } else {
+        pendingButtonsContainer.classList.remove('hidden');
+    }
+
+    if (userId && userEmail) {
+        console.log('Utilisateur connecté:', userId, userEmail);
+        document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
+        document.getElementById('userDisplay').classList.remove('hidden');
+        document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+        document.getElementById('sellerSelect').disabled = true;
+        chargerUtilisateurs().then(() => {
+            const storedSeller = localStorage.getItem('selectedSeller');
+            if (storedSeller) {
+                const { numero_util, nom } = JSON.parse(storedSeller);
+                const sellerSelect = document.getElementById('sellerSelect');
+                const optionExists = Array.from(sellerSelect.options).some(option => option.value === numero_util);
+                if (optionExists) {
+                    sellerSelect.value = numero_util;
+                    document.getElementById('selectedSellerName').textContent = nom;
+                    document.getElementById('headerSellerName').textContent = nom;
+                    document.getElementById('sellerPassword').disabled = true;
+                    document.getElementById('validateSellerButton').textContent = 'Changer d\'utilisateur';
+                    document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
+                    document.getElementById('sellerContent').classList.add('hidden');
+                    document.getElementById('sellerChevron').classList.add('fa-chevron-down');
+                    document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
+                } else {
+                    localStorage.removeItem('selectedSeller');
+                    localStorage.removeItem('sellerPassword');
+                    document.getElementById('sellerContent').classList.remove('hidden');
+                    document.getElementById('sellerChevron').classList.add('fa-chevron-up');
+                    document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
                 }
             } else {
-                console.log('Aucun utilisateur connecté, redirection vers index.html');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                window.location.replace('index.html');
+                document.getElementById('sellerContent').classList.remove('hidden');
+                document.getElementById('sellerChevron').classList.add('fa-chevron-up');
+                document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
             }
-
-            fetch(`${API_BASE_URL}/`)
-                .then(response => response.text())
-                .then(text => console.log('Statut API:', text))
-                .catch(err => {
-                    console.error('API non disponible:', err);
-                    showToast('Erreur de connexion à l\'API', true);
-                });
+            sellerSelect.disabled = false;
         });
+        chargerFournisseurs();
+        chargerProduits();
+        if (isEditMode) {
+            loadReceptionData(numeroMouvement);
+        }
+    } else {
+        console.log('Aucun utilisateur connecté, redirection vers index.html');
+        document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+        window.location.replace('index.html');
+    }
 
+    fetch(`${API_BASE_URL}/`)
+        .then(response => response.text())
+        .then(text => console.log('Statut API:', text))
+        .catch(err => {
+            console.error('API non disponible:', err);
+            showToast('Erreur de connexion à l\'API', true);
+        });
+});
         function loginLogout() {
             if (tempReceptionLines.length > 0) {
                 if (!confirm('Vous avez des modifications non enregistrées. Voulez-vous vraiment vous déconnecter ?')) {
