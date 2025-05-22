@@ -22,6 +22,9 @@
         .client-pin { color: #3b82f6; }
         .supplier-pin { color: #ef4444; }
         nav { box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }
+        .table-container { max-height: 200px; overflow-y: auto; position: relative; }
+        .table-container table { width: 100%; }
+        .table-container thead { position: sticky; top: 0; background: #f9fafb; z-index: 1; }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -72,11 +75,73 @@
             <h1 class="text-3xl font-bold text-indigo-700 flex items-center">
                 <i class="fas fa-map-marked-alt mr-2 text-indigo-500"></i> Localisation Clients & Fournisseurs
             </h1>
-            <p class="text-gray-600">Gérez les adresses de vos clients et fournisseurs sur une carte interactive.</p>
+            <p class="text-gray-600">Gérez les adresses et positions de vos clients et fournisseurs sur une carte interactive.</p>
         </header>
+
+        <!-- Liste des clients et fournisseurs -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <!-- Liste des clients -->
+            <div class="bg-white rounded-lg shadow-md p-6 animate-fade-in">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                    <i class="fas fa-users mr-2 text-indigo-500"></i> Clients
+                </h2>
+                <div class="relative mb-4">
+                    <input type="text" id="searchClient" placeholder="Rechercher clients..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                </div>
+                <div class="table-container">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="clientsList" class="bg-white divide-y divide-gray-200">
+                            <tr>
+                                <td colspan="4" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Liste des fournisseurs -->
+            <div class="bg-white rounded-lg shadow-md p-6 animate-fade-in">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                    <i class="fas fa-truck mr-2 text-indigo-500"></i> Fournisseurs
+                </h2>
+                <div class="relative mb-4">
+                    <input type="text" id="searchSupplier" placeholder="Rechercher fournisseurs..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                </div>
+                <div class="table-container">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="suppliersList" class="bg-white divide-y divide-gray-200">
+                            <tr>
+                                <td colspan="4" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
 
         <!-- Formulaire et carte -->
         <div class="bg-white rounded-lg shadow-md p-6 form-container animate-fade-in">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                <i class="fas fa-map-marker-alt mr-2 text-indigo-500"></i> Fiche de Localisation
+            </h2>
             <!-- Formulaire -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
@@ -105,6 +170,14 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Contact</label>
                     <input type="text" id="entityContact" class="w-full px-3 py-2 border rounded-md" placeholder="Téléphone ou email">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Latitude</label>
+                    <input type="text" id="entityLatitude" class="w-full px-3 py-2 border rounded-md bg-gray-100" readonly>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Longitude</label>
+                    <input type="text" id="entityLongitude" class="w-full px-3 py-2 border rounded-md bg-gray-100" readonly>
                 </div>
             </div>
             <!-- Carte -->
@@ -139,35 +212,24 @@
         let clients = [], suppliers = [];
         let currentEntityId = null;
 
-        // Vérification initiale de la connexion
+        // Vérification initiale
         document.addEventListener('DOMContentLoaded', () => {
             console.log('Page map.html chargée');
             const userId = localStorage.getItem('userId');
             const userEmail = localStorage.getItem('userEmail');
             if (userId && userEmail) {
-                const userDisplay = document.getElementById('userDisplay');
-                if (userDisplay) {
-                    userDisplay.textContent = userEmail.toLowerCase();
-                    userDisplay.classList.remove('hidden');
-                }
-                const loginLogoutButton = document.getElementById('loginLogoutButton');
-                if (loginLogoutButton) {
-                    loginLogoutButton.innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                }
-                const loginModal = document.getElementById('loginModal');
-                if (loginModal) loginModal.classList.add('hidden');
+                document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
+                document.getElementById('userDisplay').classList.remove('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+                document.getElementById('loginModal').classList.add('hidden');
                 initMap();
-                loadEntitiesOnMap();
+                loadEntities();
             } else {
-                const loginLogoutButton = document.getElementById('loginLogoutButton');
-                if (loginLogoutButton) {
-                    loginLogoutButton.innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                }
-                const loginModal = document.getElementById('loginModal');
-                if (loginModal) loginModal.classList.remove('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                document.getElementById('loginModal').classList.remove('hidden');
             }
 
-            // Vérification de la connexion API
+            // Vérification API
             fetch(`${API_BASE_URL}/`)
                 .then(response => response.text())
                 .then(text => console.log('Statut API:', text))
@@ -177,7 +239,7 @@
                 });
         });
 
-        // Générer un user_id
+        // Générer user_id
         function generateUniqueUserId(email, password) {
             const combined = `${email.toLowerCase()}:${password}`;
             return btoa(combined);
@@ -204,41 +266,28 @@
             localStorage.setItem('userId', userId);
             localStorage.setItem('userEmail', emailLowerCase);
 
-            const userDisplay = document.getElementById('userDisplay');
-            if (userDisplay) {
-                userDisplay.textContent = emailLowerCase;
-                userDisplay.classList.remove('hidden');
-            }
-            const loginLogoutButton = document.getElementById('loginLogoutButton');
-            if (loginLogoutButton) {
-                loginLogoutButton.innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-            }
-            const loginModal = document.getElementById('loginModal');
-            if (loginModal) loginModal.classList.add('hidden');
+            document.getElementById('userDisplay').textContent = emailLowerCase;
+            document.getElementById('userDisplay').classList.remove('hidden');
+            document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+            document.getElementById('loginModal').classList.add('hidden');
 
             initMap();
-            loadEntitiesOnMap();
+            loadEntities();
             showToast('Connexion réussie');
         }
 
         // Déconnexion
         function loginLogout() {
-            const userId = localStorage.getItem('userId');
-            if (userId) {
+            if (localStorage.getItem('userId')) {
                 localStorage.removeItem('userId');
                 localStorage.removeItem('userEmail');
-                const userDisplay = document.getElementById('userDisplay');
-                if (userDisplay) {
-                    userDisplay.textContent = '';
-                    userDisplay.classList.add('hidden');
-                }
-                const loginLogoutButton = document.getElementById('loginLogoutButton');
-                if (loginLogoutButton) {
-                    loginLogoutButton.innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                }
-                const loginModal = document.getElementById('loginModal');
-                if (loginModal) loginModal.classList.remove('hidden');
+                document.getElementById('userDisplay').textContent = '';
+                document.getElementById('userDisplay').classList.add('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                document.getElementById('loginModal').classList.remove('hidden');
                 if (map) map.remove();
+                document.getElementById('clientsList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+                document.getElementById('suppliersList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
                 showToast('Déconnexion réussie');
             }
         }
@@ -263,8 +312,9 @@
                     const response = await fetch(`${NOMINATIM_URL}/reverse?format=json&lat=${lat}&lon=${lng}`);
                     const data = await response.json();
                     if (data.display_name) {
-                        const entityAddress = document.getElementById('entityAddress');
-                        if (entityAddress) entityAddress.value = data.display_name;
+                        document.getElementById('entityAddress').value = data.display_name;
+                        document.getElementById('entityLatitude').value = lat.toFixed(6);
+                        document.getElementById('entityLongitude').value = lng.toFixed(6);
                         setMarker(lat, lng, data.display_name);
                     } else {
                         showToast('Aucune adresse trouvée à cet emplacement', true);
@@ -278,7 +328,7 @@
             console.log('Carte initialisée');
         }
 
-        // Placer ou mettre à jour une épingle
+        // Placer une épingle
         function setMarker(lat, lng, address, isEntity = false, entityType = '', name = '', balance = 0) {
             if (!map) {
                 console.error('Carte non initialisée');
@@ -304,11 +354,13 @@
                 marker.bindPopup(`Adresse: ${address}`);
             }
             map.setView([lat, lng], 15);
+            document.getElementById('entityLatitude').value = lat.toFixed(6);
+            document.getElementById('entityLongitude').value = lng.toFixed(6);
             console.log(`Épingle placée à ${lat}, ${lng}`);
         }
 
-        // Charger les entités sur la carte
-        async function loadEntitiesOnMap() {
+        // Charger les entités
+        async function loadEntities() {
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour charger les entités', true);
@@ -316,81 +368,142 @@
             }
 
             try {
-                // Charger les clients
+                // Clients
                 const clientResponse = await fetch(`${API_BASE_URL}/liste_clients`, {
                     headers: { 'X-User-ID': userId }
                 });
                 if (!clientResponse.ok) throw new Error('Erreur chargement clients');
                 clients = await clientResponse.json();
+                updateClientList();
 
-                // Charger les fournisseurs
+                // Fournisseurs
                 const supplierResponse = await fetch(`${API_BASE_URL}/liste_fournisseurs`, {
                     headers: { 'X-User-ID': userId }
                 });
                 if (!supplierResponse.ok) throw new Error('Erreur chargement fournisseurs');
                 suppliers = await supplierResponse.json();
+                updateSupplierList();
 
-                // Ajouter les épingles pour les clients
-                for (const client of clients) {
-                    if (client.adresse) {
-                        try {
-                            const response = await fetch(`${NOMINATIM_URL}/search?format=json&q=${encodeURIComponent(client.adresse)}&limit=1`);
-                            const data = await response.json();
-                            if (data.length > 0) {
-                                const { lat, lon } = data[0];
-                                L.marker([lat, lon], {
-                                    icon: L.divIcon({
-                                        className: 'client-pin',
-                                        html: `<i class="fas fa-map-marker-alt fa-2x"></i>`,
-                                        iconSize: [30, 30],
-                                        iconAnchor: [15, 30]
-                                    })
-                                }).addTo(map).bindPopup(`
-                                    <b>${client.nom}</b><br>
-                                    Type: Client<br>
-                                    Solde: ${client.solde.toFixed(2)} DA<br>
-                                    Adresse: ${client.adresse}
-                                `);
-                            }
-                        } catch (error) {
-                            console.warn(`Géocodage échoué pour le client ${client.nom}:`, error);
-                        }
-                    }
-                }
-
-                // Ajouter les épingles pour les fournisseurs
-                for (const supplier of suppliers) {
-                    if (supplier.adresse) {
-                        try {
-                            const response = await fetch(`${NOMINATIM_URL}/search?format=json&q=${encodeURIComponent(supplier.adresse)}&limit=1`);
-                            const data = await response.json();
-                            if (data.length > 0) {
-                                const { lat, lon } = data[0];
-                                L.marker([lat, lon], {
-                                    icon: L.divIcon({
-                                        className: 'supplier-pin',
-                                        html: `<i class="fas fa-map-marker-alt fa-2x"></i>`,
-                                        iconSize: [30, 30],
-                                        iconAnchor: [15, 30]
-                                    })
-                                }).addTo(map).bindPopup(`
-                                    <b>${supplier.nom}</b><br>
-                                    Type: Fournisseur<br>
-                                    Solde: ${supplier.solde.toFixed(2)} DA<br>
-                                    Adresse: ${supplier.adresse}
-                                `);
-                            }
-                        } catch (error) {
-                            console.warn(`Géocodage échoué pour le fournisseur ${supplier.nom}:`, error);
-                        }
-                    }
-                }
-
+                // Mettre à jour la carte
+                updateMap();
                 console.log('Entités chargées:', clients.length, 'clients,', suppliers.length, 'fournisseurs');
             } catch (error) {
                 showToast('Erreur de chargement des entités', true);
                 console.error('Erreur chargement entités:', error);
+                document.getElementById('clientsList').innerHTML = `<tr><td colspan="4" class="text-center py-4 text-red-500">Erreur: ${error.message}</td></tr>`;
+                document.getElementById('suppliersList').innerHTML = `<tr><td colspan="4" class="text-center py-4 text-red-500">Erreur: ${error.message}</td></tr>`;
             }
+        }
+
+        // Mettre à jour la liste des clients
+        function updateClientList() {
+            const tbody = document.getElementById('clientsList');
+            if (!tbody) return;
+
+            if (clients.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun client trouvé</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = '';
+            clients.forEach(client => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50';
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${client.nom || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.solde.toFixed(2)} DA</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.adresse || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <button onclick="selectEntity('client', '${client.nom}', '${client.adresse || ''}', ${client.solde}, '${client.numero_clt}', '${client.contact || ''}', ${client.latitude || 'null'}, ${client.longitude || 'null'})" class="text-blue-600 hover:text-blue-800 transition">
+                            <i class="fas fa-edit"></i> Sélectionner
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Mettre à jour la liste des fournisseurs
+        function updateSupplierList() {
+            const tbody = document.getElementById('suppliersList');
+            if (!tbody) return;
+
+            if (suppliers.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun fournisseur trouvé</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = '';
+            suppliers.forEach(supplier => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50';
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${supplier.nom || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${supplier.solde.toFixed(2)} DA</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${supplier.adresse || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <button onclick="selectEntity('supplier', '${supplier.nom}', '${supplier.adresse || ''}', ${supplier.solde}, '${supplier.numero_fou}', '${supplier.contact || ''}', ${supplier.latitude || 'null'}, ${supplier.longitude || 'null'})" class="text-blue-600 hover:text-blue-800 transition">
+                            <i class="fas fa-edit"></i> Sélectionner
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Mettre à jour la carte
+        function updateMap() {
+            if (!map) {
+                console.error('Carte non initialisée');
+                return;
+            }
+
+            // Supprimer les anciennes épingles (sauf le marqueur actif)
+            map.eachLayer(layer => {
+                if (layer instanceof L.Marker && layer !== marker) {
+                    map.removeLayer(layer);
+                }
+            });
+
+            // Ajouter les épingles pour les clients
+            clients.forEach(client => {
+                if (client.latitude && client.longitude) {
+                    L.marker([client.latitude, client.longitude], {
+                        icon: L.divIcon({
+                            className: 'client-pin',
+                            html: `<i class="fas fa-map-marker-alt fa-2x"></i>`,
+                            iconSize: [30, 30],
+                            iconAnchor: [15, 30]
+                        })
+                    }).addTo(map).bindPopup(`
+                        <b>${client.nom}</b><br>
+                        Type: Client<br>
+                        Solde: ${client.solde.toFixed(2)} DA<br>
+                        Adresse: ${client.adresse || 'N/A'}
+                    `);
+                }
+            });
+
+            // Ajouter les épingles pour les fournisseurs
+            suppliers.forEach(supplier => {
+                if (supplier.latitude && supplier.longitude) {
+                    L.marker([supplier.latitude, supplier.longitude], {
+                        icon: L.divIcon({
+                            className: 'supplier-pin',
+                            html: `<i class="fas fa-map-marker-alt fa-2x"></i>`,
+                            iconSize: [30, 30],
+                            iconAnchor: [15, 30]
+                        })
+                    }).addTo(map).bindPopup(`
+                        <b>${supplier.nom}</b><br>
+                        Type: Fournisseur<br>
+                        Solde: ${supplier.solde.toFixed(2)} DA<br>
+                        Adresse: ${supplier.adresse || 'N/A'}
+                    `);
+                }
+            });
+
+            console.log('Carte mise à jour');
         }
 
         // Afficher les notifications
@@ -419,6 +532,35 @@
             }, 3000);
         }
 
+        // Recherche dans les listes
+        document.getElementById('searchClient')?.addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('#clientsList tr');
+            rows.forEach(row => {
+                const nom = row.querySelector('td:nth-child(1)')?.textContent.toLowerCase();
+                const adresse = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
+                if (nom?.includes(searchTerm) || adresse?.includes(searchTerm)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+
+        document.getElementById('searchSupplier')?.addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('#suppliersList tr');
+            rows.forEach(row => {
+                const nom = row.querySelector('td:nth-child(1)')?.textContent.toLowerCase();
+                const adresse = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
+                if (nom?.includes(searchTerm) || adresse?.includes(searchTerm)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+
         // Autocomplétion des noms
         document.getElementById('entityName')?.addEventListener('input', async (e) => {
             const searchTerm = e.target.value.trim().toLowerCase();
@@ -426,7 +568,7 @@
         });
 
         function updateNameSuggestions(searchTerm) {
-            const type = document.getElementById('entityType')?.value;
+            const type = document.getElementById('entityType').value;
             const suggestions = type === 'client' ? clients : suppliers;
             const suggestionsDiv = document.getElementById('nameSuggestions');
             if (!suggestionsDiv) return;
@@ -443,7 +585,7 @@
             }
 
             suggestionsDiv.innerHTML = filtered.map(entity => `
-                <div class="px-4 py-2 hover:bg-indigo-100 cursor-pointer" onclick="selectEntity('${entity.nom}', '${entity.adresse || ''}', ${entity.solde}, '${type}', '${entity.numero_clt || entity.numero_fou}', '${entity.contact || ''}')">
+                <div class="px-4 py-2 hover:bg-indigo-100 cursor-pointer" onclick="selectEntity('${type}', '${entity.nom}', '${entity.adresse || ''}', ${entity.solde}, '${entity.numero_clt || entity.numero_fou}', '${entity.contact || ''}', ${entity.latitude || 'null'}, ${entity.longitude || 'null'})">
                     ${entity.nom} (Solde: ${entity.solde.toFixed(2)} DA)
                 </div>
             `).join('');
@@ -451,22 +593,20 @@
         }
 
         // Sélectionner une entité
-        window.selectEntity = async (name, address, balance, type, id, contact) => {
-            const entityName = document.getElementById('entityName');
-            const entityAddress = document.getElementById('entityAddress');
-            const entityBalance = document.getElementById('entityBalance');
-            const entityContact = document.getElementById('entityContact');
-            const nameSuggestions = document.getElementById('nameSuggestions');
-            if (!entityName || !entityAddress || !entityBalance || !entityContact || !nameSuggestions) return;
-
-            entityName.value = name;
-            entityAddress.value = address;
-            entityBalance.value = `${balance.toFixed(2)} DA`;
-            entityContact.value = contact;
-            nameSuggestions.classList.add('hidden');
+        window.selectEntity = async (type, name, address, balance, id, contact, latitude, longitude) => {
+            document.getElementById('entityType').value = type;
+            document.getElementById('entityName').value = name;
+            document.getElementById('entityAddress').value = address;
+            document.getElementById('entityBalance').value = `${balance.toFixed(2)} DA`;
+            document.getElementById('entityContact').value = contact;
+            document.getElementById('entityLatitude').value = latitude ? latitude.toFixed(6) : '';
+            document.getElementById('entityLongitude').value = longitude ? longitude.toFixed(6) : '';
+            document.getElementById('nameSuggestions').classList.add('hidden');
             currentEntityId = id;
 
-            if (address) {
+            if (latitude && longitude) {
+                setMarker(latitude, longitude, address, true, type, name, balance);
+            } else if (address) {
                 try {
                     const response = await fetch(`${NOMINATIM_URL}/search?format=json&q=${encodeURIComponent(address)}&limit=1`);
                     const data = await response.json();
@@ -516,33 +656,24 @@
 
         // Sélectionner une adresse
         window.selectAddress = (address, lat, lon) => {
-            const entityAddress = document.getElementById('entityAddress');
-            const addressSuggestions = document.getElementById('addressSuggestions');
-            if (!entityAddress || !addressSuggestions) return;
-
-            entityAddress.value = address;
-            addressSuggestions.classList.add('hidden');
+            document.getElementById('entityAddress').value = address;
+            document.getElementById('entityLatitude').value = lat.toFixed(6);
+            document.getElementById('entityLongitude').value = lon.toFixed(6);
+            document.getElementById('addressSuggestions').classList.add('hidden');
             setMarker(lat, lon, address);
         };
 
         // Effacer le formulaire
         function clearForm() {
-            const entityType = document.getElementById('entityType');
-            const entityName = document.getElementById('entityName');
-            const entityAddress = document.getElementById('entityAddress');
-            const entityBalance = document.getElementById('entityBalance');
-            const entityContact = document.getElementById('entityContact');
-            const nameSuggestions = document.getElementById('nameSuggestions');
-            const addressSuggestions = document.getElementById('addressSuggestions');
-            if (!entityType || !entityName || !entityAddress || !entityBalance || !entityContact || !nameSuggestions || !addressSuggestions) return;
-
-            entityType.value = 'client';
-            entityName.value = '';
-            entityAddress.value = '';
-            entityBalance.value = '';
-            entityContact.value = '';
-            nameSuggestions.classList.add('hidden');
-            addressSuggestions.classList.add('hidden');
+            document.getElementById('entityType').value = 'client';
+            document.getElementById('entityName').value = '';
+            document.getElementById('entityAddress').value = '';
+            document.getElementById('entityBalance').value = '';
+            document.getElementById('entityContact').value = '';
+            document.getElementById('entityLatitude').value = '';
+            document.getElementById('entityLongitude').value = '';
+            document.getElementById('nameSuggestions').classList.add('hidden');
+            document.getElementById('addressSuggestions').classList.add('hidden');
             currentEntityId = null;
             if (marker) marker.remove();
             updateNameSuggestions('');
@@ -557,10 +688,12 @@
                 return;
             }
 
-            const type = document.getElementById('entityType')?.value;
-            const name = document.getElementById('entityName')?.value.trim();
-            const address = document.getElementById('entityAddress')?.value.trim();
-            const contact = document.getElementById('entityContact')?.value.trim();
+            const type = document.getElementById('entityType').value;
+            const name = document.getElementById('entityName').value.trim();
+            const address = document.getElementById('entityAddress').value.trim();
+            const contact = document.getElementById('entityContact').value.trim();
+            const latitude = parseFloat(document.getElementById('entityLatitude').value);
+            const longitude = parseFloat(document.getElementById('entityLongitude').value);
 
             if (!name || !address) {
                 showToast('Veuillez remplir les champs Nom et Adresse', true);
@@ -582,7 +715,9 @@
                     body: JSON.stringify({
                         nom: name,
                         adresse: address,
-                        contact: contact
+                        contact: contact,
+                        latitude: latitude || null,
+                        longitude: longitude || null
                     })
                 });
 
@@ -593,7 +728,7 @@
 
                 showToast(currentEntityId ? `${type === 'client' ? 'Client' : 'Fournisseur'} modifié avec succès` : `${type === 'client' ? 'Client' : 'Fournisseur'} ajouté avec succès`);
                 clearForm();
-                loadEntitiesOnMap();
+                loadEntities();
             } catch (error) {
                 showToast(error.message, true);
                 console.error('Erreur sauvegarde entité:', error);
@@ -618,7 +753,7 @@
             }
 
             try {
-                const type = document.getElementById('entityType')?.value;
+                const type = document.getElementById('entityType').value;
                 const url = `${API_BASE_URL}/${type === 'client' ? 'supprimer_client' : 'supprimer_fournisseur'}/${currentEntityId}`;
                 const response = await fetch(url, {
                     method: 'DELETE',
@@ -634,7 +769,7 @@
 
                 showToast(`${type === 'client' ? 'Client' : 'Fournisseur'} supprimé avec succès`);
                 clearForm();
-                loadEntitiesOnMap();
+                loadEntities();
             } catch (error) {
                 showToast(error.message, true);
                 console.error('Erreur suppression entité:', error);
