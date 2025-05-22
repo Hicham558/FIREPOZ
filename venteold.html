@@ -88,53 +88,22 @@
             <div id="locationAccordion" class="accordion-content">
                 <!-- Carte -->
                 <div id="mapContainer" class="mb-4 sticky top-0 z-20"></div>
-                <!-- Formulaire -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Type*</label>
-                        <select id="entityType" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <option value="client">Client</option>
-                            <option value="supplier">Fournisseur</option>
-                        </select>
-                    </div>
-                    <div class="relative">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
-                        <input type="text" id="entityName" class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Rechercher ou sélectionner...">
-                        <i class="fas fa-search input-icon"></i>
-                        <div id="nameSuggestions" class="absolute w-full bg-white border rounded-md shadow-lg max-h-40 overflow-y-auto hidden"></div>
-                    </div>
-                    <div class="relative col-span-2">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Adresse*</label>
-                        <input type="text" id="entityAddress" class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Entrez une adresse">
-                        <i class="fas fa-map-marker-alt input-icon"></i>
-                        <div id="addressSuggestions" class="absolute w-full bg-white border rounded-md shadow-lg max-h-40 overflow-y-auto hidden"></div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Solde</label>
-                        <input type="text" id="entityBalance" class="w-full px-3 py-2 border rounded-md bg-gray-100" readonly>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Contact</label>
-                        <input type="text" id="entityContact" class="w-full px-3 py-2 border rounded-md" placeholder="Téléphone ou email">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Latitude</label>
-                        <input type="text" id="entityLatitude" class="w-full px-3 py-2 border rounded-md bg-gray-100" readonly>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Longitude</label>
-                        <input type="text" id="entityLongitude" class="w-full px-3 py-2 border rounded-md bg-gray-100" readonly>
-                    </div>
+                <!-- Formulaire (seulement Adresse) -->
+                <div class="relative mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Adresse*</label>
+                    <input type="text" id="entityAddress" class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Entrez une adresse">
+                    <i class="fas fa-map-marker-alt input-icon"></i>
+                    <div id="addressSuggestions" class="absolute w-full bg-white border rounded-md shadow-lg max-h-40 overflow-y-auto hidden"></div>
                 </div>
-                <!-- Boutons d'action -->
-                <div class="flex justify-end space-x-3">
-                    <button onclick="clearForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 map-button">
+                <!-- Boutons d'action (sticky sous la carte) -->
+                <div class="flex justify-end space-x-3 sticky top-[400px] z-20 bg-white py-2">
+                    <button onclick="clearForm()" class="bg-gray-500 text-white px-3 py-1 rounded-md hover:bg-gray-600 map-button">
                         <i class="fas fa-eraser mr-2"></i>Effacer
                     </button>
-                    <button onclick="locateEntity()" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 map-button">
+                    <button onclick="locateEntity()" class="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 map-button">
                         <i class="fas fa-map-pin mr-2"></i>Repérer
                     </button>
-                    <button onclick="saveEntity()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 map-button">
+                    <button onclick="saveEntity()" class="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 map-button">
                         <i class="fas fa-save mr-2"></i>Enregistrer
                     </button>
                 </div>
@@ -221,6 +190,7 @@
         let map, marker;
         let clients = [], suppliers = [];
         let currentEntityId = null;
+        let currentEntityType = null;
         const geocodeCache = new Map(); // Cache pour les résultats de géocodage
         let lastGeocodeTime = 0; // Contrôle du débit des requêtes
 
@@ -234,7 +204,6 @@
                 document.getElementById('userDisplay').classList.remove('hidden');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
                 document.getElementById('loginModal').classList.add('hidden');
-                initMap();
                 loadEntities();
             } else {
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
@@ -285,7 +254,6 @@
             document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
             document.getElementById('loginModal').classList.add('hidden');
 
-            initMap();
             loadEntities();
             showToast('Connexion réussie');
         }
@@ -314,6 +282,8 @@
                 content.classList.remove('active');
                 chevron.classList.remove('fa-chevron-up');
                 chevron.classList.add('fa-chevron-down');
+                if (map) map.remove();
+                map = null;
             } else {
                 content.classList.add('active');
                 chevron.classList.remove('fa-chevron-down');
@@ -346,8 +316,6 @@
                     const address = await reverseGeocode(lat, lng);
                     if (address) {
                         document.getElementById('entityAddress').value = address;
-                        document.getElementById('entityLatitude').value = lat.toFixed(6);
-                        document.getElementById('entityLongitude').value = lng.toFixed(6);
                         setMarker(lat, lng, address);
                     } else {
                         showToast('Aucune adresse trouvée à cet emplacement. Veuillez réessayer.', true);
@@ -362,7 +330,7 @@
         }
 
         // Placer une épingle
-        function setMarker(lat, lng, address, isEntity = false, entityType = '', name = '', balance = 0) {
+        function setMarker(lat, lng, address) {
             if (!map) {
                 console.error('Carte non initialisée');
                 return;
@@ -370,25 +338,14 @@
             if (marker) marker.remove();
             marker = L.marker([lat, lng], {
                 icon: L.divIcon({
-                    className: entityType === 'client' ? 'client-pin' : 'supplier-pin',
+                    className: currentEntityType === 'client' ? 'client-pin' : 'supplier-pin',
                     html: `<i class="fas fa-map-marker-alt fa-2x"></i>`,
                     iconSize: [30, 30],
                     iconAnchor: [15, 30]
                 })
             }).addTo(map);
-            if (isEntity) {
-                marker.bindPopup(`
-                    <b>${name}</b><br>
-                    Type: ${entityType === 'client' ? 'Client' : 'Fournisseur'}<br>
-                    Solde: ${balance.toFixed(2)} DA<br>
-                    Adresse: ${address || 'N/A'}
-                `);
-            } else {
-                marker.bindPopup(`Adresse: ${address}`);
-            }
+            marker.bindPopup(`Adresse: ${address}`);
             map.setView([lat, lng], 15);
-            document.getElementById('entityLatitude').value = lat.toFixed(6);
-            document.getElementById('entityLongitude').value = lng.toFixed(6);
             console.log(`Épingle placée à ${lat}, ${lng}`);
         }
 
@@ -500,7 +457,7 @@
                 tr.className = 'hover:bg-gray-50';
                 tr.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <button onclick="selectEntity('client', '${client.nom}', '${client.adresse || ''}', ${client.solde}, '${client.numero_clt}', '${client.contact || ''}', ${client.latitude || 'null'}, ${client.longitude || 'null'})" class="text-blue-600 hover:text-blue-800 transition">
+                        <button onclick="selectEntity('client', '${client.adresse || ''}', '${client.numero_clt}', ${client.latitude || 'null'}, ${client.longitude || 'null'})" class="text-blue-600 hover:text-blue-800 transition">
                             <i class="fas fa-edit"></i> Sélectionner
                         </button>
                     </td>
@@ -528,7 +485,7 @@
                 tr.className = 'hover:bg-gray-50';
                 tr.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <button onclick="selectEntity('supplier', '${supplier.nom}', '${supplier.adresse || ''}', ${supplier.solde}, '${supplier.numero_fou}', '${supplier.contact || ''}', ${supplier.latitude || 'null'}, ${supplier.longitude || 'null'})" class="text-blue-600 hover:text-blue-800 transition">
+                        <button onclick="selectEntity('supplier', '${supplier.adresse || ''}', '${supplier.numero_fou}', ${supplier.latitude || 'null'}, ${supplier.longitude || 'null'})" class="text-blue-600 hover:text-blue-800 transition">
                             <i class="fas fa-edit"></i> Sélectionner
                         </button>
                     </td>
@@ -610,37 +567,6 @@
             });
         });
 
-        // Autocomplétion des noms
-        document.getElementById('entityName')?.addEventListener('input', async (e) => {
-            const searchTerm = e.target.value.trim().toLowerCase();
-            updateNameSuggestions(searchTerm);
-        });
-
-        function updateNameSuggestions(searchTerm) {
-            const type = document.getElementById('entityType').value;
-            const suggestions = type === 'client' ? clients : suppliers;
-            const suggestionsDiv = document.getElementById('nameSuggestions');
-            if (!suggestionsDiv) return;
-
-            if (!searchTerm || suggestions.length === 0) {
-                suggestionsDiv.classList.add('hidden');
-                return;
-            }
-
-            const filtered = suggestions.filter(entity => entity.nom.toLowerCase().includes(searchTerm));
-            if (filtered.length === 0) {
-                suggestionsDiv.classList.add('hidden');
-                return;
-            }
-
-            suggestionsDiv.innerHTML = filtered.map(entity => `
-                <div class="px-4 py-2 hover:bg-indigo-100 cursor-pointer" onclick="selectEntity('${type}', '${entity.nom}', '${entity.adresse || ''}', ${entity.solde}, '${entity.numero_clt || entity.numero_fou}', '${entity.contact || ''}', ${entity.latitude || 'null'}, ${entity.longitude || 'null'})">
-                    ${entity.nom} (Solde: ${entity.solde.toFixed(2)} DA)
-                </div>
-            `).join('');
-            suggestionsDiv.classList.remove('hidden');
-        }
-
         // Autocomplétion des adresses
         document.getElementById('entityAddress')?.addEventListener('input', async (e) => {
             const searchTerm = e.target.value.trim();
@@ -681,14 +607,12 @@
         // Sélectionner une adresse
         window.selectAddress = (address, lat, lon) => {
             document.getElementById('entityAddress').value = address;
-            document.getElementById('entityLatitude').value = lat.toFixed(6);
-            document.getElementById('entityLongitude').value = lon.toFixed(6);
             document.getElementById('addressSuggestions').classList.add('hidden');
             setMarker(lat, lon, address);
         };
 
         // Sélectionner une entité
-        window.selectEntity = async (type, name, address, balance, id, contact, latitude, longitude) => {
+        window.selectEntity = async (type, address, id, latitude, longitude) => {
             // Ouvre automatiquement la fiche de localisation
             const locationAccordion = document.getElementById('locationAccordion');
             const locationChevron = document.getElementById('locationChevron');
@@ -699,25 +623,18 @@
                 if (!map) initMap();
             }
 
-            document.getElementById('entityType').value = type;
-            document.getElementById('entityName').value = name;
             document.getElementById('entityAddress').value = address;
-            document.getElementById('entityBalance').value = `${balance.toFixed(2)} DA`;
-            document.getElementById('entityContact').value = contact;
-            document.getElementById('entityLatitude').value = latitude ? latitude.toFixed(6) : '';
-            document.getElementById('entityLongitude').value = longitude ? longitude.toFixed(6) : '';
-            document.getElementById('nameSuggestions').classList.add('hidden');
+            document.getElementById('addressSuggestions').classList.add('hidden');
             currentEntityId = id;
+            currentEntityType = type;
 
             if (latitude && longitude) {
-                setMarker(latitude, longitude, address, true, type, name, balance);
+                setMarker(latitude, longitude, address);
             } else if (address) {
                 try {
                     const result = await geocodeAddress(address);
                     if (result) {
-                        document.getElementById('entityLatitude').value = result.lat.toFixed(6);
-                        document.getElementById('entityLongitude').value = result.lon.toFixed(6);
-                        setMarker(result.lat, result.lon, address, true, type, name, balance);
+                        setMarker(result.lat, result.lon, address);
                     } else {
                         showToast('Adresse non géolocalisable. Cliquez sur la carte pour définir la position.', true);
                     }
@@ -730,39 +647,20 @@
 
         // Effacer le formulaire
         function clearForm() {
-            document.getElementById('entityType').value = 'client';
-            document.getElementById('entityName').value = '';
             document.getElementById('entityAddress').value = '';
-            document.getElementById('entityBalance').value = '';
-            document.getElementById('entityContact').value = '';
-            document.getElementById('entityLatitude').value = '';
-            document.getElementById('entityLongitude').value = '';
-            document.getElementById('nameSuggestions').classList.add('hidden');
             document.getElementById('addressSuggestions').classList.add('hidden');
-            currentEntityId = null;
             if (marker) marker.remove();
-            updateNameSuggestions('');
             console.log('Formulaire effacé');
         }
 
         // Localiser une entité
         async function locateEntity() {
             const address = document.getElementById('entityAddress').value.trim();
-            const name = document.getElementById('entityName').value.trim();
-            const type = document.getElementById('entityType').value;
-            const balance = parseFloat(document.getElementById('entityBalance').value) || 0;
-            const latitude = parseFloat(document.getElementById('entityLatitude').value);
-            const longitude = parseFloat(document.getElementById('entityLongitude').value);
-
-            if (latitude && longitude) {
-                setMarker(latitude, longitude, address, true, type, name, balance);
-            } else if (address) {
+            if (address) {
                 try {
                     const result = await geocodeAddress(address);
                     if (result) {
-                        document.getElementById('entityLatitude').value = result.lat.toFixed(6);
-                        document.getElementById('entityLongitude').value = result.lon.toFixed(6);
-                        setMarker(result.lat, result.lon, address, true, type, name, balance);
+                        setMarker(result.lat, result.lon, address);
                     } else {
                         showToast('Adresse non géolocalisable. Cliquez sur la carte pour définir la position.', true);
                     }
@@ -771,7 +669,7 @@
                     console.error('Erreur géocodage:', error);
                 }
             } else {
-                showToast('Veuillez entrer une adresse ou sélectionner une entité.', true);
+                showToast('Veuillez entrer une adresse.', true);
             }
         }
 
@@ -783,39 +681,50 @@
                 return;
             }
 
-            const type = document.getElementById('entityType').value;
-            const name = document.getElementById('entityName').value.trim();
-            const address = document.getElementById('entityAddress').value.trim();
-            const contact = document.getElementById('entityContact').value.trim();
-            const latitude = parseFloat(document.getElementById('entityLatitude').value);
-            const longitude = parseFloat(document.getElementById('entityLongitude').value);
-
-            if (!name || !address) {
-                showToast('Veuillez remplir les champs Nom et Adresse', true);
+            if (!currentEntityId || !currentEntityType) {
+                showToast('Veuillez sélectionner une entité à modifier', true);
                 return;
             }
 
-            if (!latitude || !longitude) {
-                showToast('Veuillez définir une position (entrez une adresse valide ou cliquez sur la carte)', true);
+            const address = document.getElementById('entityAddress').value.trim();
+            if (!address) {
+                showToast('Veuillez remplir le champ Adresse', true);
                 return;
+            }
+
+            // Obtenir latitude et longitude via géocodage si nécessaire
+            let latitude, longitude;
+            if (marker) {
+                const pos = marker.getLatLng();
+                latitude = pos.lat;
+                longitude = pos.lng;
+            } else {
+                try {
+                    const result = await geocodeAddress(address);
+                    if (result) {
+                        latitude = result.lat;
+                        longitude = result.lon;
+                    } else {
+                        showToast('Adresse non géolocalisable. Cliquez sur la carte pour définir la position.', true);
+                        return;
+                    }
+                } catch (error) {
+                    showToast('Erreur de géocodage. Entrez une autre adresse ou cliquez sur la carte.', true);
+                    console.error('Erreur géocodage:', error);
+                    return;
+                }
             }
 
             try {
-                const url = currentEntityId
-                    ? `${API_BASE_URL}/${type === 'client' ? 'modifier_client' : 'modifier_fournisseur'}/${currentEntityId}`
-                    : `${API_BASE_URL}/${type === 'client' ? 'ajouter_client' : 'ajouter_fournisseur'}`;
-                const method = currentEntityId ? 'PUT' : 'POST';
-
+                const url = `${API_BASE_URL}/${currentEntityType === 'client' ? 'modifier_client' : 'modifier_fournisseur'}/${currentEntityId}`;
                 const response = await fetch(url, {
-                    method: method,
+                    method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-User-ID': userId
                     },
                     body: JSON.stringify({
-                        nom: name,
                         adresse: address,
-                        contact: contact,
                         latitude: latitude,
                         longitude: longitude
                     })
@@ -826,7 +735,7 @@
                     throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
                 }
 
-                showToast(currentEntityId ? `${type === 'client' ? 'Client' : 'Fournisseur'} modifié avec succès` : `${type === 'client' ? 'Client' : 'Fournisseur'} ajouté avec succès`);
+                showToast(`${currentEntityType === 'client' ? 'Client' : 'Fournisseur'} modifié avec succès`);
                 clearForm();
                 loadEntities();
             } catch (error) {
