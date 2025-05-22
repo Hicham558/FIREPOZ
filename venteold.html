@@ -191,6 +191,7 @@
         let clients = [], suppliers = [];
         let currentEntityId = null;
         let currentEntityType = null;
+        let currentEntityName = null;
         const geocodeCache = new Map(); // Cache pour les résultats de géocodage
         let lastGeocodeTime = 0; // Contrôle du débit des requêtes
 
@@ -457,7 +458,7 @@
                 tr.className = 'hover:bg-gray-50';
                 tr.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <button onclick="selectEntity('client', '${client.adresse || ''}', '${client.numero_clt}', ${client.latitude || 'null'}, ${client.longitude || 'null'})" class="text-blue-600 hover:text-blue-800 transition">
+                        <button onclick="selectEntity('client', '${client.nom}', '${client.numero_clt}', ${client.latitude || 'null'}, ${client.longitude || 'null'})" class="text-blue-600 hover:text-blue-800 transition">
                             <i class="fas fa-edit"></i> Sélectionner
                         </button>
                     </td>
@@ -485,7 +486,7 @@
                 tr.className = 'hover:bg-gray-50';
                 tr.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <button onclick="selectEntity('supplier', '${supplier.adresse || ''}', '${supplier.numero_fou}', ${supplier.latitude || 'null'}, ${supplier.longitude || 'null'})" class="text-blue-600 hover:text-blue-800 transition">
+                        <button onclick="selectEntity('supplier', '${supplier.nom}', '${supplier.numero_fou}', ${supplier.latitude || 'null'}, ${supplier.longitude || 'null'})" class="text-blue-600 hover:text-blue-800 transition">
                             <i class="fas fa-edit"></i> Sélectionner
                         </button>
                     </td>
@@ -612,7 +613,7 @@
         };
 
         // Sélectionner une entité
-        window.selectEntity = async (type, address, id, latitude, longitude) => {
+        window.selectEntity = async (type, name, id, latitude, longitude) => {
             // Ouvre automatiquement la fiche de localisation
             const locationAccordion = document.getElementById('locationAccordion');
             const locationChevron = document.getElementById('locationChevron');
@@ -623,23 +624,25 @@
                 if (!map) initMap();
             }
 
-            document.getElementById('entityAddress').value = address;
+            // Remplir le champ Adresse avec le nom de l'entité
+            document.getElementById('entityAddress').value = name;
             document.getElementById('addressSuggestions').classList.add('hidden');
             currentEntityId = id;
             currentEntityType = type;
+            currentEntityName = name;
 
             if (latitude && longitude) {
-                setMarker(latitude, longitude, address);
-            } else if (address) {
+                setMarker(latitude, longitude, name);
+            } else {
                 try {
-                    const result = await geocodeAddress(address);
+                    const result = await geocodeAddress(name);
                     if (result) {
-                        setMarker(result.lat, result.lon, address);
+                        setMarker(result.lat, result.lon, name);
                     } else {
-                        showToast('Adresse non géolocalisable. Cliquez sur la carte pour définir la position.', true);
+                        showToast('Nom non géolocalisable. Cliquez sur la carte pour définir la position.', true);
                     }
                 } catch (error) {
-                    showToast('Erreur de géocodage. Entrez une autre adresse ou cliquez sur la carte.', true);
+                    showToast('Erreur de géocodage. Cliquez sur la carte pour définir la position.', true);
                     console.error('Erreur géocodage:', error);
                 }
             }
@@ -650,6 +653,9 @@
             document.getElementById('entityAddress').value = '';
             document.getElementById('addressSuggestions').classList.add('hidden');
             if (marker) marker.remove();
+            currentEntityId = null;
+            currentEntityType = null;
+            currentEntityName = null;
             console.log('Formulaire effacé');
         }
 
@@ -681,18 +687,19 @@
                 return;
             }
 
-            if (!currentEntityId || !currentEntityType) {
+            if (!currentEntityId || !currentEntityType || !currentEntityName) {
                 showToast('Veuillez sélectionner une entité à modifier', true);
                 return;
             }
 
-            const address = document.getElementById('entityAddress').value.trim();
+            // Utiliser le champ Adresse ou le nom de l'entité
+            let address = document.getElementById('entityAddress').value.trim();
             if (!address) {
-                showToast('Veuillez remplir le champ Adresse', true);
-                return;
+                address = currentEntityName;
+                document.getElementById('entityAddress').value = address;
             }
 
-            // Obtenir latitude et longitude via géocodage si nécessaire
+            // Obtenir latitude et longitude
             let latitude, longitude;
             if (marker) {
                 const pos = marker.getLatLng();
@@ -704,12 +711,13 @@
                     if (result) {
                         latitude = result.lat;
                         longitude = result.lon;
+                        setMarker(latitude, longitude, address);
                     } else {
                         showToast('Adresse non géolocalisable. Cliquez sur la carte pour définir la position.', true);
                         return;
                     }
                 } catch (error) {
-                    showToast('Erreur de géocodage. Entrez une autre adresse ou cliquez sur la carte.', true);
+                    showToast('Erreur de géocodage. Cliquez sur la carte pour définir la position.', true);
                     console.error('Erreur géocodage:', error);
                     return;
                 }
