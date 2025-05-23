@@ -86,7 +86,7 @@
                 <i class="fas fa-chevron-down ml-auto transition-transform" id="locationChevron"></i>
             </h2>
             <div id="locationAccordion" class="accordion-content">
-                <p class="text-sm text-gray-600 mb-2">Cliquez sur la carte pour choisir une position globale à appliquer aux entités.</p>
+                <p class="text-sm text-gray-600 mb-2">Cliquez sur la carte pour choisir une position. L'adresse sera mise à jour avec la position sélectionnée.</p>
                 <!-- Carte -->
                 <div id="mapContainer" class="mb-4 sticky top-0 z-20"></div>
                 <!-- Formulaire (Nom et Adresse) -->
@@ -278,8 +278,13 @@
             map.on('click', function(e) {
                 const { lat, lng } = e.latlng;
                 selectedPosition = { lat, lng };
-                setMarker(lat, lng, 'Position globale sélectionnée');
-                console.log(`Position globale sélectionnée: ${lat}, ${lng}`);
+                // Mettre à jour entityAddress avec la nouvelle position
+                let address = document.getElementById('entityAddress').value.trim();
+                const { cleanAddress } = decodePositionFromAddress(address);
+                address = cleanAddress || 'Nouvelle adresse';
+                document.getElementById('entityAddress').value = `${address}|${lat},${lng}`;
+                setMarker(lat, lng, address);
+                console.log(`Position sélectionnée: ${lat}, ${lng}, adresse mise à jour: ${address}|${lat},${lng}`);
             });
             console.log('Carte initialisée à', lat, lng);
         }
@@ -467,8 +472,8 @@
             }
 
             document.getElementById('entityName').value = name || '';
-            document.getElementById('entityAddress').value = cleanAddress || '';
-            console.log(`Repéré: ${type} ${id}, adresse: ${cleanAddress || 'N/A'}, position: ${lat || 'N/A'}, ${lng || 'N/A'}, nom: ${name || 'N/A'}`);
+            document.getElementById('entityAddress').value = address || '';
+            console.log(`Repéré: ${type} ${id}, adresse: ${address || 'N/A'}, position: ${lat || 'N/A'}, ${lng || 'N/A'}, nom: ${name || 'N/A'}`);
         }
 
         // Enregistrer un client
@@ -478,21 +483,15 @@
                 showToast('Veuillez vous connecter pour sauvegarder', true);
                 return;
             }
-            if (!selectedPosition) {
-                showToast('Veuillez sélectionner une position sur la carte avant d\'enregistrer', true);
-                return;
-            }
             currentEntityType = 'client';
             currentEntityId = id;
             const name = document.getElementById('entityName').value.trim();
-            let address = document.getElementById('entityAddress').value.trim();
+            const address = document.getElementById('entityAddress').value.trim();
 
             if (!address) {
                 showToast('Veuillez entrer une adresse avant d\'enregistrer', true);
                 return;
             }
-
-            address = `${address}|${selectedPosition.lat},${selectedPosition.lng}`;
 
             const data = { adresse: address };
             if (name) {
@@ -518,6 +517,7 @@
                 showToast('Client modifié avec succès');
                 loadEntities();
                 selectedPosition = null;
+                document.getElementById('entityAddress').value = '';
             } catch (error) {
                 showToast('Erreur lors de la sauvegarde: ' + error.message, true);
                 console.error('Erreur sauvegarde client:', error);
@@ -531,21 +531,15 @@
                 showToast('Veuillez vous connecter pour sauvegarder', true);
                 return;
             }
-            if (!selectedPosition) {
-                showToast('Veuillez sélectionner une position sur la carte avant d\'enregistrer', true);
-                return;
-            }
             currentEntityType = 'supplier';
             currentEntityId = id;
             const name = document.getElementById('entityName').value.trim();
-            let address = document.getElementById('entityAddress').value.trim();
+            const address = document.getElementById('entityAddress').value.trim();
 
             if (!address) {
                 showToast('Veuillez entrer une adresse avant d\'enregistrer', true);
                 return;
             }
-
-            address = `${address}|${selectedPosition.lat},${selectedPosition.lng}`;
 
             const data = { adresse: address };
             if (name) {
@@ -571,6 +565,7 @@
                 showToast('Fournisseur modifié avec succès');
                 loadEntities();
                 selectedPosition = null;
+                document.getElementById('entityAddress').value = '';
             } catch (error) {
                 showToast('Erreur lors de la sauvegarde: ' + error.message, true);
                 console.error('Erreur sauvegarde fournisseur:', error);
