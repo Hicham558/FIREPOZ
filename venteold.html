@@ -204,7 +204,7 @@
                 if (map) map.remove();
                 map = null;
                 document.getElementById('clientsList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
-                document.getElementById('suppliersList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+                document.getElementById('suppliersList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500 "Veuillez vous connecter</td></tr>';
                 showToast('Déconnexion réussie');
             }
         }
@@ -315,6 +315,9 @@
                 if (!clientResponse.ok) throw new Error(`Erreur chargement clients: ${clientResponse.statusText}`);
                 clients = await clientResponse.json();
                 console.log('Données clients:', clients);
+                if (!Array.isArray(clients)) {
+                    throw new Error('Données clients invalides: format non attendu');
+                }
                 updateClientList(clients);
 
                 console.log('Tentative de chargement des fournisseurs...');
@@ -325,6 +328,9 @@
                 if (!supplierResponse.ok) throw new Error(`Erreur chargement fournisseurs: ${supplierResponse.statusText}`);
                 suppliers = await supplierResponse.json();
                 console.log('Données fournisseurs:', suppliers);
+                if (!Array.isArray(suppliers)) {
+                    throw new Error('Données fournisseurs invalides: format non attendu');
+                }
                 updateSupplierList(suppliers);
 
                 console.log('Entités chargées:', clients.length, 'clients,', suppliers.length, 'fournisseurs');
@@ -333,6 +339,11 @@
                 console.error('Erreur chargement entités:', error);
                 document.getElementById('clientsList').innerHTML = `<tr><td colspan="4" class="text-center py-4 text-red-500">Erreur: ${error.message}</td></tr>`;
                 document.getElementById('suppliersList').innerHTML = `<tr><td colspan="4" class="text-center py-4 text-red-500">Erreur: ${error.message}</td></tr>`;
+                // Réessayer après 5 secondes en cas d'erreur réseau
+                if (error.message.includes('Failed to fetch')) {
+                    console.log('Nouvelle tentative de chargement dans 5 secondes...');
+                    setTimeout(loadEntities, 5000);
+                }
             }
         }
 
@@ -460,10 +471,18 @@
 
         // Confirmation avant sauvegarde client
         function confirmSaveClient(id) {
+            console.log(`confirmSaveClient: Tentative de sauvegarde pour client ID=${id}`);
+            if (!clients || clients.length === 0) {
+                showToast('Erreur : Liste des clients non chargée. Réessayez dans quelques secondes.', true);
+                console.error('Liste des clients vide ou non chargée');
+                // Déclencher un rechargement des entités
+                loadEntities();
+                return;
+            }
             const client = clients.find(c => c.numero_clt === id);
             if (!client) {
                 showToast('Erreur : Client introuvable', true);
-                console.error(`Client avec ID ${id} non trouvé`);
+                console.error(`Client avec ID ${id} non trouvé dans la liste:`, clients);
                 return;
             }
             // Réinitialiser les champs avec les données du client
@@ -471,6 +490,7 @@
             currentEntityId = id;
             document.getElementById('entityName').value = client.nom || '';
             document.getElementById('entityAddress').value = client.adresse || '';
+            console.log(`Données client initialisées: nom=${client.nom || 'N/A'}, adresse=${client.adresse || 'N/A'}`);
             if (confirm('Voulez-vous vraiment sauvegarder les modifications pour ce client ?')) {
                 saveClient(id);
             }
@@ -478,10 +498,18 @@
 
         // Confirmation avant sauvegarde fournisseur
         function confirmSaveSupplier(id) {
+            console.log(`confirmSaveSupplier: Tentative de sauvegarde pour fournisseur ID=${id}`);
+            if (!suppliers || suppliers.length === 0) {
+                showToast('Erreur : Liste des fournisseurs non chargée. Réessayez dans quelques secondes.', true);
+                console.error('Liste des fournisseurs vide ou non chargée');
+                // Déclencher un rechargement des entités
+                loadEntities();
+                return;
+            }
             const supplier = suppliers.find(s => s.numero_fou === id);
             if (!supplier) {
                 showToast('Erreur : Fournisseur introuvable', true);
-                console.error(`Fournisseur avec ID ${id} non trouvé`);
+                console.error(`Fournisseur avec ID ${id} non trouvé dans la liste:`, suppliers);
                 return;
             }
             // Réinitialiser les champs avec les données du fournisseur
@@ -489,6 +517,7 @@
             currentEntityId = id;
             document.getElementById('entityName').value = supplier.nom || '';
             document.getElementById('entityAddress').value = supplier.adresse || '';
+            console.log(`Données fournisseur initialisées: nom=${supplier.nom || 'N/A'}, adresse=${supplier.adresse || 'N/A'}`);
             if (confirm('Voulez-vous vraiment sauvegarder les modifications pour ce fournisseur ?')) {
                 saveSupplier(id);
             }
