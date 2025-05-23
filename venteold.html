@@ -322,7 +322,7 @@
                     headers: { 'X-User-ID': userId }
                 });
                 console.log('Statut fournisseurs:', supplierResponse.status, supplierResponse.statusText);
-                if (!supplierResponse.ok) throw new Error(`Erreur chargement fournisseurs: ${supplierResponse.statusText}`);
+                if (!supplierResponse.ok) throw new Error(`Erreur chargement fournisseurs: ${clientResponse.statusText}`);
                 suppliers = await supplierResponse.json();
                 console.log('Données fournisseurs:', suppliers);
                 updateSupplierList(suppliers);
@@ -441,11 +441,9 @@
 
         // Confirmation avant sauvegarde client
         function confirmSaveClient(id) {
-            const client = clients.find(c => c.numero_clt === id);
-            if (client) {
-                document.getElementById('entityName').value = client.nom || '';
-            } else {
-                document.getElementById('entityName').value = '';
+            if (currentEntityId !== id) {
+                showToast('Erreur : ID du client non synchronisé. Veuillez re-sélectionner le client.', true);
+                return;
             }
             if (confirm('Voulez-vous vraiment sauvegarder les modifications pour ce client ?')) {
                 saveClient(id);
@@ -454,11 +452,9 @@
 
         // Confirmation avant sauvegarde fournisseur
         function confirmSaveSupplier(id) {
-            const supplier = suppliers.find(s => s.numero_fou === id);
-            if (supplier) {
-                document.getElementById('entityName').value = supplier.nom || '';
-            } else {
-                document.getElementById('entityName').value = '';
+            if (currentEntityId !== id) {
+                showToast('Erreur : ID du fournisseur non synchronisé. Veuillez re-sélectionner le fournisseur.', true);
+                return;
             }
             if (confirm('Voulez-vous vraiment sauvegarder les modifications pour ce fournisseur ?')) {
                 saveSupplier(id);
@@ -509,10 +505,11 @@
                 }
 
                 showToast('Client modifié avec succès');
-                loadEntities();
+                await loadEntities(); // Rafraîchir les données
                 selectedPosition = null;
                 document.getElementById('entityAddress').value = '';
                 document.getElementById('entityName').value = '';
+                currentEntityId = null;
                 console.log('Client sauvegardé avec succès');
             } catch (error) {
                 showToast('Erreur lors de la sauvegarde: ' + error.message, true);
@@ -564,10 +561,11 @@
                 }
 
                 showToast('Fournisseur modifié avec succès');
-                loadEntities();
+                await loadEntities(); // Rafraîchir les données
                 selectedPosition = null;
                 document.getElementById('entityAddress').value = '';
                 document.getElementById('entityName').value = '';
+                currentEntityId = null;
                 console.log('Fournisseur sauvegardé avec succès');
             } catch (error) {
                 showToast('Erreur lors de la sauvegarde: ' + error.message, true);
