@@ -91,7 +91,7 @@
                 <!-- Formulaire (seulement Adresse) -->
                 <div class="relative mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
-                    <input type="text" id="entityAddress" class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Entrez une adresse pour localiser">
+                    <input type="text" id="entityAddress" class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Entrez ou modifiez l'adresse">
                     <i class="fas fa-map-marker-alt input-icon"></i>
                     <div id="addressSuggestions" class="absolute w-full bg-white border rounded-md shadow-lg max-h-40 overflow-y-auto hidden"></div>
                 </div>
@@ -174,90 +174,11 @@
 
     <script>
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
-        const NOMINATIM_URL = 'https://nominatim.openstreetmap.org';
         let map, marker;
-        let clients = [], suppliers = [];
         let currentEntityId = null;
         let currentEntityType = null;
-        const geocodeCache = new Map();
-        let lastGeocodeTime = 0;
 
-        // Vérification initiale
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log('Page map.html chargée');
-            const userId = localStorage.getItem('userId');
-            const userEmail = localStorage.getItem('userEmail');
-            if (userId && userEmail) {
-                document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
-                document.getElementById('userDisplay').classList.remove('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                document.getElementById('loginModal').classList.add('hidden');
-                loadEntities();
-            } else {
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                document.getElementById('loginModal').classList.remove('hidden');
-                document.getElementById('clientsList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
-                document.getElementById('suppliersList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
-            }
-
-            fetch(`${API_BASE_URL}/`)
-                .then(response => response.text())
-                .then(text => console.log('Statut API:', text))
-                .catch(err => {
-                    console.error('API non disponible:', err);
-                    showToast('Erreur de connexion à l\'API', true);
-                });
-        });
-
-        function generateUniqueUserId(email, password) {
-            const combined = `${email.toLowerCase()}:${password}`;
-            return btoa(combined);
-        }
-
-        function loginWithCredentials(event) {
-            event.preventDefault();
-            const userEmail = document.getElementById('userEmail');
-            const userPassword = document.getElementById('userPassword');
-            if (!userEmail || !userPassword) {
-                showToast('Formulaire de connexion introuvable', true);
-                return;
-            }
-            const email = userEmail.value.trim();
-            const password = userPassword.value.trim();
-            if (!email || !password) {
-                showToast('Veuillez entrer un email et un mot de passe valides', true);
-                return;
-            }
-
-            const emailLowerCase = email.toLowerCase();
-            const userId = generateUniqueUserId(emailLowerCase, password);
-            localStorage.setItem('userId', userId);
-            localStorage.setItem('userEmail', emailLowerCase);
-
-            document.getElementById('userDisplay').textContent = emailLowerCase;
-            document.getElementById('userDisplay').classList.remove('hidden');
-            document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-            document.getElementById('loginModal').classList.add('hidden');
-
-            loadEntities();
-            showToast('Connexion réussie');
-        }
-
-        function loginLogout() {
-            if (localStorage.getItem('userId')) {
-                localStorage.removeItem('userId');
-                localStorage.removeItem('userEmail');
-                document.getElementById('userDisplay').textContent = '';
-                document.getElementById('userDisplay').classList.add('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                document.getElementById('loginModal').classList.remove('hidden');
-                if (map) map.remove();
-                document.getElementById('clientsList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
-                document.getElementById('suppliersList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
-                showToast('Déconnexion réussie');
-            }
-        }
-
+        // Gérer les accordéons
         function toggleAccordion(id) {
             const content = document.getElementById(id);
             const chevron = document.getElementById(`${id.replace('Accordion', 'Chevron')}`);
@@ -277,7 +198,8 @@
             }
         }
 
-        function initMap() {
+        // Initialiser la carte
+        function initMap(lat = 36.7538, lng = 3.0588, zoom = 6) {
             if (!document.getElementById('mapContainer')) {
                 console.error('Conteneur de carte introuvable');
                 showToast('Erreur: Conteneur de carte manquant', true);
@@ -287,30 +209,14 @@
             map = L.map('mapContainer', {
                 zoomControl: false,
                 attributionControl: false
-            }).setView([36.7538, 3.0588], 6);
+            }).setView([lat, lng], zoom);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19
             }).addTo(map);
-
-            map.on('click', async (e) => {
-                const { lat, lng } = e.latlng;
-                try {
-                    const address = await reverseGeocode(lat, lng);
-                    if (address) {
-                        document.getElementById('entityAddress').value = address;
-                        setMarker(lat, lng, address);
-                    } else {
-                        showToast('Aucune adresse trouvée à cet emplacement. Veuillez réessayer.', true);
-                    }
-                } catch (error) {
-                    showToast('Erreur de géocodage inversé. Cliquez à nouveau ou entrez une adresse.', true);
-                    console.error('Erreur géocodage inversé:', error);
-                }
-            });
-
-            console.log('Carte initialisée');
+            console.log('Carte initialisée à', lat, lng);
         }
 
+        // Placer une épingle
         function setMarker(lat, lng, address) {
             if (!map) {
                 console.error('Carte non initialisée');
@@ -325,88 +231,47 @@
                     iconAnchor: [15, 30]
                 })
             }).addTo(map);
-            marker.bindPopup(`Position: ${address || 'Lat: ' + lat.toFixed(4) + ', Lon: ' + lng.toFixed(4)}`);
+            marker.bindPopup(`Adresse: ${address || 'Non définie'}`);
             map.setView([lat, lng], 15);
             console.log(`Épingle placée à ${lat}, ${lng}`);
         }
 
-        async function geocodeAddress(address) {
-            if (geocodeCache.has(address)) {
-                console.log('Géocodage récupéré du cache:', address);
-                return geocodeCache.get(address);
-            }
-
-            const now = Date.now();
-            if (now - lastGeocodeTime < 1000) {
-                await new Promise(resolve => setTimeout(resolve, 1000 - (now - lastGeocodeTime)));
-            }
-
-            try {
-                const response = await fetch(`${NOMINATIM_URL}/search?format=json&q=${encodeURIComponent(address)}&limit=1`);
-                lastGeocodeTime = Date.now();
-                if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`);
-                const data = await response.json();
-                if (data.length > 0) {
-                    const result = { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon), display_name: data[0].display_name };
-                    geocodeCache.set(address, result);
-                    return result;
-                }
-                return null;
-            } catch (error) {
-                console.error('Erreur géocodage:', error);
-                return null;
-            }
-        }
-
-        async function reverseGeocode(lat, lng) {
-            const cacheKey = `${lat},${lng}`;
-            if (geocodeCache.has(cacheKey)) {
-                console.log('Géocodage inversé récupéré du cache:', cacheKey);
-                return geocodeCache.get(cacheKey).display_name;
-            }
-
-            const now = Date.now();
-            if (now - lastGeocodeTime < 1000) {
-                await new Promise(resolve => setTimeout(resolve, 1000 - (now - lastGeocodeTime)));
-            }
-
-            try {
-                const response = await fetch(`${NOMINATIM_URL}/reverse?format=json&lat=${lat}&lon=${lng}`);
-                lastGeocodeTime = Date.now();
-                if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`);
-                const data = await response.json();
-                if (data.display_name) {
-                    geocodeCache.set(cacheKey, { display_name: data.display_name });
-                    return data.display_name;
-                }
-                return null;
-            } catch (error) {
-                console.error('Erreur géocodage inversé:', error);
-                return null;
-            }
-        }
-
-        async function loadEntities() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour charger les entités', true);
+        // Afficher les notifications
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+            if (!toast || !toastMessage || !toastIcon) {
+                console.error('Éléments toast introuvables');
                 return;
             }
+            toast.className = isError
+                ? 'fixed bottom-4 right-4 flex items-center bg-red-500 text-white px-6 py-3 rounded-md shadow-lg'
+                : 'fixed bottom-4 right-4 flex items-center bg-green-500 text-white px-6 py-3 rounded-md shadow-lg';
+            toastIcon.className = isError
+                ? 'fas fa-exclamation-circle mr-2'
+                : 'fas fa-check-circle mr-2';
+            toastMessage.textContent = message;
+            toast.classList.remove('hidden');
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
+        }
 
+        // Charger les entités
+        async function loadEntities() {
             try {
-                const clientResponse = await fetch(`${API_BASE_URL}/liste_clients`, {
-                    headers: { 'X-User-ID': userId }
-                });
+                // Clients
+                const clientResponse = await fetch(`${API_BASE_URL}/liste_clients`);
                 if (!clientResponse.ok) throw new Error('Erreur chargement clients');
-                clients = await clientResponse.json();
-                updateClientList();
+                const clients = await clientResponse.json();
+                updateClientList(clients);
 
-                const supplierResponse = await fetch(`${API_BASE_URL}/liste_fournisseurs`, {
-                    headers: { 'X-User-ID': userId }
-                });
+                // Fournisseurs
+                const supplierResponse = await fetch(`${API_BASE_URL}/liste_fournisseurs`);
                 if (!supplierResponse.ok) throw new Error('Erreur chargement fournisseurs');
-                suppliers = await supplierResponse.json();
-                updateSupplierList();
+                const suppliers = await supplierResponse.json();
+                updateSupplierList(suppliers);
 
                 console.log('Entités chargées:', clients.length, 'clients,', suppliers.length, 'fournisseurs');
             } catch (error) {
@@ -417,25 +282,24 @@
             }
         }
 
-        function updateClientList() {
+        // Mettre à jour la liste des clients
+        function updateClientList(clients) {
             const tbody = document.getElementById('clientsList');
             if (!tbody) return;
-
             if (clients.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun client trouvé</td></tr>';
                 return;
             }
-
             tbody.innerHTML = '';
             clients.forEach(client => {
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-gray-50';
                 tr.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 flex space-x-2">
-                        <button onclick="selectEntity('client', '${client.nom}', '${client.numero_clt}', ${client.latitude || 'null'}, ${client.longitude || 'null'})" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Localiser">
+                        <button onclick="locateEntity('client', '${client.numero_clt}', ${client.latitude || 'null'}, ${client.longitude || 'null'}, '${client.adresse || ''}')" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Repérer">
                             <i class="fas fa-map-marker-alt"></i>
                         </button>
-                        <button onclick="saveEntity('${client.numero_clt}', ${client.latitude || 'null'}, ${client.longitude || 'null'})" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
+                        <button onclick="saveEntity('client', '${client.numero_clt}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
                             <i class="fas fa-save"></i>
                         </button>
                     </td>
@@ -447,25 +311,24 @@
             });
         }
 
-        function updateSupplierList() {
+        // Mettre à jour la liste des fournisseurs
+        function updateSupplierList(suppliers) {
             const tbody = document.getElementById('suppliersList');
             if (!tbody) return;
-
             if (suppliers.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun fournisseur trouvé</td></tr>';
                 return;
             }
-
             tbody.innerHTML = '';
             suppliers.forEach(supplier => {
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-gray-50';
                 tr.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 flex space-x-2">
-                        <button onclick="selectEntity('supplier', '${supplier.nom}', '${supplier.numero_fou}', ${supplier.latitude || 'null'}, ${supplier.longitude || 'null'})" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Localiser">
+                        <button onclick="locateEntity('supplier', '${supplier.numero_fou}', ${supplier.latitude || 'null'}, ${supplier.longitude || 'null'}, '${supplier.adresse || ''}')" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Repérer">
                             <i class="fas fa-map-marker-alt"></i>
                         </button>
-                        <button onclick="saveEntity('${supplier.numero_fou}', ${supplier.latitude || 'null'}, ${supplier.longitude || 'null'})" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
+                        <button onclick="saveEntity('supplier', '${supplier.numero_fou}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
                             <i class="fas fa-save"></i>
                         </button>
                     </td>
@@ -477,192 +340,60 @@
             });
         }
 
-        function updateMap() {
-            if (!map) {
-                console.error('Carte non initialisée');
-                return;
-            }
-            map.eachLayer(layer => {
-                if (layer instanceof L.Marker && layer !== marker) {
-                    map.removeLayer(layer);
-                }
-            });
-            console.log('Carte mise à jour (épingles supprimées)');
-        }
+        // Repérer une entité
+        function locateEntity(type, id, latitude, longitude, address) {
+            currentEntityType = type;
+            currentEntityId = id;
 
-        function showToast(message, isError = false) {
-            const toast = document.getElementById('toast');
-            const toastMessage = document.getElementById('toastMessage');
-            const toastIcon = document.getElementById('toastIcon');
-            if (!toast || !toastMessage || !toastIcon) {
-                console.error('Éléments toast introuvables');
-                return;
-            }
-
-            toast.className = isError
-                ? 'fixed bottom-4 right-4 flex items-center bg-red-500 text-white px-6 py-3 rounded-md shadow-lg'
-                : 'fixed bottom-4 right-4 flex items-center bg-green-500 text-white px-6 py-3 rounded-md shadow-lg';
-
-            toastIcon.className = isError
-                ? 'fas fa-exclamation-circle mr-2'
-                : 'fas fa-check-circle mr-2';
-
-            toastMessage.textContent = message;
-            toast.classList.remove('hidden');
-
-            setTimeout(() => {
-                toast.classList.add('hidden');
-            }, 3000);
-        }
-
-        document.getElementById('searchClient')?.addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const rows = document.querySelectorAll('#clientsList tr');
-            rows.forEach(row => {
-                const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-                const adresse = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
-                if (nom?.includes(searchTerm) || adresse?.includes(searchTerm)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-
-        document.getElementById('searchSupplier')?.addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const rows = document.querySelectorAll('#suppliersList tr');
-            rows.forEach(row => {
-                const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-                const adresse = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
-                if (nom?.includes(searchTerm) || adresse?.includes(searchTerm)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-
-        document.getElementById('entityAddress')?.addEventListener('input', async (e) => {
-            const searchTerm = e.target.value.trim();
-            const suggestionsDiv = document.getElementById('addressSuggestions');
-            if (!suggestionsDiv) return;
-
-            if (searchTerm.length < 3) {
-                suggestionsDiv.classList.add('hidden');
-                return;
-            }
-
-            try {
-                const now = Date.now();
-                if (now - lastGeocodeTime < 1000) {
-                    await new Promise(resolve => setTimeout(resolve, 1000 - (now - lastGeocodeTime)));
-                }
-                const response = await fetch(`${NOMINATIM_URL}/search?format=json&q=${encodeURIComponent(searchTerm)}&limit=5`);
-                lastGeocodeTime = Date.now();
-                if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`);
-                const data = await response.json();
-                if (data.length === 0) {
-                    suggestionsDiv.classList.add('hidden');
-                    return;
-                }
-
-                suggestionsDiv.innerHTML = data.map(item => `
-                    <div class="px-4 py-2 hover:bg-indigo-100 cursor-pointer" onclick="selectAddress('${item.display_name}', ${item.lat}, ${item.lon})">
-                        ${item.display_name}
-                    </div>
-                `).join('');
-                suggestionsDiv.classList.remove('hidden');
-            } catch (error) {
-                showToast('Erreur de recherche d\'adresse. Essayez une autre formulation.', true);
-                console.error('Erreur recherche adresse:', error);
-            }
-        });
-
-        window.selectAddress = (address, lat, lon) => {
-            document.getElementById('entityAddress').value = address;
-            document.getElementById('addressSuggestions').classList.add('hidden');
-            setMarker(lat, lon, address);
-        };
-
-        window.selectEntity = async (type, name, id, latitude, longitude) => {
             const locationAccordion = document.getElementById('locationAccordion');
             const locationChevron = document.getElementById('locationChevron');
             if (!locationAccordion.classList.contains('active')) {
                 locationAccordion.classList.add('active');
                 locationChevron.classList.remove('fa-chevron-down');
                 locationChevron.classList.add('fa-chevron-up');
-                if (!map) initMap();
-            }
-
-            document.getElementById('entityAddress').value = ''; // Ne pas remplir avec name
-            document.getElementById('addressSuggestions').classList.add('hidden');
-            currentEntityId = id;
-            currentEntityType = type;
-
-            if (latitude && longitude) {
-                setMarker(latitude, longitude, 'Position actuelle');
-            } else {
-                try {
-                    const result = await geocodeAddress(name);
-                    if (result) {
-                        setMarker(result.lat, result.lon, result.display_name);
+                if (!map) {
+                    if (latitude && longitude) {
+                        initMap(latitude, longitude, 15);
+                        setMarker(latitude, longitude, address);
                     } else {
-                        showToast('Nom non géolocalisable. Cliquez sur la carte pour définir la position.', true);
+                        initMap(); // Centre par défaut
                     }
-                } catch (error) {
-                    showToast('Erreur de géocodage. Cliquez sur la carte pour définir la position.', true);
-                    console.error('Erreur géocodage:', error);
+                }
+            } else {
+                if (latitude && longitude) {
+                    if (!map) initMap(latitude, longitude, 15);
+                    map.setView([latitude, longitude], 15);
+                    setMarker(latitude, longitude, address);
+                } else {
+                    if (!map) initMap();
+                    map.setView([36.7538, 3.0588], 6);
                 }
             }
-        };
 
-        async function saveEntity(id, latitude, longitude) {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour sauvegarder', true);
-                return;
-            }
+            document.getElementById('entityAddress').value = address || '';
+            console.log(`Repéré: ${type} ${id} à ${latitude || 'N/A'}, ${longitude || 'N/A'}, adresse: ${address || 'N/A'}`);
+        }
 
-            if (!id) {
-                showToast('Erreur: Identifiant d\'entité manquant', true);
-                return;
-            }
-
-            // Déterminer le type
-            const clientsAccordion = document.getElementById('clientsAccordion');
-            const suppliersAccordion = document.getElementById('suppliersAccordion');
-            if (clientsAccordion.classList.contains('active')) {
-                currentEntityType = 'client';
-            } else if (suppliersAccordion.classList.contains('active')) {
-                currentEntityType = 'supplier';
-            } else if (!currentEntityType) {
-                showToast('Veuillez sélectionner une entité ou ouvrir une grille', true);
-                return;
-            }
-
+        // Enregistrer une entité
+        async function saveEntity(type, id) {
+            currentEntityType = type;
             currentEntityId = id;
+            const address = document.getElementById('entityAddress').value.trim();
 
-            if (!marker) {
-                showToast('Veuillez définir une position sur la carte avant d\'enregistrer', true);
+            if (!address) {
+                showToast('Veuillez entrer une adresse avant d\'enregistrer', true);
                 return;
             }
-
-            const pos = marker.getLatLng();
-            const finalLatitude = pos.lat;
-            const finalLongitude = pos.lng;
 
             try {
-                const url = `${API_BASE_URL}/${currentEntityType === 'client' ? 'modifier_client' : 'modifier_fournisseur'}/${id}`;
+                const url = `${API_BASE_URL}/${type === 'client' ? 'modifier_client' : 'modifier_fournisseur'}/${id}`;
                 const response = await fetch(url, {
                     method: 'PUT',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        latitude: finalLatitude,
-                        longitude: finalLongitude
+                        adresse: address
                     })
                 });
 
@@ -671,13 +402,19 @@
                     throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
                 }
 
-                showToast(`${currentEntityType === 'client' ? 'Client' : 'Fournisseur'} modifié avec succès`);
+                showToast(`${type === 'client' ? 'Client' : 'Fournisseur'} modifié avec succès`);
                 loadEntities();
             } catch (error) {
                 showToast('Erreur lors de la sauvegarde: ' + error.message, true);
                 console.error('Erreur sauvegarde entité:', error);
             }
         }
+
+        // Charger les entités au démarrage
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Page map.html chargée');
+            loadEntities();
+        });
     </script>
 </body>
 </html>
