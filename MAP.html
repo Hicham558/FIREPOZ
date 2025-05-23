@@ -7,20 +7,19 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+k WORSTNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <style>
         @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
         .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
         .animate-pulse { animation: pulse 2s infinite ease-in-out; }
-        #mapContainer { height: 400px; width: 100%; border: 2px solid #e5e7eb; border-radius: 8px; z-index: 10; }
+        #mapContainer { height: 400px; width: 100%; border: 2px solid #e5e7eb; border-radius: 8px; }
         .client-pin { color: #3b82f6; }
         .supplier-pin { color: #ef4444; }
         nav { box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }
         .table-container { max-height: 300px; overflow-y: auto; position: relative; }
-        .table-container table { width: 100%; border-collapse: collapse; }
-        .table-container thead { position: sticky; top: 0; background: #f9fafb; z-index: 20; }
-        .table-container th { background: #f9fafb; }
+        .table-container table { width: 100%; }
+        .table-container thead { position: sticky; top: 0; background: #f9fafb; z-index: 1; }
         .action-button { transition: background-color 0.3s ease; }
         .action-button:hover { background-color: #e5e7eb; }
         .tab { cursor: pointer; }
@@ -217,10 +216,7 @@
                 showToast('Erreur: Conteneur de carte manquant', true);
                 return;
             }
-            if (map) {
-                map.remove();
-                map = null;
-            }
+            if (map) map.remove();
             map = L.map('mapContainer', {
                 zoomControl: false,
                 attributionControl: false
@@ -235,28 +231,16 @@
                 const { cleanAddress } = decodePositionFromAddress(address);
                 const newAddress = `${cleanAddress || 'Nouvelle adresse'}|${lat.toFixed(6)},${lng.toFixed(6)}`;
                 document.getElementById('entityAddress').value = newAddress;
-                setMarker(lat, lng, cleanAddress || 'Nouvelle adresse', document.getElementById('entityName').value.trim());
+                setMarker(lat, lng, cleanAddress || 'Nouvelle adresse', document.getElementById('entityName').value);
                 console.log(`Position sélectionnée: ${lat.toFixed(6)}, ${lng.toFixed(6)}, adresse mise à jour: ${newAddress}`);
             });
-            console.log('Carte initialisée à', lat, lng, 'zoom:', zoom);
-            setTimeout(() => {
-                if (map) map.invalidateSize();
-            }, 100);
+            console.log('Carte initialisée à', lat, lng);
         }
 
         // Placer une épingle
-        function setMarker(lat, lng, address, name = '') {
+        function setMarker(lat, lng, address, name) {
             if (!map) {
-                console.error('Carte non initialisée, tentative de réinitialisation');
-                initMap(lat, lng, 15);
-                if (!map) {
-                    showToast('Erreur: Impossible d\'initialiser la carte', true);
-                    return;
-                }
-            }
-            if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
-                console.error(`Coordonnées invalides: lat=${lat}, lng=${lng}`);
-                showToast('Erreur: Coordonnées invalides', true);
+                console.error('Carte non initialisée');
                 return;
             }
             if (marker) marker.remove();
@@ -268,10 +252,14 @@
                     iconAnchor: [15, 30]
                 })
             }).addTo(map);
-            const popupContent = `${name ? `<b>Nom: ${name}</b><br>` : ''}Adresse: ${address || 'Non définie'}`;
-            marker.bindPopup(popupContent).openPopup();
+            // Modification : Afficher le nom et l'adresse dans la popup
+            const popupContent = `
+                <b>${name || 'Non défini'}</b><br>
+                Adresse: ${address || 'Non définie'}
+            `;
+            marker.bindPopup(popupContent);
             map.panTo([lat, lng], { animate: true, duration: 1 });
-            console.log(`Épingle placée à lat=${lat}, lng=${lng}, nom=${name}, adresse=${address}`);
+            console.log(`Épingle placée à ${lat}, ${lng} avec nom: ${name || 'N/A'}`);
         }
 
         // Afficher les notifications
@@ -317,7 +305,7 @@
         }
 
         // Charger les entités
-        async function loadEntities(preserveMapPosition = false, lastLat = 36.7538, lastLng = 3.0588, lastZoom = 6) {
+        async function loadEntities() {
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour charger les entités', true);
@@ -345,12 +333,6 @@
                 updateSupplierList(suppliers);
 
                 console.log('Entités chargées:', clients.length, 'clients,', suppliers.length, 'fournisseurs');
-
-                // Restaurer la position de la carte si demandé
-                if (preserveMapPosition && map) {
-                    map.setView([lastLat, lastLng], lastZoom);
-                    console.log(`Position de la carte restaurée à lat=${lastLat}, lng=${lastLng}, zoom=${lastZoom}`);
-                }
             } catch (error) {
                 showToast('Erreur de chargement des entités: ' + error.message, true);
                 console.error('Erreur chargement entités:', error);
@@ -364,9 +346,7 @@
             const tbody = document.getElementById('clientsList');
             if (!tbody) return;
             if (clients.length === 0) {
-                tbody
-
-.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun client trouvé</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun client trouvé</td></tr>';
                 return;
             }
             tbody.innerHTML = '';
@@ -485,57 +465,23 @@
 
         // Confirmation avant sauvegarde client
         function confirmSaveClient(id) {
-            const normalizedId = String(id).trim();
-            currentEntityType = 'client';
-            currentEntityId = normalizedId;
-            console.log(`confirmSaveClient: Recherche client avec numero_clt=${normalizedId}`);
-            const client = clients.find(c => String(c.numero_clt).trim() === normalizedId);
-            if (client) {
-                console.log(`Client trouvé:`, client);
-                document.getElementById('entityName').value = client.nom || '';
-                document.getElementById('entityAddress').value = client.adresse || '';
-                const { lat, lng, cleanAddress } = decodePositionFromAddress(client.adresse || '');
-                if (lat && lng && map) {
-                    map.panTo([lat, lng], { animate: true, duration: 1 });
-                    setMarker(lat, lng, cleanAddress, client.nom || '');
-                } else {
-                    console.log('Aucune coordonnée valide pour ce client, carte non repositionnée');
-                }
-            } else {
-                console.error(`Client introuvable pour numero_clt=${normalizedId}, clients disponibles:`, clients);
-                showToast('Erreur : Client introuvable', true);
-                return;
+            const client = clients.find(c => c.numero_clt === id);
+            if (!currentEntityId && client) {
+                locateEntity('client', id, client.adresse || '', client.nom || '');
             }
             if (confirm('Voulez-vous vraiment sauvegarder les modifications pour ce client ?')) {
-                saveClient(normalizedId);
+                saveClient(id);
             }
         }
 
         // Confirmation avant sauvegarde fournisseur
         function confirmSaveSupplier(id) {
-            const normalizedId = String(id).trim();
-            currentEntityType = 'supplier';
-            currentEntityId = normalizedId;
-            console.log(`confirmSaveSupplier: Recherche fournisseur avec numero_fou=${normalizedId}`);
-            const supplier = suppliers.find(s => String(s.numero_fou).trim() === normalizedId);
-            if (supplier) {
-                console.log(`Fournisseur trouvé:`, supplier);
-                document.getElementById('entityName').value = supplier.nom || '';
-                document.getElementById('entityAddress').value = supplier.adresse || '';
-                const { lat, lng, cleanAddress } = decodePositionFromAddress(supplier.adresse || '');
-                if (lat && lng && map) {
-                    map.panTo([lat, lng], { animate: true, duration: 1 });
-                    setMarker(lat, lng, cleanAddress, supplier.nom || '');
-                } else {
-                    console.log('Aucune coordonnée valide pour ce fournisseur, carte non repositionnée');
-                }
-            } else {
-                console.error(`Fournisseur introuvable pour numero_fou=${normalizedId}, fournisseurs disponibles:`, suppliers);
-                showToast('Erreur : Fournisseur introuvable', true);
-                return;
+            const supplier = suppliers.find(s => s.numero_fou === id);
+            if (!currentEntityId && supplier) {
+                locateEntity('supplier', id, supplier.adresse || '', supplier.nom || '');
             }
             if (confirm('Voulez-vous vraiment sauvegarder les modifications pour ce fournisseur ?')) {
-                saveSupplier(normalizedId);
+                saveSupplier(id);
             }
         }
 
@@ -551,23 +497,22 @@
             const name = document.getElementById('entityName').value.trim();
             let address = document.getElementById('entityAddress').value.trim();
 
-            console.log(`saveClient: id=${id}, name=${name}, address=${address}`);
+            console.log(`saveClient: id=${id}, address=${address}, name=${name}`);
 
             if (!address) {
-                showToast('Veuillez spécifier une adresse', true);
+                showToast('Veuillez sélectionner une position sur la carte', true);
                 return;
             }
 
-            // Extraire les coordonnées avant de vider les champs
-            const { lat, lng, cleanAddress } = decodePositionFromAddress(address);
-            const savedLat = lat || 36.7538;
-            const savedLng = lng || 3.0588;
-            const savedZoom = lat && lng ? 15 : 6;
+            if (!selectedPosition && !address.includes('|')) {
+                showToast('Veuillez sélectionner une position sur la carte', true);
+                return;
+            }
 
             const data = { adresse: address, nom: name };
 
             try {
-                const url = `${API_BASE_URL}/modifier_client/${encodeURIComponent(id)}`;
+                const url = `${API_BASE_URL}/modifier_client/${id}`;
                 console.log(`Envoi PUT ${url}:`, data);
                 const response = await fetch(url, {
                     method: 'PUT',
@@ -578,26 +523,19 @@
                     body: JSON.stringify(data)
                 });
 
-                console.log('Réponse API:', response.status, response.statusText);
                 const result = await response.json();
-                console.log('Résultat API:', result);
-
                 if (!response.ok) {
-                    throw new Error(result.erreur || `Erreur HTTP ${response.status}: ${response.statusText}`);
+                    throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
                 }
 
-                showToast('Client modifié avec succès');
-                // Charger les entités en préservant la position de la carte
-                await loadEntities(true, savedLat, savedLng, savedZoom);
-                // Replacer le marqueur à la position sauvegardée
-                if (lat && lng && map) {
-                    setMarker(lat, lng, cleanAddress, name);
-                }
+                // Modification : Inclure le nom dans le message de confirmation
+                showToast(`Client ${name || 'N/A'} modifié avec succès`);
+                await loadEntities(); // Rafraîchir les données
                 selectedPosition = null;
                 document.getElementById('entityAddress').value = '';
                 document.getElementById('entityName').value = '';
                 currentEntityId = null;
-                console.log('Client sauvegardé avec succès, carte centrée à', savedLat, savedLng);
+                console.log('Client sauvegardé avec succès');
             } catch (error) {
                 showToast('Erreur lors de la sauvegarde: ' + error.message, true);
                 console.error('Erreur sauvegarde client:', error);
@@ -616,23 +554,22 @@
             const name = document.getElementById('entityName').value.trim();
             let address = document.getElementById('entityAddress').value.trim();
 
-            console.log(`saveSupplier: id=${id}, name=${name}, address=${address}`);
+            console.log(`saveSupplier: id=${id}, address=${address}, name=${name}`);
 
             if (!address) {
-                showToast('Veuillez spécifier une adresse', true);
+                showToast('Veuillez sélectionner une position sur la carte', true);
                 return;
             }
 
-            // Extraire les coordonnées avant de vider les champs
-            const { lat, lng, cleanAddress } = decodePositionFromAddress(address);
-            const savedLat = lat || 36.7538;
-            const savedLng = lng || 3.0588;
-            const savedZoom = lat && lng ? 15 : 6;
+            if (!selectedPosition && !address.includes('|')) {
+                showToast('Veuillez sélectionner une position sur la carte', true);
+                return;
+            }
 
             const data = { adresse: address, nom: name };
 
             try {
-                const url = `${API_BASE_URL}/modifier_fournisseur/${encodeURIComponent(id)}`;
+                const url = `${API_BASE_URL}/modifier_fournisseur/${id}`;
                 console.log(`Envoi PUT ${url}:`, data);
                 const response = await fetch(url, {
                     method: 'PUT',
@@ -643,26 +580,19 @@
                     body: JSON.stringify(data)
                 });
 
-                console.log('Réponse API:', response.status, response.statusText);
                 const result = await response.json();
-                console.log('Résultat API:', result);
-
                 if (!response.ok) {
-                    throw new Error(result.erreur || `Erreur HTTP ${response.status}: ${response.statusText}`);
+                    throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
                 }
 
-                showToast('Fournisseur modifié avec succès');
-                // Charger les entités en préservant la position de la carte
-                await loadEntities(true, savedLat, savedLng, savedZoom);
-                // Replacer le marqueur à la position sauvegardée
-                if (lat && lng && map) {
-                    setMarker(lat, lng, cleanAddress, name);
-                }
+                // Modification : Inclure le nom dans le message de confirmation
+                showToast(`Fournisseur ${name || 'N/A'} modifié avec succès`);
+                await loadEntities(); // Rafraîchir les données
                 selectedPosition = null;
                 document.getElementById('entityAddress').value = '';
                 document.getElementById('entityName').value = '';
                 currentEntityId = null;
-                console.log('Fournisseur sauvegardé avec succès, carte centrée à', savedLat, savedLng);
+                console.log('Fournisseur sauvegardé avec succès');
             } catch (error) {
                 showToast('Erreur lors de la sauvegarde: ' + error.message, true);
                 console.error('Erreur sauvegarde fournisseur:', error);
