@@ -13,7 +13,15 @@
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
         .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
         .animate-pulse { animation: pulse 2s infinite ease-in-out; }
-        #mapContainer { height: 400px; width: 100%; border: 2px solid #e5e7eb; border-radius: 8px; }
+        #mapContainer {
+            height: 400px; /* Hauteur fixe pour un ratio 1:1 */
+            width: 400px; /* Largeur égale à la hauteur */
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            position: sticky; /* Rendre la carte sticky */
+            top: 80px; /* Juste en dessous de la barre de navigation */
+            z-index: 20; /* S'assurer qu'elle reste au-dessus du contenu */
+        }
         .client-pin { color: #3b82f6; }
         .supplier-pin { color: #ef4444; }
         nav { box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }
@@ -170,6 +178,7 @@
                 document.getElementById('clientsList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
                 document.getElementById('suppliersList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
             }
+            setupSearch(); // Initialiser la recherche
         });
 
         // Connexion
@@ -304,11 +313,41 @@
                 suppliersTab.classList.remove('active');
                 clientsSection.classList.remove('hidden');
                 suppliersSection.classList.add('hidden');
+                updateClientList(clients); // Rafraîchir la liste des clients
             } else {
                 clientsTab.classList.remove('active');
                 suppliersTab.classList.add('active');
                 clientsSection.classList.add('hidden');
                 suppliersSection.classList.remove('hidden');
+                updateSupplierList(suppliers); // Rafraîchir la liste des fournisseurs
+            }
+        }
+
+        // Configurer la recherche
+        function setupSearch() {
+            const searchClientInput = document.getElementById('searchClient');
+            const searchSupplierInput = document.getElementById('searchSupplier');
+
+            if (searchClientInput) {
+                searchClientInput.addEventListener('input', function() {
+                    const query = this.value.trim().toLowerCase();
+                    const filteredClients = clients.filter(client =>
+                        (client.nom || '').toLowerCase().includes(query) ||
+                        (client.adresse || '').toLowerCase().includes(query)
+                    );
+                    updateClientList(filteredClients);
+                });
+            }
+
+            if (searchSupplierInput) {
+                searchSupplierInput.addEventListener('input', function() {
+                    const query = this.value.trim().toLowerCase();
+                    const filteredSuppliers = suppliers.filter(supplier =>
+                        (supplier.nom || '').toLowerCase().includes(query) ||
+                        (supplier.adresse || '').toLowerCase().includes(query)
+                    );
+                    updateSupplierList(filteredSuppliers);
+                });
             }
         }
 
@@ -350,15 +389,15 @@
         }
 
         // Mettre à jour la liste des clients
-        function updateClientList(clients) {
+        function updateClientList(clientsToDisplay) {
             const tbody = document.getElementById('clientsList');
             if (!tbody) return;
-            if (!clients || clients.length === 0) {
+            if (!clientsToDisplay || clientsToDisplay.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun client trouvé</td></tr>';
                 return;
             }
             tbody.innerHTML = '';
-            clients.forEach(client => {
+            clientsToDisplay.forEach(client => {
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-gray-50';
                 tr.innerHTML = `
@@ -382,15 +421,15 @@
         }
 
         // Mettre à jour la liste des fournisseurs
-        function updateSupplierList(suppliers) {
+        function updateSupplierList(suppliersToDisplay) {
             const tbody = document.getElementById('suppliersList');
             if (!tbody) return;
-            if (!suppliers || suppliers.length === 0) {
+            if (!suppliersToDisplay || suppliersToDisplay.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun fournisseur trouvé</td></tr>';
                 return;
             }
             tbody.innerHTML = '';
-            suppliers.forEach(supplier => {
+            suppliersToDisplay.forEach(supplier => {
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-gray-50';
                 tr.innerHTML = `
@@ -473,20 +512,15 @@
 
         // Confirmation avant sauvegarde client
         async function confirmSaveClient(name) {
-            // Vérifier si la liste des clients est chargée
             if (!clients || clients.length === 0) {
                 showToast('Erreur : Liste des clients non chargée. Veuillez réessayer.', true);
                 await loadEntities();
                 return;
             }
-
-            // Vérifier si le nom est valide
             if (!name) {
                 showToast('Erreur : Nom du client invalide', true);
                 return;
             }
-
-            // Vérifier s'il y a plusieurs clients avec le même nom
             const matchingClients = clients.filter(c => c.nom === name);
             if (matchingClients.length > 1) {
                 showToast('Erreur : Plusieurs clients portent le nom "' + name + '". Veuillez utiliser un nom unique.', true);
@@ -498,14 +532,10 @@
                 console.error(`Client introuvable: nom=${name}, liste clients=`, clients);
                 return;
             }
-
             const client = matchingClients[0];
-
-            // Mettre à jour currentEntityName si nécessaire
             if (!currentEntityName || currentEntityName !== name) {
                 locateEntity('client', client.numero_clt || '', client.adresse || '', client.nom || '');
             }
-
             if (confirm(`Voulez-vous vraiment sauvegarder les modifications pour le client ${name} ?`)) {
                 saveClient(client.numero_clt, name);
             }
@@ -513,20 +543,15 @@
 
         // Confirmation avant sauvegarde fournisseur
         async function confirmSaveSupplier(name) {
-            // Vérifier si la liste des fournisseurs est chargée
             if (!suppliers || suppliers.length === 0) {
                 showToast('Erreur : Liste des fournisseurs non chargée. Veuillez réessayer.', true);
                 await loadEntities();
                 return;
             }
-
-            // Vérifier si le nom est valide
             if (!name) {
                 showToast('Erreur : Nom du fournisseur invalide', true);
                 return;
             }
-
-            // Vérifier s'il y a plusieurs fournisseurs avec le même nom
             const matchingSuppliers = suppliers.filter(s => s.nom === name);
             if (matchingSuppliers.length > 1) {
                 showToast('Erreur : Plusieurs fournisseurs portent le nom "' + name + '". Veuillez utiliser un nom unique.', true);
@@ -538,14 +563,10 @@
                 console.error(`Fournisseur introuvable: nom=${name}, liste fournisseurs=`, suppliers);
                 return;
             }
-
             const supplier = matchingSuppliers[0];
-
-            // Mettre à jour currentEntityName si nécessaire
             if (!currentEntityName || currentEntityName !== name) {
                 locateEntity('supplier', supplier.numero_fou || '', supplier.adresse || '', supplier.nom || '');
             }
-
             if (confirm(`Voulez-vous vraiment sauvegarder les modifications pour le fournisseur ${name} ?`)) {
                 saveSupplier(supplier.numero_fou, name);
             }
