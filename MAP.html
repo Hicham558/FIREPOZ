@@ -119,7 +119,6 @@
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-mediumthea
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
@@ -147,7 +146,7 @@
     <script>
         const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
         let map, marker;
-        let currentEntityId = null;
+        let currentEntityName = null;
         let currentEntityType = null;
         let selectedPosition = null;
         let clients = [];
@@ -367,7 +366,7 @@
                         <button onclick="locateEntity('client', '${client.numero_clt || ''}', '${client.adresse || ''}', '${client.nom || ''}')" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Repérer">
                             <i class="fas fa-map-marker-alt"></i>
                         </button>
-                        <button onclick="confirmSaveClient('${client.numero_clt || ''}', '${client.nom || ''}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
+                        <button onclick="confirmSaveClient('${client.nom || ''}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
                             <i class="fas fa-save"></i>
                         </button>
                         <button onclick="openGoogleMaps('${client.adresse || ''}')" class="action-button p-2 rounded-full text-purple-600 hover:bg-gray-200" title="Voir sur Google Maps">
@@ -399,7 +398,7 @@
                         <button onclick="locateEntity('supplier', '${supplier.numero_fou || ''}', '${supplier.adresse || ''}', '${supplier.nom || ''}')" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Repérer">
                             <i class="fas fa-map-marker-alt"></i>
                         </button>
-                        <button onclick="confirmSaveSupplier('${supplier.numero_fou || ''}', '${supplier.nom || ''}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
+                        <button onclick="confirmSaveSupplier('${supplier.nom || ''}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
                             <i class="fas fa-save"></i>
                         </button>
                         <button onclick="openGoogleMaps('${supplier.adresse || ''}')" class="action-button p-2 rounded-full text-purple-600 hover:bg-gray-200" title="Voir sur Google Maps">
@@ -444,10 +443,10 @@
         // Repérer une entité
         function locateEntity(type, id, address, name) {
             currentEntityType = type;
-            currentEntityId = id;
+            currentEntityName = name;
             const { lat, lng, cleanAddress } = decodePositionFromAddress(address);
 
-            console.log(`locateEntity: type=${type}, id=${id}, address=${address}, lat=${lat}, lng=${lng}, cleanAddress=${cleanAddress}`);
+            console.log(`locateEntity: type=${type}, id=${id}, address=${address}, lat=${lat}, lng=${lng}, cleanAddress=${cleanAddress}, name=${name}`);
 
             if (!map) {
                 if (lat && lng) {
@@ -473,83 +472,98 @@
         }
 
         // Confirmation avant sauvegarde client
-        async function confirmSaveClient(id, name) {
+        async function confirmSaveClient(name) {
             // Vérifier si la liste des clients est chargée
             if (!clients || clients.length === 0) {
                 showToast('Erreur : Liste des clients non chargée. Veuillez réessayer.', true);
-                await loadEntities(); // Tenter de recharger les données
+                await loadEntities();
                 return;
             }
 
-            // Vérifier si l'ID est valide
-            if (!id) {
-                showToast('Erreur : ID du client invalide', true);
+            // Vérifier si le nom est valide
+            if (!name) {
+                showToast('Erreur : Nom du client invalide', true);
                 return;
             }
 
-            const client = clients.find(c => c.numero_clt === id);
-            if (!client) {
-                showToast(`Erreur : Client avec l'ID ${id} introuvable`, true);
-                console.error(`Client introuvable: ID=${id}, liste clients=`, clients);
+            // Vérifier s'il y a plusieurs clients avec le même nom
+            const matchingClients = clients.filter(c => c.nom === name);
+            if (matchingClients.length > 1) {
+                showToast('Erreur : Plusieurs clients portent le nom "' + name + '". Veuillez utiliser un nom unique.', true);
+                console.error(`Plusieurs clients trouvés pour le nom: ${name}`, matchingClients);
+                return;
+            }
+            if (matchingClients.length === 0) {
+                showToast(`Erreur : Client "${name}" introuvable`, true);
+                console.error(`Client introuvable: nom=${name}, liste clients=`, clients);
                 return;
             }
 
-            // Mettre à jour currentEntityId si nécessaire
-            if (!currentEntityId || currentEntityId !== id) {
-                locateEntity('client', id, client.adresse || '', client.nom || '');
+            const client = matchingClients[0];
+
+            // Mettre à jour currentEntityName si nécessaire
+            if (!currentEntityName || currentEntityName !== name) {
+                locateEntity('client', client.numero_clt || '', client.adresse || '', client.nom || '');
             }
 
-            if (confirm(`Voulez-vous vraiment sauvegarder les modifications pour le client ${name || 'N/A'} ?`)) {
-                saveClient(id);
+            if (confirm(`Voulez-vous vraiment sauvegarder les modifications pour le client ${name} ?`)) {
+                saveClient(client.numero_clt, name);
             }
         }
 
         // Confirmation avant sauvegarde fournisseur
-        async function confirmSaveSupplier(id, name) {
+        async function confirmSaveSupplier(name) {
             // Vérifier si la liste des fournisseurs est chargée
             if (!suppliers || suppliers.length === 0) {
                 showToast('Erreur : Liste des fournisseurs non chargée. Veuillez réessayer.', true);
-                await loadEntities(); // Tenter de recharger les données
+                await loadEntities();
                 return;
             }
 
-            // Vérifier si l'ID est valide
-            if (!id) {
-                showToast('Erreur : ID du fournisseur invalide', true);
+            // Vérifier si le nom est valide
+            if (!name) {
+                showToast('Erreur : Nom du fournisseur invalide', true);
                 return;
             }
 
-            const supplier = suppliers.find(s => s.numero_fou === id);
-            if (!supplier) {
-                showToast(`Erreur : Fournisseur avec l'ID ${id} introuvable`, true);
-                console.error(`Fournisseur introuvable: ID=${id}, liste fournisseurs=`, suppliers);
+            // Vérifier s'il y a plusieurs fournisseurs avec le même nom
+            const matchingSuppliers = suppliers.filter(s => s.nom === name);
+            if (matchingSuppliers.length > 1) {
+                showToast('Erreur : Plusieurs fournisseurs portent le nom "' + name + '". Veuillez utiliser un nom unique.', true);
+                console.error(`Plusieurs fournisseurs trouvés pour le nom: ${name}`, matchingSuppliers);
+                return;
+            }
+            if (matchingSuppliers.length === 0) {
+                showToast(`Erreur : Fournisseur "${name}" introuvable`, true);
+                console.error(`Fournisseur introuvable: nom=${name}, liste fournisseurs=`, suppliers);
                 return;
             }
 
-            // Mettre à jour currentEntityId si nécessaire
-            if (!currentEntityId || currentEntityId !== id) {
-                locateEntity('supplier', id, supplier.adresse || '', supplier.nom || '');
+            const supplier = matchingSuppliers[0];
+
+            // Mettre à jour currentEntityName si nécessaire
+            if (!currentEntityName || currentEntityName !== name) {
+                locateEntity('supplier', supplier.numero_fou || '', supplier.adresse || '', supplier.nom || '');
             }
 
-            if (confirm(`Voulez-vous vraiment sauvegarder les modifications pour le fournisseur ${name || 'N/A'} ?`)) {
-                saveSupplier(id);
+            if (confirm(`Voulez-vous vraiment sauvegarder les modifications pour le fournisseur ${name} ?`)) {
+                saveSupplier(supplier.numero_fou, name);
             }
         }
 
         // Enregistrer un client
-        async function saveClient(id) {
+        async function saveClient(id, name) {
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour sauvegarder', true);
                 return;
             }
-            if (currentEntityId !== id) {
+            if (currentEntityName !== name) {
                 showToast('Erreur : Veuillez d\'abord repérer le client correct', true);
                 return;
             }
             currentEntityType = 'client';
-            const name = document.getElementById('entityName').value.trim();
-            let address = document.getElementById('entityAddress').value.trim();
+            const address = document.getElementById('entityAddress').value.trim();
 
             console.log(`saveClient: id=${id}, address=${address}, name=${name}`);
 
@@ -582,12 +596,12 @@
                     throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
                 }
 
-                showToast(`Client ${name || 'N/A'} modifié avec succès`);
-                await loadEntities(); // Rafraîchir les données
+                showToast(`Client ${name} modifié avec succès`);
+                await loadEntities();
                 selectedPosition = null;
                 document.getElementById('entityAddress').value = '';
                 document.getElementById('entityName').value = '';
-                currentEntityId = null;
+                currentEntityName = null;
                 currentEntityType = null;
                 console.log('Client sauvegardé avec succès');
             } catch (error) {
@@ -597,19 +611,18 @@
         }
 
         // Enregistrer un fournisseur
-        async function saveSupplier(id) {
+        async function saveSupplier(id, name) {
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour sauvegarder', true);
                 return;
             }
-            if (currentEntityId !== id) {
+            if (currentEntityName !== name) {
                 showToast('Erreur : Veuillez d\'abord repérer le fournisseur correct', true);
                 return;
             }
             currentEntityType = 'supplier';
-            const name = document.getElementById('entityName').value.trim();
-            let address = document.getElementById('entityAddress').value.trim();
+            const address = document.getElementById('entityAddress').value.trim();
 
             console.log(`saveSupplier: id=${id}, address=${address}, name=${name}`);
 
@@ -642,12 +655,12 @@
                     throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
                 }
 
-                showToast(`Fournisseur ${name || 'N/A'} modifié avec succès`);
-                await loadEntities(); // Rafraîchir les données
+                showToast(`Fournisseur ${name} modifié avec succès`);
+                await loadEntities();
                 selectedPosition = null;
                 document.getElementById('entityAddress').value = '';
                 document.getElementById('entityName').value = '';
-                currentEntityId = null;
+                currentEntityName = null;
                 currentEntityType = null;
                 console.log('Fournisseur sauvegardé avec succès');
             } catch (error) {
