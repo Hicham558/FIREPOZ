@@ -178,6 +178,61 @@
         let currentEntityId = null;
         let currentEntityType = null;
 
+        // Vérification initiale
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Page map.html chargée');
+            const userId = localStorage.getItem('userId');
+            const userEmail = localStorage.getItem('userEmail');
+            if (userId && userEmail) {
+                document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
+                document.getElementById('userDisplay').classList.remove('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+                document.getElementById('loginModal').classList.add('hidden');
+                loadEntities();
+            } else {
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                document.getElementById('loginModal').classList.remove('hidden');
+                document.getElementById('clientsList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+                document.getElementById('suppliersList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+            }
+        });
+
+        // Connexion
+        function loginWithCredentials(event) {
+            event.preventDefault();
+            const email = document.getElementById('userEmail').value.trim();
+            const password = document.getElementById('userPassword').value.trim();
+            if (!email || !password) {
+                showToast('Veuillez entrer un email et un mot de passe', true);
+                return;
+            }
+            const userId = btoa(`${email.toLowerCase()}:${password}`);
+            localStorage.setItem('userId', userId);
+            localStorage.setItem('userEmail', email.toLowerCase());
+            document.getElementById('userDisplay').textContent = email.toLowerCase();
+            document.getElementById('userDisplay').classList.remove('hidden');
+            document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+            document.getElementById('loginModal').classList.add('hidden');
+            loadEntities();
+            showToast('Connexion réussie');
+        }
+
+        // Déconnexion
+        function loginLogout() {
+            if (localStorage.getItem('userId')) {
+                localStorage.removeItem('userId');
+                localStorage.removeItem('userEmail');
+                document.getElementById('userDisplay').textContent = '';
+                document.getElementById('userDisplay').classList.add('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                document.getElementById('loginModal').classList.remove('hidden');
+                if (map) map.remove();
+                document.getElementById('clientsList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+                document.getElementById('suppliersList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+                showToast('Déconnexion réussie');
+            }
+        }
+
         // Gérer les accordéons
         function toggleAccordion(id) {
             const content = document.getElementById(id);
@@ -260,17 +315,30 @@
 
         // Charger les entités
         async function loadEntities() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour charger les entités', true);
+                return;
+            }
             try {
-                // Clients
-                const clientResponse = await fetch(`${API_BASE_URL}/liste_clients`);
-                if (!clientResponse.ok) throw new Error('Erreur chargement clients');
+                console.log('Tentative de chargement des clients...');
+                const clientResponse = await fetch(`${API_BASE_URL}/liste_clients`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                console.log('Statut clients:', clientResponse.status, clientResponse.statusText);
+                if (!clientResponse.ok) throw new Error(`Erreur chargement clients: ${clientResponse.statusText}`);
                 const clients = await clientResponse.json();
+                console.log('Données clients:', clients);
                 updateClientList(clients);
 
-                // Fournisseurs
-                const supplierResponse = await fetch(`${API_BASE_URL}/liste_fournisseurs`);
-                if (!supplierResponse.ok) throw new Error('Erreur chargement fournisseurs');
+                console.log('Tentative de chargement des fournisseurs...');
+                const supplierResponse = await fetch(`${API_BASE_URL}/liste_fournisseurs`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                console.log('Statut fournisseurs:', supplierResponse.status, supplierResponse.statusText);
+                if (!supplierResponse.ok) throw new Error(`Erreur chargement fournisseurs: ${supplierResponse.statusText}`);
                 const suppliers = await supplierResponse.json();
+                console.log('Données fournisseurs:', suppliers);
                 updateSupplierList(suppliers);
 
                 console.log('Entités chargées:', clients.length, 'clients,', suppliers.length, 'fournisseurs');
@@ -296,15 +364,15 @@
                 tr.className = 'hover:bg-gray-50';
                 tr.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 flex space-x-2">
-                        <button onclick="locateEntity('client', '${client.numero_clt}', ${client.latitude || 'null'}, ${client.longitude || 'null'}, '${client.adresse || ''}')" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Repérer">
+                        <button onclick="locateEntity('client', '${client.numero_clt || ''}', ${client.latitude || 'null'}, ${client.longitude || 'null'}, '${client.adresse || ''}')" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Repérer">
                             <i class="fas fa-map-marker-alt"></i>
                         </button>
-                        <button onclick="saveEntity('client', '${client.numero_clt}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
+                        <button onclick="saveEntity('client', '${client.numero_clt || ''}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
                             <i class="fas fa-save"></i>
                         </button>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${client.nom || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.solde.toFixed(2)} DA</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${(client.solde || 0).toFixed(2)} DA</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.adresse || 'N/A'}</td>
                 `;
                 tbody.appendChild(tr);
@@ -325,15 +393,15 @@
                 tr.className = 'hover:bg-gray-50';
                 tr.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 flex space-x-2">
-                        <button onclick="locateEntity('supplier', '${supplier.numero_fou}', ${supplier.latitude || 'null'}, ${supplier.longitude || 'null'}, '${supplier.adresse || ''}')" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Repérer">
+                        <button onclick="locateEntity('supplier', '${supplier.numero_fou || ''}', ${supplier.latitude || 'null'}, ${supplier.longitude || 'null'}, '${supplier.adresse || ''}')" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Repérer">
                             <i class="fas fa-map-marker-alt"></i>
                         </button>
-                        <button onclick="saveEntity('supplier', '${supplier.numero_fou}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
+                        <button onclick="saveEntity('supplier', '${supplier.numero_fou || ''}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
                             <i class="fas fa-save"></i>
                         </button>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${supplier.nom || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${supplier.solde.toFixed(2)} DA</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${(supplier.solde || 0).toFixed(2)} DA</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${supplier.adresse || 'N/A'}</td>
                 `;
                 tbody.appendChild(tr);
@@ -356,7 +424,7 @@
                         initMap(latitude, longitude, 15);
                         setMarker(latitude, longitude, address);
                     } else {
-                        initMap(); // Centre par défaut
+                        initMap();
                     }
                 }
             } else {
@@ -376,6 +444,11 @@
 
         // Enregistrer une entité
         async function saveEntity(type, id) {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour sauvegarder', true);
+                return;
+            }
             currentEntityType = type;
             currentEntityId = id;
             const address = document.getElementById('entityAddress').value.trim();
@@ -390,7 +463,8 @@
                 const response = await fetch(url, {
                     method: 'PUT',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
                     },
                     body: JSON.stringify({
                         adresse: address
@@ -409,12 +483,6 @@
                 console.error('Erreur sauvegarde entité:', error);
             }
         }
-
-        // Charger les entités au démarrage
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log('Page map.html chargée');
-            loadEntities();
-        });
     </script>
 </body>
 </html>
