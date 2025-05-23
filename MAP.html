@@ -24,7 +24,6 @@
         .action-button:hover { background-color: #e5e7eb; }
         .tab { cursor: pointer; }
         .tab.active { border-bottom: 2px solid #3b82f6; color: #3b82f6; }
-        /* Style pour le tooltip du nom sur la carte */
         .leaflet-tooltip { font-size: 12px; font-weight: bold; background-color: rgba(255, 255, 255, 0.9); border: 1px solid #ccc; border-radius: 4px; padding: 4px 8px; }
     </style>
 </head>
@@ -120,6 +119,7 @@
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
+                            <th class="px-6 py-3 text-left text-xs font-mediumthea
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
@@ -254,7 +254,6 @@
                     iconAnchor: [15, 30]
                 })
             }).addTo(map);
-            // Afficher le nom en tant que tooltip permanent
             if (name) {
                 marker.bindTooltip(name, {
                     permanent: true,
@@ -263,7 +262,6 @@
                     className: 'leaflet-tooltip'
                 });
             }
-            // Popup avec nom et adresse
             const popupContent = `
                 <b>${name || 'Non défini'}</b><br>
                 Adresse: ${address || 'Non définie'}
@@ -356,7 +354,7 @@
         function updateClientList(clients) {
             const tbody = document.getElementById('clientsList');
             if (!tbody) return;
-            if (clients.length === 0) {
+            if (!clients || clients.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun client trouvé</td></tr>';
                 return;
             }
@@ -388,7 +386,7 @@
         function updateSupplierList(suppliers) {
             const tbody = document.getElementById('suppliersList');
             if (!tbody) return;
-            if (suppliers.length === 0) {
+            if (!suppliers || suppliers.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun fournisseur trouvé</td></tr>';
                 return;
             }
@@ -475,32 +473,64 @@
         }
 
         // Confirmation avant sauvegarde client
-        function confirmSaveClient(id, name) {
-            const client = clients.find(c => c.numero_clt === id);
-            if (!client) {
-                showToast('Erreur : Client introuvable', true);
+        async function confirmSaveClient(id, name) {
+            // Vérifier si la liste des clients est chargée
+            if (!clients || clients.length === 0) {
+                showToast('Erreur : Liste des clients non chargée. Veuillez réessayer.', true);
+                await loadEntities(); // Tenter de recharger les données
                 return;
             }
-            // Mettre à jour currentEntityId et currentEntityType uniquement si nécessaire
+
+            // Vérifier si l'ID est valide
+            if (!id) {
+                showToast('Erreur : ID du client invalide', true);
+                return;
+            }
+
+            const client = clients.find(c => c.numero_clt === id);
+            if (!client) {
+                showToast(`Erreur : Client avec l'ID ${id} introuvable`, true);
+                console.error(`Client introuvable: ID=${id}, liste clients=`, clients);
+                return;
+            }
+
+            // Mettre à jour currentEntityId si nécessaire
             if (!currentEntityId || currentEntityId !== id) {
                 locateEntity('client', id, client.adresse || '', client.nom || '');
             }
+
             if (confirm(`Voulez-vous vraiment sauvegarder les modifications pour le client ${name || 'N/A'} ?`)) {
                 saveClient(id);
             }
         }
 
         // Confirmation avant sauvegarde fournisseur
-        function confirmSaveSupplier(id, name) {
-            const supplier = suppliers.find(s => s.numero_fou === id);
-            if (!supplier) {
-                showToast('Erreur : Fournisseur introuvable', true);
+        async function confirmSaveSupplier(id, name) {
+            // Vérifier si la liste des fournisseurs est chargée
+            if (!suppliers || suppliers.length === 0) {
+                showToast('Erreur : Liste des fournisseurs non chargée. Veuillez réessayer.', true);
+                await loadEntities(); // Tenter de recharger les données
                 return;
             }
-            // Mettre à jour currentEntityId et currentEntityType uniquement si nécessaire
+
+            // Vérifier si l'ID est valide
+            if (!id) {
+                showToast('Erreur : ID du fournisseur invalide', true);
+                return;
+            }
+
+            const supplier = suppliers.find(s => s.numero_fou === id);
+            if (!supplier) {
+                showToast(`Erreur : Fournisseur avec l'ID ${id} introuvable`, true);
+                console.error(`Fournisseur introuvable: ID=${id}, liste fournisseurs=`, suppliers);
+                return;
+            }
+
+            // Mettre à jour currentEntityId si nécessaire
             if (!currentEntityId || currentEntityId !== id) {
                 locateEntity('supplier', id, supplier.adresse || '', supplier.nom || '');
             }
+
             if (confirm(`Voulez-vous vraiment sauvegarder les modifications pour le fournisseur ${name || 'N/A'} ?`)) {
                 saveSupplier(id);
             }
@@ -513,7 +543,6 @@
                 showToast('Veuillez vous connecter pour sauvegarder', true);
                 return;
             }
-            // Vérifier que l'ID correspond à l'entité en cours
             if (currentEntityId !== id) {
                 showToast('Erreur : Veuillez d\'abord repérer le client correct', true);
                 return;
@@ -574,7 +603,6 @@
                 showToast('Veuillez vous connecter pour sauvegarder', true);
                 return;
             }
-            // Vérifier que l'ID correspond à l'entité en cours
             if (currentEntityId !== id) {
                 showToast('Erreur : Veuillez d\'abord repérer le fournisseur correct', true);
                 return;
