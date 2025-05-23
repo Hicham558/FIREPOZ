@@ -282,9 +282,10 @@
                 let address = document.getElementById('entityAddress').value.trim();
                 const { cleanAddress } = decodePositionFromAddress(address);
                 address = cleanAddress || 'Nouvelle adresse';
-                document.getElementById('entityAddress').value = `${address}|${lat},${lng}`;
+                const newAddress = `${address}|${lat.toFixed(6)},${lng.toFixed(6)}`;
+                document.getElementById('entityAddress').value = newAddress;
                 setMarker(lat, lng, address);
-                console.log(`Position sélectionnée: ${lat}, ${lng}, adresse mise à jour: ${address}|${lat},${lng}`);
+                console.log(`Position sélectionnée: ${lat.toFixed(6)}, ${lng.toFixed(6)}, adresse mise à jour: ${newAddress}`);
             });
             console.log('Carte initialisée à', lat, lng);
         }
@@ -428,11 +429,11 @@
 
         // Décoder la position depuis l'adresse
         function decodePositionFromAddress(address) {
-            if (!address) return { lat: null, lng: null, cleanAddress: address };
+            if (!address) return { lat: null, lng: null, cleanAddress: '' };
             const parts = address.split('|');
-            const cleanAddress = parts[0];
-            if (parts.length > 1) {
-                const [lat, lng] = parts[1].split(',').map(Number);
+            const cleanAddress = parts[0] || '';
+            if (parts.length > 1 && parts[1]) {
+                const [lat, lng] = parts[1].split(',').map(parseFloat);
                 if (!isNaN(lat) && !isNaN(lng)) {
                     return { lat, lng, cleanAddress };
                 }
@@ -446,27 +447,30 @@
             currentEntityId = id;
             const { lat, lng, cleanAddress } = decodePositionFromAddress(address);
 
+            console.log(`locateEntity: type=${type}, id=${id}, address=${address}, lat=${lat}, lng=${lng}, cleanAddress=${cleanAddress}`);
+
             const locationAccordion = document.getElementById('locationAccordion');
             const locationChevron = document.getElementById('locationChevron');
             if (!locationAccordion.classList.contains('active')) {
                 locationAccordion.classList.add('active');
                 locationChevron.classList.remove('fa-chevron-down');
                 locationChevron.classList.add('fa-chevron-up');
-                if (!map) {
-                    if (lat && lng) {
-                        initMap(lat, lng, 15);
-                        setMarker(lat, lng, cleanAddress);
-                    } else {
-                        initMap();
-                    }
+            }
+
+            if (!map) {
+                if (lat && lng) {
+                    initMap(lat, lng, 15);
+                    setMarker(lat, lng, cleanAddress);
+                } else {
+                    initMap();
                 }
             } else {
                 if (lat && lng) {
-                    if (!map) initMap(lat, lng, 15);
+                    console.log(`Navigating to position: ${lat}, ${lng}`);
                     map.panTo([lat, lng], { animate: true, duration: 1 });
                     setMarker(lat, lng, cleanAddress);
                 } else {
-                    if (!map) initMap();
+                    console.log('No position found, resetting to default');
                     map.panTo([36.7538, 3.0588], { animate: true, duration: 1 });
                 }
             }
@@ -486,10 +490,18 @@
             currentEntityType = 'client';
             currentEntityId = id;
             const name = document.getElementById('entityName').value.trim();
-            const address = document.getElementById('entityAddress').value.trim();
+            let address = document.getElementById('entityAddress').value.trim();
+
+            console.log(`saveClient: id=${id}, address=${address}, name=${name}`);
 
             if (!address) {
                 showToast('Veuillez entrer une adresse avant d\'enregistrer', true);
+                return;
+            }
+
+            // Si aucune position n'est sélectionnée, utiliser l'adresse existante
+            if (!selectedPosition && !address.includes('|')) {
+                showToast('Veuillez sélectionner une position sur la carte', true);
                 return;
             }
 
@@ -500,6 +512,7 @@
 
             try {
                 const url = `${API_BASE_URL}/modifier_client/${id}`;
+                console.log(`Envoi PUT ${url}:`, data);
                 const response = await fetch(url, {
                     method: 'PUT',
                     headers: {
@@ -518,6 +531,7 @@
                 loadEntities();
                 selectedPosition = null;
                 document.getElementById('entityAddress').value = '';
+                console.log('Client sauvegardé avec succès');
             } catch (error) {
                 showToast('Erreur lors de la sauvegarde: ' + error.message, true);
                 console.error('Erreur sauvegarde client:', error);
@@ -534,10 +548,18 @@
             currentEntityType = 'supplier';
             currentEntityId = id;
             const name = document.getElementById('entityName').value.trim();
-            const address = document.getElementById('entityAddress').value.trim();
+            let address = document.getElementById('entityAddress').value.trim();
+
+            console.log(`saveSupplier: id=${id}, address=${address}, name=${name}`);
 
             if (!address) {
                 showToast('Veuillez entrer une adresse avant d\'enregistrer', true);
+                return;
+            }
+
+            // Si aucune position n'est sélectionnée, utiliser l'adresse existante
+            if (!selectedPosition && !address.includes('|')) {
+                showToast('Veuillez sélectionner une position sur la carte', true);
                 return;
             }
 
@@ -548,6 +570,7 @@
 
             try {
                 const url = `${API_BASE_URL}/modifier_fournisseur/${id}`;
+                console.log(`Envoi PUT ${url}:`, data);
                 const response = await fetch(url, {
                     method: 'PUT',
                     headers: {
@@ -566,6 +589,7 @@
                 loadEntities();
                 selectedPosition = null;
                 document.getElementById('entityAddress').value = '';
+                console.log('Fournisseur sauvegardé avec succès');
             } catch (error) {
                 showToast('Erreur lors de la sauvegarde: ' + error.message, true);
                 console.error('Erreur sauvegarde fournisseur:', error);
