@@ -322,7 +322,7 @@
                     headers: { 'X-User-ID': userId }
                 });
                 console.log('Statut fournisseurs:', supplierResponse.status, supplierResponse.statusText);
-                if (!supplierResponse.ok) throw new Error(`Erreur chargement fournisseurs: ${supplier.statusText}`);
+                if (!supplierResponse.ok) throw new Error(`Erreur chargement fournisseurs: ${supplierResponse.statusText}`);
                 suppliers = await supplierResponse.json();
                 console.log('Données fournisseurs:', suppliers);
                 updateSupplierList(suppliers);
@@ -353,8 +353,8 @@
                         <button onclick="locateEntity('client', '${client.numero_clt || ''}', '${client.adresse || ''}', '${client.nom || ''}')" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Repérer">
                             <i class="fas fa-map-marker-alt"></i>
                         </button>
-                        <button onclick="confirmSaveClientAddress('${client.numero_clt || ''}')" class="action-button p-2 rounded-full text-orange-600 hover:bg-gray-200" title="Modifier Adresse">
-                            <i class="fas fa-location-arrow"></i>
+                        <button onclick="confirmSaveClient('${client.numero_clt || ''}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
+                            <i class="fas fa-save"></i>
                         </button>
                         <button onclick="openGoogleMaps('${client.adresse || ''}')" class="action-button p-2 rounded-full text-purple-600 hover:bg-gray-200" title="Voir sur Google Maps">
                             <i class="fas fa-globe"></i>
@@ -385,8 +385,8 @@
                         <button onclick="locateEntity('supplier', '${supplier.numero_fou || ''}', '${supplier.adresse || ''}', '${supplier.nom || ''}')" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Repérer">
                             <i class="fas fa-map-marker-alt"></i>
                         </button>
-                        <button onclick="confirmSaveSupplierAddress('${supplier.numero_fou || ''}')" class="action-button p-2 rounded-full text-orange-600 hover:bg-gray-200" title="Modifier Adresse">
-                            <i class="fas fa-location-arrow"></i>
+                        <button onclick="confirmSaveSupplier('${supplier.numero_fou || ''}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
+                            <i class="fas fa-save"></i>
                         </button>
                         <button onclick="openGoogleMaps('${supplier.adresse || ''}')" class="action-button p-2 rounded-full text-purple-600 hover:bg-gray-200" title="Voir sur Google Maps">
                             <i class="fas fa-globe"></i>
@@ -458,8 +458,9 @@
             console.log(`Repéré: ${type} ${id}, adresse: ${address || 'N/A'}, position: ${lat || 'N/A'}, ${lng || 'N/A'}, nom: ${name || 'N/A'}`);
         }
 
-        // Confirmation avant sauvegarde adresse client
-        function confirmSaveClientAddress(id) {
+        // Confirmation avant sauvegarde client
+        function confirmSaveClient(id) {
+            // Si aucun client n'est sélectionné, initialiser comme si "Repérer" était cliqué
             if (!currentEntityId) {
                 const client = clients.find(c => c.numero_clt === id);
                 if (client) {
@@ -469,13 +470,14 @@
                     return;
                 }
             }
-            if (confirm('Voulez-vous vraiment modifier l\'adresse de ce client ?')) {
-                saveClientAddress(id);
+            if (confirm('Voulez-vous vraiment sauvegarder les modifications pour ce client ?')) {
+                saveClient(id);
             }
         }
 
-        // Confirmation avant sauvegarde adresse fournisseur
-        function confirmSaveSupplierAddress(id) {
+        // Confirmation avant sauvegarde fournisseur
+        function confirmSaveSupplier(id) {
+            // Si aucun fournisseur n'est sélectionné, initialiser comme si "Repérer" était cliqué
             if (!currentEntityId) {
                 const supplier = suppliers.find(s => s.numero_fou === id);
                 if (supplier) {
@@ -485,13 +487,13 @@
                     return;
                 }
             }
-            if (confirm('Voulez-vous vraiment modifier l\'adresse de ce fournisseur ?')) {
-                saveSupplierAddress(id);
+            if (confirm('Voulez-vous vraiment sauvegarder les modifications pour ce fournisseur ?')) {
+                saveSupplier(id);
             }
         }
 
-        // Enregistrer l'adresse d'un client
-        async function saveClientAddress(id) {
+        // Enregistrer un client
+        async function saveClient(id) {
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour sauvegarder', true);
@@ -499,9 +501,10 @@
             }
             currentEntityType = 'client';
             currentEntityId = id;
+            const name = document.getElementById('entityName').value.trim();
             let address = document.getElementById('entityAddress').value.trim();
 
-            console.log(`saveClientAddress: id=${id}, address=${address}`);
+            console.log(`saveClient: id=${id}, address=${address}, name=${name}`);
 
             if (!address) {
                 showToast('Veuillez sélectionner une position sur la carte', true);
@@ -513,10 +516,10 @@
                 return;
             }
 
-            const data = { adresse: address };
+            const data = { adresse: address, nom: name };
 
             try {
-                const url = `${API_BASE_URL}/modifier_client_adresse/${id}`;
+                const url = `${API_BASE_URL}/modifier_client/${id}`;
                 console.log(`Envoi PUT ${url}:`, data);
                 const response = await fetch(url, {
                     method: 'PUT',
@@ -532,21 +535,21 @@
                     throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
                 }
 
-                showToast('Adresse du client modifiée avec succès');
-                await loadEntities();
+                showToast('Client modifié avec succès');
+                await loadEntities(); // Rafraîchir les données
                 selectedPosition = null;
                 document.getElementById('entityAddress').value = '';
                 document.getElementById('entityName').value = '';
                 currentEntityId = null;
-                console.log('Adresse du client sauvegardée avec succès');
+                console.log('Client sauvegardé avec succès');
             } catch (error) {
                 showToast('Erreur lors de la sauvegarde: ' + error.message, true);
-                console.error('Erreur sauvegarde adresse client:', error);
+                console.error('Erreur sauvegarde client:', error);
             }
         }
 
-        // Enregistrer l'adresse d'un fournisseur
-        async function saveSupplierAddress(id) {
+        // Enregistrer un fournisseur
+        async function saveSupplier(id) {
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour sauvegarder', true);
@@ -554,9 +557,10 @@
             }
             currentEntityType = 'supplier';
             currentEntityId = id;
+            const name = document.getElementById('entityName').value.trim();
             let address = document.getElementById('entityAddress').value.trim();
 
-            console.log(`saveSupplierAddress: id=${id}, address=${address}`);
+            console.log(`saveSupplier: id=${id}, address=${address}, name=${name}`);
 
             if (!address) {
                 showToast('Veuillez sélectionner une position sur la carte', true);
@@ -568,10 +572,10 @@
                 return;
             }
 
-            const data = { adresse: address };
+            const data = { adresse: address, nom: name };
 
             try {
-                const url = `${API_BASE_URL}/modifier_fournisseur_adresse/${id}`;
+                const url = `${API_BASE_URL}/modifier_fournisseur/${id}`;
                 console.log(`Envoi PUT ${url}:`, data);
                 const response = await fetch(url, {
                     method: 'PUT',
@@ -587,16 +591,16 @@
                     throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
                 }
 
-                showToast('Adresse du fournisseur modifiée avec succès');
-                await loadEntities();
+                showToast('Fournisseur modifié avec succès');
+                await loadEntities(); // Rafraîchir les données
                 selectedPosition = null;
                 document.getElementById('entityAddress').value = '';
                 document.getElementById('entityName').value = '';
                 currentEntityId = null;
-                console.log('Adresse du fournisseur sauvegardée avec succès');
+                console.log('Fournisseur sauvegardé avec succès');
             } catch (error) {
                 showToast('Erreur lors de la sauvegarde: ' + error.message, true);
-                console.error('Erreur sauvegarde adresse fournisseur:', error);
+                console.error('Erreur sauvegarde fournisseur:', error);
             }
         }
     </script>
