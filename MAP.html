@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+k WORSTNiyxNV1lvTlZBo=" crossorigin=""></script>
     <style>
         @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
@@ -239,7 +239,6 @@
                 console.log(`Position sélectionnée: ${lat.toFixed(6)}, ${lng.toFixed(6)}, adresse mise à jour: ${newAddress}`);
             });
             console.log('Carte initialisée à', lat, lng, 'zoom:', zoom);
-            // Forcer le re-rendu de la carte
             setTimeout(() => {
                 if (map) map.invalidateSize();
             }, 100);
@@ -318,7 +317,7 @@
         }
 
         // Charger les entités
-        async function loadEntities() {
+        async function loadEntities(preserveMapPosition = false, lastLat = 36.7538, lastLng = 3.0588, lastZoom = 6) {
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour charger les entités', true);
@@ -346,6 +345,12 @@
                 updateSupplierList(suppliers);
 
                 console.log('Entités chargées:', clients.length, 'clients,', suppliers.length, 'fournisseurs');
+
+                // Restaurer la position de la carte si demandé
+                if (preserveMapPosition && map) {
+                    map.setView([lastLat, lastLng], lastZoom);
+                    console.log(`Position de la carte restaurée à lat=${lastLat}, lng=${lastLng}, zoom=${lastZoom}`);
+                }
             } catch (error) {
                 showToast('Erreur de chargement des entités: ' + error.message, true);
                 console.error('Erreur chargement entités:', error);
@@ -359,7 +364,9 @@
             const tbody = document.getElementById('clientsList');
             if (!tbody) return;
             if (clients.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun client trouvé</td></tr>';
+                tbody
+
+.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun client trouvé</td></tr>';
                 return;
             }
             tbody.innerHTML = '';
@@ -551,6 +558,12 @@
                 return;
             }
 
+            // Extraire les coordonnées avant de vider les champs
+            const { lat, lng, cleanAddress } = decodePositionFromAddress(address);
+            const savedLat = lat || 36.7538;
+            const savedLng = lng || 3.0588;
+            const savedZoom = lat && lng ? 15 : 6;
+
             const data = { adresse: address, nom: name };
 
             try {
@@ -574,12 +587,17 @@
                 }
 
                 showToast('Client modifié avec succès');
-                await loadEntities();
+                // Charger les entités en préservant la position de la carte
+                await loadEntities(true, savedLat, savedLng, savedZoom);
+                // Replacer le marqueur à la position sauvegardée
+                if (lat && lng && map) {
+                    setMarker(lat, lng, cleanAddress, name);
+                }
                 selectedPosition = null;
                 document.getElementById('entityAddress').value = '';
                 document.getElementById('entityName').value = '';
                 currentEntityId = null;
-                console.log('Client sauvegardé avec succès');
+                console.log('Client sauvegardé avec succès, carte centrée à', savedLat, savedLng);
             } catch (error) {
                 showToast('Erreur lors de la sauvegarde: ' + error.message, true);
                 console.error('Erreur sauvegarde client:', error);
@@ -605,6 +623,12 @@
                 return;
             }
 
+            // Extraire les coordonnées avant de vider les champs
+            const { lat, lng, cleanAddress } = decodePositionFromAddress(address);
+            const savedLat = lat || 36.7538;
+            const savedLng = lng || 3.0588;
+            const savedZoom = lat && lng ? 15 : 6;
+
             const data = { adresse: address, nom: name };
 
             try {
@@ -628,12 +652,17 @@
                 }
 
                 showToast('Fournisseur modifié avec succès');
-                await loadEntities();
+                // Charger les entités en préservant la position de la carte
+                await loadEntities(true, savedLat, savedLng, savedZoom);
+                // Replacer le marqueur à la position sauvegardée
+                if (lat && lng && map) {
+                    setMarker(lat, lng, cleanAddress, name);
+                }
                 selectedPosition = null;
                 document.getElementById('entityAddress').value = '';
                 document.getElementById('entityName').value = '';
                 currentEntityId = null;
-                console.log('Fournisseur sauvegardé avec succès');
+                console.log('Fournisseur sauvegardé avec succès, carte centrée à', savedLat, savedLng);
             } catch (error) {
                 showToast('Erreur lors de la sauvegarde: ' + error.message, true);
                 console.error('Erreur sauvegarde fournisseur:', error);
