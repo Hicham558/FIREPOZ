@@ -88,7 +88,12 @@
             <div id="locationAccordion" class="accordion-content">
                 <!-- Carte -->
                 <div id="mapContainer" class="mb-4 sticky top-0 z-20"></div>
-                <!-- Formulaire (seulement Adresse) -->
+                <!-- Formulaire (Nom et Adresse) -->
+                <div class="relative mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Nom</label>
+                    <input type="text" id="entityName" class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Entrez ou modifiez le nom">
+                    <i class="fas fa-user input-icon"></i>
+                </div>
                 <div class="relative mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
                     <input type="text" id="entityAddress" class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Entrez ou modifiez l'adresse">
@@ -177,6 +182,7 @@
         let map, marker;
         let currentEntityId = null;
         let currentEntityType = null;
+        let selectedPosition = null;
 
         // Vérification initiale
         document.addEventListener('DOMContentLoaded', () => {
@@ -243,6 +249,7 @@
                 chevron.classList.add('fa-chevron-down');
                 if (map) map.remove();
                 map = null;
+                selectedPosition = null;
             } else {
                 content.classList.add('active');
                 chevron.classList.remove('fa-chevron-down');
@@ -268,6 +275,12 @@
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19
             }).addTo(map);
+            map.on('click', function(e) {
+                const { lat, lng } = e.latlng;
+                selectedPosition = { lat, lng };
+                setMarker(lat, lng, document.getElementById('entityAddress').value || 'Nouvelle position');
+                console.log(`Nouvelle position sélectionnée: ${lat}, ${lng}`);
+            });
             console.log('Carte initialisée à', lat, lng);
         }
 
@@ -364,10 +377,10 @@
                 tr.className = 'hover:bg-gray-50';
                 tr.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 flex space-x-2">
-                        <button onclick="locateEntity('client', '${client.numero_clt || ''}', ${client.latitude || 'null'}, ${client.longitude || 'null'}, '${client.adresse || ''}')" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Repérer">
+                        <button onclick="locateEntity('client', '${client.numero_clt || ''}', ${client.latitude || 'null'}, ${client.longitude || 'null'}, '${client.adresse || ''}', '${client.nom || ''}')" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Repérer">
                             <i class="fas fa-map-marker-alt"></i>
                         </button>
-                        <button onclick="saveEntity('client', '${client.numero_clt || ''}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
+                        <button onclick="saveClient('${client.numero_clt || ''}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
                             <i class="fas fa-save"></i>
                         </button>
                     </td>
@@ -393,10 +406,10 @@
                 tr.className = 'hover:bg-gray-50';
                 tr.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 flex space-x-2">
-                        <button onclick="locateEntity('supplier', '${supplier.numero_fou || ''}', ${supplier.latitude || 'null'}, ${supplier.longitude || 'null'}, '${supplier.adresse || ''}')" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Repérer">
+                        <button onclick="locateEntity('supplier', '${supplier.numero_fou || ''}', ${supplier.latitude || 'null'}, ${supplier.longitude || 'null'}, '${supplier.adresse || ''}', '${supplier.nom || ''}')" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Repérer">
                             <i class="fas fa-map-marker-alt"></i>
                         </button>
-                        <button onclick="saveEntity('supplier', '${supplier.numero_fou || ''}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
+                        <button onclick="saveSupplier('${supplier.numero_fou || ''}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
                             <i class="fas fa-save"></i>
                         </button>
                     </td>
@@ -409,9 +422,10 @@
         }
 
         // Repérer une entité
-        function locateEntity(type, id, latitude, longitude, address) {
+        function locateEntity(type, id, latitude, longitude, address, name) {
             currentEntityType = type;
             currentEntityId = id;
+            selectedPosition = latitude && longitude ? { lat: latitude, lng: longitude } : null;
 
             const locationAccordion = document.getElementById('locationAccordion');
             const locationChevron = document.getElementById('locationChevron');
@@ -438,37 +452,46 @@
                 }
             }
 
+            document.getElementById('entityName').value = name || '';
             document.getElementById('entityAddress').value = address || '';
-            console.log(`Repéré: ${type} ${id} à ${latitude || 'N/A'}, ${longitude || 'N/A'}, adresse: ${address || 'N/A'}`);
+            console.log(`Repéré: ${type} ${id} à ${latitude || 'N/A'}, ${longitude || 'N/A'}, nom: ${name || 'N/A'}, adresse: ${address || 'N/A'}`);
         }
 
-        // Enregistrer une entité
-        async function saveEntity(type, id) {
+        // Enregistrer un client
+        async function saveClient(id) {
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour sauvegarder', true);
                 return;
             }
-            currentEntityType = type;
+            currentEntityType = 'client';
             currentEntityId = id;
+            const name = document.getElementById('entityName').value.trim();
             const address = document.getElementById('entityAddress').value.trim();
 
-            if (!address) {
-                showToast('Veuillez entrer une adresse avant d\'enregistrer', true);
+            if (!name || !address) {
+                showToast('Veuillez entrer un nom et une adresse avant d\'enregistrer', true);
                 return;
             }
 
+            const data = {
+                nom: name,
+                adresse: address
+            };
+            if (selectedPosition) {
+                data.latitude = selectedPosition.lat;
+                data.longitude = selectedPosition.lng;
+            }
+
             try {
-                const url = `${API_BASE_URL}/${type === 'client' ? 'modifier_client' : 'modifier_fournisseur'}/${id}`;
+                const url = `${API_BASE_URL}/modifier_client/${id}`;
                 const response = await fetch(url, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-User-ID': userId
                     },
-                    body: JSON.stringify({
-                        adresse: address
-                    })
+                    body: JSON.stringify(data)
                 });
 
                 const result = await response.json();
@@ -476,11 +499,63 @@
                     throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
                 }
 
-                showToast(`${type === 'client' ? 'Client' : 'Fournisseur'} modifié avec succès`);
+                showToast('Client modifié avec succès');
                 loadEntities();
+                selectedPosition = null;
             } catch (error) {
                 showToast('Erreur lors de la sauvegarde: ' + error.message, true);
-                console.error('Erreur sauvegarde entité:', error);
+                console.error('Erreur sauvegarde client:', error);
+            }
+        }
+
+        // Enregistrer un fournisseur
+        async function saveSupplier(id) {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour sauvegarder', true);
+                return;
+            }
+            currentEntityType = 'supplier';
+            currentEntityId = id;
+            const name = document.getElementById('entityName').value.trim();
+            const address = document.getElementById('entityAddress').value.trim();
+
+            if (!name || !address) {
+                showToast('Veuillez entrer un nom et une adresse avant d\'enregistrer', true);
+                return;
+            }
+
+            const data = {
+                nom: name,
+                adresse: address
+            };
+            if (selectedPosition) {
+                data.latitude = selectedPosition.lat;
+                data.longitude = selectedPosition.lng;
+            }
+
+            try {
+                const url = `${API_BASE_URL}/modifier_fournisseur/${id}`;
+                const response = await fetch(url, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
+                }
+
+                showToast('Fournisseur modifié avec succès');
+                loadEntities();
+                selectedPosition = null;
+            } catch (error) {
+                showToast('Erreur lors de la sauvegarde: ' + error.message, true);
+                console.error('Erreur sauvegarde fournisseur:', error);
             }
         }
     </script>
