@@ -86,6 +86,7 @@
                 <i class="fas fa-chevron-down ml-auto transition-transform" id="locationChevron"></i>
             </h2>
             <div id="locationAccordion" class="accordion-content">
+                <p class="text-sm text-gray-600 mb-2">Cliquez sur la carte pour choisir une position globale à appliquer aux entités.</p>
                 <!-- Carte -->
                 <div id="mapContainer" class="mb-4 sticky top-0 z-20"></div>
                 <!-- Formulaire (Nom et Adresse) -->
@@ -247,9 +248,8 @@
                 content.classList.remove('active');
                 chevron.classList.remove('fa-chevron-up');
                 chevron.classList.add('fa-chevron-down');
-                if (map) map.remove();
-                map = null;
-                selectedPosition = null;
+                if (map && id === 'locationAccordion') map.remove();
+                if (id === 'locationAccordion') map = null;
             } else {
                 content.classList.add('active');
                 chevron.classList.remove('fa-chevron-down');
@@ -278,8 +278,8 @@
             map.on('click', function(e) {
                 const { lat, lng } = e.latlng;
                 selectedPosition = { lat, lng };
-                setMarker(lat, lng, document.getElementById('entityAddress').value || 'Nouvelle position');
-                console.log(`Nouvelle position sélectionnée: ${lat}, ${lng}`);
+                setMarker(lat, lng, 'Position globale sélectionnée');
+                console.log(`Position globale sélectionnée: ${lat}, ${lng}`);
             });
             console.log('Carte initialisée à', lat, lng);
         }
@@ -300,7 +300,7 @@
                 })
             }).addTo(map);
             marker.bindPopup(`Adresse: ${address || 'Non définie'}`);
-            map.setView([lat, lng], 15);
+            map.panTo([lat, lng], { animate: true, duration: 1 });
             console.log(`Épingle placée à ${lat}, ${lng}`);
         }
 
@@ -440,7 +440,6 @@
             currentEntityType = type;
             currentEntityId = id;
             const { lat, lng, cleanAddress } = decodePositionFromAddress(address);
-            selectedPosition = lat && lng ? { lat, lng } : null;
 
             const locationAccordion = document.getElementById('locationAccordion');
             const locationChevron = document.getElementById('locationChevron');
@@ -459,11 +458,11 @@
             } else {
                 if (lat && lng) {
                     if (!map) initMap(lat, lng, 15);
-                    map.setView([lat, lng], 15);
+                    map.panTo([lat, lng], { animate: true, duration: 1 });
                     setMarker(lat, lng, cleanAddress);
                 } else {
                     if (!map) initMap();
-                    map.setView([36.7538, 3.0588], 6);
+                    map.panTo([36.7538, 3.0588], { animate: true, duration: 1 });
                 }
             }
 
@@ -479,6 +478,10 @@
                 showToast('Veuillez vous connecter pour sauvegarder', true);
                 return;
             }
+            if (!selectedPosition) {
+                showToast('Veuillez sélectionner une position sur la carte avant d\'enregistrer', true);
+                return;
+            }
             currentEntityType = 'client';
             currentEntityId = id;
             const name = document.getElementById('entityName').value.trim();
@@ -489,9 +492,7 @@
                 return;
             }
 
-            if (selectedPosition) {
-                address = `${address}|${selectedPosition.lat},${selectedPosition.lng}`;
-            }
+            address = `${address}|${selectedPosition.lat},${selectedPosition.lng}`;
 
             const data = { adresse: address };
             if (name) {
@@ -530,6 +531,10 @@
                 showToast('Veuillez vous connecter pour sauvegarder', true);
                 return;
             }
+            if (!selectedPosition) {
+                showToast('Veuillez sélectionner une position sur la carte avant d\'enregistrer', true);
+                return;
+            }
             currentEntityType = 'supplier';
             currentEntityId = id;
             const name = document.getElementById('entityName').value.trim();
@@ -540,9 +545,7 @@
                 return;
             }
 
-            if (selectedPosition) {
-                address = `${address}|${selectedPosition.lat},${selectedPosition.lng}`;
-            }
+            address = `${address}|${selectedPosition.lat},${selectedPosition.lng}`;
 
             const data = { adresse: address };
             if (name) {
