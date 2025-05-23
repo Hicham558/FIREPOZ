@@ -322,7 +322,7 @@
                     headers: { 'X-User-ID': userId }
                 });
                 console.log('Statut fournisseurs:', supplierResponse.status, supplierResponse.statusText);
-                if (!supplierResponse.ok) throw new Error(`Erreur chargement fournisseurs: ${clientResponse.statusText}`);
+                if (!supplierResponse.ok) throw new Error(`Erreur chargement fournisseurs: ${supplierResponse.statusText}`);
                 suppliers = await supplierResponse.json();
                 console.log('Données fournisseurs:', suppliers);
                 updateSupplierList(suppliers);
@@ -356,6 +356,9 @@
                         <button onclick="confirmSaveClient('${client.numero_clt || ''}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
                             <i class="fas fa-save"></i>
                         </button>
+                        <button onclick="openGoogleMaps('${client.adresse || ''}')" class="action-button p-2 rounded-full text-purple-600 hover:bg-gray-200" title="Voir sur Google Maps">
+                            <i class="fas fa-globe"></i>
+                        </button>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${client.nom || 'N/A'}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${(client.solde || 0).toFixed(2)} DA</td>
@@ -385,6 +388,9 @@
                         <button onclick="confirmSaveSupplier('${supplier.numero_fou || ''}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
                             <i class="fas fa-save"></i>
                         </button>
+                        <button onclick="openGoogleMaps('${supplier.adresse || ''}')" class="action-button p-2 rounded-full text-purple-600 hover:bg-gray-200" title="Voir sur Google Maps">
+                            <i class="fas fa-globe"></i>
+                        </button>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${supplier.nom || 'N/A'}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${(supplier.solde || 0).toFixed(2)} DA</td>
@@ -406,6 +412,19 @@
                 }
             }
             return { lat: null, lng: null, cleanAddress };
+        }
+
+        // Ouvrir Google Maps
+        function openGoogleMaps(address) {
+            const { lat, lng } = decodePositionFromAddress(address);
+            if (!lat || !lng) {
+                showToast('Adresse non disponible pour Google Maps', true);
+                console.log(`openGoogleMaps: Adresse invalide ou sans coordonnées: ${address}`);
+                return;
+            }
+            const url = `https://www.google.com/maps?q=${lat},${lng}`;
+            window.open(url, '_blank');
+            console.log(`Google Maps ouvert: ${url}`);
         }
 
         // Repérer une entité
@@ -441,15 +460,14 @@
 
         // Confirmation avant sauvegarde client
         function confirmSaveClient(id) {
-            // Si aucun client n'est sélectionné, initialiser comme si "Repérer" était cliqué
             if (!currentEntityId) {
-                const client = clients.find(c => c.numero_clt === id);
-                if (client) {
-                    locateEntity('client', id, client.adresse || '', client.nom || '');
-                } else {
-                    showToast('Erreur : Client introuvable', true);
-                    return;
-                }
+                showToast('Veuillez d\'abord sélectionner un client avec le bouton bleu.', true);
+                return;
+            }
+            const client = clients.find(c => c.numero_clt === id);
+            if (!client) {
+                showToast('Veuillez d\'abord sélectionner un client avec le bouton bleu.', true);
+                return;
             }
             if (confirm('Voulez-vous vraiment sauvegarder les modifications pour ce client ?')) {
                 saveClient(id);
@@ -458,15 +476,14 @@
 
         // Confirmation avant sauvegarde fournisseur
         function confirmSaveSupplier(id) {
-            // Si aucun fournisseur n'est sélectionné, initialiser comme si "Repérer" était cliqué
             if (!currentEntityId) {
-                const supplier = suppliers.find(s => s.numero_fou === id);
-                if (supplier) {
-                    locateEntity('supplier', id, supplier.adresse || '', supplier.nom || '');
-                } else {
-                    showToast('Erreur : Fournisseur introuvable', true);
-                    return;
-                }
+                showToast('Veuillez d\'abord sélectionner un fournisseur avec le bouton bleu.', true);
+                return;
+            }
+            const supplier = suppliers.find(s => s.numero_fou === id);
+            if (!supplier) {
+                showToast('Veuillez d\'abord sélectionner un fournisseur avec le bouton bleu.', true);
+                return;
             }
             if (confirm('Voulez-vous vraiment sauvegarder les modifications pour ce fournisseur ?')) {
                 saveSupplier(id);
