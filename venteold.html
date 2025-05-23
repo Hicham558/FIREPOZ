@@ -179,7 +179,6 @@
         let clients = [], suppliers = [];
         let currentEntityId = null;
         let currentEntityType = null;
-        let currentEntityName = null;
         const geocodeCache = new Map(); // Cache pour les résultats de géocodage
         let lastGeocodeTime = 0; // Contrôle du débit des requêtes
 
@@ -333,7 +332,7 @@
                     iconAnchor: [15, 30]
                 })
             }).addTo(map);
-            marker.bindPopup(`Adresse: ${address}`);
+            marker.bindPopup(`Position: ${address || 'Lat: ' + lat.toFixed(4) + ', Lon: ' + lng.toFixed(4)}`);
             map.setView([lat, lng], 15);
             console.log(`Épingle placée à ${lat}, ${lng}`);
         }
@@ -449,7 +448,7 @@
                         <button onclick="selectEntity('client', '${client.nom}', '${client.numero_clt}', ${client.latitude || 'null'}, ${client.longitude || 'null'})" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Localiser">
                             <i class="fas fa-map-marker-alt"></i>
                         </button>
-                        <button onclick="saveEntity('${client.nom}', '${client.numero_clt}', ${client.latitude || 'null'}, ${client.longitude || 'null'})" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
+                        <button onclick="saveEntity('${client.numero_clt}', ${client.latitude || 'null'}, ${client.longitude || 'null'})" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
                             <i class="fas fa-save"></i>
                         </button>
                     </td>
@@ -480,7 +479,7 @@
                         <button onclick="selectEntity('supplier', '${supplier.nom}', '${supplier.numero_fou}', ${supplier.latitude || 'null'}, ${supplier.longitude || 'null'})" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Localiser">
                             <i class="fas fa-map-marker-alt"></i>
                         </button>
-                        <button onclick="saveEntity('${supplier.nom}', '${supplier.numero_fou}', ${supplier.latitude || 'null'}, ${supplier.longitude || 'null'})" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
+                        <button onclick="saveEntity('${supplier.numero_fou}', ${supplier.latitude || 'null'}, ${supplier.longitude || 'null'})" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
                             <i class="fas fa-save"></i>
                         </button>
                     </td>
@@ -620,7 +619,6 @@
             document.getElementById('addressSuggestions').classList.add('hidden');
             currentEntityId = id;
             currentEntityType = type;
-            currentEntityName = name;
 
             if (latitude && longitude) {
                 setMarker(latitude, longitude, name);
@@ -628,7 +626,7 @@
                 try {
                     const result = await geocodeAddress(name);
                     if (result) {
-                        setMarker(result.lat, result.lon, name);
+                        setMarker(result.lat, result.lon, result.display_name);
                     } else {
                         showToast('Nom non géolocalisable. Cliquez sur la carte pour définir la position.', true);
                     }
@@ -640,15 +638,15 @@
         };
 
         // Sauvegarder une entité
-        async function saveEntity(name, id, latitude, longitude) {
+        async function saveEntity(id, latitude, longitude) {
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour sauvegarder', true);
                 return;
             }
 
-            if (!id || !name) {
-                showToast('Erreur: Sélection d\'entité invalide', true);
+            if (!id) {
+                showToast('Erreur: Identifiant d\'entité manquant', true);
                 return;
             }
 
@@ -659,15 +657,12 @@
                 currentEntityType = 'client';
             } else if (suppliersAccordion.classList.contains('active')) {
                 currentEntityType = 'supplier';
-            } else if (!currentEntityType) {
+            } else {
                 showToast('Veuillez ouvrir la grille Clients ou Fournisseurs', true);
                 return;
             }
 
             currentEntityId = id;
-            currentEntityName = name;
-
-            const address = name; // Utiliser le nom comme adresse
 
             let finalLatitude = latitude || null;
             let finalLongitude = longitude || null;
@@ -676,17 +671,6 @@
                 const pos = marker.getLatLng();
                 finalLatitude = pos.lat;
                 finalLongitude = pos.lng;
-            } else if (!latitude || !longitude) {
-                try {
-                    const result = await geocodeAddress(address);
-                    if (result) {
-                        finalLatitude = result.lat;
-                        finalLongitude = result.lon;
-                    }
-                } catch (error) {
-                    console.error('Erreur géocodage lors de l\'enregistrement:', error);
-                    // Continuer avec latitude/longitude null
-                }
             }
 
             try {
@@ -698,7 +682,6 @@
                         'X-User-ID': userId
                     },
                     body: JSON.stringify({
-                        adresse: address,
                         latitude: finalLatitude,
                         longitude: finalLongitude
                     })
