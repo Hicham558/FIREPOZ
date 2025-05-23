@@ -13,13 +13,14 @@
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
         .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
         .animate-pulse { animation: pulse 2s infinite ease-in-out; }
-        #mapContainer { height: 400px; width: 100%; border: 2px solid #e5e7eb; border-radius: 8px; }
+        #mapContainer { height: 400px; width: 100%; border: 2px solid #e5e7eb; border-radius: 8px; z-index: 10; }
         .client-pin { color: #3b82f6; }
         .supplier-pin { color: #ef4444; }
         nav { box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }
         .table-container { max-height: 300px; overflow-y: auto; position: relative; }
-        .table-container table { width: 100%; }
-        .table-container thead { position: sticky; top: 0; background: #f9fafb; z-index: 1; }
+        .table-container table { width: 100%; border-collapse: collapse; }
+        .table-container thead { position: sticky; top: 0; background: #f9fafb; z-index: 20; }
+        .table-container th { background: #f9fafb; }
         .action-button { transition: background-color 0.3s ease; }
         .action-button:hover { background-color: #e5e7eb; }
         .tab { cursor: pointer; }
@@ -216,7 +217,10 @@
                 showToast('Erreur: Conteneur de carte manquant', true);
                 return;
             }
-            if (map) map.remove();
+            if (map) {
+                map.remove();
+                map = null;
+            }
             map = L.map('mapContainer', {
                 zoomControl: false,
                 attributionControl: false
@@ -234,13 +238,26 @@
                 setMarker(lat, lng, cleanAddress || 'Nouvelle adresse', document.getElementById('entityName').value.trim());
                 console.log(`Position sélectionnée: ${lat.toFixed(6)}, ${lng.toFixed(6)}, adresse mise à jour: ${newAddress}`);
             });
-            console.log('Carte initialisée à', lat, lng);
+            console.log('Carte initialisée à', lat, lng, 'zoom:', zoom);
+            // Forcer le re-rendu de la carte
+            setTimeout(() => {
+                if (map) map.invalidateSize();
+            }, 100);
         }
 
         // Placer une épingle
         function setMarker(lat, lng, address, name = '') {
             if (!map) {
-                console.error('Carte non initialisée');
+                console.error('Carte non initialisée, tentative de réinitialisation');
+                initMap(lat, lng, 15);
+                if (!map) {
+                    showToast('Erreur: Impossible d\'initialiser la carte', true);
+                    return;
+                }
+            }
+            if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
+                console.error(`Coordonnées invalides: lat=${lat}, lng=${lng}`);
+                showToast('Erreur: Coordonnées invalides', true);
                 return;
             }
             if (marker) marker.remove();
@@ -252,11 +269,10 @@
                     iconAnchor: [15, 30]
                 })
             }).addTo(map);
-            // Inclure le nom et l'adresse dans le popup
             const popupContent = `${name ? `<b>Nom: ${name}</b><br>` : ''}Adresse: ${address || 'Non définie'}`;
-            marker.bindPopup(popupContent);
+            marker.bindPopup(popupContent).openPopup();
             map.panTo([lat, lng], { animate: true, duration: 1 });
-            console.log(`Épingle placée à ${lat}, ${lng}, nom: ${name}, adresse: ${address}`);
+            console.log(`Épingle placée à lat=${lat}, lng=${lng}, nom=${name}, adresse=${address}`);
         }
 
         // Afficher les notifications
@@ -462,7 +478,6 @@
 
         // Confirmation avant sauvegarde client
         function confirmSaveClient(id) {
-            // Normaliser l'identifiant pour éviter les problèmes de correspondance
             const normalizedId = String(id).trim();
             currentEntityType = 'client';
             currentEntityId = normalizedId;
@@ -470,14 +485,14 @@
             const client = clients.find(c => String(c.numero_clt).trim() === normalizedId);
             if (client) {
                 console.log(`Client trouvé:`, client);
-                // Mettre à jour les champs du formulaire avec les données du client
                 document.getElementById('entityName').value = client.nom || '';
                 document.getElementById('entityAddress').value = client.adresse || '';
-                // Si une position existe dans l'adresse, la repérer sur la carte
                 const { lat, lng, cleanAddress } = decodePositionFromAddress(client.adresse || '');
                 if (lat && lng && map) {
                     map.panTo([lat, lng], { animate: true, duration: 1 });
                     setMarker(lat, lng, cleanAddress, client.nom || '');
+                } else {
+                    console.log('Aucune coordonnée valide pour ce client, carte non repositionnée');
                 }
             } else {
                 console.error(`Client introuvable pour numero_clt=${normalizedId}, clients disponibles:`, clients);
@@ -491,7 +506,6 @@
 
         // Confirmation avant sauvegarde fournisseur
         function confirmSaveSupplier(id) {
-            // Normaliser l'identifiant pour éviter les problèmes de correspondance
             const normalizedId = String(id).trim();
             currentEntityType = 'supplier';
             currentEntityId = normalizedId;
@@ -499,14 +513,14 @@
             const supplier = suppliers.find(s => String(s.numero_fou).trim() === normalizedId);
             if (supplier) {
                 console.log(`Fournisseur trouvé:`, supplier);
-                // Mettre à jour les champs du formulaire avec les données du fournisseur
                 document.getElementById('entityName').value = supplier.nom || '';
                 document.getElementById('entityAddress').value = supplier.adresse || '';
-                // Si une position existe dans l'adresse, la repérer sur la carte
                 const { lat, lng, cleanAddress } = decodePositionFromAddress(supplier.adresse || '');
                 if (lat && lng && map) {
                     map.panTo([lat, lng], { animate: true, duration: 1 });
                     setMarker(lat, lng, cleanAddress, supplier.nom || '');
+                } else {
+                    console.log('Aucune coordonnée valide pour ce fournisseur, carte non repositionnée');
                 }
             } else {
                 console.error(`Fournisseur introuvable pour numero_fou=${normalizedId}, fournisseurs disponibles:`, suppliers);
@@ -530,22 +544,17 @@
             const name = document.getElementById('entityName').value.trim();
             let address = document.getElementById('entityAddress').value.trim();
 
-            console.log(`saveClient: id=${id}, address=${address}, name=${name}`);
+            console.log(`saveClient: id=${id}, name=${name}, address=${address}`);
 
             if (!address) {
-                showToast('Veuillez sélectionner une position sur la carte', true);
-                return;
-            }
-
-            if (!selectedPosition && !address.includes('|')) {
-                showToast('Veuillez sélectionner une position sur la carte', true);
+                showToast('Veuillez spécifier une adresse', true);
                 return;
             }
 
             const data = { adresse: address, nom: name };
 
             try {
-                const url = `${API_BASE_URL}/modifier_client/${id}`;
+                const url = `${API_BASE_URL}/modifier_client/${encodeURIComponent(id)}`;
                 console.log(`Envoi PUT ${url}:`, data);
                 const response = await fetch(url, {
                     method: 'PUT',
@@ -556,13 +565,16 @@
                     body: JSON.stringify(data)
                 });
 
+                console.log('Réponse API:', response.status, response.statusText);
                 const result = await response.json();
+                console.log('Résultat API:', result);
+
                 if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
+                    throw new Error(result.erreur || `Erreur HTTP ${response.status}: ${response.statusText}`);
                 }
 
                 showToast('Client modifié avec succès');
-                await loadEntities(); // Rafraîchir les données
+                await loadEntities();
                 selectedPosition = null;
                 document.getElementById('entityAddress').value = '';
                 document.getElementById('entityName').value = '';
@@ -586,22 +598,17 @@
             const name = document.getElementById('entityName').value.trim();
             let address = document.getElementById('entityAddress').value.trim();
 
-            console.log(`saveSupplier: id=${id}, address=${address}, name=${name}`);
+            console.log(`saveSupplier: id=${id}, name=${name}, address=${address}`);
 
             if (!address) {
-                showToast('Veuillez sélectionner une position sur la carte', true);
-                return;
-            }
-
-            if (!selectedPosition && !address.includes('|')) {
-                showToast('Veuillez sélectionner une position sur la carte', true);
+                showToast('Veuillez spécifier une adresse', true);
                 return;
             }
 
             const data = { adresse: address, nom: name };
 
             try {
-                const url = `${API_BASE_URL}/modifier_fournisseur/${id}`;
+                const url = `${API_BASE_URL}/modifier_fournisseur/${encodeURIComponent(id)}`;
                 console.log(`Envoi PUT ${url}:`, data);
                 const response = await fetch(url, {
                     method: 'PUT',
@@ -612,13 +619,16 @@
                     body: JSON.stringify(data)
                 });
 
+                console.log('Réponse API:', response.status, response.statusText);
                 const result = await response.json();
+                console.log('Résultat API:', result);
+
                 if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
+                    throw new Error(result.erreur || `Erreur HTTP ${response.status}: ${response.statusText}`);
                 }
 
                 showToast('Fournisseur modifié avec succès');
-                await loadEntities(); // Rafraîchir les données
+                await loadEntities();
                 selectedPosition = null;
                 document.getElementById('entityAddress').value = '';
                 document.getElementById('entityName').value = '';
