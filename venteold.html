@@ -15,8 +15,6 @@
         .animate-pulse { animation: pulse 2s infinite ease-in-out; }
         #mapContainer { height: 400px; width: 100%; border: 2px solid #e5e7eb; border-radius: 8px; }
         .input-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #6b7280; }
-        .map-button { transition: transform 0.3s ease, background-color 0.3s ease; }
-        .map-button:hover { transform: scale(1.05); }
         .leaflet-popup-content-wrapper { font-size: 0.9rem; }
         .client-pin { color: #3b82f6; }
         .supplier-pin { color: #ef4444; }
@@ -26,6 +24,8 @@
         .table-container thead { position: sticky; top: 0; background: #f9fafb; z-index: 1; }
         .accordion-content { display: none; }
         .accordion-content.active { display: block; }
+        .action-button { transition: background-color 0.3s ease; }
+        .action-button:hover { background-color: #e5e7eb; }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -90,22 +90,10 @@
                 <div id="mapContainer" class="mb-4 sticky top-0 z-20"></div>
                 <!-- Formulaire (seulement Adresse) -->
                 <div class="relative mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Adresse*</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
                     <input type="text" id="entityAddress" class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Entrez une adresse">
                     <i class="fas fa-map-marker-alt input-icon"></i>
                     <div id="addressSuggestions" class="absolute w-full bg-white border rounded-md shadow-lg max-h-40 overflow-y-auto hidden"></div>
-                </div>
-                <!-- Boutons d'action (sticky sous la carte) -->
-                <div class="flex justify-end space-x-3 sticky top-[400px] z-20 bg-white py-2">
-                    <button onclick="clearForm()" class="bg-gray-500 text-white px-3 py-1 rounded-md hover:bg-gray-600 map-button">
-                        <i class="fas fa-eraser mr-2"></i>Effacer
-                    </button>
-                    <button onclick="locateEntity()" class="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 map-button">
-                        <i class="fas fa-map-pin mr-2"></i>Repérer
-                    </button>
-                    <button onclick="saveEntity()" class="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 map-button">
-                        <i class="fas fa-save mr-2"></i>Enregistrer
-                    </button>
                 </div>
             </div>
         </div>
@@ -375,7 +363,7 @@
                 return null;
             } catch (error) {
                 console.error('Erreur géocodage:', error);
-                throw error;
+                return null; // Retourner null pour permettre l'enregistrement
             }
         }
 
@@ -404,7 +392,7 @@
                 return null;
             } catch (error) {
                 console.error('Erreur géocodage inversé:', error);
-                throw error;
+                return null;
             }
         }
 
@@ -457,9 +445,12 @@
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-gray-50';
                 tr.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <button onclick="selectEntity('client', '${client.nom}', '${client.numero_clt}', ${client.latitude || 'null'}, ${client.longitude || 'null'})" class="text-blue-600 hover:text-blue-800 transition">
-                            <i class="fas fa-edit"></i> Sélectionner
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 flex space-x-2">
+                        <button onclick="selectEntity('client', '${client.nom}', '${client.numero_clt}', ${client.latitude || 'null'}, ${client.longitude || 'null'})" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Localiser">
+                            <i class="fas fa-map-marker-alt"></i>
+                        </button>
+                        <button onclick="saveEntity('client', '${client.nom}', '${client.numero_clt}', ${client.latitude || 'null'}, ${client.longitude || 'null'})" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
+                            <i class="fas fa-save"></i>
                         </button>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${client.nom || 'N/A'}</td>
@@ -485,9 +476,12 @@
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-gray-50';
                 tr.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <button onclick="selectEntity('supplier', '${supplier.nom}', '${supplier.numero_fou}', ${supplier.latitude || 'null'}, ${supplier.longitude || 'null'})" class="text-blue-600 hover:text-blue-800 transition">
-                            <i class="fas fa-edit"></i> Sélectionner
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 flex space-x-2">
+                        <button onclick="selectEntity('supplier', '${supplier.nom}', '${supplier.numero_fou}', ${supplier.latitude || 'null'}, ${supplier.longitude || 'null'})" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Localiser">
+                            <i class="fas fa-map-marker-alt"></i>
+                        </button>
+                        <button onclick="saveEntity('supplier', '${supplier.nom}', '${supplier.numero_fou}', ${supplier.latitude || 'null'}, ${supplier.longitude || 'null'})" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
+                            <i class="fas fa-save"></i>
                         </button>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${supplier.nom || 'N/A'}</td>
@@ -498,13 +492,12 @@
             });
         }
 
-        // Mettre à jour la carte (pas d'épingles par défaut)
+        // Mettre à jour la carte
         function updateMap() {
             if (!map) {
                 console.error('Carte non initialisée');
                 return;
             }
-            // Ne pas ajouter d'épingles pour clients/fournisseurs
             map.eachLayer(layer => {
                 if (layer instanceof L.Marker && layer !== marker) {
                     map.removeLayer(layer);
@@ -614,7 +607,6 @@
 
         // Sélectionner une entité
         window.selectEntity = async (type, name, id, latitude, longitude) => {
-            // Ouvre automatiquement la fiche de localisation
             const locationAccordion = document.getElementById('locationAccordion');
             const locationChevron = document.getElementById('locationChevron');
             if (!locationAccordion.classList.contains('active')) {
@@ -624,7 +616,6 @@
                 if (!map) initMap();
             }
 
-            // Remplir le champ Adresse avec le nom de l'entité
             document.getElementById('entityAddress').value = name;
             document.getElementById('addressSuggestions').classList.add('hidden');
             currentEntityId = id;
@@ -648,83 +639,47 @@
             }
         };
 
-        // Effacer le formulaire
-        function clearForm() {
-            document.getElementById('entityAddress').value = '';
-            document.getElementById('addressSuggestions').classList.add('hidden');
-            if (marker) marker.remove();
-            currentEntityId = null;
-            currentEntityType = null;
-            currentEntityName = null;
-            console.log('Formulaire effacé');
-        }
-
-        // Localiser une entité
-        async function locateEntity() {
-            const address = document.getElementById('entityAddress').value.trim();
-            if (address) {
-                try {
-                    const result = await geocodeAddress(address);
-                    if (result) {
-                        setMarker(result.lat, result.lon, address);
-                    } else {
-                        showToast('Adresse non géolocalisable. Cliquez sur la carte pour définir la position.', true);
-                    }
-                } catch (error) {
-                    showToast('Erreur de géocodage. Entrez une autre adresse ou cliquez sur la carte.', true);
-                    console.error('Erreur géocodage:', error);
-                }
-            } else {
-                showToast('Veuillez entrer une adresse.', true);
-            }
-        }
-
         // Sauvegarder une entité
-        async function saveEntity() {
+        async function saveEntity(type, name, id, latitude, longitude) {
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour sauvegarder', true);
                 return;
             }
 
-            if (!currentEntityId || !currentEntityType || !currentEntityName) {
-                showToast('Veuillez sélectionner une entité à modifier', true);
+            if (!id || !type || !name) {
+                showToast('Erreur: Sélection d\'entité invalide', true);
                 return;
             }
 
-            // Utiliser le champ Adresse ou le nom de l'entité
-            let address = document.getElementById('entityAddress').value.trim();
-            if (!address) {
-                address = currentEntityName;
-                document.getElementById('entityAddress').value = address;
-            }
+            currentEntityId = id;
+            currentEntityType = type;
+            currentEntityName = name;
 
-            // Obtenir latitude et longitude
-            let latitude, longitude;
+            const address = name; // Utiliser le nom comme adresse
+
+            let finalLatitude = latitude || null;
+            let finalLongitude = longitude || null;
+
             if (marker) {
                 const pos = marker.getLatLng();
-                latitude = pos.lat;
-                longitude = pos.lng;
-            } else {
+                finalLatitude = pos.lat;
+                finalLongitude = pos.lng;
+            } else if (!latitude || !longitude) {
                 try {
                     const result = await geocodeAddress(address);
                     if (result) {
-                        latitude = result.lat;
-                        longitude = result.lon;
-                        setMarker(latitude, longitude, address);
-                    } else {
-                        showToast('Adresse non géolocalisable. Cliquez sur la carte pour définir la position.', true);
-                        return;
+                        finalLatitude = result.lat;
+                        finalLongitude = result.lon;
                     }
                 } catch (error) {
-                    showToast('Erreur de géocodage. Cliquez sur la carte pour définir la position.', true);
-                    console.error('Erreur géocodage:', error);
-                    return;
+                    console.error('Erreur géocodage lors de l\'enregistrement:', error);
+                    // Continuer avec latitude/longitude null
                 }
             }
 
             try {
-                const url = `${API_BASE_URL}/${currentEntityType === 'client' ? 'modifier_client' : 'modifier_fournisseur'}/${currentEntityId}`;
+                const url = `${API_BASE_URL}/${type === 'client' ? 'modifier_client' : 'modifier_fournisseur'}/${id}`;
                 const response = await fetch(url, {
                     method: 'PUT',
                     headers: {
@@ -733,8 +688,8 @@
                     },
                     body: JSON.stringify({
                         adresse: address,
-                        latitude: latitude,
-                        longitude: longitude
+                        latitude: finalLatitude,
+                        longitude: finalLongitude
                     })
                 });
 
@@ -743,8 +698,7 @@
                     throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
                 }
 
-                showToast(`${currentEntityType === 'client' ? 'Client' : 'Fournisseur'} modifié avec succès`);
-                clearForm();
+                showToast(`${type === 'client' ? 'Client' : 'Fournisseur'} modifié avec succès`);
                 loadEntities();
             } catch (error) {
                 showToast('Erreur lors de la sauvegarde: ' + error.message, true);
