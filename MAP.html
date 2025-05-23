@@ -231,14 +231,14 @@
                 const { cleanAddress } = decodePositionFromAddress(address);
                 const newAddress = `${cleanAddress || 'Nouvelle adresse'}|${lat.toFixed(6)},${lng.toFixed(6)}`;
                 document.getElementById('entityAddress').value = newAddress;
-                setMarker(lat, lng, cleanAddress || 'Nouvelle adresse');
+                setMarker(lat, lng, cleanAddress || 'Nouvelle adresse', document.getElementById('entityName').value.trim());
                 console.log(`Position sélectionnée: ${lat.toFixed(6)}, ${lng.toFixed(6)}, adresse mise à jour: ${newAddress}`);
             });
             console.log('Carte initialisée à', lat, lng);
         }
 
         // Placer une épingle
-        function setMarker(lat, lng, address) {
+        function setMarker(lat, lng, address, name = '') {
             if (!map) {
                 console.error('Carte non initialisée');
                 return;
@@ -252,9 +252,11 @@
                     iconAnchor: [15, 30]
                 })
             }).addTo(map);
-            marker.bindPopup(`Adresse: ${address || 'Non définie'}`);
+            // Inclure le nom et l'adresse dans le popup
+            const popupContent = `${name ? `<b>Nom: ${name}</b><br>` : ''}Adresse: ${address || 'Non définie'}`;
+            marker.bindPopup(popupContent);
             map.panTo([lat, lng], { animate: true, duration: 1 });
-            console.log(`Épingle placée à ${lat}, ${lng}`);
+            console.log(`Épingle placée à ${lat}, ${lng}, nom: ${name}, adresse: ${address}`);
         }
 
         // Afficher les notifications
@@ -394,231 +396,50 @@
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${supplier.nom || 'N/A'}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${(supplier.solde || 0).toFixed(2)} DA</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${supplier.adresse || 'N/A'}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 Parfois, les identifiants dans les données (`numero_clt` ou `numero_fou`) peuvent être des nombres ou des chaînes avec des espaces, tandis que l'identifiant passé via `onclick` est toujours une chaîne. Pour éviter les problèmes de correspondance, nous convertissons les deux côtés en chaînes et supprimons les espaces avec `trim()` dans les fonctions `confirmSaveClient` et `confirmSaveSupplier`.
 
-        // Décoder la position depuis l'adresse
-        function decodePositionFromAddress(address) {
-            if (!address) return { lat: null, lng: null, cleanAddress: '' };
-            const parts = address.split('|');
-            const cleanAddress = parts[0] || '';
-            if (parts.length > 1 && parts[1]) {
-                const [lat, lng] = parts[1].split(',').map(parseFloat);
-                if (!isNaN(lat) && !isNaN(lng)) {
-                    return { lat, lng, cleanAddress };
-                }
-            }
-            return { lat: null, lng: null, cleanAddress };
-        }
+2. **Ajout du nom dans le popup de la carte** :
+   - La fonction `setMarker` a été modifiée pour accepter un paramètre `name` (avec une valeur par défaut vide pour éviter de casser les appels existants). Le contenu du popup inclut maintenant le nom de l'entité (en gras) suivi de l'adresse, si le nom est fourni. Cela s'applique à la fois lorsque l'utilisateur clique sur la carte (via `initMap`) et lorsque l'entité est repérée ou sauvegardée.
 
-        // Ouvrir Google Maps
-        function openGoogleMaps(address) {
-            const { lat, lng } = decodePositionFromAddress(address);
-            if (!lat || !lng) {
-                showToast('Adresse non disponible pour Google Maps', true);
-                console.log(`openGoogleMaps: Adresse invalide ou sans coordonnées: ${address}`);
-                return;
-            }
-            const url = `https://www.google.com/maps?q=${lat},${lng}`;
-            window.open(url, '_blank');
-            console.log(`Google Maps ouvert: ${url}`);
-        }
+### Instructions pour tester
 
-        // Repérer une entité
-        function locateEntity(type, id, address, name) {
-            currentEntityType = type;
-            currentEntityId = id;
-            const { lat, lng, cleanAddress } = decodePositionFromAddress(address);
+1. **Enregistrez le code** :
+   - Copiez le code HTML ci-dessus dans votre fichier `map.html`.
+   - Assurez-vous que l'API à l'adresse `https://web-production-3b9e.up.railway.app` est accessible et que les endpoints (`/liste_clients`, `/liste_fournisseurs`, `/modifier_client/:id`, `/modifier_fournisseur/:id`) renvoient des données valides.
 
-            console.log(`locateEntity: type=${type}, id=${id}, address=${address}, lat=${lat}, lng=${lng}, cleanAddress=${cleanAddress}`);
+2. **Testez le problème "Client introuvable"** :
+   - Connectez-vous à l'application.
+   - Chargez la liste des clients et fournisseurs.
+   - Cliquez sur "Enregistrer" (icône verte) pour un client (par exemple, Hicham) sans cliquer sur "Repérer" au préalable.
+   - Vérifiez que le message "Client introuvable" n'apparaît pas et que les données (nom et adresse) sont correctement chargées dans les champs `entityName` et `entityAddress`.
+   - Répétez pour un fournisseur.
 
-            if (!map) {
-                if (lat && lng) {
-                    initMap(lat, lng, 15);
-                    setMarker(lat, lng, cleanAddress);
-                } else {
-                    initMap();
-                }
-            } else {
-                if (lat && lng) {
-                    console.log(`Navigating to position: ${lat}, ${lng}`);
-                    map.panTo([lat, lng], { animate: true, duration: 1 });
-                    setMarker(lat, lng, cleanAddress);
-                } else {
-                    console.log('No position found, resetting to default');
-                    map.panTo([36.7538, 3.0588], { animate: true, duration: 1 });
-                }
-            }
+3. **Testez l'affichage du nom sur la carte** :
+   - Cliquez sur "Repérer" (icône bleue) pour un client ou un fournisseur (par exemple, Omar).
+   - Vérifiez que le popup du marqueur sur la carte affiche le nom (par exemple, "Nom: Omar" suivi de l'adresse).
+   - Cliquez sur "Enregistrer" pour une autre entité (par exemple, Hicham) et vérifiez que le popup affiche le bon nom et la bonne adresse.
+   - Cliquez sur la carte pour sélectionner une nouvelle position et vérifiez que le popup affiche le nom actuel (s'il est défini) et l'adresse mise à jour.
 
-            document.getElementById('entityName').value = name || '';
-            document.getElementById('entityAddress').value = address || '';
-            console.log(`Repéré: ${type} ${id}, adresse: ${address || 'N/A'}, position: ${lat || 'N/A'}, ${lng || 'N/A'}, nom: ${name || 'N/A'}`);
-        }
+4. **Testez la sauvegarde** :
+   - Cliquez sur "Repérer" pour un client (par exemple, Omar).
+   - Sans cliquer sur "Repérer" pour un autre client, cliquez sur "Enregistrer" pour un autre client (par exemple, Hicham).
+   - Vérifiez que les données sauvegardées via l'API correspondent à Hicham (et non à Omar).
+   - Répétez pour les fournisseurs.
 
-        // Confirmation avant sauvegarde client
-        function confirmSaveClient(id) {
-            // Définir l'entité actuelle même si "Repérer" n'a pas été cliqué
-            currentEntityType = 'client';
-            currentEntityId = id;
-            const client = clients.find(c => c.numero_clt === id);
-            if (client) {
-                // Mettre à jour les champs du formulaire avec les données du client
-                document.getElementById('entityName').value = client.nom || '';
-                document.getElementById('entityAddress').value = client.adresse || '';
-                // Si une position existe dans l'adresse, la repérer sur la carte
-                const { lat, lng, cleanAddress } = decodePositionFromAddress(client.adresse || '');
-                if (lat && lng && map) {
-                    map.panTo([lat, lng], { animate: true, duration: 1 });
-                    setMarker(lat, lng, cleanAddress);
-                }
-            } else {
-                showToast('Erreur : Client introuvable', true);
-                return;
-            }
-            if (confirm('Voulez-vous vraiment sauvegarder les modifications pour ce client ?')) {
-                saveClient(id);
-            }
-        }
+5. **Vérifiez les logs de la console** :
+   - Ouvrez la console du navigateur (F12 → Console) pour voir les messages de débogage (par exemple, `console.log` dans `confirmSaveClient` ou `setMarker`).
+   - Si une erreur persiste, vérifiez si les identifiants (`numero_clt` ou `numero_fou`) dans les données de l'API correspondent à ceux passés dans les boutons.
 
-        // Confirmation avant sauvegarde fournisseur
-        function confirmSaveSupplier(id) {
-            // Définir l'entité actuelle même si "Repérer" n'a pas été cliqué
-            currentEntityType = 'supplier';
-            currentEntityId = id;
-            const supplier = suppliers.find(s => s.numero_fou === id);
-            if (supplier) {
-                // Mettre à jour les champs du formulaire avec les données du fournisseur
-                document.getElementById('entityName').value = supplier.nom || '';
-                document.getElementById('entityAddress').value = supplier.adresse || '';
-                // Si une position existe dans l'adresse, la repérer sur la carte
-                const { lat, lng, cleanAddress } = decodePositionFromAddress(supplier.adresse || '');
-                if (lat && lng && map) {
-                    map.panTo([lat, lng], { animate: true, duration: 1 });
-                    setMarker(lat, lng, cleanAddress);
-                }
-            } else {
-                showToast('Erreur : Fournisseur introuvable', true);
-                return;
-            }
-            if (confirm('Voulez-vous vraiment sauvegarder les modifications pour ce fournisseur ?')) {
-                saveSupplier(id);
-            }
-        }
+### Remarques importantes
 
-        // Enregistrer un client
-        async function saveClient(id) {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour sauvegarder', true);
-                return;
-            }
-            currentEntityType = 'client';
-            currentEntityId = id;
-            const name = document.getElementById('entityName').value.trim();
-            let address = document.getElementById('entityAddress').value.trim();
+- **Problèmes potentiels avec l'API** :
+  - Si le problème "Client introuvable" persiste, il est possible que les données renvoyées par l'API aient des identifiants mal formatés (par exemple, `numero_clt` ou `numero_fou` manquants, null, ou avec des caractères spéciaux). Ajoutez un `console.log(clients)` ou `console.log(suppliers)` dans `loadEntities` pour inspecter les données.
+  - Assurez-vous que l'API renvoie des identifiants uniques et cohérents.
 
-            console.log(`saveClient: id=${id}, address=${address}, name=${name}`);
+- **Affichage du nom sur la carte** :
+  - Le nom est maintenant inclus dans le popup du marqueur, mais uniquement si un nom est défini (par exemple, via `entityName.value` ou les données de l'entité). Si aucun nom n'est défini, seul l'adresse est affichée pour éviter un popup vide ou mal formaté.
 
-            if (!address) {
-                showToast('Veuillez sélectionner une position sur la carte', true);
-                return;
-            }
+- **Code inchangé** :
+  - À part les modifications dans `setMarker`, `confirmSaveClient`, et `confirmSaveSupplier`, tout le reste du code (HTML, CSS, et autres fonctions JavaScript) est identique à votre version précédente.
 
-            if (!selectedPosition && !address.includes('|')) {
-                showToast('Veuillez sélectionner une position sur la carte', true);
-                return;
-            }
-
-            const data = { adresse: address, nom: name };
-
-            try {
-                const url = `${API_BASE_URL}/modifier_client/${id}`;
-                console.log(`Envoi PUT ${url}:`, data);
-                const response = await fetch(url, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify(data)
-                });
-
-                const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
-                }
-
-                showToast('Client modifié avec succès');
-                await loadEntities(); // Rafraîchir les données
-                selectedPosition = null;
-                document.getElementById('entityAddress').value = '';
-                document.getElementById('entityName').value = '';
-                currentEntityId = null;
-                console.log('Client sauvegardé avec succès');
-            } catch (error) {
-                showToast('Erreur lors de la sauvegarde: ' + error.message, true);
-                console.error('Erreur sauvegarde client:', error);
-            }
-        }
-
-        // Enregistrer un fournisseur
-        async function saveSupplier(id) {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour sauvegarder', true);
-                return;
-            }
-            currentEntityType = 'supplier';
-            currentEntityId = id;
-            const name = document.getElementById('entityName').value.trim();
-            let address = document.getElementById('entityAddress').value.trim();
-
-            console.log(`saveSupplier: id=${id}, address=${address}, name=${name}`);
-
-            if (!address) {
-                showToast('Veuillez sélectionner une position sur la carte', true);
-                return;
-            }
-
-            if (!selectedPosition && !address.includes('|')) {
-                showToast('Veuillez sélectionner une position sur la carte', true);
-                return;
-            }
-
-            const data = { adresse: address, nom: name };
-
-            try {
-                const url = `${API_BASE_URL}/modifier_fournisseur/${id}`;
-                console.log(`Envoi PUT ${url}:`, data);
-                const response = await fetch(url, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify(data)
-                });
-
-                const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
-                }
-
-                showToast('Fournisseur modifié avec succès');
-                await loadEntities(); // Rafraîchir les données
-                selectedPosition = null;
-                document.getElementById('entityAddress').value = '';
-                document.getElementById('entityName').value = '';
-                currentEntityId = null;
-                console.log('Fournisseur sauvegardé avec succès');
-            } catch (error) {
-                showToast('Erreur lors de la sauvegarde: ' + error.message, true);
-                console.error('Erreur sauvegarde fournisseur:', error);
-            }
-        }
-    </script>
-</body>
-</html>
+Si vous rencontrez des problèmes lors des tests (par exemple, des erreurs d'API, des popups mal affichés, ou des comportements inattendus), partagez les détails (comme les messages d'erreur dans la console ou les données renvoyées par l'API), et je pourrai vous aider à déboguer davantage ! 😄
