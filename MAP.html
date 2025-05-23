@@ -24,6 +24,8 @@
         .action-button:hover { background-color: #e5e7eb; }
         .tab { cursor: pointer; }
         .tab.active { border-bottom: 2px solid #3b82f6; color: #3b82f6; }
+        /* Style pour le tooltip du nom sur la carte */
+        .leaflet-tooltip { font-size: 12px; font-weight: bold; background-color: rgba(255, 255, 255, 0.9); border: 1px solid #ccc; border-radius: 4px; padding: 4px 8px; }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -252,7 +254,16 @@
                     iconAnchor: [15, 30]
                 })
             }).addTo(map);
-            // Modification : Afficher le nom et l'adresse dans la popup
+            // Afficher le nom en tant que tooltip permanent
+            if (name) {
+                marker.bindTooltip(name, {
+                    permanent: true,
+                    direction: 'right',
+                    offset: [10, 0],
+                    className: 'leaflet-tooltip'
+                });
+            }
+            // Popup avec nom et adresse
             const popupContent = `
                 <b>${name || 'Non défini'}</b><br>
                 Adresse: ${address || 'Non définie'}
@@ -358,7 +369,7 @@
                         <button onclick="locateEntity('client', '${client.numero_clt || ''}', '${client.adresse || ''}', '${client.nom || ''}')" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Repérer">
                             <i class="fas fa-map-marker-alt"></i>
                         </button>
-                        <button onclick="confirmSaveClient('${client.numero_clt || ''}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
+                        <button onclick="confirmSaveClient('${client.numero_clt || ''}', '${client.nom || ''}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
                             <i class="fas fa-save"></i>
                         </button>
                         <button onclick="openGoogleMaps('${client.adresse || ''}')" class="action-button p-2 rounded-full text-purple-600 hover:bg-gray-200" title="Voir sur Google Maps">
@@ -390,7 +401,7 @@
                         <button onclick="locateEntity('supplier', '${supplier.numero_fou || ''}', '${supplier.adresse || ''}', '${supplier.nom || ''}')" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Repérer">
                             <i class="fas fa-map-marker-alt"></i>
                         </button>
-                        <button onclick="confirmSaveSupplier('${supplier.numero_fou || ''}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
+                        <button onclick="confirmSaveSupplier('${supplier.numero_fou || ''}', '${supplier.nom || ''}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
                             <i class="fas fa-save"></i>
                         </button>
                         <button onclick="openGoogleMaps('${supplier.adresse || ''}')" class="action-button p-2 rounded-full text-purple-600 hover:bg-gray-200" title="Voir sur Google Maps">
@@ -464,23 +475,33 @@
         }
 
         // Confirmation avant sauvegarde client
-        function confirmSaveClient(id) {
+        function confirmSaveClient(id, name) {
             const client = clients.find(c => c.numero_clt === id);
-            if (!currentEntityId && client) {
+            if (!client) {
+                showToast('Erreur : Client introuvable', true);
+                return;
+            }
+            // Mettre à jour currentEntityId et currentEntityType uniquement si nécessaire
+            if (!currentEntityId || currentEntityId !== id) {
                 locateEntity('client', id, client.adresse || '', client.nom || '');
             }
-            if (confirm('Voulez-vous vraiment sauvegarder les modifications pour ce client ?')) {
+            if (confirm(`Voulez-vous vraiment sauvegarder les modifications pour le client ${name || 'N/A'} ?`)) {
                 saveClient(id);
             }
         }
 
         // Confirmation avant sauvegarde fournisseur
-        function confirmSaveSupplier(id) {
+        function confirmSaveSupplier(id, name) {
             const supplier = suppliers.find(s => s.numero_fou === id);
-            if (!currentEntityId && supplier) {
+            if (!supplier) {
+                showToast('Erreur : Fournisseur introuvable', true);
+                return;
+            }
+            // Mettre à jour currentEntityId et currentEntityType uniquement si nécessaire
+            if (!currentEntityId || currentEntityId !== id) {
                 locateEntity('supplier', id, supplier.adresse || '', supplier.nom || '');
             }
-            if (confirm('Voulez-vous vraiment sauvegarder les modifications pour ce fournisseur ?')) {
+            if (confirm(`Voulez-vous vraiment sauvegarder les modifications pour le fournisseur ${name || 'N/A'} ?`)) {
                 saveSupplier(id);
             }
         }
@@ -492,8 +513,12 @@
                 showToast('Veuillez vous connecter pour sauvegarder', true);
                 return;
             }
+            // Vérifier que l'ID correspond à l'entité en cours
+            if (currentEntityId !== id) {
+                showToast('Erreur : Veuillez d\'abord repérer le client correct', true);
+                return;
+            }
             currentEntityType = 'client';
-            currentEntityId = id;
             const name = document.getElementById('entityName').value.trim();
             let address = document.getElementById('entityAddress').value.trim();
 
@@ -528,13 +553,13 @@
                     throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
                 }
 
-                // Modification : Inclure le nom dans le message de confirmation
                 showToast(`Client ${name || 'N/A'} modifié avec succès`);
                 await loadEntities(); // Rafraîchir les données
                 selectedPosition = null;
                 document.getElementById('entityAddress').value = '';
                 document.getElementById('entityName').value = '';
                 currentEntityId = null;
+                currentEntityType = null;
                 console.log('Client sauvegardé avec succès');
             } catch (error) {
                 showToast('Erreur lors de la sauvegarde: ' + error.message, true);
@@ -549,8 +574,12 @@
                 showToast('Veuillez vous connecter pour sauvegarder', true);
                 return;
             }
+            // Vérifier que l'ID correspond à l'entité en cours
+            if (currentEntityId !== id) {
+                showToast('Erreur : Veuillez d\'abord repérer le fournisseur correct', true);
+                return;
+            }
             currentEntityType = 'supplier';
-            currentEntityId = id;
             const name = document.getElementById('entityName').value.trim();
             let address = document.getElementById('entityAddress').value.trim();
 
@@ -585,13 +614,13 @@
                     throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
                 }
 
-                // Modification : Inclure le nom dans le message de confirmation
                 showToast(`Fournisseur ${name || 'N/A'} modifié avec succès`);
                 await loadEntities(); // Rafraîchir les données
                 selectedPosition = null;
                 document.getElementById('entityAddress').value = '';
                 document.getElementById('entityName').value = '';
                 currentEntityId = null;
+                currentEntityType = null;
                 console.log('Fournisseur sauvegardé avec succès');
             } catch (error) {
                 showToast('Erreur lors de la sauvegarde: ' + error.message, true);
