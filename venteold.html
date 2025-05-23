@@ -363,7 +363,7 @@
                 return null;
             } catch (error) {
                 console.error('Erreur géocodage:', error);
-                return null; // Retourner null pour permettre l'enregistrement
+                return null;
             }
         }
 
@@ -449,7 +449,7 @@
                         <button onclick="selectEntity('client', '${client.nom}', '${client.numero_clt}', ${client.latitude || 'null'}, ${client.longitude || 'null'})" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Localiser">
                             <i class="fas fa-map-marker-alt"></i>
                         </button>
-                        <button onclick="saveEntity('client', '${client.nom}', '${client.numero_clt}', ${client.latitude || 'null'}, ${client.longitude || 'null'})" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
+                        <button onclick="saveEntity('${client.nom}', '${client.numero_clt}', ${client.latitude || 'null'}, ${client.longitude || 'null'})" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
                             <i class="fas fa-save"></i>
                         </button>
                     </td>
@@ -480,7 +480,7 @@
                         <button onclick="selectEntity('supplier', '${supplier.nom}', '${supplier.numero_fou}', ${supplier.latitude || 'null'}, ${supplier.longitude || 'null'})" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Localiser">
                             <i class="fas fa-map-marker-alt"></i>
                         </button>
-                        <button onclick="saveEntity('supplier', '${supplier.nom}', '${supplier.numero_fou}', ${supplier.latitude || 'null'}, ${supplier.longitude || 'null'})" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
+                        <button onclick="saveEntity('${supplier.nom}', '${supplier.numero_fou}', ${supplier.latitude || 'null'}, ${supplier.longitude || 'null'})" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
                             <i class="fas fa-save"></i>
                         </button>
                     </td>
@@ -640,20 +640,31 @@
         };
 
         // Sauvegarder une entité
-        async function saveEntity(type, name, id, latitude, longitude) {
+        async function saveEntity(name, id, latitude, longitude) {
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour sauvegarder', true);
                 return;
             }
 
-            if (!id || !type || !name) {
+            if (!id || !name) {
                 showToast('Erreur: Sélection d\'entité invalide', true);
                 return;
             }
 
+            // Déterminer le type en fonction de la grille active
+            const clientsAccordion = document.getElementById('clientsAccordion');
+            const suppliersAccordion = document.getElementById('suppliersAccordion');
+            if (clientsAccordion.classList.contains('active')) {
+                currentEntityType = 'client';
+            } else if (suppliersAccordion.classList.contains('active')) {
+                currentEntityType = 'supplier';
+            } else if (!currentEntityType) {
+                showToast('Veuillez ouvrir la grille Clients ou Fournisseurs', true);
+                return;
+            }
+
             currentEntityId = id;
-            currentEntityType = type;
             currentEntityName = name;
 
             const address = name; // Utiliser le nom comme adresse
@@ -679,7 +690,7 @@
             }
 
             try {
-                const url = `${API_BASE_URL}/${type === 'client' ? 'modifier_client' : 'modifier_fournisseur'}/${id}`;
+                const url = `${API_BASE_URL}/${currentEntityType === 'client' ? 'modifier_client' : 'modifier_fournisseur'}/${id}`;
                 const response = await fetch(url, {
                     method: 'PUT',
                     headers: {
@@ -698,7 +709,7 @@
                     throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
                 }
 
-                showToast(`${type === 'client' ? 'Client' : 'Fournisseur'} modifié avec succès`);
+                showToast(`${currentEntityType === 'client' ? 'Client' : 'Fournisseur'} modifié avec succès`);
                 loadEntities();
             } catch (error) {
                 showToast('Erreur lors de la sauvegarde: ' + error.message, true);
