@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Localisation Clients & Fournisseurs - FirePoz</title>
+    <title>FirePoz</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
@@ -14,18 +14,16 @@
         .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
         .animate-pulse { animation: pulse 2s infinite ease-in-out; }
         #mapContainer { height: 400px; width: 100%; border: 2px solid #e5e7eb; border-radius: 8px; }
-        .input-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #6b7280; }
-        .leaflet-popup-content-wrapper { font-size: 0.9rem; }
         .client-pin { color: #3b82f6; }
         .supplier-pin { color: #ef4444; }
         nav { box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }
-        .table-container { max-height: 200px; overflow-y: auto; position: relative; }
+        .table-container { max-height: 300px; overflow-y: auto; position: relative; }
         .table-container table { width: 100%; }
         .table-container thead { position: sticky; top: 0; background: #f9fafb; z-index: 1; }
-        .accordion-content { display: none; }
-        .accordion-content.active { display: block; }
         .action-button { transition: background-color 0.3s ease; }
         .action-button:hover { background-color: #e5e7eb; }
+        .tab { cursor: pointer; }
+        .tab.active { border-bottom: 2px solid #3b82f6; color: #3b82f6; }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -56,7 +54,7 @@
             <p class="text-sm text-red-500 mb-4">⚠️ Le mot de passe ne doit pas être celui de votre email.</p>
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Adresse Email*</label>
-                <input type="email" id="userEmail" name="username" autocomplete="username" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre email" required>
+                <input type="text" id="userEmail" name="username" autocomplete="username" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre email" required>
             </div>
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe*</label>
@@ -72,100 +70,66 @@
 
     <!-- Contenu principal -->
     <div class="container mx-auto px-4 py-12 mt-12">
-        <header class="mb-8 animate-fade-in">
-            <h1 class="text-2xl font-bold text-indigo-700 flex items-center">
-                <i class="fas fa-map-marked-alt mr-2 text-indigo-500"></i> Localisation Clients & Fournisseurs
-            </h1>
-            <p class="text-gray-600 text-sm">Localisez et gérez les adresses de vos clients et fournisseurs.</p>
-        </header>
+        <!-- Carte -->
+        <div id="mapContainer" class="mb-4 animate-fade-in"></div>
 
-        <!-- Fiche de Localisation -->
-        <div class="bg-white rounded-lg shadow-md p-6 mb-6 animate-fade-in">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center cursor-pointer" onclick="toggleAccordion('locationAccordion')">
-                <i class="fas fa-map-marker-alt mr-2 text-indigo-500"></i> Fiche de Localisation
-                <i class="fas fa-chevron-down ml-auto transition-transform" id="locationChevron"></i>
-            </h2>
-            <div id="locationAccordion" class="accordion-content">
-                <p class="text-sm text-gray-600 mb-2">Cliquez sur la carte pour choisir une position. Les coordonnées remplaceront la position existante dans l'adresse.</p>
-                <!-- Carte -->
-                <div id="mapContainer" class="mb-4 sticky top-0 z-20"></div>
-                <!-- Formulaire (Nom et Adresse) -->
-                <div class="relative mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Nom (facultatif)</label>
-                    <input type="text" id="entityName" class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Entrez ou modifiez le nom (facultatif)">
-                    <i class="fas fa-user input-icon"></i>
-                </div>
-                <div class="relative mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Adresse*</label>
-                    <input type="text" id="entityAddress" class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Entrez ou modifiez l'adresse" required>
-                    <i class="fas fa-map-marker-alt input-icon"></i>
-                    <div id="addressSuggestions" class="absolute w-full bg-white border rounded-md shadow-lg max-h-40 overflow-y-auto hidden"></div>
-                </div>
+        <!-- Champs cachés -->
+        <input type="text" id="entityName" class="hidden">
+        <input type="text" id="entityAddress" class="hidden">
+
+        <!-- Onglets -->
+        <div class="flex space-x-4 mb-4">
+            <div id="tabClients" class="tab text-lg font-semibold text-gray-600 pb-2 active" onclick="switchTab('clients')">Clients</div>
+            <div id="tabSuppliers" class="tab text-lg font-semibold text-gray-600 pb-2" onclick="switchTab('suppliers')">Fournisseurs</div>
+        </div>
+
+        <!-- Liste des clients -->
+        <div id="clientsSection" class="bg-white rounded-lg shadow-md p-6 animate-fade-in">
+            <div class="relative mb-4">
+                <input type="text" id="searchClient" placeholder="Rechercher clients..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+            </div>
+            <div class="table-container">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
+                        </tr>
+                    </thead>
+                    <tbody id="clientsList" class="bg-white divide-y divide-gray-200">
+                        <tr>
+                            <td colspan="4" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
 
-        <!-- Liste des clients et fournisseurs -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- Liste des clients -->
-            <div class="bg-white rounded-lg shadow-md p-6 animate-fade-in">
-                <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center cursor-pointer" onclick="toggleAccordion('clientsAccordion')">
-                    <i class="fas fa-users mr-2 text-indigo-500"></i> Clients
-                    <i class="fas fa-chevron-down ml-auto transition-transform" id="clientsChevron"></i>
-                </h2>
-                <div id="clientsAccordion" class="accordion-content">
-                    <div class="relative mb-4">
-                        <input type="text" id="searchClient" placeholder="Rechercher clients..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                    </div>
-                    <div class="table-container">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
-                                </tr>
-                            </thead>
-                            <tbody id="clientsList" class="bg-white divide-y divide-gray-200">
-                                <tr>
-                                    <td colspan="4" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+        <!-- Liste des fournisseurs -->
+        <div id="suppliersSection" class="bg-white rounded-lg shadow-md p-6 animate-fade-in hidden">
+            <div class="relative mb-4">
+                <input type="text" id="searchSupplier" placeholder="Rechercher fournisseurs..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
             </div>
-
-            <!-- Liste des fournisseurs -->
-            <div class="bg-white rounded-lg shadow-md p-6 animate-fade-in">
-                <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center cursor-pointer" onclick="toggleAccordion('suppliersAccordion')">
-                    <i class="fas fa-truck mr-2 text-indigo-500"></i> Fournisseurs
-                    <i class="fas fa-chevron-down ml-auto transition-transform" id="suppliersChevron"></i>
-                </h2>
-                <div id="suppliersAccordion" class="accordion-content">
-                    <div class="relative mb-4">
-                        <input type="text" id="searchSupplier" placeholder="Rechercher fournisseurs..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                    </div>
-                    <div class="table-container">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
-                                </tr>
-                            </thead>
-                            <tbody id="suppliersList" class="bg-white divide-y divide-gray-200">
-                                <tr>
-                                    <td colspan="4" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+            <div class="table-container">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
+                        </tr>
+                    </thead>
+                    <tbody id="suppliersList" class="bg-white divide-y divide-gray-200">
+                        <tr>
+                            <td colspan="4" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -195,6 +159,7 @@
                 document.getElementById('userDisplay').classList.remove('hidden');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
                 document.getElementById('loginModal').classList.add('hidden');
+                initMap();
                 loadEntities();
             } else {
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
@@ -220,6 +185,7 @@
             document.getElementById('userDisplay').classList.remove('hidden');
             document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
             document.getElementById('loginModal').classList.add('hidden');
+            initMap();
             loadEntities();
             showToast('Connexion réussie');
         }
@@ -234,29 +200,10 @@
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
                 document.getElementById('loginModal').classList.remove('hidden');
                 if (map) map.remove();
+                map = null;
                 document.getElementById('clientsList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
                 document.getElementById('suppliersList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
                 showToast('Déconnexion réussie');
-            }
-        }
-
-        // Gérer les accordéons
-        function toggleAccordion(id) {
-            const content = document.getElementById(id);
-            const chevron = document.getElementById(`${id.replace('Accordion', 'Chevron')}`);
-            if (content.classList.contains('active')) {
-                content.classList.remove('active');
-                chevron.classList.remove('fa-chevron-up');
-                chevron.classList.add('fa-chevron-down');
-                if (map && id === 'locationAccordion') map.remove();
-                if (id === 'locationAccordion') map = null;
-            } else {
-                content.classList.add('active');
-                chevron.classList.remove('fa-chevron-down');
-                chevron.classList.add('fa-chevron-up');
-                if (id === 'locationAccordion' && !map) {
-                    initMap();
-                }
             }
         }
 
@@ -278,7 +225,6 @@
             map.on('click', function(e) {
                 const { lat, lng } = e.latlng;
                 selectedPosition = { lat, lng };
-                // Remplacer la partie position dans entityAddress
                 let address = document.getElementById('entityAddress').value.trim();
                 const { cleanAddress } = decodePositionFromAddress(address);
                 const newAddress = `${cleanAddress || 'Nouvelle adresse'}|${lat.toFixed(6)},${lng.toFixed(6)}`;
@@ -329,6 +275,26 @@
             setTimeout(() => {
                 toast.classList.add('hidden');
             }, 3000);
+        }
+
+        // Gérer les onglets
+        function switchTab(tab) {
+            const clientsTab = document.getElementById('tabClients');
+            const suppliersTab = document.getElementById('tabSuppliers');
+            const clientsSection = document.getElementById('clientsSection');
+            const suppliersSection = document.getElementById('suppliersSection');
+
+            if (tab === 'clients') {
+                clientsTab.classList.add('active');
+                suppliersTab.classList.remove('active');
+                clientsSection.classList.remove('hidden');
+                suppliersSection.classList.add('hidden');
+            } else {
+                clientsTab.classList.remove('active');
+                suppliersTab.classList.add('active');
+                clientsSection.classList.add('hidden');
+                suppliersSection.classList.remove('hidden');
+            }
         }
 
         // Charger les entités
@@ -385,7 +351,7 @@
                         <button onclick="locateEntity('client', '${client.numero_clt || ''}', '${client.adresse || ''}', '${client.nom || ''}')" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Repérer">
                             <i class="fas fa-map-marker-alt"></i>
                         </button>
-                        <button onclick="saveClient('${client.numero_clt || ''}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
+                        <button onclick="confirmSaveClient('${client.numero_clt || ''}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
                             <i class="fas fa-save"></i>
                         </button>
                     </td>
@@ -414,7 +380,7 @@
                         <button onclick="locateEntity('supplier', '${supplier.numero_fou || ''}', '${supplier.adresse || ''}', '${supplier.nom || ''}')" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Repérer">
                             <i class="fas fa-map-marker-alt"></i>
                         </button>
-                        <button onclick="saveSupplier('${supplier.numero_fou || ''}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
+                        <button onclick="confirmSaveSupplier('${supplier.numero_fou || ''}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
                             <i class="fas fa-save"></i>
                         </button>
                     </td>
@@ -448,14 +414,6 @@
 
             console.log(`locateEntity: type=${type}, id=${id}, address=${address}, lat=${lat}, lng=${lng}, cleanAddress=${cleanAddress}`);
 
-            const locationAccordion = document.getElementById('locationAccordion');
-            const locationChevron = document.getElementById('locationChevron');
-            if (!locationAccordion.classList.contains('active')) {
-                locationAccordion.classList.add('active');
-                locationChevron.classList.remove('fa-chevron-down');
-                locationChevron.classList.add('fa-chevron-up');
-            }
-
             if (!map) {
                 if (lat && lng) {
                     initMap(lat, lng, 15);
@@ -479,6 +437,20 @@
             console.log(`Repéré: ${type} ${id}, adresse: ${address || 'N/A'}, position: ${lat || 'N/A'}, ${lng || 'N/A'}, nom: ${name || 'N/A'}`);
         }
 
+        // Confirmation avant sauvegarde client
+        function confirmSaveClient(id) {
+            if (confirm('Voulez-vous vraiment sauvegarder les modifications pour ce client ?')) {
+                saveClient(id);
+            }
+        }
+
+        // Confirmation avant sauvegarde fournisseur
+        function confirmSaveSupplier(id) {
+            if (confirm('Voulez-vous vraiment sauvegarder les modifications pour ce fournisseur ?')) {
+                saveSupplier(id);
+            }
+        }
+
         // Enregistrer un client
         async function saveClient(id) {
             const userId = localStorage.getItem('userId');
@@ -494,11 +466,10 @@
             console.log(`saveClient: id=${id}, address=${address}, name=${name}`);
 
             if (!address) {
-                showToast('Veuillez entrer une adresse avant d\'enregistrer', true);
+                showToast('Veuillez sélectionner une position sur la carte', true);
                 return;
             }
 
-            // Si aucune position n'est sélectionnée, utiliser l'adresse existante
             if (!selectedPosition && !address.includes('|')) {
                 showToast('Veuillez sélectionner une position sur la carte', true);
                 return;
@@ -552,11 +523,10 @@
             console.log(`saveSupplier: id=${id}, address=${address}, name=${name}`);
 
             if (!address) {
-                showToast('Veuillez entrer une adresse avant d\'enregistrer', true);
+                showToast('Veuillez sélectionner une position sur la carte', true);
                 return;
             }
 
-            // Si aucune position n'est sélectionnée, utiliser l'adresse existante
             if (!selectedPosition && !address.includes('|')) {
                 showToast('Veuillez sélectionner une position sur la carte', true);
                 return;
