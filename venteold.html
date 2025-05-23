@@ -61,7 +61,7 @@
         const USER_ID = 'your-user-id'; // Remplacer par l'ID utilisateur ou récupérer dynamiquement
 
         async function submitQuestion() {
-            const input = document.getElementById('userInput').value.trim().toLowerCase();
+            const input = document.getElementById('userInput').value.trim();
             const chatContainer = document.getElementById('chatContainer');
             if (!input) return;
 
@@ -70,102 +70,26 @@
             document.getElementById('userInput').value = '';
             chatContainer.scrollTop = chatContainer.scrollHeight;
 
-            // Analyser la question
+            // Envoyer la question à l'endpoint /ask_ia
             try {
-                let responseText = await processQuestion(input);
-                chatContainer.innerHTML += `<div class="chat-message ai-message">${responseText}</div>`;
+                const response = await fetch(`${API_URL}/ask_ia`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': USER_ID
+                    },
+                    body: JSON.stringify({ question: input })
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    chatContainer.innerHTML += `<div class="chat-message ai-message">${result.response}</div>`;
+                } else {
+                    chatContainer.innerHTML += `<div class="chat-message ai-message">Erreur : ${result.error}</div>`;
+                }
             } catch (error) {
-                chatContainer.innerHTML += `<div class="chat-message ai-message">Erreur : ${error.message}</div>`;
+                chatContainer.innerHTML += `<div class="chat-message ai-message">Erreur serveur : ${error.message}</div>`;
             }
             chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
-
-        async function processQuestion(question) {
-            // Mots-clés pour identifier l'entité et l'action
-            const isClient = question.includes('client');
-            const isProduit = question.includes('produit') || question.includes('article');
-            const isVente = question.includes('vente') || question.includes('ticket') || question.includes('bon de l');
-            const isSolde = question.includes('solde');
-            const isStock = question.includes('stock') || question.includes('quantité');
-            const isListe = question.includes('liste') || question.includes('tous') || question.includes('toutes');
-
-            // Extraire un nom ou ID (approximation simple)
-            const words = question.split(' ');
-            const potentialName = words.find(w => !['client', 'solde', 'produit', 'vente', 'liste', 'stock', 'quantité', 'faible', 'est', 'quel', 'quels', 'qui', 'de', 'le', 'la', 'les', 'un', 'une'].includes(w));
-
-            if (isClient && isSolde && potentialName) {
-                // Ex. : "Quel est le solde du client Hicham ?"
-                const clients = await fetchClients();
-                const client = clients.find(c => c.nom.toLowerCase().includes(potentialName));
-                if (!client) return `Aucun client nommé "${potentialName}" trouvé.`;
-                const soldes = await fetchClientSolde();
-                const solde = soldes.find(s => s.numero_clt === client.numero_clt);
-                return `Le solde du client ${client.nom} est de ${solde.solde} MAD.`;
-            } else if (isClient && isListe) {
-                // Ex. : "Liste tous les clients"
-                const clients = await fetchClients();
-                if (!clients.length) return "Aucun client trouvé.";
-                return `Liste des clients :\n${clients.map(c => `- ${c.nom} (Référence: ${c.reference}, Solde: ${c.solde.toFixed(2)} MAD)`).join('\n')}`;
-            } else if (isProduit && isStock && question.includes('faible')) {
-                // Ex. : "Quels produits sont en faible stock ?"
-                const produits = await fetchProduits();
-                const lowStock = produits.filter(p => p.QTE < 10);
-                if (!lowStock.length) return "Aucun produit en faible stock.";
-                return `Produits en faible stock :\n${lowStock.map(p => `- ${p.DESIGNATION} (Quantité: ${p.QTE})`).join('\n')}`;
-            } else if (isProduit && isListe) {
-                // Ex. : "Liste tous les produits"
-                const produits = await fetchProduits();
-                if (!produits.length) return "Aucun produit trouvé.";
-                return `Liste des produits :\n${produits.map(p => `- ${p.DESIGNATION} (Référence: ${p.REF}, Quantité: ${p.QTE}, Prix: ${p.PRIX.toFixed(2)} MAD)`).join('\n')}`;
-            } else if (isVente && isListe && question.includes('aujourd')) {
-                // Ex. : "Liste les ventes d'aujourd'hui"
-                const ventes = await fetchVentesJour();
-                const tickets = ventes.tickets || [];
-                const bons = ventes.bons || [];
-                if (!tickets.length && !bons.length) return "Aucune vente aujourd'hui.";
-                let response = `Ventes d'aujourd'hui (Total: ${ventes.total} MAD) :\n`;
-                if (tickets.length) {
-                    response += `Tickets :\n${tickets.map(t => `- Ticket #${t.numero_comande} (${t.client_nom}, ${t.lignes.length} articles)`).join('\n')}\n`;
-                }
-                if (bons.length) {
-                    response += `Bons de livraison :\n${bons.map(b => `- Bon #${b.numero_comande} (${b.client_nom}, ${b.lignes.length} articles)`).join('\n')}`;
-                }
-                return response;
-            } else {
-                return "Désolé, je ne comprends pas votre question. Essayez par exemple : 'Quel est le solde du client Hicham ?', 'Liste tous les clients', ou 'Quels produits sont en faible stock ?'.";
-            }
-        }
-
-        async function fetchClients() {
-            const response = await fetch(`${API_URL}/liste_clients`, {
-                headers: { 'X-User-ID': USER_ID }
-            });
-            if (!response.ok) throw new Error('Erreur lors de la récupération des clients');
-            return await response.json();
-        }
-
-        async function fetchClientSolde() {
-            const response = await fetch(`${API_URL}/client_solde`, {
-                headers: { 'X-User-ID': USER_ID }
-            });
-            if (!response.ok) throw new Error('Erreur lors de la récupération des soldes');
-            return await response.json();
-        }
-
-        async function fetchProduits() {
-            const response = await fetch(`${API_URL}/liste_produits`, {
-                headers: { 'X-User-ID': USER_ID }
-            });
-            if (!response.ok) throw new Error('Erreur lors de la récupération des produits');
-            return await response.json();
-        }
-
-        async function fetchVentesJour() {
-            const response = await fetch(`${API_URL}/ventes_jour`, {
-                headers: { 'X-User-ID': USER_ID }
-            });
-            if (!response.ok) throw new Error('Erreur lors de la récupération des ventes');
-            return await response.json();
         }
 
         function clearChat() {
@@ -173,10 +97,10 @@
             document.getElementById('userInput').value = '';
         }
 
-        // Initialiser avec un message de bienvenue
+        // Message de bienvenue
         document.addEventListener('DOMContentLoaded', () => {
             const chatContainer = document.getElementById('chatContainer');
-            chatContainer.innerHTML = `<div class="chat-message ai-message">Bonjour ! Posez-moi une question sur vos données FirePoz, par exemple : 'Quel est le solde du client Hicham ?', 'Liste tous les produits', ou 'Quels sont les ventes d'aujourd'hui ?'.</div>`;
+            chatContainer.innerHTML = `<div class="chat-message ai-message">Bonjour ! Posez-moi une question sur vos données FirePoz, par exemple : 'Quel est le solde du client Hicham ?', 'Liste tous les clients', ou 'Quels produits sont en faible stock ?'.</div>`;
         });
     </script>
 </body>
