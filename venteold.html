@@ -3,105 +3,692 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FirePoz - Assistant IA</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <script src="https://kit.fontawesome.com/your-font-awesome-id.js" crossorigin="anonymous"></script>
+    <title>FirePoz</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <style>
-        .chat-container {
-            max-height: 500px;
-            overflow-y: auto;
-            border: 1px solid #ccc;
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
+        .animate-pulse { animation: pulse 2s infinite ease-in-out; }
+        #mapContainer {
+            height: 400px; /* Hauteur fixe comme à l'origine */
+            width: 100%; /* Largeur pleine comme à l'origine */
+            border: 2px solid #e5e7eb;
             border-radius: 8px;
-            padding: 10px;
-            background: #f9fafb;
+            position: sticky; /* Conserver le mode sticky */
+            top: 80px; /* Juste en dessous de la barre de navigation */
+            z-index: 20; /* Au-dessus du contenu, en dessous de la navigation */
         }
-        .chat-message {
-            margin: 10px;
-            padding: 10px;
-            border-radius: 8px;
-            max-width: 80%;
-        }
-        .ai-message {
-            background: #e0f2fe;
-            text-align: left;
-        }
-        .user-message {
-            background: #d1fae5;
-            text-align: right;
-            margin-left: auto;
-        }
+        .client-pin { color: #3b82f6; }
+        .supplier-pin { color: #ef4444; }
+        nav { box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }
+        .table-container { max-height: 300px; overflow-y: auto; position: relative; }
+        .table-container table { width: 100%; }
+        .table-container thead { position: sticky; top: 0; background: #f9fafb; z-index: 1; }
+        .action-button { transition: background-color 0.3s ease; }
+        .action-button:hover { background-color: #e5e7eb; }
+        .tab { cursor: pointer; }
+        .tab.active { border-bottom: 2px solid #3b82f6; color: #3b82f6; }
+        .leaflet-tooltip { font-size: 12px; font-weight: bold; background-color: rgba(255, 255, 255, 0.9); border: 1px solid #ccc; border-radius: 4px; padding: 4px 8px; }
     </style>
 </head>
-<body class="bg-gray-100 font-sans">
-    <header class="bg-blue-600 text-white p-4">
-        <h1 class="text-2xl font-bold">FirePoz - Assistant IA</h1>
-    </header>
-    <div class="container mx-auto p-4">
-        <div class="bg-white p-4 rounded shadow">
-            <h2 class="text-xl font-bold mb-2">Posez une question sur vos données</h2>
-            <div id="chatContainer" class="chat-container"></div>
-            <div class="flex mt-2">
-                <input id="userInput" type="text" class="flex-1 p-2 border rounded" placeholder="Ex. : Quel est le solde du client Hicham ?">
-                <button onclick="submitQuestion()" class="bg-blue-500 text-white px-4 py-2 rounded ml-2 hover:bg-blue-600">
-                    <i class="fas fa-arrow-right"></i>
-                </button>
-                <button onclick="clearChat()" class="bg-gray-500 text-white px-4 py-2 rounded ml-2 hover:bg-gray-600">
-                    <i class="fas fa-trash"></i>
+<body class="bg-gray-100">
+    <!-- Navigation -->
+    <nav class="bg-indigo-600 text-white p-2 fixed w-full top-0 z-30 animate-fade-in">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex flex-col">
+                <h1 class="text-xl font-bold flex items-center">
+                    <i class="fas fa-fire mr-2 text-amber-400 animate-pulse"></i> FirePoz
+                </h1>
+                <span id="userDisplay" class="text-xs hidden"></span>
+            </div>
+            <div class="space-x-4 flex items-center">
+                <a href="index.html" class="hover:text-indigo-200 transition flex items-center text-sm">
+                    <i class="fas fa-home mr-1"></i> Tableau de Bord
+                </a>
+                <button id="loginLogoutButton" onclick="loginLogout()" class="bg-red-500 text-white px-2 py-1 rounded-md hover:bg-red-600 transition flex items-center text-sm">
+                    <i class="fas fa-sign-out-alt mr-1"></i>Déconnexion
                 </button>
             </div>
         </div>
-        <a href="index.html" class="mt-4 inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
-            <i class="fas fa-arrow-left mr-2"></i>Retour au tableau de bord
-        </a>
+    </nav>
+
+    <!-- Formulaire de connexion -->
+    <div id="loginModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40 hidden animate-fade-in">
+        <form id="loginForm" class="bg-white rounded-lg p-6 w-full max-w-md">
+            <h2 class="text-xl font-semibold mb-4">Connexion</h2>
+            <p class="text-sm text-red-500 mb-4">⚠️ Le mot de passe ne doit pas être celui de votre email.</p>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Adresse Email*</label>
+                <input type="text" id="userEmail" name="username" autocomplete="username" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre email" required>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe*</label>
+                <input type="password" id="userPassword" name="password" autocomplete="current-password" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre mot de passe" required>
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button type="submit" onclick="loginWithCredentials(event)" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
+                    <i class="fas fa-sign-in-alt mr-2"></i>Se connecter
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Contenu principal -->
+    <div class="container mx-auto px-4 py-12 mt-12">
+        <!-- Carte -->
+        <div id="mapContainer" class="mb-4 animate-fade-in"></div>
+
+        <!-- Champs cachés -->
+        <input type="text" id="entityName" class="hidden">
+        <input type="text" id="entityAddress" class="hidden">
+
+        <!-- Onglets -->
+        <div class="flex space-x-4 mb-4">
+            <div id="tabClients" class="tab text-lg font-semibold text-gray-600 pb-2 active" onclick="switchTab('clients')">Clients</div>
+            <div id="tabSuppliers" class="tab text-lg font-semibold text-gray-600 pb-2" onclick="switchTab('suppliers')">Fournisseurs</div>
+        </div>
+
+        <!-- Liste des clients -->
+        <div id="clientsSection" class="bg-white rounded-lg shadow-md p-6 animate-fade-in">
+            <div class="relative mb-4">
+                <input type="text" id="searchClient" placeholder="Rechercher clients..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+            </div>
+            <div class="table-container">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
+                        </tr>
+                    </thead>
+                    <tbody id="clientsList" class="bg-white divide-y divide-gray-200">
+                        <tr>
+                            <td colspan="4" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Liste des fournisseurs -->
+        <div id="suppliersSection" class="bg-white rounded-lg shadow-md p-6 animate-fade-in hidden">
+            <div class="relative mb-4">
+                <input type="text" id="searchSupplier" placeholder="Rechercher fournisseurs..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+            </div>
+            <div class="table-container">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
+                        </tr>
+                    </thead>
+                    <tbody id="suppliersList" class="bg-white divide-y divide-gray-200">
+                        <tr>
+                            <td colspan="4" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-4 right-4 hidden">
+        <div class="flex items-center px-6 py-3 rounded-md shadow-lg">
+            <i id="toastIcon" class="mr-2"></i>
+            <span id="toastMessage"></span>
+        </div>
     </div>
 
     <script>
-        // Configuration
-        const API_URL = 'https://firepoz-s7tl.vercel.app'; // URL de ton API
-        const USER_ID = 'your-user-id'; // Remplacer par l'ID utilisateur ou récupérer dynamiquement
+        const API_BASE_URL = 'https://web-production-3b9e.up.railway.app';
+        let map, marker;
+        let currentEntityName = null;
+        let currentEntityType = null;
+        let selectedPosition = null;
+        let clients = [];
+        let suppliers = [];
 
-        async function submitQuestion() {
-            const input = document.getElementById('userInput').value.trim();
-            const chatContainer = document.getElementById('chatContainer');
-            if (!input) return;
+        // Vérification initiale
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Page map.html chargée');
+            const userId = localStorage.getItem('userId');
+            const userEmail = localStorage.getItem('userEmail');
+            if (userId && userEmail) {
+                document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
+                document.getElementById('userDisplay').classList.remove('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+                document.getElementById('loginModal').classList.add('hidden');
+                initMap();
+                loadEntities();
+            } else {
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                document.getElementById('loginModal').classList.remove('hidden');
+                document.getElementById('clientsList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+                document.getElementById('suppliersList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+            }
+            setupSearch();
+        });
 
-            // Afficher la question de l'utilisateur
-            chatContainer.innerHTML += `<div class="chat-message user-message">${input}</div>`;
-            document.getElementById('userInput').value = '';
-            chatContainer.scrollTop = chatContainer.scrollHeight;
+        // Connexion
+        function loginWithCredentials(event) {
+            event.preventDefault();
+            const email = document.getElementById('userEmail').value.trim();
+            const password = document.getElementById('userPassword').value.trim();
+            if (!email || !password) {
+                showToast('Veuillez entrer un email et un mot de passe', true);
+                return;
+            }
+            const userId = btoa(`${email.toLowerCase()}:${password}`);
+            localStorage.setItem('userId', userId);
+            localStorage.setItem('userEmail', email.toLowerCase());
+            document.getElementById('userDisplay').textContent = email.toLowerCase();
+            document.getElementById('userDisplay').classList.remove('hidden');
+            document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+            document.getElementById('loginModal').classList.add('hidden');
+            initMap();
+            loadEntities();
+            showToast('Connexion réussie');
+        }
 
-            // Envoyer la question à l'endpoint /ask_ia
+        // Déconnexion
+        function loginLogout() {
+            if (localStorage.getItem('userId')) {
+                localStorage.removeItem('userId');
+                localStorage.removeItem('userEmail');
+                document.getElementById('userDisplay').textContent = '';
+                document.getElementById('userDisplay').classList.add('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                document.getElementById('loginModal').classList.remove('hidden');
+                if (map) map.remove();
+                map = null;
+                document.getElementById('clientsList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+                document.getElementById('suppliersList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+                showToast('Déconnexion réussie');
+            }
+        }
+
+        // Initialiser la carte
+        function initMap(lat = 36.7538, lng = 3.0588, zoom = 6) {
+            if (!document.getElementById('mapContainer')) {
+                console.error('Conteneur de carte introuvable');
+                showToast('Erreur: Conteneur de carte manquant', true);
+                return;
+            }
+            if (map) map.remove();
+            map = L.map('mapContainer', {
+                zoomControl: false,
+                attributionControl: false
+            }).setView([lat, lng], zoom);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19
+            }).addTo(map);
+            map.on('click', function(e) {
+                const { lat, lng } = e.latlng;
+                selectedPosition = { lat, lng };
+                let address = document.getElementById('entityAddress').value.trim();
+                const { cleanAddress } = decodePositionFromAddress(address);
+                const newAddress = `${cleanAddress || 'Nouvelle adresse'}|${lat.toFixed(6)},${lng.toFixed(6)}`;
+                document.getElementById('entityAddress').value = newAddress;
+                setMarker(lat, lng, cleanAddress || 'Nouvelle adresse', document.getElementById('entityName').value);
+                console.log(`Position sélectionnée: ${lat.toFixed(6)}, ${lng.toFixed(6)}, adresse mise à jour: ${newAddress}`);
+            });
+            console.log('Carte initialisée à', lat, lng);
+        }
+
+        // Placer une épingle
+        function setMarker(lat, lng, address, name) {
+            if (!map) {
+                console.error('Carte non initialisée');
+                return;
+            }
+            if (marker) marker.remove();
+            marker = L.marker([lat, lng], {
+                icon: L.divIcon({
+                    className: currentEntityType === 'client' ? 'client-pin' : 'supplier-pin',
+                    html: `<i class="fas fa-map-marker-alt fa-2x"></i>`,
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 30]
+                })
+            }).addTo(map);
+            if (name) {
+                marker.bindTooltip(name, {
+                    permanent: true,
+                    direction: 'right',
+                    offset: [10, 0],
+                    className: 'leaflet-tooltip'
+                });
+            }
+            const popupContent = `
+                <b>${name || 'Non défini'}</b><br>
+                Adresse: ${address || 'Non définie'}
+            `;
+            marker.bindPopup(popupContent);
+            map.panTo([lat, lng], { animate: true, duration: 1 });
+            console.log(`Épingle placée à ${lat}, ${lng} avec nom: ${name || 'N/A'}`);
+        }
+
+        // Afficher les notifications
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+            if (!toast || !toastMessage || !toastIcon) {
+                console.error('Éléments toast introuvables');
+                return;
+            }
+            toast.className = isError
+                ? 'fixed bottom-4 right-4 flex items-center bg-red-500 text-white px-6 py-3 rounded-md shadow-lg'
+                : 'fixed bottom-4 right-4 flex items-center bg-green-500 text-white px-6 py-3 rounded-md shadow-lg';
+            toastIcon.className = isError
+                ? 'fas fa-exclamation-circle mr-2'
+                : 'fas fa-check-circle mr-2';
+            toastMessage.textContent = message;
+            toast.classList.remove('hidden');
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
+        }
+
+        // Gérer les onglets
+        function switchTab(tab) {
+            const clientsTab = document.getElementById('tabClients');
+            const suppliersTab = document.getElementById('tabSuppliers');
+            const clientsSection = document.getElementById('clientsSection');
+            const suppliersSection = document.getElementById('suppliersSection');
+
+            if (tab === 'clients') {
+                clientsTab.classList.add('active');
+                suppliersTab.classList.remove('active');
+                clientsSection.classList.remove('hidden');
+                suppliersSection.classList.add('hidden');
+                updateClientList(clients);
+            } else {
+                clientsTab.classList.remove('active');
+                suppliersTab.classList.add('active');
+                clientsSection.classList.add('hidden');
+                suppliersSection.classList.remove('hidden');
+                updateSupplierList(suppliers);
+            }
+        }
+
+        // Configurer la recherche
+        function setupSearch() {
+            const searchClientInput = document.getElementById('searchClient');
+            const searchSupplierInput = document.getElementById('searchSupplier');
+
+            if (searchClientInput) {
+                searchClientInput.addEventListener('input', function() {
+                    const query = this.value.trim().toLowerCase();
+                    const filteredClients = clients.filter(client =>
+                        (client.nom || '').toLowerCase().includes(query) ||
+                        (client.adresse || '').toLowerCase().includes(query)
+                    );
+                    updateClientList(filteredClients);
+                });
+            }
+
+            if (searchSupplierInput) {
+                searchSupplierInput.addEventListener('input', function() {
+                    const query = this.value.trim().toLowerCase();
+                    const filteredSuppliers = suppliers.filter(supplier =>
+                        (supplier.nom || '').toLowerCase().includes(query) ||
+                        (supplier.adresse || '').toLowerCase().includes(query)
+                    );
+                    updateSupplierList(filteredSuppliers);
+                });
+            }
+        }
+
+        // Charger les entités
+        async function loadEntities() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour charger les entités', true);
+                return;
+            }
             try {
-                const response = await fetch(`${API_URL}/ask_ia`, {
-                    method: 'POST',
+                console.log('Tentative de chargement des clients...');
+                const clientResponse = await fetch(`${API_BASE_URL}/liste_clients`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                console.log('Statut clients:', clientResponse.status, clientResponse.statusText);
+                if (!clientResponse.ok) throw new Error(`Erreur chargement clients: ${clientResponse.statusText}`);
+                clients = await clientResponse.json();
+                console.log('Données clients:', clients);
+                updateClientList(clients);
+
+                console.log('Tentative de chargement des fournisseurs...');
+                const supplierResponse = await fetch(`${API_BASE_URL}/liste_fournisseurs`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                console.log('Statut fournisseurs:', supplierResponse.status, supplierResponse.statusText);
+                if (!supplierResponse.ok) throw new Error(`Erreur chargement fournisseurs: ${clientResponse.statusText}`);
+                suppliers = await supplierResponse.json();
+                console.log('Données fournisseurs:', suppliers);
+                updateSupplierList(suppliers);
+
+                console.log('Entités chargées:', clients.length, 'clients,', suppliers.length, 'fournisseurs');
+            } catch (error) {
+                showToast('Erreur de chargement des entités: ' + error.message, true);
+                console.error('Erreur chargement entités:', error);
+                document.getElementById('clientsList').innerHTML = `<tr><td colspan="4" class="text-center py-4 text-red-500">Erreur: ${error.message}</td></tr>`;
+                document.getElementById('suppliersList').innerHTML = `<tr><td colspan="4" class="text-center py-4 text-red-500">Erreur: ${error.message}</td></tr>`;
+            }
+        }
+
+        // Mettre à jour la liste des clients
+        function updateClientList(clientsToDisplay) {
+            const tbody = document.getElementById('clientsList');
+            if (!tbody) return;
+            if (!clientsToDisplay || clientsToDisplay.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun client trouvé</td></tr>';
+                return;
+            }
+            tbody.innerHTML = '';
+            clientsToDisplay.forEach(client => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50';
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 flex space-x-2">
+                        <button onclick="locateEntity('client', '${client.numero_clt || ''}', '${client.adresse || ''}', '${client.nom || ''}')" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Repérer">
+                            <i class="fas fa-map-marker-alt"></i>
+                        </button>
+                        <button onclick="confirmSaveClient('${client.nom || ''}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
+                            <i class="fas fa-save"></i>
+                        </button>
+                        <button onclick="openGoogleMaps('${client.adresse || ''}')" class="action-button p-2 rounded-full text-purple-600 hover:bg-gray-200" title="Voir sur Google Maps">
+                            <i class="fas fa-globe"></i>
+                        </button>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${client.nom || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${(client.solde || 0).toFixed(2)} DA</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.adresse || 'N/A'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Mettre à jour la liste des fournisseurs
+        function updateSupplierList(suppliersToDisplay) {
+            const tbody = document.getElementById('suppliersList');
+            if (!tbody) return;
+            if (!suppliersToDisplay || suppliersToDisplay.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun fournisseur trouvé</td></tr>';
+                return;
+            }
+            tbody.innerHTML = '';
+            suppliersToDisplay.forEach(supplier => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50';
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 flex space-x-2">
+                        <button onclick="locateEntity('supplier', '${supplier.numero_fou || ''}', '${supplier.adresse || ''}', '${supplier.nom || ''}')" class="action-button p-2 rounded-full text-blue-600 hover:bg-gray-200" title="Repérer">
+                            <i class="fas fa-map-marker-alt"></i>
+                        </button>
+                        <button onclick="confirmSaveSupplier('${supplier.nom || ''}')" class="action-button p-2 rounded-full text-green-600 hover:bg-gray-200" title="Enregistrer">
+                            <i class="fas fa-save"></i>
+                        </button>
+                        <button onclick="openGoogleMaps('${supplier.adresse || ''}')" class="action-button p-2 rounded-full text-purple-600 hover:bg-gray-200" title="Voir sur Google Maps">
+                            <i class="fas fa-globe"></i>
+                        </button>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${supplier.nom || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${(supplier.solde || 0).toFixed(2)} DA</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${supplier.adresse || 'N/A'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Décoder la position depuis l'adresse
+        function decodePositionFromAddress(address) {
+            if (!address) return { lat: null, lng: null, cleanAddress: '' };
+            const parts = address.split('|');
+            const cleanAddress = parts[0] || '';
+            if (parts.length > 1 && parts[1]) {
+                const [lat, lng] = parts[1].split(',').map(parseFloat);
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    return { lat, lng, cleanAddress };
+                }
+            }
+            return { lat: null, lng: null, cleanAddress };
+        }
+
+        // Ouvrir Google Maps
+        function openGoogleMaps(address) {
+            const { lat, lng } = decodePositionFromAddress(address);
+            if (!lat || !lng) {
+                showToast('Adresse non disponible pour Google Maps', true);
+                console.log(`openGoogleMaps: Adresse invalide ou sans coordonnées: ${address}`);
+                return;
+            }
+            const url = `https://www.google.com/maps?q=${lat},${lng}`;
+            window.open(url, '_blank');
+            console.log(`Google Maps ouvert: ${url}`);
+        }
+
+        // Repérer une entité
+        function locateEntity(type, id, address, name) {
+            currentEntityType = type;
+            currentEntityName = name;
+            const { lat, lng, cleanAddress } = decodePositionFromAddress(address);
+
+            console.log(`locateEntity: type=${type}, id=${id}, address=${address}, lat=${lat}, lng=${lng}, cleanAddress=${cleanAddress}, name=${name}`);
+
+            if (!map) {
+                if (lat && lng) {
+                    initMap(lat, lng, 15);
+                    setMarker(lat, lng, cleanAddress, name);
+                } else {
+                    initMap();
+                }
+            } else {
+                if (lat && lng) {
+                    console.log(`Navigating to position: ${lat}, ${lng}`);
+                    map.panTo([lat, lng], { animate: true, duration: 1 });
+                    setMarker(lat, lng, cleanAddress, name);
+                } else {
+                    console.log('No position found, resetting to default');
+                    map.panTo([36.7538, 3.0588], { animate: true, duration: 1 });
+                }
+            }
+
+            document.getElementById('entityName').value = name || '';
+            document.getElementById('entityAddress').value = address || '';
+            console.log(`Repéré: ${type} ${id}, adresse: ${address || 'N/A'}, position: ${lat || 'N/A'}, ${lng || 'N/A'}, nom: ${name || 'N/A'}`);
+        }
+
+        // Confirmation avant sauvegarde client
+        async function confirmSaveClient(name) {
+            if (!clients || clients.length === 0) {
+                showToast('Erreur : Liste des clients non chargée. Veuillez réessayer.', true);
+                await loadEntities();
+                return;
+            }
+            if (!name) {
+                showToast('Erreur : Nom du client invalide', true);
+                return;
+            }
+            const matchingClients = clients.filter(c => c.nom === name);
+            if (matchingClients.length > 1) {
+                showToast('Erreur : Plusieurs clients portent le nom "' + name + '". Veuillez utiliser un nom unique.', true);
+                console.error(`Plusieurs clients trouvés pour le nom: ${name}`, matchingClients);
+                return;
+            }
+            if (matchingClients.length === 0) {
+                showToast(`Erreur : Client "${name}" introuvable`, true);
+                console.error(`Client introuvable: nom=${name}, liste clients=`, clients);
+                return;
+            }
+            const client = matchingClients[0];
+            if (!currentEntityName || currentEntityName !== name) {
+                locateEntity('client', client.numero_clt || '', client.adresse || '', client.nom || '');
+            }
+            if (confirm(`Voulez-vous vraiment sauvegarder les modifications pour le client ${name} ?`)) {
+                saveClient(client.numero_clt, name);
+            }
+        }
+
+        // Confirmation avant sauvegarde fournisseur
+        async function confirmSaveSupplier(name) {
+            if (!suppliers || suppliers.length === 0) {
+                showToast('Erreur : Liste des fournisseurs non chargée. Veuillez réessayer.', true);
+                await loadEntities();
+                return;
+            }
+            if (!name) {
+                showToast('Erreur : Nom du fournisseur invalide', true);
+                return;
+            }
+            const matchingSuppliers = suppliers.filter(s => s.nom === name);
+            if (matchingSuppliers.length > 1) {
+                showToast('Erreur : Plusieurs fournisseurs portent le nom "' + name + '". Veuillez utiliser un nom unique.', true);
+                console.error(`Plusieurs fournisseurs trouvés pour le nom: ${name}`, matchingSuppliers);
+                return;
+            }
+            if (matchingSuppliers.length === 0) {
+                showToast(`Erreur : Fournisseur "${name}" introuvable`, true);
+                console.error(`Fournisseur introuvable: nom=${name}, liste fournisseurs=`, suppliers);
+                return;
+            }
+            const supplier = matchingSuppliers[0];
+            if (!currentEntityName || currentEntityName !== name) {
+                locateEntity('supplier', supplier.numero_fou || '', supplier.adresse || '', supplier.nom || '');
+            }
+            if (confirm(`Voulez-vous vraiment sauvegarder les modifications pour le fournisseur ${name} ?`)) {
+                saveSupplier(supplier.numero_fou, name);
+            }
+        }
+
+        // Enregistrer un client
+        async function saveClient(id, name) {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour sauvegarder', true);
+                return;
+            }
+            if (currentEntityName !== name) {
+                showToast('Erreur : Veuillez d\'abord repérer le client correct', true);
+                return;
+            }
+            currentEntityType = 'client';
+            const address = document.getElementById('entityAddress').value.trim();
+
+            console.log(`saveClient: id=${id}, address=${address}, name=${name}`);
+
+            if (!address) {
+                showToast('Veuillez sélectionner une position sur la carte', true);
+                return;
+            }
+
+            if (!selectedPosition && !address.includes('|')) {
+                showToast('Veuillez sélectionner une position sur la carte', true);
+                return;
+            }
+
+            const data = { adresse: address, nom: name };
+
+            try {
+                const url = `${API_BASE_URL}/modifier_client/${id}`;
+                console.log(`Envoi PUT ${url}:`, data);
+                const response = await fetch(url, {
+                    method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-User-ID': USER_ID
+                        'X-User-ID': userId
                     },
-                    body: JSON.stringify({ question: input })
+                    body: JSON.stringify(data)
                 });
+
                 const result = await response.json();
-                if (response.ok) {
-                    chatContainer.innerHTML += `<div class="chat-message ai-message">${result.response}</div>`;
-                } else {
-                    chatContainer.innerHTML += `<div class="chat-message ai-message">Erreur : ${result.error}</div>`;
+                if (!response.ok) {
+                    throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
                 }
+
+                showToast(`Client ${name} modifié avec succès`);
+                await loadEntities();
+                selectedPosition = null;
+                document.getElementById('entityAddress').value = '';
+                document.getElementById('entityName').value = '';
+                currentEntityName = null;
+                currentEntityType = null;
+                console.log('Client sauvegardé avec succès');
             } catch (error) {
-                chatContainer.innerHTML += `<div class="chat-message ai-message">Erreur serveur : ${error.message}</div>`;
+                showToast('Erreur lors de la sauvegarde: ' + error.message, true);
+                console.error('Erreur sauvegarde client:', error);
             }
-            chatContainer.scrollTop = chatContainer.scrollHeight;
         }
 
-        function clearChat() {
-            document.getElementById('chatContainer').innerHTML = '';
-            document.getElementById('userInput').value = '';
-        }
+        // Enregistrer un fournisseur
+        async function saveSupplier(id, name) {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour sauvegarder', true);
+                return;
+            }
+            if (currentEntityName !== name) {
+                showToast('Erreur : Veuillez d\'abord repérer le fournisseur correct', true);
+                return;
+            }
+            currentEntityType = 'supplier';
+            const address = document.getElementById('entityAddress').value.trim();
 
-        // Message de bienvenue
-        document.addEventListener('DOMContentLoaded', () => {
-            const chatContainer = document.getElementById('chatContainer');
-            chatContainer.innerHTML = `<div class="chat-message ai-message">Bonjour ! Posez-moi une question sur vos données FirePoz, par exemple : 'Quel est le solde du client Hicham ?', 'Liste tous les clients', ou 'Quels produits sont en faible stock ?'.</div>`;
-        });
+            console.log(`saveSupplier: id=${id}, address=${address}, name=${name}`);
+
+            if (!address) {
+                showToast('Veuillez sélectionner une position sur la carte', true);
+                return;
+            }
+
+            if (!selectedPosition && !address.includes('|')) {
+                showToast('Veuillez sélectionner une position sur la carte', true);
+                return;
+            }
+
+            const data = { adresse: address, nom: name };
+
+            try {
+                const url = `${API_BASE_URL}/modifier_fournisseur/${id}`;
+                console.log(`Envoi PUT ${url}:`, data);
+                const response = await fetch(url, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
+                }
+
+                showToast(`Fournisseur ${name} modifié avec succès`);
+                await loadEntities();
+                selectedPosition = null;
+                document.getElementById('entityAddress').value = '';
+                document.getElementById('entityName').value = '';
+                currentEntityName = null;
+                currentEntityType = null;
+                console.log('Fournisseur sauvegardé avec succès');
+            } catch (error) {
+                showToast('Erreur lors de la sauvegarde: ' + error.message, true);
+                console.error('Erreur sauvegarde fournisseur:', error);
+            }
+        }
     </script>
 </body>
 </html>
