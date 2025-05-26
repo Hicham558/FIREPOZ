@@ -403,12 +403,12 @@
                                 <input type="text" id="productDesignation" class="w-full px-3 py-2 border rounded-md" required>
                             </div>
                             <div class="relative">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Code Barre*</label>
-                                <input type="text" id="productBar" class="w-full px-3 py-2 border rounded-md" required>
-                                <button id="scanButton" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition duration-300" onclick="startScanner()">
-                                    <i class="fas fa-camera"></i> Scanner
-                                </button>
-                            </div>
+    <label class="block text-sm font-medium text-gray-700 mb-1">Code Barre (facultatif)</label>
+    <input type="text" id="productBar" class="w-full px-3 py-2 border rounded-md" placeholder="Laisser vide pour générer automatiquement">
+    <button id="scanButton" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition duration-300" onclick="startScanner()">
+        <i class="fas fa-camera"></i> Scanner
+    </button>
+</div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Prix Vente*</label>
                                 <input type="number" id="productPrix" step="0.01" class="w-full px-3 py-2 border rounded-md" required>
@@ -1288,15 +1288,15 @@
         }
 
         function modifierProduit(numero_item, bar, designation, prix, prixba, qte) {
-            document.getElementById('productId').value = numero_item;
-            document.getElementById('productBar').value = bar;
-            document.getElementById('productDesignation').value = designation;
-            document.getElementById('productPrix').value = parseFloat(prix).toFixed(2);
-            document.getElementById('productPrixba').value = prixba ? parseFloat(prixba).toFixed(2) : '';
-            document.getElementById('productQte').value = qte;
-            document.getElementById('productFormTitle').textContent = 'Modifier Produit';
-            document.getElementById('productForm').classList.remove('hidden');
-        }
+    document.getElementById('productId').value = numero_item;
+    document.getElementById('productBar').value = bar || ''; // S'assurer que bar peut être vide
+    document.getElementById('productDesignation').value = designation;
+    document.getElementById('productPrix').value = parseFloat(prix).toFixed(2);
+    document.getElementById('productPrixba').value = prixba ? parseFloat(prixba).toFixed(2) : '';
+    document.getElementById('productQte').value = qte;
+    document.getElementById('productFormTitle').textContent = 'Modifier Produit';
+    document.getElementById('productForm').classList.remove('hidden');
+}
 
         async function supprimerProduit(id) {
             const userId = localStorage.getItem('userId');
@@ -1330,7 +1330,7 @@
             }
         }
 
-       async function saveProduct() {
+      async function saveProduct() {
     const userId = localStorage.getItem('userId');
     if (!userId) {
         showToast('Veuillez vous connecter pour sauvegarder un produit', true);
@@ -1338,14 +1338,15 @@
     }
 
     const id = document.getElementById('productId').value;
-    const bar = document.getElementById('productBar').value.trim();
+    const bar = document.getElementById('productBar').value.trim(); // Peut être vide
     const designation = document.getElementById('productDesignation').value.trim();
     const prix = document.getElementById('productPrix').value;
     const prixba = document.getElementById('productPrixba').value;
     const qte = document.getElementById('productQte').value;
 
-    if (!bar || !designation || prix === '' || qte === '') {
-        showToast('Veuillez remplir tous les champs obligatoires', true);
+    // Vérifier les champs obligatoires (exclure bar)
+    if (!designation || prix === '' || qte === '') {
+        showToast('Veuillez remplir tous les champs obligatoires (Désignation, Prix, Quantité)', true);
         return;
     }
 
@@ -1361,19 +1362,26 @@
     try {
         const url = id ? `${API_BASE_URL}/modifier_item/${id}` : `${API_BASE_URL}/ajouter_item`;
         const method = id ? 'PUT' : 'POST';
+        
+        // Construire le payload (inclure bar seulement s'il est non vide)
+        const payload = {
+            designation: designation,
+            prix: prixValue,
+            prixba: prixbaValue,
+            qte: qteValue
+        };
+        
+        if (bar) {
+            payload.bar = bar; // Inclure bar seulement s'il est fourni
+        }
+
         const response = await fetch(url, {
             method: method,
             headers: {
                 'Content-Type': 'application/json',
                 'X-User-ID': userId
             },
-            body: JSON.stringify({
-                bar: bar,
-                designation: designation,
-                prix: prixValue,
-                prixba: prixbaValue,
-                qte: qteValue
-            })
+            body: JSON.stringify(payload)
         });
 
         const result = await response.json();
@@ -1381,7 +1389,13 @@
             throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
         }
 
-        showToast(id ? 'Produit modifié avec succès' : 'Produit ajouté avec succès');
+        // Afficher le code-barres généré si bar était vide
+        if (!bar && result.bar) {
+            showToast(`Produit ${id ? 'modifié' : 'ajouté'} avec succès. Code-barres généré : ${result.bar}`);
+        } else {
+            showToast(id ? 'Produit modifié avec succès' : 'Produit ajouté avec succès');
+        }
+
         resetProductForm();
         chargerProduits();
     } catch (error) {
