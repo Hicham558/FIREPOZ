@@ -37,13 +37,6 @@
 
                 <!-- Product List -->
                 <div id="productList" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4"></div>
-
-                <!-- Manage Products -->
-                <div class="mt-4">
-                    <button id="addProductBtn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
-                        <i class="fas fa-plus"></i> Ajouter Produit
-                    </button>
-                </div>
             </div>
 
             <!-- Right: Cart and Payment -->
@@ -61,7 +54,6 @@
                     <select id="clientSelect" class="w-full border p-2 mt-2 rounded hidden">
                         <option value="0">Comptoir</option>
                     </select>
-                    <input id="password2" type="password" placeholder="Mot de passe vendeur" class="w-full border p-2 mt-2 rounded">
                     <button id="validateSaleBtn" class="w-full bg-green-500 text-white px-4 py-2 mt-2 rounded hover:bg-green-600">
                         Valider Vente
                     </button>
@@ -74,45 +66,9 @@
     </div>
 
     <!-- Modals -->
-    <!-- Add/Edit Product Modal -->
-    <div id="productModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center">
-        <div class="bg-white p-6 rounded shadow-lg w-full max-w-md">
-            <h2 id="productModalTitle" class="text-xl font-bold mb-4">Ajouter Produit</h2>
-            <form id="productForm">
-                <input id="productId" type="hidden">
-                <div class="mb-4">
-                    <label class="block">Désignation</label>
-                    <input id="productDesignation" type="text" class="w-full border p-2 rounded" required>
-                </div>
-                <div class="mb-4">
-                    <label class="block">Catégorie</label>
-                    <select id="productCategory" class="w-full border p-2 rounded" required>
-                        <option value="">Sélectionner une catégorie</option>
-                    </select>
-                </div>
-                <div class="mb-4">
-                    <label class="block">Prix</label>
-                    <input id="productPrice" type="number" step="0.01" min="0" class="w-full border p-2 rounded" required>
-                </div>
-                <div class="mb-4">
-                    <label class="block">Quantité</label>
-                    <input id="productQuantity" type="number" min="0" class="w-full border p-2 rounded" required>
-                </div>
-                <div class="mb-4">
-                    <label class="block">Prix d'achat</label>
-                    <input id="productPurchasePrice" type="number" step="0.01" min="0" class="w-full border p-2 rounded">
-                </div>
-                <div class="flex justify-end space-x-2">
-                    <button type="button" id="cancelProductBtn" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">Annuler</button>
-                    <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Enregistrer</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
     <!-- Manage Categories Modal -->
     <div id="categoryModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center">
-        <div class="bg-white p-6 rounded shadow-lg w-full max-w-md">
+        <div class="bg-white p-6 rounded shadow-lg w-full max-w-lg">
             <h2 class="text-xl font-bold mb-4">Gérer les Catégories</h2>
             <div class="mb-4">
                 <input id="categoryDescription" type="text" placeholder="Nouvelle catégorie" class="w-full border p-2 rounded">
@@ -171,7 +127,6 @@
                     option.textContent = seller.nom;
                     sellerSelect.appendChild(option);
                 });
-                // Restore selected seller if exists
                 const savedSeller = localStorage.getItem('selectedSeller');
                 if (savedSeller) {
                     sellerSelect.value = savedSeller;
@@ -188,27 +143,18 @@
                 const response = await fetch(`${API_URL}/liste_categories`, { headers: getHeaders() });
                 const categories = await response.json();
                 const categoryTabs = document.getElementById('categoryTabs');
-                const productCategorySelect = document.getElementById('productCategory');
                 categoryTabs.innerHTML = '';
-                productCategorySelect.innerHTML = '<option value="">Sélectionner une catégorie</option>';
 
                 categories.forEach(category => {
-                    // Category Tabs
                     const btn = document.createElement('button');
                     btn.className = `px-4 py-2 rounded hover:bg-blue-600 ${currentCategory === category.numer_categorie ? 'bg-blue-700 text-white' : 'bg-blue-500 text-white'}`;
                     btn.textContent = category.description_c;
                     btn.onclick = () => {
                         currentCategory = category.numer_categorie;
-                        loadCategories(); // Refresh active state
+                        loadCategories();
                         loadProducts();
                     };
                     categoryTabs.appendChild(btn);
-
-                    // Product Category Select
-                    const option = document.createElement('option');
-                    option.value = category.numer_categorie;
-                    option.textContent = category.description_c;
-                    productCategorySelect.appendChild(option);
                 });
             } catch (error) {
                 console.error('Erreur chargement catégories:', error);
@@ -361,14 +307,9 @@
             const paymentMode = document.getElementById('paymentMode').value;
             const amountPaid = parseFloat(document.getElementById('amountPaid').value) || 0;
             const numeroTable = document.getElementById('clientSelect').value;
-            const password2 = document.getElementById('password2').value;
 
             if (paymentMode === 'a_terme' && numeroTable === '0') {
                 alert('Veuillez sélectionner un client pour une vente à terme!');
-                return;
-            }
-            if (!password2) {
-                alert('Mot de passe vendeur requis!');
                 return;
             }
 
@@ -384,8 +325,7 @@
                 date_comande: new Date().toISOString(),
                 payment_mode: paymentMode,
                 amount_paid: amountPaid,
-                numero_util: parseInt(selectedSellerId),
-                password2: password2
+                numero_util: parseInt(selectedSellerId)
             };
 
             try {
@@ -402,7 +342,6 @@
                     loadProducts();
                     loadClients();
                     document.getElementById('amountPaid').value = '';
-                    document.getElementById('password2').value = '';
                     document.getElementById('printReceiptBtn').classList.remove('hidden');
                     localStorage.setItem('lastSale', JSON.stringify(saleData));
                     localStorage.setItem('lastSaleId', result.numero_comande);
@@ -471,90 +410,104 @@
             }
         }
 
-        // Handle Product Modal
-        function openProductModal(product = null) {
-            const modal = document.getElementById('productModal');
-            const form = document.getElementById('productForm');
-            const title = document.getElementById('productModalTitle');
-            modal.classList.remove('hidden');
-
-            if (product) {
-                title.textContent = 'Modifier Produit';
-                document.getElementById('productId').value = product.NUMERO_ITEM;
-                document.getElementById('productDesignation').value = product.DESIGNATION;
-                document.getElementById('productCategory').value = product.NUMERO_CATEGORIE || '';
-                document.getElementById('productPrice').value = product.PRIX;
-                document.getElementById('productQuantity').value = product.QTE;
-                document.getElementById('productPurchasePrice').value = product.PRIXBA || '';
-            } else {
-                title.textContent = 'Ajouter Produit';
-                form.reset();
-                document.getElementById('productId').value = '';
-            }
-        }
-
-        // Save Product
-        async function saveProduct(event) {
-            event.preventDefault();
-            const id = document.getElementById('productId').value;
-            const data = {
-                designation: document.getElementById('productDesignation').value,
-                numero_categorie: document.getElementById('productCategory').value,
-                prix: parseFloat(document.getElementById('productPrice').value),
-                qte: parseInt(document.getElementById('productQuantity').value),
-                prixba: document.getElementById('productPurchasePrice').value || '0.00'
-            };
-
-            try {
-                const url = id ? `${API_URL}/modifier_item/${id}` : `${API_URL}/ajouter_item`;
-                const method = id ? 'PUT' : 'POST';
-                const response = await fetch(url, {
-                    method,
-                    headers: getHeaders(),
-                    body: JSON.stringify(data)
-                });
-                if (response.ok) {
-                    alert(id ? 'Produit modifié!' : 'Produit ajouté!');
-                    document.getElementById('productModal').classList.add('hidden');
-                    loadProducts();
-                } else {
-                    const result = await response.json();
-                    alert(`Erreur: ${result.erreur}`);
-                }
-            } catch (error) {
-                console.error('Erreur sauvegarde produit:', error);
-                alert('Erreur lors de la sauvegarde du produit.');
-            }
-        }
-
         // Handle Category Modal
         function openCategoryModal() {
             document.getElementById('categoryModal').classList.remove('hidden');
             loadCategoryList();
         }
 
-        // Load Category List
+        // Load Category List with Products
         async function loadCategoryList() {
             try {
-                const response = await fetch(`${API_URL}/liste_categories`, { headers: getHeaders() });
-                const categories = await response.json();
+                const [categoriesResponse, productsResponse] = await Promise.all([
+                    fetch(`${API_URL}/liste_categories`, { headers: getHeaders() }),
+                    fetch(`${API_URL}/liste_produits`, { headers: getHeaders() })
+                ]);
+                const categories = await categoriesResponse.json();
+                const products = await productsResponse.json();
                 const categoryList = document.getElementById('categoryList');
                 categoryList.innerHTML = '';
 
+                // Add unassigned products section
+                const unassignedProducts = products.filter(p => !p.NUMERO_CATEGORIE);
+                const unassignedDiv = document.createElement('div');
+                unassignedDiv.className = 'mb-4';
+                unassignedDiv.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-bold">Non assignés</span>
+                    </div>
+                    <div class="pl-4">
+                        ${unassignedProducts.length ? unassignedProducts.map(product => `
+                            <div class="flex justify-between items-center mb-1">
+                                <span>${product.DESIGNATION}</span>
+                                <select onchange="assignCategory(${product.NUMERO_ITEM}, this.value)" class="border p-1 rounded">
+                                    <option value="">Assigner à...</option>
+                                    ${categories.map(cat => `<option value="${cat.numer_categorie}">${cat.description_c}</option>`).join('')}
+                                </select>
+                            </div>
+                        `).join('') : '<p>Aucun produit non assigné</p>'}
+                    </div>
+                `;
+                categoryList.appendChild(unassignedDiv);
+
+                // Add categories with their products
                 categories.forEach(category => {
+                    const categoryProducts = products.filter(p => p.NUMERO_CATEGORIE == category.numer_categorie);
                     const div = document.createElement('div');
-                    div.className = 'flex justify-between items-center mb-2';
+                    div.className = 'mb-4';
                     div.innerHTML = `
-                        <span>${category.description_c}</span>
-                        <div>
-                            <button onclick="editCategory(${category.numer_categorie}, '${category.description_c}')" class="bg-yellow-500 text-white px-2 py-1 rounded mr-2"><i class="fas fa-edit"></i></button>
-                            <button onclick="deleteCategory(${category.numer_categorie})" class="bg-red-500 text-white px-2 py-1 rounded"><i class="fas fa-trash"></i></button>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-bold">${category.description_c}</span>
+                            <div>
+                                <button onclick="editCategory(${category.numer_categorie}, '${category.description_c}')" class="bg-yellow-500 text-white px-2 py-1 rounded mr-2"><i class="fas fa-edit"></i></button>
+                                <button onclick="deleteCategory(${category.numer_categorie})" class="bg-red-500 text-white px-2 py-1 rounded"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </div>
+                        <div class="pl-4">
+                            ${categoryProducts.length ? categoryProducts.map(product => `
+                                <div class="flex justify-between items-center mb-1">
+                                    <span>${product.DESIGNATION}</span>
+                                    <select onchange="assignCategory(${product.NUMERO_ITEM}, this.value)" class="border p-1 rounded">
+                                        <option value="">Retirer de la catégorie</option>
+                                        ${categories.map(cat => `
+                                            <option value="${cat.numer_categorie}" ${cat.numer_categorie == category.numer_categorie ? 'selected' : ''}>
+                                                ${cat.description_c}
+                                            </option>
+                                        `).join('')}
+                                    </select>
+                                </div>
+                            `).join('') : '<p>Aucun produit dans cette catégorie</p>'}
                         </div>
                     `;
                     categoryList.appendChild(div);
                 });
             } catch (error) {
                 console.error('Erreur chargement liste catégories:', error);
+            }
+        }
+
+        // Assign Category to Product
+        async function assignCategory(numero_item, numero_categorie) {
+            try {
+                const response = await fetch(`${API_URL}/assigner_categorie`, {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify({
+                        numero_item,
+                        numero_categorie: numero_categorie || null
+                    })
+                });
+                if (response.ok) {
+                    alert('Catégorie assignée!');
+                    loadCategoryList();
+                    loadProducts();
+                } else {
+                    const result = await response.json();
+                    alert(`Erreur: ${result.erreur}`);
+                }
+            } catch (error) {
+                console.error('Erreur assignation catégorie:', error);
+                alert('Erreur lors de l’assignation de la catégorie.');
             }
         }
 
@@ -658,11 +611,6 @@
 
         document.getElementById('validateSaleBtn').addEventListener('click', validateSale);
         document.getElementById('printReceiptBtn').addEventListener('click', printReceipt);
-        document.getElementById('addProductBtn').addEventListener('click', () => openProductModal());
-        document.getElementById('cancelProductBtn').addEventListener('click', () => {
-            document.getElementById('productModal').classList.add('hidden');
-        });
-        document.getElementById('productForm').addEventListener('submit', saveProduct);
 
         document.getElementById('manageCategoriesBtn').addEventListener('click', openCategoryModal);
         document.getElementById('addCategoryBtn').addEventListener('click', addCategory);
