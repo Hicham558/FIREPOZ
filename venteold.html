@@ -108,9 +108,6 @@
         let userId = localStorage.getItem('userId') || 'test_user';
         let selectedSellerId = null;
 
-        // Log userId for debugging
-        console.log('User ID:', userId);
-
         // Fetch Headers
         const getHeaders = () => ({
             'Content-Type': 'application/json',
@@ -121,6 +118,7 @@
         async function loadSellers() {
             try {
                 const response = await fetch(`${API_URL}/liste_utilisateurs`, { headers: getHeaders() });
+                if (!response.ok) throw new Error('Erreur réseau');
                 const sellers = await response.json();
                 const sellerSelect = document.getElementById('sellerSelect');
                 sellerSelect.innerHTML = '<option value="">Sélectionner un vendeur</option>';
@@ -137,6 +135,7 @@
                 }
             } catch (error) {
                 console.error('Erreur chargement vendeurs:', error);
+                alert('Impossible de charger les vendeurs.');
             }
         }
 
@@ -144,11 +143,10 @@
         async function loadCategories() {
             try {
                 const response = await fetch(`${API_URL}/liste_categories`, { headers: getHeaders() });
+                if (!response.ok) throw new Error('Erreur réseau');
                 const categories = await response.json();
-                console.log('Categories loaded:', categories);
                 const categoryTabs = document.getElementById('categoryTabs');
                 categoryTabs.innerHTML = '';
-
                 categories.forEach(category => {
                     const btn = document.createElement('button');
                     btn.className = `px-4 py-2 rounded hover:bg-blue-600 ${currentCategory === category.numer_categorie ? 'bg-blue-700 text-white' : 'bg-blue-500 text-white'}`;
@@ -162,6 +160,7 @@
                 });
             } catch (error) {
                 console.error('Erreur chargement catégories:', error);
+                alert('Impossible de charger les catégories.');
             }
         }
 
@@ -169,28 +168,27 @@
         async function loadProducts() {
             try {
                 const response = await fetch(`${API_URL}/liste_produits`, { headers: getHeaders() });
+                if (!response.ok) throw new Error('Erreur réseau');
                 const products = await response.json();
-                console.log('Products loaded:', products);
                 const productList = document.getElementById('productList');
                 productList.innerHTML = '';
-
                 const filteredProducts = currentCategory === 'all' 
                     ? products 
-                    : products.filter(p => p.NUMERO_CATEGORIE == currentCategory);
-
+                    : products.filter(p => p.numero_categorie === currentCategory || (!p.numero_categorie && currentCategory === 'none'));
                 filteredProducts.forEach(product => {
                     const div = document.createElement('div');
                     div.className = 'bg-gray-100 p-4 rounded shadow cursor-pointer hover:bg-gray-200';
                     div.innerHTML = `
-                        <p class="font-bold">${product.DESIGNATION}</p>
-                        <p>Prix: ${product.PRIX.toFixed(2)} MAD</p>
-                        <p>Stock: ${product.QTE}</p>
+                        <p class="font-bold">${product.designation}</p>
+                        <p>Prix: ${product.prix.toFixed(2)} MAD</p>
+                        <p>Stock: ${product.qte}</p>
                     `;
                     div.onclick = () => addToCart(product);
                     productList.appendChild(div);
                 });
             } catch (error) {
                 console.error('Erreur chargement produits:', error);
+                alert('Impossible de charger les produits.');
             }
         }
 
@@ -198,6 +196,7 @@
         async function loadClients() {
             try {
                 const response = await fetch(`${API_URL}/liste_clients`, { headers: getHeaders() });
+                if (!response.ok) throw new Error('Erreur réseau');
                 const clients = await response.json();
                 const clientSelect = document.getElementById('clientSelect');
                 clientSelect.innerHTML = '<option value="0">Comptoir</option>';
@@ -209,31 +208,32 @@
                 });
             } catch (error) {
                 console.error('Erreur chargement clients:', error);
+                alert('Impossible de charger les clients.');
             }
         }
 
         // Add to Cart
         function addToCart(product) {
-            const existingItem = cart.find(item => item.numero_item === product.NUMERO_ITEM);
+            const existingItem = cart.find(item => item.numero_item === product.numero_item);
             if (existingItem) {
-                if (existingItem.quantite < product.QTE) {
+                if (existingItem.quantite < product.qte) {
                     existingItem.quantite += 1;
-                    existingItem.prixt = (existingItem.quantite * product.PRIX).toFixed(2);
+                    existingItem.prixt = (existingItem.quantite * product.prix).toFixed(2);
                 } else {
-                    alert('Stock insuffisant!');
+                    alert('Stock insuffisant !');
                 }
             } else {
-                if (product.QTE > 0) {
+                if (product.qte > 0) {
                     cart.push({
-                        numero_item: product.NUMERO_ITEM,
-                        designation: product.DESIGNATION,
+                        numero_item: product.numero_item,
+                        designation: product.designation,
                         quantite: 1,
-                        prixt: product.PRIX.toFixed(2),
-                        prixbh: product.PRIXBA || '0.00',
+                        prixt: product.prix.toFixed(2),
+                        prixbh: parseFloat(product.prixba) || 0,
                         remarque: ''
                     });
                 } else {
-                    alert('Produit en rupture de stock!');
+                    alert('Produit en rupture de stock !');
                 }
             }
             updateCart();
@@ -245,14 +245,13 @@
             const cartTotal = document.getElementById('cartTotal');
             cartItems.innerHTML = '';
             let total = 0;
-
             cart.forEach((item, index) => {
                 const div = document.createElement('div');
                 div.className = 'flex justify-between items-center mb-2 border-b pb-2';
                 div.innerHTML = `
                     <div>
                         <p class="font-bold">${item.designation}</p>
-                        <p>${item.quantite} x ${item.prixt / item.quantite} = ${item.prixt} MAD</p>
+                        <p>${item.quantite} x ${(item.prixt / item.quantite).toFixed(2)} = ${item.prixt} MAD</p>
                     </div>
                     <div class="flex space-x-2">
                         <button onclick="adjustQuantity(${index}, -1)" class="bg-yellow-500 text-white px-2 py-1 rounded">-</button>
@@ -264,7 +263,6 @@
                 cartItems.appendChild(div);
                 total += parseFloat(item.prixt);
             });
-
             cartTotal.textContent = `${total.toFixed(2)} MAD`;
             togglePrintReceiptButton();
         }
@@ -274,15 +272,14 @@
             const item = cart[index];
             const product = await getProduct(item.numero_item);
             const newQuantity = item.quantite + change;
-
             if (newQuantity <= 0) {
                 removeFromCart(index);
-            } else if (newQuantity <= product.QTE) {
+            } else if (newQuantity <= product.qte) {
                 item.quantite = newQuantity;
-                item.prixt = (newQuantity * (product.PRIX)).toFixed(2);
+                item.prixt = (newQuantity * product.prix).toFixed(2);
                 updateCart();
             } else {
-                alert('Stock insuffisant!');
+                alert('Stock insuffisant !');
             }
         }
 
@@ -295,26 +292,32 @@
         // Get Product by ID
         async function getProduct(numero_item) {
             const response = await fetch(`${API_URL}/liste_produits`, { headers: getHeaders() });
+            if (!response.ok) throw new Error('Erreur réseau');
             const products = await response.json();
-            return products.find(p => p.NUMERO_ITEM === numero_item);
+            return products.find(p => p.numero_item === numero_item);
         }
 
         // Validate Sale
         async function validateSale() {
             if (!cart.length) {
-                alert('Le panier est vide!');
+                alert('Le panier est vide !');
                 return;
             }
             if (!selectedSellerId) {
-                alert('Veuillez sélectionner un vendeur!');
+                alert('Veuillez sélectionner un vendeur !');
                 return;
             }
             const paymentMode = document.getElementById('paymentMode').value;
             const amountPaid = parseFloat(document.getElementById('amountPaid').value) || 0;
             const numeroTable = document.getElementById('clientSelect').value;
+            const total = cart.reduce((sum, item) => sum + parseFloat(item.prixt), 0);
 
             if (paymentMode === 'a_terme' && numeroTable === '0') {
-                alert('Veuillez sélectionner un client pour une vente à terme!');
+                alert('Veuillez sélectionner un client pour une vente à terme !');
+                return;
+            }
+            if (['espece', 'cheque'].includes(paymentMode) && amountPaid < total) {
+                alert('Le montant versé est inférieur au total !');
                 return;
             }
 
@@ -322,8 +325,8 @@
                 lignes: cart.map(item => ({
                     numero_item: item.numero_item,
                     quantite: item.quantite,
-                    prixt: item.prixt,
-                    prixbh: item.prixbh,
+                    prixt: parseFloat(item.prixt),
+                    prixbh: parseFloat(item.prixbh) || 0,
                     remarque: item.remarque
                 })),
                 numero_table: parseInt(numeroTable),
@@ -341,17 +344,19 @@
                 });
                 const result = await response.json();
                 if (response.ok) {
-                    alert('Vente validée avec succès!');
+                    alert('Vente validée avec succès !');
                     cart = [];
                     updateCart();
                     loadProducts();
                     loadClients();
                     document.getElementById('amountPaid').value = '';
+                    document.getElementById('clientSelect').value = '0';
+                    document.getElementById('paymentMode').value = 'espece';
                     document.getElementById('printReceiptBtn').classList.remove('hidden');
                     localStorage.setItem('lastSale', JSON.stringify(saleData));
                     localStorage.setItem('lastSaleId', result.numero_comande);
                 } else {
-                    alert(`Erreur: ${result.error || 'Échec de la validation'}`);
+                    alert(`Erreur: ${result.erreur || 'Échec de la validation'}`);
                 }
             } catch (error) {
                 console.error('Erreur validation vente:', error);
@@ -363,7 +368,6 @@
         function printReceipt() {
             const lastSale = JSON.parse(localStorage.getItem('lastSale'));
             if (!lastSale) return;
-
             const receiptWindow = window.open('', '_blank');
             receiptWindow.document.write(`
                 <html>
@@ -387,7 +391,7 @@
                             ${lastSale.lignes.map(item => `
                                 <div>
                                     <span>${item.quantite}x ${item.designation}</span>
-                                    <span>${item.prixt} MAD</span>
+                                    <span>${item.prixt.toFixed(2)} MAD</span>
                                 </div>
                             `).join('')}
                         </div>
@@ -418,6 +422,7 @@
         // Handle Category Modal
         function openCategoryModal() {
             document.getElementById('categoryModal').classList.remove('hidden');
+            document.getElementById('categoryDescription').value = '';
             loadCategoryList();
         }
 
@@ -428,15 +433,20 @@
                     fetch(`${API_URL}/liste_categories`, { headers: getHeaders() }),
                     fetch(`${API_URL}/liste_produits`, { headers: getHeaders() })
                 ]);
+                if (!categoriesResponse.ok || !productsResponse.ok) throw new Error('Erreur réseau');
                 const categories = await categoriesResponse.json();
                 const products = await productsResponse.json();
-                console.log('Categories in modal:', categories);
-                console.log('Products in modal:', products);
                 const categoryList = document.getElementById('categoryList');
                 categoryList.innerHTML = '';
 
+                // Normalize product data
+                const normalizedProducts = products.map(p => ({
+                    ...p,
+                    numero_categorie: p.numero_categorie || null
+                }));
+
                 // Add unassigned products section
-                const unassignedProducts = products.filter(p => !p.NUMERO_CATEGORIE);
+                const unassignedProducts = normalizedProducts.filter(p => p.numero_categorie === null);
                 const unassignedDiv = document.createElement('div');
                 unassignedDiv.className = 'mb-4';
                 unassignedDiv.innerHTML = `
@@ -446,8 +456,8 @@
                     <div class="pl-4">
                         ${unassignedProducts.length ? unassignedProducts.map(product => `
                             <div class="flex justify-between items-center mb-1">
-                                <span>${product.DESIGNATION}</span>
-                                <select onchange="assignCategory(${product.NUMERO_ITEM}, this.value)" class="border p-1 rounded">
+                                <span>${product.designation}</span>
+                                <select onchange="assignCategory(${product.numero_item}, this.value)" class="border p-1 rounded">
                                     <option value="">Assigner à...</option>
                                     ${categories.map(cat => `<option value="${cat.numer_categorie}">${cat.description_c}</option>`).join('')}
                                 </select>
@@ -459,7 +469,7 @@
 
                 // Add categories with their products
                 categories.forEach(category => {
-                    const categoryProducts = products.filter(p => p.NUMERO_CATEGORIE == category.numer_categorie);
+                    const categoryProducts = normalizedProducts.filter(p => p.numero_categorie === category.numer_categorie);
                     const div = document.createElement('div');
                     div.className = 'mb-4';
                     div.innerHTML = `
@@ -473,11 +483,11 @@
                         <div class="pl-4">
                             ${categoryProducts.length ? categoryProducts.map(product => `
                                 <div class="flex justify-between items-center mb-1">
-                                    <span>${product.DESIGNATION}</span>
-                                    <select onchange="assignCategory(${product.NUMERO_ITEM}, this.value)" class="border p-1 rounded">
+                                    <span>${product.designation}</span>
+                                    <select onchange="assignCategory(${product.numero_item}, this.value)" class="border p-1 rounded">
                                         <option value="">Retirer de la catégorie</option>
                                         ${categories.map(cat => `
-                                            <option value="${cat.numer_categorie}" ${cat.numer_categorie == category.numer_categorie ? 'selected' : ''}>
+                                            <option value="${cat.numer_categorie}" ${cat.numer_categorie === category.numer_categorie ? 'selected' : ''}>
                                                 ${cat.description_c}
                                             </option>
                                         `).join('')}
@@ -490,29 +500,24 @@
                 });
             } catch (error) {
                 console.error('Erreur chargement liste catégories:', error);
+                alert('Impossible de charger les catégories et produits.');
             }
         }
 
         // Assign Category to Product
         async function assignCategory(numero_item, numero_categorie) {
-            const payload = {
-                numero_item: parseInt(numero_item),
-                numero_categorie: numero_categorie ? parseInt(numero_categorie) : null
-            };
-            console.log('Sending assignCategory request:', payload);
             try {
                 const response = await fetch(`${API_URL}/assigner_categorie`, {
                     method: 'POST',
                     headers: getHeaders(),
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify({
+                        numero_item: parseInt(numero_item),
+                        numero_categorie: numero_categorie ? parseInt(numero_categorie) : null
+                    })
                 });
                 const result = await response.json();
-                console.log('assignCategory response:', {
-                    status: response.status,
-                    result
-                });
                 if (response.ok) {
-                    alert('Catégorie assignée!');
+                    alert('Catégorie assignée avec succès !');
                     loadCategoryList();
                     loadProducts();
                 } else {
@@ -526,26 +531,25 @@
 
         // Add Category
         async function addCategory() {
-            const description = document.getElementById('categoryDescription').value;
+            const description = document.getElementById('categoryDescription').value.trim();
             if (!description) {
-                alert('Description requise!');
+                alert('Description requise !');
                 return;
             }
-
             try {
                 const response = await fetch(`${API_URL}/ajouter_categorie`, {
                     method: 'POST',
                     headers: getHeaders(),
                     body: JSON.stringify({ description_c: description })
                 });
+                const result = await response.json();
                 if (response.ok) {
-                    alert('Catégorie ajoutée!');
+                    alert('Catégorie ajoutée avec succès !');
                     document.getElementById('categoryDescription').value = '';
                     loadCategoryList();
                     loadCategories();
                 } else {
-                    const result = await response.json();
-                    alert(`Erreur: ${result.erreur}`);
+                    alert(`Erreur: ${result.erreur || 'Échec de l\'ajout'}`);
                 }
             } catch (error) {
                 console.error('Erreur ajout catégorie:', error);
@@ -565,22 +569,25 @@
         async function saveEditedCategory(event) {
             event.preventDefault();
             const id = document.getElementById('editCategoryId').value;
-            const description = document.getElementById('editCategoryDescription').value;
-
+            const description = document.getElementById('editCategoryDescription').value.trim();
+            if (!description) {
+                alert('Description requise !');
+                return;
+            }
             try {
                 const response = await fetch(`${API_URL}/modifier_categorie/${id}`, {
                     method: 'PUT',
                     headers: getHeaders(),
                     body: JSON.stringify({ description_c: description })
                 });
+                const result = await response.json();
                 if (response.ok) {
-                    alert('Catégorie modifiée!');
+                    alert('Catégorie modifiée avec succès !');
                     document.getElementById('editCategoryModal').classList.add('hidden');
                     openCategoryModal();
                     loadCategories();
                 } else {
-                    const result = await response.json();
-                    alert(`Erreur: ${result.erreur}`);
+                    alert(`Erreur: ${result.erreur || 'Échec de la modification'}`);
                 }
             } catch (error) {
                 console.error('Erreur modification catégorie:', error);
@@ -590,20 +597,19 @@
 
         // Delete Category
         async function deleteCategory(id) {
-            if (!confirm('Voulez-vous supprimer cette catégorie?')) return;
-
+            if (!confirm('Voulez-vous supprimer cette catégorie ?')) return;
             try {
                 const response = await fetch(`${API_URL}/supprimer_categorie/${id}`, {
                     method: 'DELETE',
                     headers: getHeaders()
                 });
+                const result = await response.json();
                 if (response.ok) {
-                    alert('Catégorie supprimée!');
+                    alert('Catégorie supprimée avec succès !');
                     loadCategoryList();
                     loadCategories();
                 } else {
-                    const result = await response.json();
-                    alert(`Erreur: ${result.erreur}`);
+                    alert(`Erreur: ${result.erreur || 'Échec de la suppression'}`);
                 }
             } catch (error) {
                 console.error('Erreur suppression catégorie:', error);
@@ -619,7 +625,8 @@
 
         document.getElementById('paymentMode').addEventListener('change', (e) => {
             const clientSelect = document.getElementById('clientSelect');
-            clientSelect.classList.toggle('hidden', e.target.value !== 'a_triple');
+            clientSelect.classList.toggle('hidden', e.target.value !== 'a_terme');
+            if (e.target.value !== 'a_terme') clientSelect.value = '0';
         });
 
         document.getElementById('validateSaleBtn').addEventListener('click', validateSale);
@@ -646,7 +653,7 @@
             localStorage.removeItem('userId');
             localStorage.removeItem('selectedSeller');
             localStorage.removeItem('lastSale');
-            localStorage.setItem('lastSaleId', 'test_user');
+            localStorage.removeItem('lastSaleId');
             window.location.reload();
         });
 
