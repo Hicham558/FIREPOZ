@@ -10,7 +10,6 @@
         .password-input-container {
             position: relative;
             display: inline-block;
-            width: 100%;
         }
         .password-toggle {
             position: absolute;
@@ -123,27 +122,6 @@
             cursor: not-allowed !important;
             opacity: 0.7 !important;
         }
-        /* Style pour la grille des catégories */
-        .category-grid {
-            display: grid;
-            grid-template-columns: 2fr 1fr 1fr;
-            gap: 8px;
-            align-items: center;
-            padding: 8px;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        .category-grid-header {
-            display: grid;
-            grid-template-columns: 2fr 1fr 1fr;
-            gap: 8px;
-            font-weight: bold;
-            background-color: #f9fafb;
-            padding: 8px;
-            border-bottom: 2px solid #e5e7eb;
-        }
-        .category-grid div {
-            padding: 4px;
-        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -248,7 +226,6 @@
                         <div class="relative w-full md:w-1/2">
                             <select id="categoryFilter" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300">
                                 <option value="all">Toutes les catégories</option>
-                                <option value="none">Non assignés</option>
                             </select>
                             <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
                                 <i class="fas fa-chevron-down"></i>
@@ -664,20 +641,10 @@
                     headers: { 'X-User-ID': userId }
                 });
                 if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
-                const categories = await response.json();
-                console.log('Réponse API /liste_categories:', categories);
-                categoriesCache = categories.map(category => ({
-                    numer_categorie: category.numer_categorie || null,
-                    description_c: category.description_c || 'N/A'
-                }));
-                console.log('categoriesCache mis à jour:', categoriesCache);
+                categoriesCache = await response.json();
                 const categoryFilter = document.getElementById('categoryFilter');
                 categoryFilter.innerHTML = '<option value="all">Toutes les catégories</option><option value="none">Non assignés</option>';
                 categoriesCache.forEach(category => {
-                    if (!category.numer_categorie) {
-                        console.error('Catégorie sans numer_categorie:', category);
-                        return;
-                    }
                     const option = document.createElement('option');
                     option.value = category.numer_categorie;
                     option.textContent = category.description_c;
@@ -699,14 +666,14 @@
                     headers: { 'X-User-ID': userId }
                 });
                 if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
-                const products = await response.json();
-                produitsCache = products.map(produit => ({
+                produitsCache = await response.json();
+                produitsCache = produitsCache.map(produit => ({
                     numero_item: parseInt(produit.numero_item || produit.NUMERO_ITEM),
                     designation: produit.designation || produit.DESIGNATION || 'N/A',
                     prix: parseFloat(produit.prix || produit.PRIX) || 0,
                     prixba: parseFloat(produit.prixba || produit.PRIXBA) || 0,
                     qte: parseFloat(produit.qte || produit.QTE) || 0,
-                    numer_categorie: produit.numer_categorie || null
+                    numer_categorie: produit.numer_categorie || produit.NUMER_CATEGORIE || null
                 }));
                 filterProducts();
             } catch (error) {
@@ -747,10 +714,6 @@
                 const buttonDisabled = produit.qte <= 0 ? 'btn-disabled' : '';
                 const buttonAttrs = produit.qte <= 0 ? 'disabled' : '';
                 const category = categoriesCache.find(c => c.numer_categorie === produit.numer_categorie)?.description_c || 'Non assigné';
-                const categoryOptions = [
-                    '<option value="none">Non assigné</option>',
-                    ...categoriesCache.map(c => `<option value="${c.numer_categorie}" ${produit.numer_categorie === c.numer_categorie ? 'selected' : ''}>${c.description_c}</option>`)
-                ].join('');
                 const tr = document.createElement('tr');
                 tr.className = `hover:bg-gray-50 ${stockClass}`;
                 tr.innerHTML = `
@@ -761,47 +724,13 @@
                     </td>
                     <td class="px-6 py-4 text-sm text-gray-900">${produit.designation}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stockStatus}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <select onchange="assignProductFromProductList(${produit.numero_item}, this)" class="px-2 py-1 border rounded-md">
-                            ${categoryOptions}
-                        </select>
-                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${category}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.prix.toFixed(2)}</td>
                 `;
                 tbody.appendChild(tr);
             });
             countElement.textContent = filteredProducts.length;
             countElement.classList.remove('hidden');
-        }
-
-        async function assignProductFromProductList(numero_item, selectElement) {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour assigner un produit', true);
-                selectElement.value = produitsCache.find(p => p.numero_item === numero_item)?.numer_categorie || 'none';
-                return;
-            }
-            const numer_categorie = selectElement.value === 'none' ? null : parseInt(selectElement.value);
-            try {
-                selectElement.disabled = true;
-                const response = await fetch(`${API_BASE_URL}/${numer_categorie ? 'assigner_produit' : 'desassigner_produit'}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({ numero_item, ...(numer_categorie ? { numer_categorie } : {}) })
-                });
-                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
-                await chargerProduits();
-                filterProducts();
-                showToast(`Produit ${numer_categorie ? 'assigné' : 'désassigné'} avec succès`);
-            } catch (error) {
-                showToast(`Erreur ${numer_categorie ? 'assignation' : 'désassignation'} produit: ${error.message}`, true);
-                selectElement.value = produitsCache.find(p => p.numero_item === numero_item)?.numer_categorie || 'none';
-            } finally {
-                selectElement.disabled = false;
-            }
         }
 
         function selectProduct(numeroItem, prix, prixba, stock, designation) {
@@ -977,249 +906,427 @@
                 return;
             }
             const { numero_util } = JSON.parse(storedSeller);
-            const password2 = localStorage.getItem ممنContent;
+            const password2 = localStorage.getItem('sellerPassword');
             const paymentMode = document.getElementById('paymentMode').value;
-            const amountPaid = paymentMode === 'a_term' ? parseFloat(document.getElementById('amountPaid').value) || 0 : null;
+            const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
             const numeroTable = parseInt(document.getElementById('saleClientId').value) || 0;
-            if (paymentMode === 'a_term' && numeroTable === 0) {
-                showToast('Veuillez sélectionner une table client pour la vente à terme', true);
+            if (paymentMode === 'a_terme' && numeroTable === 0) {
+                showToast('Veuillez sélectionner un client pour une vente à terme', true);
                 return;
             }
-            const validateButton = document.getElementById('validateSaleButton');
-            validateButton.disabled = true;
+            if (paymentMode === 'a_terme' && amountPaid < 0) {
+                showToast('Le montant versé ne peut pas être négatif', true);
+                return;
+            }
+            const venteData = {
+                numero_table: numeroTable,
+                date_comande: new Date().toISOString(),
+                payment_mode: paymentMode,
+                amount_paid: amountPaid,
+                numero_util: parseInt(numero_util),
+                password2: password2,
+                lignes: tempSaleLines.map(ligne => ({
+                    numero_item: ligne.numero_item,
+                    quantite: parseFloat(ligne.quantite),
+                    prixt: parseFloat(ligne.prixt),
+                    remarque: ligne.remarque,
+                    prixbh: ligne.prixbh
+                }))
+            };
             try {
-                const saleData = {
-                    numero_table: numeroTable,
-                    date_commande: new Date().toISOString(),
-                    payment_mode: paymentMode,
-                    amount_paid: amountPaid || 0,
-                    numero_util: parseInt(numero_util),
-                    password2: password2,
-                    lignes: tempSaleLines.map(line => ({
-                        numero_item: line.numero_item,
-                        quantite: parseFloat(line.quantity),
-                        prixt: parseFloat(line.total_price),
-                        remarque: ligne.remarque,
-                        prixbh: ligne.prixbh
-                    }))
-                };
-                const response = await fetch(`${API_BASE_URL}/valider_sale`, {
+                const response = await fetch(`${API_BASE_URL}/valider_vente`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-User-ID': userId
                     },
-                    body: JSON.stringify(saleData)
+                    body: JSON.stringify(venteData)
                 });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
+                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
                 const result = await response.json();
-                showToast(`Vente validée avec succès: ${result.message}`);
+                showToast(`Vente #${result.numero_comande} validée avec succès`);
                 tempSaleLines = [];
-                document.getElementById('paymentMode').value = 'cash';
+                document.getElementById('paymentMode').value = 'espece';
                 document.getElementById('amountPaid').value = '';
-                document.getElementById('clientId').value = '0';
+                document.getElementById('saleClientId').value = '0';
                 togglePaymentForm();
                 updateTempSalesTable();
-                await chargerProduits();
+                chargerProduits();
+                chargerClients();
             } catch (error) {
-                showToast(`Erreur de validation de la vente: ${error.message}`, true);
-            } finally {
-                validateSaleButton.disabled = false;
+                showToast(`Erreur validation vente: ${error.message}`, true);
             }
         }
 
-        async function editSale() {
-            const userId = localStorage.getItem('user_id');
+        async function modifierVente() {
+            const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Vous devez être connecté pour modifier une vente', true);
+                showToast('Veuillez vous connecter pour modifier la vente', true);
                 return;
             }
             if (tempSaleLines.length === 0) {
                 showToast('Aucune ligne à modifier', true);
                 return;
             }
-            const storedSeller = localStorage.getItem('selected_seller');
+            const storedSeller = localStorage.getItem('selectedSeller');
             if (!storedSeller) {
-                showToast('Veuillez sélectionner un vendeur', true);
+                showToast('Veuillez sélectionner et valider un vendeur', true);
                 return;
             }
-            const { numero } = JSON.parse(storedSeller);
-            const password = localStorage.getItem('seller_password');
+            const { numero_util } = JSON.parse(storedSeller);
+            let password2 = localStorage.getItem('sellerPassword');
+            if (!password2) {
+                password2 = prompt('Veuillez entrer le mot de passe du vendeur pour modifier la vente:');
+                if (!password2) {
+                    showToast('Mot de passe requis pour modifier la vente', true);
+                    return;
+                }
+            }
             const paymentMode = document.getElementById('paymentMode').value;
-            const amountPaid = paymentMode === 'a_term' ? parseFloat(document.getElementById('amountPaid').value) || 0 : null;
-            const tableClientId = parseInt(document.getElementById('saleClientId').value) || null;
-            if (paymentMode === 'a_term' && !tableClientId) {
+            const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
+            const numeroTable = parseInt(document.getElementById('saleClientId').value) || 0;
+            if (paymentMode === 'a_terme' && numeroTable === 0) {
                 showToast('Veuillez sélectionner un client pour une vente à terme', true);
                 return;
             }
-            const editSaleButton = document.getElementById('editSaleButton');
-            editSaleButton.disabled = true;
+            if (paymentMode === 'a_terme' && amountPaid < 0) {
+                showToast('Le montant versé ne peut pas être négatif', true);
+                return;
+            }
+            const venteData = {
+                numero_table: numeroTable,
+                date_comande: new Date().toISOString(),
+                numero_util: parseInt(numero_util),
+                password2: password2,
+                lignes: tempSaleLines.map(ligne => ({
+                    numero_item: ligne.numero_item,
+                    quantite: parseFloat(ligne.quantite),
+                    prixt: parseFloat(ligne.prixt),
+                    remarque: ligne.remarque,
+                    prixbh: ligne.prixbh
+                }))
+            };
             try {
-                const saleData = {
-                    numero_table: tableClientId,
-                    date_commande: new Date().toISOString(),
-                    payment_mode: paymentMode,
-                    amount_paid: amountPaid || 0,
-                    numero_util: parseInt(numero),
-                    password: password,
-                    lines: tempSaleLines.map(line => ({
-                        numero_item_id: line.numero_item_id,
-                        quantite: parseFloat(line.quantity),
-                        prixt: parseFloat(line.total_price),
-                        remarque: line.remarque,
-                        prixbh: line.prixbh
-                    }))
-                };
-                const response = await fetch(`${API_BASE_URL}/edit_sale/${editNumero}`, {
+                const response = await fetch(`${API_BASE_URL}/modifier_vente/${editNumeroComande}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
+                        'X-User-ID': userId
                     },
-                    body: JSON.stringify(saleData)
+                    body: JSON.stringify(venteData)
                 });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
+                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
                 const result = await response.json();
-                showToast(`Vente modifiée avec succès: ${result.message}`);
+                showToast(`Vente #${result.numero_comande} modifiée avec succès`);
                 tempSaleLines = [];
-                document.getElementById('paymentMode').value = 'cash';
+                document.getElementById('paymentMode').value = 'espece';
                 document.getElementById('amountPaid').value = '';
-                document.getElementById('clientId').value = '0';
+                document.getElementById('saleClientId').value = '0';
                 togglePaymentForm();
                 updateTempSalesTable();
-                await chargerProduits();
+                chargerProduits();
+                chargerClients();
+                window.location.href = 'page2.html';
             } catch (error) {
-                showToast(`Erreur lors de la modification de la vente: ${error.message}`, true);
-            } finally {
-                editSaleButton.disabled = false;
+                showToast(`Erreur modification vente: ${error.message}`, true);
             }
         }
 
-        async function loadSaleData(saleNumber) {
-            const userId = localStorage.getItem('user_id');
+        async function loadSaleData(numeroComande) {
+            const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Vous devez être connecté', true);
+                showToast('Veuillez vous connecter', true);
                 return;
             }
             try {
-                const response = await fetch(`${API_BASE_URL}/sale/${saleNumber}`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
+                const response = await fetch(`${API_BASE_URL}/vente/${numeroComande}`, {
+                    headers: { 'X-User-ID': userId }
                 });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
+                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
                 const saleData = await response.json();
-                tempSaleLines = saleData.lines.map(line => ({
-                    numero_item_id: line.numero_item_id,
-                    designation: line.description || 'N/A',
-                    quantity: parseFloat(line.quantity).toFixed(2),
-                    total_price: parseFloat(line.total_price).toFixed(2),
-                    remarque: line.remarque || '',
-                    prixbh: parseFloat(line.prixbh) || 0
-                }));
-                document.getElementById('paymentMode').value = saleData.payment_mode || 'cash';
-                document.getElementById('amountPaid').value = saleData.amount_paid || '';
-                document.getElementById('clientId').value = saleData.client_id || '0';
+                if (!Array.isArray(saleData.lignes)) {
+                    throw new Error('Les lignes de vente sont manquantes ou invalides');
+                }
+                tempSaleLines = saleData.lignes
+                    .filter(ligne => ligne.numero_item != null)
+                    .map(ligne => {
+                        const numeroItem = ligne.numero_item ?? 0;
+                        const quantite = parseFloat(ligne.quantite) || 0;
+                        const prixt = parseFloat(ligne.prixt) || 0;
+                        return {
+                            numero_item: numeroItem,
+                            designation: ligne.designation || 'N/A',
+                            quantite: quantite.toFixed(2),
+                            prixt: prixt.toFixed(2),
+                            remarque: quantite > 0 ? (prixt / quantite).toFixed(2) : '0.00',
+                            prixbh: parseFloat(ligne.prixbh) || 0
+                        };
+                    });
+                if (saleData.lignes.length !== tempSaleLines.length) {
+                    showToast('Certaines lignes invalides ont été ignorées', true);
+                }
+                const clientSelect = document.getElementById('saleClientId');
+                const clientId = saleData.numero_table || '0';
+                const clientOptionExists = Array.from(clientSelect.options).some(option => option.value === clientId);
+                if (!clientOptionExists && clientId !== '0') {
+                    const tempOption = document.createElement('option');
+                    tempOption.value = clientId;
+                    tempOption.textContent = `${saleData.client_nom || 'Client inconnu'} (ID: ${clientId})`;
+                    clientSelect.appendChild(tempOption);
+                }
+                clientSelect.value = clientId;
+                document.getElementById('paymentMode').value = 'espece';
+                document.getElementById('amountPaid').value = '';
                 togglePaymentForm();
                 updateTempSalesTable();
+                const storedSeller = localStorage.getItem('selectedSeller');
+                if (storedSeller) {
+                    const { numero_util } = JSON.parse(storedSeller);
+                    if (numero_util !== saleData.numero_util?.toString()) {
+                        document.getElementById('sellerSelect').value = saleData.numero_util || '0';
+                        document.getElementById('sellerPassword').value = '';
+                        document.getElementById('sellerPassword').disabled = false;
+                        document.getElementById('selectedSellerName').textContent = saleData.utilisateur_nom || '-';
+                        document.getElementById('headerSellerName').textContent = saleData.utilisateur_nom || '-';
+                    }
+                }
             } catch (error) {
-                showToast(`Erreur lors du chargement de la vente: ${error.message}`, true);
+                showToast(`Erreur chargement vente: ${error.message}`, true);
             }
         }
 
         function holdSale() {
             if (tempSaleLines.length === 0) {
-                showToast('Aucune vente à mettre en attente', true);
+                showToast('Aucune ligne à mettre en attente', true);
                 return;
             }
-            const holdSaleButton = document.getElementById('holdSaleButton');
-            holdSaleButton.disabled = true;
-            const sale = {
+            const paymentMode = document.getElementById('paymentMode').value;
+            const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
+            const clientId = document.getElementById('saleClientId').value;
+            const pendingSale = {
                 id: Date.now(),
+                date: new Date().toLocaleString('fr-FR'),
                 lines: [...tempSaleLines],
-                paymentMode: document.getElementById('paymentMode').value,
-                amountPaid: parseFloat(document.getElementById('amountPaid').value) || 0,
-                clientId: document.getElementById('clientId').value
+                paymentMode,
+                amountPaid,
+                clientId
             };
-            const pendingSales = JSON.parse(localStorage.getItem('pending_sales') || '[]');
-            pendingSales.push(sale);
-            localStorage.setItem('pending_sales', JSON.stringify(pendingSales));
+            const pendingSales = JSON.parse(localStorage.getItem('pendingSales') || '[]');
+            pendingSales.push(pendingSale);
+            localStorage.setItem('pendingSales', JSON.stringify(pendingSales));
             tempSaleLines = [];
-            document.getElementById('paymentMode').value = 'cash';
+            document.getElementById('paymentMode').value = 'espece';
             document.getElementById('amountPaid').value = '';
-            document.getElementById('clientId').value = '0';
+            document.getElementById('saleClientId').value = '0';
             togglePaymentForm();
             updateTempSalesTable();
-            showToast('Sale held successfully');
-            holdSaleButton.disabled = false;
+            showToast('Vente mise en attente avec succès');
         }
 
         function showPendingSales() {
             const modal = document.getElementById('pendingSalesModal');
-            const list = document.getElementById('pendingSalesList');
-            const pendingSales = JSON.parse(localStorage.getItem('pending_sales') || '[]');
+            const pendingSalesList = document.getElementById('pendingSalesList');
+            const pendingSales = JSON.parse(localStorage.getItem('pendingSales') || '[]');
             if (pendingSales.length === 0) {
-                list.innerHTML = '<p class="text-center">Aucune vente en attente</p>';
+                pendingSalesList.innerHTML = '<p class="text-center text-gray-500">Aucune vente en attente</p>';
             } else {
-                list.innerHTML = pendingSales.map(sale => `
-                    <div class="sale-item">
-                        <p>ID: ${sale.id}</p>
-                        <p>Items: ${sale.lines.length}</p>
-                        <p>Total: ${sale.lines.reduce((sum, line) => sum + parseFloat(line.total_price), 0).toFixed(2)}</p>
-                        <button onclick="loadPendingSale(${sale.id})">Load Charger</button>
-                        <button onclick="deletePendingSale(${sale.id})">Delete Supprimer</button>
+                pendingSalesList.innerHTML = pendingSales.map(sale => `
+                    <div class="border p-4 rounded-md shadow-sm bg-gray-50">
+                        <div class="flex justify-between items-center mb-2">
+                            <h3 class="font-semibold">Vente #${sale.id} - ${sale.date}</h3>
+                            <div class="space-x-2">
+                                <button onclick="loadPendingSale(${sale.id})" class="bg-green-600 text-white px-2 py-1 rounded-md hover:bg-green-700 transition">
+                                    <i class="fas fa-upload mr-1"></i> Charger
+                                </button>
+                                <button onclick="deletePendingSale(${sale.id})" class="bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
+                                    <i class="fas fa-trash mr-1"></i> Supprimer
+                                </button>
+                            </div>
+                        </div>
+                        <p><strong>Client:</strong> ${sale.clientId === '0' ? 'Vente Comptoir' : clientsCache.find(c => c.numero_clt === parseInt(sale.clientId))?.nom || 'Inconnu'}</p>
+                        <p><strong>Mode de paiement:</strong> ${sale.paymentMode === 'espece' ? 'Espèce' : 'À terme'}</p>
+                        ${sale.paymentMode === 'a_terme' ? `<p><strong>Montant versé:</strong> ${sale.amountPaid.toFixed(2)} DA</p>` : ''}
+                        <p><strong>Total:</strong> ${sale.lines.reduce((sum, line) => sum + parseFloat(line.prixt || 0), 0).toFixed(2)} DA</p>
+                        <p><strong>Articles:</strong> ${sale.lines.length}</p>
                     </div>
                 `).join('');
             }
-            modal.style.display = 'block';
+            modal.style.display = 'flex';
         }
 
         function loadPendingSale(saleId) {
-            const pendingSales = JSON.parse(localStorage.getItem('pending_sales') || '[]');
+            const pendingSales = JSON.parse(localStorage.getItem('pendingSales') || '[]');
             const sale = pendingSales.find(s => s.id === saleId);
-            if (sale) {
-                tempSaleLines = [...sale.lines];
-                document.getElementById('paymentMode').value = sale.paymentMode;
-                document.getElementById('amountPaid').value = sale.amountPaid;
-                document.getElementById('clientId').value = sale.clientId;
-                togglePaymentForm();
-                updateTempSalesTable();
-                deletePendingSale(saleId);
-                showToast('Sale loaded successfully');
+            if (!sale) {
+                showToast('Vente en attente non trouvée', true);
+                return;
             }
+            tempSaleLines = [...sale.lines];
+            document.getElementById('paymentMode').value = sale.paymentMode;
+            document.getElementById('amountPaid').value = sale.amountPaid || '';
+            document.getElementById('saleClientId').value = sale.clientId || '0';
+            togglePaymentForm();
+            updateTempSalesTable();
+            deletePendingSale(saleId);
+            closePendingSalesModal();
+            showToast('Vente en attente chargée avec succès');
         }
 
         function deletePendingSale(saleId) {
-            let pendingSales = JSON.parse(localStorage.getItem('pending_sales') || '[]');
+            let pendingSales = JSON.parse(localStorage.getItem('pendingSales') || '[]');
             pendingSales = pendingSales.filter(s => s.id !== saleId);
-            localStorage.setItem('pending_sales', JSON.stringify(pendingSales));
+            localStorage.setItem('pendingSales', JSON.stringify(pendingSales));
             showPendingSales();
+            showToast('Vente en attente supprimée');
         }
 
         function closePendingSalesModal() {
             document.getElementById('pendingSalesModal').style.display = 'none';
         }
 
-        function printSale() {
-            const sale = {
-                lines: tempSaleLines,
-                total: tempSaleLines.reduce((sum, line) => sum + parseFloat(line.total_price), 0).toFixed(2)
-            };
-            console.log('Impression de la vente:', sale);
-            // Implémenter la logique d'impression ici
-            showToast('Impression non implémentée');
+        function imprimerVente80mm() {
+            if (tempSaleLines.length === 0) {
+                showToast('Aucune ligne à imprimer', true);
+                return;
+            }
+            const settings = JSON.parse(localStorage.getItem('settings')) || {};
+            const companyName = settings.companyName || 'FirePoz';
+            const companyAddress = settings.companyAddress || '';
+            const companyPhone = settings.companyPhone || '';
+            const companyLogo = settings.companyLogo || '';
+            const clientSelect = document.getElementById('saleClientId');
+            const clientValue = clientSelect.value;
+            const clientText = clientValue === '0' ? 'Vente Comptoir' : clientSelect.options[clientSelect.selectedIndex].text.replace(/<span.*<\/span>/, '');
+            const paymentMode = document.getElementById('paymentMode').value;
+            const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
+            const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0).toFixed(2);
+            const storedSeller = localStorage.getItem('selectedSeller');
+            const sellerName = storedSeller ? JSON.parse(storedSeller).nom : 'Non spécifié';
+            let soldeContent = '';
+            if (paymentMode === 'a_terme' && clientValue !== '0') {
+                const client = clientsCache.find(c => c.numero_clt === parseInt(clientValue));
+                const soldeAvant = client ? parseFloat(client.solde) || 0 : 0;
+                const soldeApres = soldeAvant + (amountPaid - parseFloat(total));
+                soldeContent = `
+                    <p>Solde avant vente: ${soldeAvant.toFixed(2)} DA</p>
+                    <p>Solde après vente: ${soldeApres.toFixed(2)} DA</p>
+                `;
+            }
+            let ticketContent = `
+                <div class="printable">
+                    ${companyLogo ? `<img src="${companyLogo}" alt="Logo" style="max-width: 60mm; margin-bottom: 3mm; display: block; margin-left: auto; margin-right: auto;">` : ''}
+                    <h1>${companyName}</h1>
+                    ${companyAddress ? `<p>${companyAddress}</p>` : ''}
+                    ${companyPhone ? `<p>Tél: ${companyPhone}</p>` : ''}
+                    <p>Date: ${new Date().toLocaleString('fr-FR')}</p>
+                    <p>Vendeur: ${sellerName}</p>
+                    <p>Client: ${clientText}</p>
+                    <p>Mode de paiement: ${paymentMode === 'espece' ? 'Espèce' : 'À terme'}</p>
+                    ${paymentMode === 'a_terme' ? `<p>Montant versé: ${amountPaid.toFixed(2)} DA</p>` : ''}
+                    ${soldeContent}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Produit</th>
+                                <th>Qté</th>
+                                <th>Prix U.</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            tempSaleLines.forEach(ligne => {
+                ticketContent += `
+                    <tr>
+                        <td>${ligne.numero_item || 'N/A'}</td>
+                        <td>${ligne.designation || 'N/A'}</td>
+                        <td>${parseFloat(ligne.quantite).toFixed(2)}</td>
+                        <td>${parseFloat(ligne.remarque || 0).toFixed(2)}</td>
+                        <td>${parseFloat(ligne.prixt || 0).toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+            ticketContent += `
+                        </tbody>
+                    </table>
+                    <p class="total">Total: ${total} DA</p>
+                    <p style="text-align: center; margin-top: 3mm;">Merci de votre achat !</p>
+                </div>
+            `;
+            const printWindow = window.open('', '_blank', 'width=320,height=480');
+            if (!printWindow) {
+                showToast('Impossible d\'ouvrir l\'aperçu. Veuillez désactiver votre bloqueur de pop-up.', true);
+                return;
+            }
+            printWindow.document.write(`
+                <html>
+                    <head>
+                        <title>Aperçu Impression 80mm - ${companyName}</title>
+                        <style>
+                            body {
+                                margin: 0;
+                                padding: 10mm;
+                                background: #fff;
+                                display: flex;
+                                justify-content: center;
+                                align-items: center;
+                                min-height: 100vh;
+                            }
+                            .printable {
+                                width: 80mm;
+                                font-family: Arial, sans-serif;
+                                font-size: 10pt;
+                                line-height: 1.2;
+                                color: #000;
+                                box-shadow:0 0 10px rgba(0, 0, 0, 0.1);
+                                text-align: center;
+                            }
+                            h1 {
+                                font-size: 14pt;
+                                margin: 0 0 3mm;
+                            }
+                            p {
+                                margin: 2mm 0;
+                                font-size: 10pt;
+                            }
+                            table {
+                                width: 100%;
+                                border-collapse: collapse;
+                                margin: 5mm 0;
+                            }
+                            th, td {
+                                border: 0.5mm solid #000;
+                                padding: 2mm;
+                                font-size: 9pt;
+                                text-align: left;
+                            }
+                            th {
+                                background: #f0f0f0;
+                            }
+                            .total {
+                                font-weight: bold;
+                                font-size: 12pt;
+                                margin-top: 5mm;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        ${ticketContent}
+                    </body>
+                </html>
+            `);
+            printWindow.document.close();
+            printWindow.focus();
+            setTimeout(() => {
+                printWindow.print();
+                printWindow.close();
+            }, 500);
         }
 
         function openCategoryModal() {
-            document.getElementById('categoryModal').style.display = 'block';
+            document.getElementById('categoryModal').style.display = 'flex';
+            document.getElementById('categoryDescription').value = '';
             loadCategoryList();
         }
 
@@ -1228,269 +1335,213 @@
         }
 
         async function loadCategoryList() {
-            const userId = localStorage.getItem('user_id');
+            const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Vous devez être connecté pour gérer les catégories', true);
+                showToast('Veuillez vous connecter pour gérer les catégories', true);
                 return;
             }
-            const categoryList = document.getElementById('categoryList');
             try {
                 const [categoriesResponse, productsResponse] = await Promise.all([
-                    fetch(`${API_BASE_URL}/categories`, {
-                        headers: { 'X-User-Id': userId }
-                    }),
-                    fetch(`${API_BASE_URL}/products`, {
-                        headers: { 'X-User-Id': userId }
-                    })
+                    fetch(`${API_BASE_URL}/liste_categories`, { headers: { 'X-User-ID': userId } }),
+                    fetch(`${API_BASE_URL}/liste_produits`, { headers: { 'X-User-ID': userId } })
                 ]);
                 if (!categoriesResponse.ok || !productsResponse.ok) {
-                    const errorText = await (categoriesResponse.ok ? productsResponse.text() : categoriesResponse.text());
-                    throw new Error(`Erreur ${categoriesResponse.status || productsResponse.status}: ${errorText}`);
+                    throw new Error(`Erreur: ${await (categoriesResponse.ok ? productsResponse : categoriesResponse).text()}`);
                 }
                 const categories = await categoriesResponse.json();
                 const products = await productsResponse.json();
-                categoriesCache = categories.map(category => ({
-                    id: category.id || null,
-                    description: category.description || 'N/A'
+                const categoryList = document.getElementById('categoryList');
+                categoryList.innerHTML = '';
+                const normalizedProducts = products.map(p => ({
+                    ...p,
+                    numer_categorie: p.numer_categorie || p.NUMER_CATEGORIE || null,
+                    numero_item: parseInt(p.numero_item || p.NUMERO_ITEM),
+                    designation: p.designation || p.DESIGNATION || 'N/A'
                 }));
-                productsCache = products.map(product => ({
-                    id: parseInt(product.id || 0),
-                    description: product.description || 'N/A',
-                    price: parseFloat(product.price || 0),
-                    purchase_price: parseFloat(product.purchase_price || 0),
-                    quantity: parseFloat(product.quantity || 0),
-                    category_id: product.category_id || null
-                }));
-                categoryList.innerHTML = categoriesCache.map(category => `
-                    <div class="category-item">
-                        <p>${category.description}</p>
-                        <button onclick="editCategory(${category.id})">Modifier</button>
-                        <button onclick="deleteCategory(${category.id})">Supprimer</button>
-                        <select multiple>
-                            ${productsCache.filter(p => p.category_id === category.id).map(p => `<option>${p.description}</option>`).join('')}
-                        </select>
+                const unassignedProducts = normalizedProducts.filter(p => p.numer_categorie === null);
+                const unassignedDiv = document.createElement('div');
+                unassignedDiv.className = 'mb-4';
+                unassignedDiv.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-bold">Non assignés</span>
                     </div>
-                `).join('');
+                    <div class="pl-4">
+                        ${unassignedProducts.length ? unassignedProducts.map(product => `
+                            <div class="flex justify-between items-center mb-1">
+                                <span>${product.designation}</span>
+                                <select onchange="assignCategory(${product.numero_item}, this.value)" class="border p-1 rounded w-40">
+                                    <option value="">Assigner à...</option>
+                                    ${categories.map(cat => `<option value="${cat.numer_categorie}">${cat.description_c}</option>`).join('')}
+                                </select>
+                            </div>
+                        `).join('') : '<p class="text-gray-500">Aucun produit non assigné</p>'}
+                    </div>
+                `;
+                categoryList.appendChild(unassignedDiv);
+                categories.forEach(category => {
+                    const categoryProducts = normalizedProducts.filter(p => p.numer_categorie === category.numer_categorie);
+                    const div = document.createElement('div');
+                    div.className = 'mb-4';
+                    div.innerHTML = `
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-bold">${category.description_c}</span>
+                            <div class="space-x-2">
+                                <button onclick="editCategoryModal(${category.numer_categorie}, '${category.description_c.replace(/'/g, "\\'")}')" class="bg-yellow-600 text-white px-2 py-1 rounded-md hover:bg-yellow-700 transition">
+                                    <i class="fas fa-edit"></i> Modifier
+                                </button>
+                                <button onclick="deleteCategory(${category.numer_categorie})" class="bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
+                                    <i class="fas fa-trash"></i> Supprimer
+                                </button>
+                            </div>
+                        </div>
+                        <div class="pl-4">
+                            ${categoryProducts.length ? categoryProducts.map(product => `
+                                <div class="flex justify-between items-center mb-1">
+                                    <span>${product.designation}</span>
+                                    <button onclick="removeCategoryFromProduct(${product.numero_item})" class="text-red-600 hover:text-red-800">
+                                        <i class="fas fa-times"></i> Retirer
+                                    </button>
+                                </div>
+                            `).join('') : '<p class="text-gray-500">Aucun produit dans cette catégorie</p>'}
+                        </div>
+                    `;
+                            categoryList.appendChild(div);
+                });
             } catch (error) {
-                showToast('Erreur lors du chargement des catégories: ' + error.message, true);
-                categoryList.innerHTML = '<p>Erreur lors du chargement</p>';
+                showToast('Erreur chargement catégories ou produits: ' + error.message, true);
             }
         }
 
-        async function addCategory() {
-            const userId = localStorage.getItem('user_id');
-            const description = document.getElementById('categoryDescription').value;
-            if (!description) {
-                showToast('Description requise', true);
+        async function assignCategory(productId, categoryId) {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour assigner une catégorie', true);
                 return;
             }
             try {
-                const response = await fetch(`${API_BASE_URL}/categories/add`, {
+                const response = await fetch(`${API_BASE_URL}/assigner_categorie`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-User-Id': userId
+                        'X-User-ID': userId
                     },
-                    body: JSON.stringify({ description })
+                    body: JSON.stringify({
+                        numero_item: parseInt(productId),
+                        numer_categorie: categoryId ? parseInt(categoryId) : null
+                    })
                 });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}): ${errorText}`);
-                }
-                document.getElementById('categoryDescription').value = '';
-                loadCategoryList();
-                showToast('Catégorie ajoutée avec succès');
+                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
+                showToast('Catégorie assignée avec succès');
+                await chargerProduits();
+                await loadCategoryList();
+                filterProducts();
             } catch (error) {
-                showToast('Erreur lors de l\'ajout de la catégorie: ' + error.message, true);
+                showToast('Erreur assignation catégorie: ' + error.message, true);
             }
         }
 
-        function editCategory(categoryId) {
-            const category = categoriesCache.find(c => c.id === categoryId);
-            if (category) {
-                document.getElementById('editCategoryId').value = categoryId;
-                document.getElementById('editCategoryDesc').value = category.description;
-                document.getElementById('editCategoryModal').style.display = 'block';
-            }
+        function editCategoryModal(categoryId, description) {
+            document.getElementById('editCategoryId').value = categoryId;
+            document.getElementById('editCategoryDescription').value = description;
+            document.getElementById('editCategoryModal').style.display = 'flex';
         }
 
-        async function saveEditedCategory() {
-            const userId = localStorage.getItem('user_id');
+        async function saveEditedCategory(event) {
+            event.preventDefault();
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour modifier une catégorie', true);
+                return;
+            }
             const categoryId = document.getElementById('editCategoryId').value;
             const description = document.getElementById('editCategoryDescription').value;
             if (!description) {
-                showToast('Description requise', true);
+                showToast('La description est requise', true);
                 return;
             }
             try {
-                const response = await fetch(`${API_BASE_URL}/categories/${categoryId}`, {
+                const response = await fetch(`${API_BASE_URL}/modifier_categorie/${categoryId}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-User-Id': userId
+                        'X-User-ID': userId
                     },
-                    body: JSON.stringify({ description })
+                    body: JSON.stringify({ description_c: description })
                 });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                document.getElementById('editCategoryModal').style.display = 'none';
-                loadCategoryList();
+                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
                 showToast('Catégorie modifiée avec succès');
+                closeEditCategoryModal();
+                await chargerCategories();
+                await loadCategoryList();
+                filterProducts();
             } catch (error) {
-                showToast('Erreur lors de la modification de la catégorie: ' + error.message, true);
+                showToast('Erreur modification catégorie: ' + error.message, true);
+            }
+        }
+
+        async function deleteCategory(categoryId) {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour supprimer une catégorie', true);
+                return;
+            }
+            if (!confirm('Voulez-vous vraiment supprimer cette catégorie ? Les produits associés seront désassignés.')) {
+                return;
+            }
+            try {
+                const response = await fetch(`${API_BASE_URL}/supprimer_categorie/${categoryId}`, {
+                    method: 'DELETE',
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
+                showToast('Catégorie supprimée avec succès');
+                await chargerCategories();
+                await chargerProduits();
+                await loadCategoryList();
+                filterProducts();
+            } catch (error) {
+                showToast('Erreur suppression catégorie: ' + error.message, true);
+            }
+        }
+
+        async function removeCategoryFromProduct(productId) {
+            await assignCategory(productId, null);
+        }
+
+        async function addCategory() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour ajouter une catégorie', true);
+                return;
+            }
+            const description = document.getElementById('categoryDescription').value;
+            if (!description) {
+                showToast('La description est requise', true);
+                return;
+            }
+            try {
+                const response = await fetch(`${API_BASE_URL}/ajouter_categorie`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify({ description_c: description })
+                });
+                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
+                showToast('Catégorie ajoutée avec succès');
+                document.getElementById('categoryDescription').value = '';
+                await chargerCategories();
+                await loadCategoryList();
+                filterProducts();
+            } catch (error) {
+                showToast('Erreur ajout catégorie: ' + error.message, true);
             }
         }
 
         function closeEditCategoryModal() {
             document.getElementById('editCategoryModal').style.display = 'none';
         }
-
-        async function deleteCategory(categoryId) {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Vous devez être connecté pour supprimer une catégorie', true);
-                return;
-            }
-            if (!confirm('Voulez-vous vraiment supprimer cette catégorie ?')) {
-                return;
-            }
-            try {
-                const response = await fetch(`${API_BASE_URL}/supprimer_categorie`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({ numer_categorie: categoryId })
-                });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                await chargerCategories();
-                await chargerProduits();
-                filterProducts();
-                showToast('Catégorie supprimée avec succès');
-            } catch (error) {
-                showToast('Erreur lors de la suppression de la catégorie: ' + error.message, true);
-            }
-        }
-
-        async function assignProduct(categoryId, productId) {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Vous devez être connecté pour assigner un produit', true);
-                return;
-            }
-            try {
-                const response = await fetch(`${API_BASE_URL}/assigner_produit`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({ numero_item: productId, numer_categorie: categoryId })
-                });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                await chargerProduits();
-                filterProducts();
-                loadCategoryList();
-                showToast('Produit assigné avec succès');
-            } catch (error) {
-                showToast('Erreur lors de l\'assignation du produit: ' + error.message, true);
-            }
-        }
-
-        async function unassignProduct(productId) {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Vous devez être connecté pour désassigner un produit', true);
-                return;
-            }
-            try {
-                const response = await fetch(`${API_BASE_URL}/desassigner_produit`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({ numero_item: productId })
-                });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                await chargerProduits();
-                filterProducts();
-                loadCategoryList();
-                showToast('Produit désassigné avec succès');
-            } catch (error) {
-                showToast('Erreur lors de la désassignation du produit: ' + error.message, true);
-            }
-        }
-
-        function loginLogout() {
-            const userId = localStorage.getItem('userId');
-            const button = document.getElementById('loginLogoutButton');
-            if (userId) {
-                localStorage.removeItem('userId');
-                localStorage.removeItem('selectedSeller');
-                localStorage.removeItem('sellerPassword');
-                localStorage.removeItem('pendingSales');
-                document.getElementById('userDisplay').textContent = '';
-                document.getElementById('userDisplay').classList.add('hidden');
-                document.getElementById('selectedSellerName').textContent = '-';
-                document.getElementById('headerSellerName').textContent = '-';
-                document.getElementById('sellerSelect').value = '0';
-                document.getElementById('sellerPassword').value = '';
-                document.getElementById('sellerPassword').disabled = false;
-                document.getElementById('validateSellerButton').textContent = 'Valider';
-                document.getElementById('validateSellerButton').onclick = validerVendeur;
-                button.innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                showToast('Déconnexion réussie');
-                tempSaleLines = [];
-                updateTempSalesTable();
-            } else {
-                window.location.href = 'login.html';
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', async () => {
-            const userId = localStorage.getItem('userId');
-            const button = document.getElementById('loginLogoutButton');
-            if (userId) {
-                button.innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                document.getElementById('userDisplay').textContent = `ID: ${userId}`;
-                document.getElementById('userDisplay').classList.remove('hidden');
-                await Promise.all([
-                    chargerUtilisateurs(),
-                    chargerClients(),
-                    chargerCategories(),
-                    chargerProduits()
-                ]);
-                const storedSeller = localStorage.getItem('selectedSeller');
-                if (storedSeller) {
-                    const { nom } = JSON.parse(storedSeller);
-                    document.getElementById('selectedSellerName').textContent = nom;
-                    document.getElementById('headerSellerName').textContent = nom;
-                    document.getElementById('sellerPassword').disabled = true;
-                    document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
-                    document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
-                }
-            } else {
-                button.innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-            }
-            document.getElementById('searchProduct').addEventListener('input', filterProducts);
-            document.getElementById('categoryFilter').addEventListener('change', filterProducts);
-            document.getElementById('manageCategoriesButton').addEventListener('click', openCategoryModal);
-            document.getElementById('addCategoryButton').addEventListener('click', addCategory);
-        });
-
     </script>
 </body>
 </html>
