@@ -10,7 +10,6 @@
         .password-input-container {
             position: relative;
             display: inline-block;
-            width: 100%;
         }
         .password-toggle {
             position: absolute;
@@ -21,7 +20,7 @@
         }
         @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
-        @keyframes fadeIn { from { opacity: opacity; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes userPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
         @keyframes countPulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
         @keyframes totalPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
@@ -122,27 +121,6 @@
             color: #6b7280 !important;
             cursor: not-allowed !important;
             opacity: 0.7 !important;
-        }
-        /* Style pour la grille des catégories */
-        .category-grid {
-            display: grid;
-            grid-template-columns: 2fr 1fr 1fr;
-            gap: 8px;
-            align-items: center;
-            padding: 8px;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        .category-grid-header {
-            display: grid;
-            grid-template-columns: 2fr 1fr 1fr;
-            gap: 8px;
-            font-weight: bold;
-            background-color: #f9fafb;
-            padding: 8px;
-            border-bottom: 2px solid #e5e7eb;
-        }
-        .category-grid div {
-            padding: 4px;
         }
     </style>
 </head>
@@ -248,7 +226,6 @@
                         <div class="relative w-full md:w-1/2">
                             <select id="categoryFilter" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300">
                                 <option value="all">Toutes les catégories</option>
-                                <option value="none">Non assignés</option>
                             </select>
                             <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
                                 <i class="fas fa-chevron-down"></i>
@@ -664,22 +641,12 @@
                     headers: { 'X-User-ID': userId }
                 });
                 if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
-                const categories = await response.json();
-                console.log('Réponse API /liste_categories:', categories);
-                categoriesCache = categories.map(category => ({
-                    numer_categorie: category.numer_categorie || null,
-                    description_c: category.description_c || 'N/A'
-                }));
-                console.log('categoriesCache mis à jour:', categoriesCache);
+                categoriesCache = await response.json();
                 const categoryFilter = document.getElementById('categoryFilter');
                 categoryFilter.innerHTML = '<option value="all">Toutes les catégories</option><option value="none">Non assignés</option>';
                 categoriesCache.forEach(category => {
-                    if (!category.numer_categorie) {
-                        console.error('Catégorie sans numer_categorie:', category);
-                        return;
-                    }
                     const option = document.createElement('option');
-                    option.value = category.numer_categorie;
+                    option.value = category.numero_categorie;
                     option.textContent = category.description_c;
                     categoryFilter.appendChild(option);
                 });
@@ -706,7 +673,7 @@
                     prix: parseFloat(produit.prix || produit.PRIX) || 0,
                     prixba: parseFloat(produit.prixba || produit.PRIXBA) || 0,
                     qte: parseFloat(produit.qte || produit.QTE) || 0,
-                    numer_categorie: produit.numero_categorie || produit.NUMERO_CATEGORIE || null
+                    numero_categorie: produit.numero_categorie || produit.NUMERO_CATEGORIE || null
                 }));
                 filterProducts();
             } catch (error) {
@@ -731,7 +698,7 @@
             );
             if (categoryFilter !== 'all') {
                 filteredProducts = filteredProducts.filter(p =>
-                    categoryFilter === 'none' ? p.numer_categorie === null : p.numer_categorie === parseInt(categoryFilter)
+                    categoryFilter === 'none' ? p.numero_categorie === null : p.numero_categorie === parseInt(categoryFilter)
                 );
             }
             if (filteredProducts.length === 0) {
@@ -746,7 +713,7 @@
                 const stockClass = produit.qte <= 0 ? 'stock-rupture' : produit.qte <= 5 ? 'stock-faible' : '';
                 const buttonDisabled = produit.qte <= 0 ? 'btn-disabled' : '';
                 const buttonAttrs = produit.qte <= 0 ? 'disabled' : '';
-                const category = categoriesCache.find(c => c.numer_categorie === produit.numer_categorie)?.description_c || 'Non assigné';
+                const category = categoriesCache.find(c => c.numero_categorie === produit.numero_categorie)?.description_c || 'Non assigné';
                 const tr = document.createElement('tr');
                 tr.className = `hover:bg-gray-50 ${stockClass}`;
                 tr.innerHTML = `
@@ -1083,7 +1050,7 @@
                 tempSaleLines = saleData.lignes
                     .filter(ligne => ligne.numero_item != null)
                     .map(ligne => {
-                        const numeroItem = parseInt(ligne.numero_item || 0);
+                        const numeroItem = ligne.numero_item ?? 0;
                         const quantite = parseFloat(ligne.quantite) || 0;
                         const prixt = parseFloat(ligne.prixt) || 0;
                         return {
@@ -1161,7 +1128,7 @@
             const pendingSalesList = document.getElementById('pendingSalesList');
             const pendingSales = JSON.parse(localStorage.getItem('pendingSales') || '[]');
             if (pendingSales.length === 0) {
-                pendingSalesList.innerHTML = '<p class="text-center py-4 text-gray-500">Aucune vente en attente</p>';
+                pendingSalesList.innerHTML = '<p class="text-center text-gray-500">Aucune vente en attente</p>';
             } else {
                 pendingSalesList.innerHTML = pendingSales.map(sale => `
                     <div class="border p-4 rounded-md shadow-sm bg-gray-50">
@@ -1184,7 +1151,7 @@
                     </div>
                 `).join('');
             }
-            modal.style.display('flex');
+            modal.style.display = 'flex';
         }
 
         function loadPendingSale(saleId) {
@@ -1222,7 +1189,7 @@
                 showToast('Aucune ligne à imprimer', true);
                 return;
             }
-            const settings = JSON.parse(localStorage.getItem('settings') || '{}');
+            const settings = JSON.parse(localStorage.getItem('settings')) || {};
             const companyName = settings.companyName || 'FirePoz';
             const companyAddress = settings.companyAddress || '';
             const companyPhone = settings.companyPhone || '';
@@ -1231,12 +1198,12 @@
             const clientValue = clientSelect.value;
             const clientText = clientValue === '0' ? 'Vente Comptoir' : clientSelect.options[clientSelect.selectedIndex].text.replace(/<span.*<\/span>/, '');
             const paymentMode = document.getElementById('paymentMode').value;
-            const amountPaid = paymentMode === 'a_term' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
+            const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
             const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0).toFixed(2);
             const storedSeller = localStorage.getItem('selectedSeller');
             const sellerName = storedSeller ? JSON.parse(storedSeller).nom : 'Non spécifié';
             let soldeContent = '';
-            if (paymentMode === 'a_term' && clientValue !== '0') {
+            if (paymentMode === 'a_terme' && clientValue !== '0') {
                 const client = clientsCache.find(c => c.numero_clt === parseInt(clientValue));
                 const soldeAvant = client ? parseFloat(client.solde) || 0 : 0;
                 const soldeApres = soldeAvant + (amountPaid - parseFloat(total));
@@ -1250,12 +1217,12 @@
                     ${companyLogo ? `<img src="${companyLogo}" alt="Logo" style="max-width: 60mm; margin-bottom: 3mm; display: block; margin-left: auto; margin-right: auto;">` : ''}
                     <h1>${companyName}</h1>
                     ${companyAddress ? `<p>${companyAddress}</p>` : ''}
-                    ${companyPhone ? `<p>Téléphone: ${companyPhone}</p>` : ''}
+                    ${companyPhone ? `<p>Tél: ${companyPhone}</p>` : ''}
                     <p>Date: ${new Date().toLocaleString('fr-FR')}</p>
                     <p>Vendeur: ${sellerName}</p>
                     <p>Client: ${clientText}</p>
                     <p>Mode de paiement: ${paymentMode === 'espece' ? 'Espèce' : 'À terme'}</p>
-                    ${paymentMode === 'a_term' ? `<p>Montant versé: ${amountPaid.toFixed(2)} DA</p>` : ''}
+                    ${paymentMode === 'a_terme' ? `<p>Montant versé: ${amountPaid.toFixed(2)} DA</p>` : ''}
                     ${soldeContent}
                     <table>
                         <thead>
@@ -1268,7 +1235,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                    `;
+            `;
             tempSaleLines.forEach(ligne => {
                 ticketContent += `
                     <tr>
@@ -1287,7 +1254,7 @@
                     <p style="text-align: center; margin-top: 3mm;">Merci de votre achat !</p>
                 </div>
             `;
-            const printWindow = window.open('', '_blank', 'width=320, height=480');
+            const printWindow = window.open('', '_blank', 'width=320,height=480');
             if (!printWindow) {
                 showToast('Impossible d\'ouvrir l\'aperçu. Veuillez désactiver votre bloqueur de pop-up.', true);
                 return;
@@ -1300,7 +1267,7 @@
                             body {
                                 margin: 0;
                                 padding: 10mm;
-                                background: white;
+                                background: #fff;
                                 display: flex;
                                 justify-content: center;
                                 align-items: center;
@@ -1312,12 +1279,12 @@
                                 font-size: 10pt;
                                 line-height: 1.2;
                                 color: #000;
-                                box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+                                box-shadow:0 0 10px rgba(0, 0, 0, 0.1);
                                 text-align: center;
                             }
                             h1 {
                                 font-size: 14pt;
-                                margin: 3mm;0 0;
+                                margin: 0 0 3mm;
                             }
                             p {
                                 margin: 2mm 0;
@@ -1335,7 +1302,7 @@
                                 text-align: left;
                             }
                             th {
-                                background: #f0f0;
+                                background: #f0f0f0;
                             }
                             .total {
                                 font-weight: bold;
@@ -1349,7 +1316,6 @@
                     </body>
                 </html>
             `);
-            }
             printWindow.document.close();
             printWindow.focus();
             setTimeout(() => {
@@ -1379,328 +1345,340 @@
                     fetch(`${API_BASE_URL}/liste_categories`, { headers: { 'X-User-ID': userId } }),
                     fetch(`${API_BASE_URL}/liste_produits`, { headers: { 'X-User-ID': userId } })
                 ]);
-                if (!categoriesResponse.ok || !productsResponse.ok
-                throw new Error(`Erreur ${categoriesResponse.status || productsResponse.status}: ${await categoriesResponse.text() || await productsResponse.text()}`);
+                if (!categoriesResponse.ok || !productsResponse.ok) {
+                    throw new Error(`Erreur: ${await (categoriesResponse.ok ? productsResponse : categoriesResponse).text()}`);
                 }
                 const categories = await categoriesResponse.json();
                 const products = await productsResponse.json();
-                console.log('Réponse API /liste_categories:', categories);
-                console.log('Réponse API /liste_produits:', products);
-
-                // Mettre à jour categoriesCache
-                categoriesCache = categories.map(category => ({
-                    numer_categorie: category.numer_categorie || null,
-                    description_c: category.description_c || 'N/A'
-                }));
-
-                // Mettre à jour produitsCache
-                produitsCache = products.map(produit => ({
-                    numero_item: parseInt(produit.numero_item || produit.NUMERO_ITEM),
-                    designation: produit.designation || produit.DESIGNATION || 'N/A',
-                    prix: parseFloat(produit.prix || produit.PRIX) || 0,
-                    prixba: parseFloat(produit.prixba || produit.PRIXBA) || 0,
-                    qte: parseFloat(produit.qte || produit.QTE) || 0,
-                    numer_categorie: produit.numero_categorie || produit.NUMERO_CATEGORIE || null
-                }));
-
-                // Afficher les catégories dans la modale
                 const categoryList = document.getElementById('categoryList');
-                if (!categoryList) {
-                    showToast('Erreur: Conteneur de liste de catégories introuvable', true);
-                    return;
-                }
-
-                if (categoriesCache.length === 0) {
-                    categoryList.innerHTML = '<p class="text-center py-4 text-gray-500">Aucune catégorie trouvée</p>';
-                    return;
-                }
-
-                // Entête de la grille
-                categoryList.innerHTML = `
-                    <div class="category-grid-header">
-                        <div>Description</div>
-                        <div>Actions</div>
-                        <div>Produits</div>
+                categoryList.innerHTML = '';
+                const normalizedProducts = products.map(p => ({
+                    ...p,
+                    numero_categorie: p.numero_categorie || p.NUMERO_CATEGORIE || null,
+                    numero_item: parseInt(p.numero_item || p.NUMERO_ITEM),
+                    designation: p.designation || p.DESIGNATION || 'N/A'
+                }));
+                const unassignedProducts = normalizedProducts.filter(p => p.numero_categorie === null);
+                const unassignedDiv = document.createElement('div');
+                unassignedDiv.className = 'mb-4';
+                unassignedDiv.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-bold">Non assignés</span>
+                    </div>
+                    <div class="pl-4">
+                        ${unassignedProducts.length ? unassignedProducts.map(product => `
+                            <div class="flex justify-between items-center mb-1">
+                                <span>${product.designation}</span>
+                                <select onchange="assignCategory(${product.numero_item}, this.value)" class="border p-1 rounded w-40">
+                                    <option value="">Assigner à...</option>
+                                    ${categories.map(cat => `<option value="${cat.numero_categorie}">${cat.description_c}</option>`).join('')}
+                                </select>
+                            </div>
+                        `).join('') : '<p class="text-gray-500">Aucun produit non assigné</p>'}
                     </div>
                 `;
+              categoryList.appendChild(unassignedDiv);
+categories.forEach(category => {
+    const categoryProducts = normalizedProducts.filter(p => p.numero_categorie === category.numero_categorie);
+    const div = document.createElement('div');
+    div.className = 'mb-4';
+    div.innerHTML = `
+        <div class="flex justify-between items-center mb-2">
+            <span class="font-bold">${category.description_c}</span>
+            <div class="space-x-2">
+                <button onclick="editCategoryModal(${category.numero_categorie}, '${category.description_c.replace(/'/g, "\\'")}')" class="bg-yellow-600 text-white px-2 py-1 rounded-md hover:bg-yellow-700 transition">
+                    <i class="fas fa-edit"></i> Modifier
+                </button>
+                <button onclick="deleteCategory(${category.numero_categorie})" class="bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
+                    <i class="fas fa-trash"></i> Supprimer
+                </button>
+            </div>
+        </div>
+        <div class="pl-4">
+            ${categoryProducts.length ? categoryProducts.map(product => `
+                <div class="flex justify-between items-center mb-1">
+                    <span>${product.designation}</span>
+                    <button onclick="removeCategoryFromProduct(${product.numero_item})" class="text-red-600 hover:text-red-800">
+                        <i class="fas fa-times"></i> Retirer
+                    </button>
+                </div>
+            `).join('') : '<p class="text-gray-500">Aucun produit dans cette catégorie</p>'}
+        </div>
+    `;
+    categoryList.appendChild(div);
+});
+} catch (error) {
+    showToast('Erreur chargement liste catégories: ' + error.message, true);
+}
+}
 
-                // Afficher chaque catégorie
-                categoriesCache.forEach(category => {
-                    if (!category.numer_categorie) {
-                        console.error('Catégorie sans numer_categorie:', category);
-                        return;
-                    }
-
-                    // Produits assignés à cette catégorie
-                    const assignedProducts = produitsCache.filter(p => p.numer_categorie === category.numer_categorie);
-                    // Produits non assignés (pour assignation potentielle)
-                    const unassignedProducts = produitsCache.filter(p => p.numer_categorie === null);
-
-                    // Options pour les produits assignés (désassigner)
-                    const assignedOptions = assignedProducts.map(p => `
-                        <option value="${p.numero_item}">${p.designation} (ID: ${p.numero_item})</option>
-                    `).join('');
-
-                    // Options pour les produits non assignés (assigner)
-                    const unassignedOptions = unassignedProducts.map(p => `
-                        <option value="${p.numero_item}">${p.designation} (ID: ${p.numero_item})</option>
-                    `).join('');
-
-                    const categoryRow = document.createElement('div');
-                    categoryRow.className = 'category-grid';
-                    categoryRow.innerHTML = `
-                        <div>${category.description_c}</div>
-                        <div class="flex space-x-2">
-                            <button onclick="openEditCategoryModal(${category.numer_categorie}, '${category.description_c.replace(/'/g, "\\'")}')" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button onclick="deleteCategory(${category.numer_categorie})" class="bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                        <div>
-                            <div class="mb-2">
-                                <label class="text-sm font-medium text-gray-700">Produits assignés:</label>
-                                <select multiple class="w-full px-2 py-1 border rounded-md" onchange="unassignProduct(${category.numer_categorie}, this)">
-                                    ${assignedOptions || '<option disabled>Aucun produit assigné</option>'}
-                                </select>
-                            </div>
-                            <div>
-                                <label class="text-sm font-medium text-gray-700">Assigner produit:</label>
-                                <select class="w-full px-2 py-1 border rounded-md" onchange="assignProduct(${category.numer_categorie}, this)">
-                                    <option value="0">Sélectionner un produit</option>
-                                    ${unassignedOptions}
-                                </select>
-                            </div>
-                        </div>
-                    `;
-                    categoryList.appendChild(categoryRow);
-                });
-            } catch (error) {
-                showToast('Erreur chargement catégories/produits: ' + error.message, true);
-                categoryList.innerHTML = `<p class="text-center py-4 text-red-500">Erreur: ${error.message}</p>`;
-            }
-        }
-
-        async function addCategory() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour ajouter une catégorie', true);
-                return;
-            }
-            const description = document.getElementById('categoryDescription').value.trim();
-            if (!description) {
-                showToast('Veuillez entrer une description', true);
-                return;
-            }
-            try {
-                const response = await fetch(`${API_BASE_URL}/ajouter_categorie`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({ description_c: description })
-                });
-                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
-                document.getElementById('categoryDescription').value = '';
-                await chargerCategories();
-                loadCategoryList();
-                showToast('Catégorie ajoutée avec succès');
-            } catch (error) {
-                showToast('Erreur ajout catégorie: ' + error.message, true);
-            }
-        }
-
-        function openEditCategoryModal(numer_categorie, description) {
-            document.getElementById('editCategoryModal').style.display = 'flex';
-            document.getElementById('editCategoryId').value = numer_categorie;
-            document.getElementById('editCategoryDescription').value = description;
-        }
-
-        function closeEditCategoryModal() {
-            document.getElementById('editCategoryModal').style.display = 'none';
-        }
-
-        async function saveEditedCategory(event) {
-            event.preventDefault();
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour modifier une catégorie', true);
-                return;
-            }
-            const numer_categorie = document.getElementById('editCategoryId').value;
-            const description = document.getElementById('editCategoryDescription').value.trim();
-            if (!description) {
-                showToast('Veuillez entrer une description', true);
-                return;
-            }
-            try {
-                const response = await fetch(`${API_BASE_URL}/modifier_categorie/${numer_categorie}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({ description_c: description })
-                });
-                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
-                closeEditCategoryModal();
-                await chargerCategories();
-                loadCategoryList();
-                showToast('Catégorie modifiée avec succès');
-            } catch (error) {
-                showToast('Erreur modification catégorie: ' + error.message, true);
-            }
-        }
-
-        async function deleteCategory(numer_categorie) {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour supprimer une catégorie', true);
-                return;
-            }
-            if (!confirm('Voulez-vous vraiment supprimer cette catégorie ? Les produits assignés seront désassignés.')) {
-                return;
-            }
-            try {
-                const response = await fetch(`${API_BASE_URL}/supprimer_categorie/${numer_categorie}`, {
-                    method: 'DELETE',
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
-                await chargerCategories();
-                await chargerProduits();
-                loadCategoryList();
-                showToast('Catégorie supprimée avec succès');
-            } catch (error) {
-                showToast('Erreur suppression catégorie: ' + error.message, true);
-            }
-        }
-
-        async function assignProduct(numer_categorie, selectElement) {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour assigner un produit', true);
-                return;
-            }
-            const numero_item = parseInt(selectElement.value);
-            if (numero_item === 0) return; // Aucun produit sélectionné
-            try {
-                const response = await fetch(`${API_BASE_URL}/assigner_produit`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({ numero_item, numer_categorie })
-                });
-                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
-                await chargerProduits();
-                loadCategoryList();
-                showToast('Produit assigné avec succès');
-                selectElement.value = '0'; // Réinitialiser la sélection
-            } catch (error) {
-                showToast('Erreur assignation produit: ' + error.message, true);
-            }
-        }
-
-        async function unassignProduct(numer_categorie, selectElement) {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour désassigner un produit', true);
-                return;
-            }
-            const numero_item = parseInt(selectElement.value);
-            if (!numero_item) {
-                showToast('Veuillez sélectionner un produit à désassigner', true);
-                return;
-            }
-            try {
-                const response = await fetch(`${API_BASE_URL}/desassigner_produit`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({ numero_item })
-                });
-                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
-                await chargerProduits();
-                loadCategoryList();
-                showToast('Produit désassigné avec succès');
-            } catch (error) {
-                showToast('Erreur désassignation produit: ' + error.message, true);
-            }
-        }
-
-        function loginLogout() {
-            const isLoggedIn = localStorage.getItem('userId');
-            if (isLoggedIn) {
-                localStorage.removeItem('userId');
-                localStorage.removeItem('selectedSeller');
-                localStorage.removeItem('sellerPassword');
-                document.getElementById('userDisplay').classList.add('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                document.getElementById('selectedSellerName').textContent = '-';
-                document.getElementById('headerSellerName').textContent = '-';
-                document.getElementById('sellerSelect').value = '0';
-                document.getElementById('sellerPassword').value = '';
-                document.getElementById('sellerPassword').disabled = false;
-                document.getElementById('validateSellerButton').textContent = 'Valider';
-                document.getElementById('validateSellerButton').onclick = validerVendeur;
-                showToast('Déconnexion réussie');
-                window.location.href = 'index.html';
-            } else {
-                window.location.href = 'login.html';
-            }
-        }
-
-        // Initialisation
-        document.addEventListener('DOMContentLoaded', async () => {
-            const userId = localStorage.getItem('userId');
-            if (userId) {
-                document.getElementById('userDisplay').textContent = `Utilisateur ID: ${userId}`;
-                document.getElementById('userDisplay').classList.remove('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                await Promise.all([
-                    chargerUtilisateurs(),
-                    chargerClients(),
-                    chargerCategories(),
-                    chargerProduits()
-                ]);
-                const storedSeller = localStorage.getItem('selectedSeller');
-                if (storedSeller) {
-                    const { nom } = JSON.parse(storedSeller);
-                    document.getElementById('selectedSellerName').textContent = nom;
-                    document.getElementById('headerSellerName').textContent = nom;
-                    document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
-                    document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
-                    document.getElementById('sellerPassword').disabled = true;
-                }
-            } else {
-                showToast('Veuillez vous connecter', true);
-                window.location.href = 'index.html';
-            }
-
-            // Événement pour ouvrir la modale de gestion des catégories
-            document.getElementById('manageCategoriesButton').addEventListener('click', openCategoryModal);
-
-            // Filtres produits
-            document.getElementById('searchProduct').addEventListener('input', filterProducts);
-            document.getElementById('categoryFilter').addEventListener('change', filterProducts);
-
-            // Vérifier si modification de vente
-            const urlParams = new URLSearchParams(window.location.search);
-            const numeroComande = urlParams.get('numero_comande');
-            if (numeroComande) {
-                isEditMode = true;
-                editNumeroComande = numeroComande;
-                await loadSaleData(numeroComande);
-                document.getElementById('validateSaleButton').textContent = 'Modifier la vente';
-                document.getElementById('validateSaleButton').onclick = modifierVente;
-            }
+async function addCategory() {
+    const userId = localStorage.getItem('userId');
+    const description = document.getElementById('categoryDescription').value.trim();
+    if (!userId) {
+        showToast('Veuillez vous connecter pour ajouter une catégorie', true);
+        return;
+    }
+    if (!description) {
+        showToast('Veuillez entrer une description pour la catégorie', true);
+        return;
+    }
+    try {
+        const response = await fetch(`${API_BASE_URL}/ajouter_categorie`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-User-ID': userId
+            },
+            body: JSON.stringify({ description_c: description })
         });
-    </script>
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.erreur || `Erreur ${response.status}`);
+        document.getElementById('categoryDescription').value = '';
+        await chargerCategories();
+        loadCategoryList();
+        showToast('Catégorie ajoutée avec succès');
+    } catch (error) {
+        showToast(`Erreur ajout catégorie: ${error.message}`, true);
+    }
+}
+
+function editCategoryModal(numeroCategorie, description) {
+    const modal = document.getElementById('editCategoryModal');
+    document.getElementById('editCategoryId').value = numeroCategorie;
+    document.getElementById('editCategoryDescription').value = description;
+    modal.style.display = 'flex';
+}
+
+async function saveEditedCategory(event) {
+    event.preventDefault();
+    const userId = localStorage.getItem('userId');
+    const numeroCategorie = document.getElementById('editCategoryId').value;
+    const description = document.getElementById('editCategoryDescription').value.trim();
+    if (!userId) {
+        showToast('Veuillez vous connecter pour modifier une catégorie', true);
+        return;
+    }
+    if (!description) {
+        showToast('Veuillez entrer une description pour la catégorie', true);
+        return;
+    }
+    try {
+        const response = await fetch(`${API_BASE_URL}/modifier_categorie/${numeroCategorie}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-User-ID': userId
+            },
+            body: JSON.stringify({ description_c: description })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.erreur || `Erreur ${response.status}`);
+        closeEditCategoryModal();
+        await chargerCategories();
+        loadCategoryList();
+        showToast('Catégorie modifiée avec succès');
+    } catch (error) {
+        showToast(`Erreur modification catégorie: ${error.message}`, true);
+    }
+}
+
+function closeEditCategoryModal() {
+    document.getElementById('editCategoryModal').style.display = 'none';
+}
+
+async function deleteCategory(numeroCategorie) {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour supprimer une catégorie', true);
+        return;
+    }
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cette catégorie ?')) {
+        return;
+    }
+    try {
+        const response = await fetch(`${API_BASE_URL}/supprimer_categorie/${numeroCategorie}`, {
+            method: 'DELETE',
+            headers: { 'X-User-ID': userId }
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.erreur || `Erreur ${response.status}`);
+        await chargerCategories();
+        await chargerProduits();
+        loadCategoryList();
+        showToast('Catégorie supprimée avec succès');
+    } catch (error) {
+        showToast(`Erreur suppression catégorie: ${error.message}`, true);
+    }
+}
+
+async function assignCategory(numeroItem, numeroCategorie) {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour assigner une catégorie', true);
+        return;
+    }
+    if (!numeroItem || numeroCategorie === '') return;
+    try {
+        const response = await fetch(`${API_BASE_URL}/assigner_categorie`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-User-ID': userId
+            },
+            body: JSON.stringify({
+                numero_item: parseInt(numeroItem),
+                numero_categorie: numeroCategorie ? parseInt(numeroCategorie) : null
+            })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.erreur || `Erreur ${response.status}`);
+        await chargerProduits();
+        loadCategoryList();
+        showToast('Produit assigné à la catégorie avec succès');
+    } catch (error) {
+        showToast(`Erreur assignation catégorie: ${error.message}`, true);
+    }
+}
+
+async function removeCategoryFromProduct(numeroItem) {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour retirer une catégorie', true);
+        return;
+    }
+    try {
+        const response = await fetch(`${API_BASE_URL}/assigner_categorie`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-User-ID': userId
+            },
+            body: JSON.stringify({
+                numero_item: parseInt(numeroItem),
+                numero_categorie: null
+            })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.erreur || `Erreur ${response.status}`);
+        await chargerProduits();
+        loadCategoryList();
+        showToast('Produit retiré de la catégorie avec succès');
+    } catch (error) {
+        showToast(`Erreur retrait catégorie: ${error.message}`, true);
+    }
+}
+
+function checkLoginStatus() {
+    const userId = localStorage.getItem('userId');
+    const userEmail = localStorage.getItem('userEmail');
+    const loginLogoutButton = document.getElementById('loginLogoutButton');
+    const userDisplay = document.getElementById('userDisplay');
+    if (userId && userEmail) {
+        userDisplay.textContent = userEmail;
+        userDisplay.classList.remove('hidden');
+        loginLogoutButton.innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+        loginLogoutButton.onclick = logout;
+        const storedSeller = localStorage.getItem('selectedSeller');
+        if (storedSeller) {
+            const { nom } = JSON.parse(storedSeller);
+            document.getElementById('selectedSellerName').textContent = nom;
+            document.getElementById('headerSellerName').textContent = nom;
+            document.getElementById('sellerPassword').disabled = true;
+            document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
+            document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
+            document.getElementById('sellerContent').classList.add('hidden');
+            document.getElementById('sellerChevron').classList.add('fa-chevron-down');
+            document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
+        }
+    } else {
+        userDisplay.classList.add('hidden');
+        loginLogoutButton.innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+        loginLogoutButton.onclick = login;
+    }
+}
+
+function login() {
+    const email = prompt('Entrez votre email:');
+    const password = prompt('Entrez votre mot de passe:');
+    if (!email || !password) {
+        showToast('Email et mot de passe requis', true);
+        return;
+    }
+    fetch(`${API_BASE_URL}/connexion`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+    })
+        .then(response => {
+            if (!response.ok) throw new Error(`Erreur ${response.status}`);
+            return response.json();
+        })
+        .then(data => {
+            localStorage.setItem('userId', data.userId);
+            localStorage.setItem('userEmail', email);
+            showToast('Connexion réussie');
+            checkLoginStatus();
+            chargerUtilisateurs();
+            chargerClients();
+            chargerCategories();
+            chargerProduits();
+        })
+        .catch(error => showToast(`Erreur connexion: ${error.message}`, true));
+}
+
+function logout() {
+    localStorage.removeItem('userId');
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('selectedSeller');
+    localStorage.removeItem('sellerPassword');
+    localStorage.removeItem('pendingSales');
+    tempSaleLines = [];
+    document.getElementById('userDisplay').classList.add('hidden');
+    document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+    document.getElementById('loginLogoutButton').onclick = login;
+    document.getElementById('sellerSelect').value = '0';
+    document.getElementById('sellerPassword').value = '';
+    document.getElementById('sellerPassword').disabled = false;
+    document.getElementById('selectedSellerName').textContent = '-';
+    document.getElementById('headerSellerName').textContent = '-';
+    document.getElementById('validateSellerButton').textContent = 'Valider';
+    document.getElementById('validateSellerButton').onclick = validerVendeur;
+    document.getElementById('productsList').innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+    document.getElementById('tempSalesList').innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucune ligne ajoutée</td></tr>';
+    document.getElementById('totalSale').textContent = '0.00 DA';
+    document.getElementById('saleItemCount').classList.add('hidden');
+    document.getElementById('validateSaleButton').disabled = true;
+    document.getElementById('printSaleButton80mm').disabled = true;
+    document.getElementById('holdSaleButton').disabled = true;
+    showToast('Déconnexion réussie');
+}
+
+document.getElementById('searchProduct').addEventListener('input', filterProducts);
+document.getElementById('categoryFilter').addEventListener('change', () => {
+    currentCategory = document.getElementById('categoryFilter').value;
+    filterProducts();
+});
+document.getElementById('manageCategoriesButton').addEventListener('click', openCategoryModal);
+
+document.addEventListener('DOMContentLoaded', () => {
+    checkLoginStatus();
+    if (localStorage.getItem('userId')) {
+        chargerUtilisateurs();
+        chargerClients();
+        chargerCategories();
+        chargerProduits();
+    }
+    const urlParams = new URLSearchParams(window.location.search);
+    const numeroComande = urlParams.get('numero_comande');
+    if (numeroComande) {
+        isEditMode = true;
+        editNumeroComande = numeroComande;
+        loadSaleData(numeroComande);
+        document.getElementById('validateSaleButton').textContent = 'Modifier la vente';
+        document.getElementById('validateSaleButton').onclick = modifierVente;
+    }
+});
+</script>
 </body>
 </html>
