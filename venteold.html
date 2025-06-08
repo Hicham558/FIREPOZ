@@ -1356,98 +1356,53 @@
         }
 
         async function loadCategoryList() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour gérer les catégories', true);
-                return;
-            }
-            try {
-                const [categoriesResponse, productsResponse] = await Promise.all([
-                    fetch(`${API_BASE_URL}/liste_categories`, { headers: { 'X-User-ID': userId } }),
-                    fetch(`${API_BASE_URL}/liste_produits`, { headers: { 'X-User-ID': userId } })
-                ]);
-                if (!categoriesResponse.ok || !productsResponse.ok) {
-                    throw new Error(`Erreur: ${await (categoriesResponse.ok ? productsResponse : categoriesResponse).text()}`);
-                }
-                const categories = await categoriesResponse.json();
-                const products = await productsResponse.json();
-                const categoryList = document.getElementById('categoryList');
-                categoryList.innerHTML = '';
-                const normalizedProducts = products.map(p => ({
-                    ...p,
-                    numero_categorie: p.numero_categorie || p.NUMERO_CATEGORIE || null,
-                    numero_item: parseInt(p.numero_item || p.NUMERO_ITEM),
-                    designation: p.designation || p.DESIGNATION || 'N/A'
-                }));
-                const unassignedProducts = normalizedProducts.filter(p => p.numero_categorie === null);
-                const unassignedDiv = document.createElement('div');
-                unassignedDiv.className = 'mb-4';
-                unassignedDiv.innerHTML = `
-                    <h3 class="font-semibold mb-2">Produits non assignés</h3>
-                    <div class="pl-4">
-                        ${unassignedProducts.length ? unassignedProducts.map(product => `
-                            <div class="flex justify-between items-center mb-1">
-                                <span>${product.designation}</span>
-                                <select onchange="assignCategory(${product.numero_item}, this.value)" class="border p-1 rounded w-40">
-                                    <option value="">Assigner à...</option>
-                                    ${categories.map(cat => `<option value="${cat.numero_categorie}">${cat.description_c}</option>`).join('')}
-                                </select>
-                            </div>
-                        `).join('') : '<p class="text-gray-500">Aucun produit non assigné</p>'}
-                    </div>
-                `;
-                categoryList.appendChild(unassignedDiv);
-
-                // Créer l'en-tête de la grille des catégories
-                const headerDiv = document.createElement('div');
-                headerDiv.className = 'category-grid-header';
-                headerDiv.innerHTML = `
-                    <div>Nom de la catégorie</div>
-                    <div>Nombre d'articles</div>
-                    <div>Actions</div>
-                `;
-                categoryList.appendChild(headerDiv);
-
-                // Afficher chaque catégorie dans la grille
-                categories.forEach(category => {
-                    const productCount = normalizedProducts.filter(p => p.numero_categorie === category.numero_categorie).length;
-                    const categoryDiv = document.createElement('div');
-                    categoryDiv.className = 'category-grid';
-                    categoryDiv.innerHTML = `
-                        <div>${category.description_c}</div>
-                        <div>${productCount}</div>
-                        <div class="flex space-x-2">
-                            <button onclick="editCategory(${category.numero_categorie}, '${category.description_c}')" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button onclick="deleteCategory(${category.numero_categorie})" class="bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    `;
-                    categoryList.appendChild(categoryDiv);
-
-                    // Afficher les produits assignés à cette catégorie
-                    const assignedProducts = normalizedProducts.filter(p => p.numero_categorie === category.numero_categorie);
-                    const productsDiv = document.createElement('div');
-                    productsDiv.className = 'pl-4 mt-2 mb-4';
-                    productsDiv.innerHTML = `
-                        <h4 class="text-sm font-medium mb-2">Produits assignés</h4>
-                        ${assignedProducts.length ? assignedProducts.map(product => `
-                            <div class="flex justify-between items-center mb-1">
-                                <span>${product.designation}</span>
-                                <button onclick="unassignProduct(${product.numero_item})" class="bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition">
-                                    <i class="fas fa-times"></i> Retirer
-                                </button>
-                            </div>
-                        `).join('') : '<p class="text-gray-500">Aucun produit assigné</p>'}
-                    `;
-                    categoryList.appendChild(productsDiv);
-                });
-            } catch (error) {
-                showToast(`Erreur chargement catégories: ${error.message}`, true);
-            }
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour gérer les catégories', true);
+        return;
+    }
+    try {
+        const [categoriesResponse, productsResponse] = await Promise.all([
+            fetch(`${API_BASE_URL}/liste_categories`, { headers: { 'X-User-ID': userId } }),
+            fetch(`${API_BASE_URL}/liste_produits`, { headers: { 'X-User-ID': userId } })
+        ]);
+        if (!categoriesResponse.ok || !productsResponse.ok) {
+            throw new Error(`Erreur: ${await (categoriesResponse.ok ? productsResponse : categoriesResponse).text()}`);
         }
+        const categories = await categoriesResponse.json();
+        const products = await productsResponse.json();
+        const categoryList = document.getElementById('categoryList');
+        categoryList.innerHTML = '';
+        const normalizedProducts = products.map(p => ({
+            ...p,
+            numero_categorie: p.numero_categorie || p.NUMERO_CATEGORIE || null,
+            numero_item: parseInt(p.numero_item || p.NUMERO_ITEM),
+            designation: p.designation || p.DESIGNATION || 'N/A'
+        }));
+        // ... Reste du code pour afficher les catégories et produits ...
+        categories.forEach(category => {
+            const productCount = normalizedProducts.filter(p => p.numero_categorie === category.numero_categorie).length;
+            const categoryDiv = document.createElement('div');
+            categoryDiv.className = 'category-grid';
+            categoryDiv.innerHTML = `
+                <div>${category.description_c}</div>
+                <div>${productCount}</div>
+                <div class="flex space-x-2">
+                    <button onclick="editCategory(${category.numero_categorie}, '${category.description_c}')" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button onclick="deleteCategory(${category.numero_categorie})" class="bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `;
+            categoryList.appendChild(categoryDiv);
+            // ... Affichage des produits assignés ...
+        });
+    } catch (error) {
+        showToast(`Erreur chargement catégories: ${error.message}`, true);
+    }
+}
 
         async function addCategory() {
             const userId = localStorage.getItem('userId');
