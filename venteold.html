@@ -646,7 +646,7 @@
                 categoryFilter.innerHTML = '<option value="all">Toutes les catégories</option><option value="none">Non assignés</option>';
                 categoriesCache.forEach(category => {
                     const option = document.createElement('option');
-                    option.value = category.numer_categorie;
+                    option.value = category.numero_categorie;
                     option.textContent = category.description_c;
                     categoryFilter.appendChild(option);
                 });
@@ -713,7 +713,7 @@
                 const stockClass = produit.qte <= 0 ? 'stock-rupture' : produit.qte <= 5 ? 'stock-faible' : '';
                 const buttonDisabled = produit.qte <= 0 ? 'btn-disabled' : '';
                 const buttonAttrs = produit.qte <= 0 ? 'disabled' : '';
-                const category = categoriesCache.find(c => c.numer_categorie === produit.numero_categorie)?.description_c || 'Non assigné';
+                const category = categoriesCache.find(c => c.numero_categorie === produit.numero_categorie)?.description_c || 'Non assigné';
                 const tr = document.createElement('tr');
                 tr.className = `hover:bg-gray-50 ${stockClass}`;
                 tr.innerHTML = `
@@ -1371,7 +1371,7 @@
                                 <span>${product.designation}</span>
                                 <select onchange="assignCategory(${product.numero_item}, this.value)" class="border p-1 rounded w-40">
                                     <option value="">Assigner à...</option>
-                                    ${categories.map(cat => `<option value="${cat.numer_categorie}">${cat.description_c}</option>`).join('')}
+                                    ${categories.map(cat => `<option value="${cat.numero_categorie}">${cat.description_c}</option>`).join('')}
                                 </select>
                             </div>
                         `).join('') : '<p class="text-gray-500">Aucun produit non assigné</p>'}
@@ -1379,17 +1379,17 @@
                 `;
               categoryList.appendChild(unassignedDiv);
 categories.forEach(category => {
-    const categoryProducts = normalizedProducts.filter(p => p.numero_categorie === category.numer_categorie);
+    const categoryProducts = normalizedProducts.filter(p => p.numero_categorie === category.numero_categorie);
     const div = document.createElement('div');
     div.className = 'mb-4';
     div.innerHTML = `
         <div class="flex justify-between items-center mb-2">
-            <span class="font-bold">${category.description_categorie}</span>
+            <span class="font-bold">${category.description_c}</span>
             <div class="space-x-2">
-                <button onclick="editCategoryModal(${category.numer_categorie}, '${category.description_categorie.replace(/'/g, "\\'")}')" class="bg-yellow-600 text-white px-2 py-1 rounded-md hover:bg-yellow-700 transition">
+                <button onclick="editCategoryModal(${category.numero_categorie}, '${category.description_c.replace(/'/g, "\\'")}')" class="bg-yellow-600 text-white px-2 py-1 rounded-md hover:bg-yellow-700 transition">
                     <i class="fas fa-edit"></i> Modifier
                 </button>
-                <button onclick="deleteCategory(${category.numer_categorie})" class="bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
+                <button onclick="deleteCategory(${category.numero_categorie})" class="bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
                     <i class="fas fa-trash"></i> Supprimer
                 </button>
             </div>
@@ -1408,264 +1408,276 @@ categories.forEach(category => {
     categoryList.appendChild(div);
 });
 } catch (error) {
-showToast('Erreur chargement liste catégories: ' + error.message, true);
+    showToast('Erreur chargement liste catégories: ' + error.message, true);
 }
 }
 
 async function addCategory() {
-const userId = localStorage.getItem('userId');
-const description = document.getElementById('categoryDescription').value.trim();
-if (!userId) {
-    showToast('Veuillez vous connecter pour ajouter une catégorie', true);
-    return;
-}
-if (!description) {
-    showToast('Veuillez entrer une description pour la catégorie', true);
-    return;
-}
-try {
-    const response = await fetch(`${API_BASE_URL}/ajouter_categorie`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-User-ID': userId
-        },
-        body: JSON.stringify({ description_categorie: description })
-    });
-    if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
-    document.getElementById('categoryDescription').value = '';
-    await chargerCategories();
-    loadCategoryList();
-    showToast('Catégorie ajoutée avec succès');
-} catch (error) {
-    showToast(`Erreur ajout catégorie: ${error.message}`, true);
-}
+    const userId = localStorage.getItem('userId');
+    const description = document.getElementById('categoryDescription').value.trim();
+    if (!userId) {
+        showToast('Veuillez vous connecter pour ajouter une catégorie', true);
+        return;
+    }
+    if (!description) {
+        showToast('Veuillez entrer une description pour la catégorie', true);
+        return;
+    }
+    try {
+        const response = await fetch(`${API_BASE_URL}/ajouter_categorie`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-User-ID': userId
+            },
+            body: JSON.stringify({ description_c: description })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.erreur || `Erreur ${response.status}`);
+        document.getElementById('categoryDescription').value = '';
+        await chargerCategories();
+        loadCategoryList();
+        showToast('Catégorie ajoutée avec succès');
+    } catch (error) {
+        showToast(`Erreur ajout catégorie: ${error.message}`, true);
+    }
 }
 
-function editCategoryModal(numerCategorie, description) {
-const modal = document.getElementById('editCategoryModal');
-document.getElementById('editCategoryId').value = numerCategorie;
-document.getElementById('editCategoryDescription').value = description;
-modal.style.display = 'flex';
+function editCategoryModal(numeroCategorie, description) {
+    const modal = document.getElementById('editCategoryModal');
+    document.getElementById('editCategoryId').value = numeroCategorie;
+    document.getElementById('editCategoryDescription').value = description;
+    modal.style.display = 'flex';
 }
 
 async function saveEditedCategory(event) {
-event.preventDefault();
-const userId = localStorage.getItem('userId');
-const numerCategorie = document.getElementById('editCategoryId').value;
-const description = document.getElementById('editCategoryDescription').value.trim();
-if (!userId) {
-    showToast('Veuillez vous connecter pour modifier une catégorie', true);
-    return;
-}
-if (!description) {
-    showToast('Veuillez entrer une description pour la catégorie', true);
-    return;
-}
-try {
-    const response = await fetch(`${API_BASE_URL}/modifier_categorie/${numerCategorie}`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-User-ID': userId
-        },
-        body: JSON.stringify({ description_categorie: description })
-    });
-    if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
-    closeEditCategoryModal();
-    await chargerCategories();
-    loadCategoryList();
-    showToast('Catégorie modifiée avec succès');
-} catch (error) {
-    showToast(`Erreur modification catégorie: ${error.message}`, true);
-}
+    event.preventDefault();
+    const userId = localStorage.getItem('userId');
+    const numeroCategorie = document.getElementById('editCategoryId').value;
+    const description = document.getElementById('editCategoryDescription').value.trim();
+    if (!userId) {
+        showToast('Veuillez vous connecter pour modifier une catégorie', true);
+        return;
+    }
+    if (!description) {
+        showToast('Veuillez entrer une description pour la catégorie', true);
+        return;
+    }
+    try {
+        const response = await fetch(`${API_BASE_URL}/modifier_categorie/${numeroCategorie}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-User-ID': userId
+            },
+            body: JSON.stringify({ description_c: description })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.erreur || `Erreur ${response.status}`);
+        closeEditCategoryModal();
+        await chargerCategories();
+        loadCategoryList();
+        showToast('Catégorie modifiée avec succès');
+    } catch (error) {
+        showToast(`Erreur modification catégorie: ${error.message}`, true);
+    }
 }
 
 function closeEditCategoryModal() {
-document.getElementById('editCategoryModal').style.display = 'none';
+    document.getElementById('editCategoryModal').style.display = 'none';
 }
 
-async function deleteCategory(numerCategorie) {
-const userId = localStorage.getItem('userId');
-if (!userId) {
-    showToast('Veuillez vous connecter pour supprimer une catégorie', true);
-    return;
-}
-if (!confirm('Êtes-vous sûr de vouloir supprimer cette catégorie ? Les produits associés deviendront non assignés.')) {
-    return;
-}
-try {
-    const response = await fetch(`${API_BASE_URL}/supprimer_categorie/${numerCategorie}`, {
-        method: 'DELETE',
-        headers: { 'X-User-ID': userId }
-    });
-    if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
-    await chargerCategories();
-    await chargerProduits();
-    loadCategoryList();
-    showToast('Catégorie supprimée avec succès');
-} catch (error) {
-    showToast(`Erreur suppression catégorie: ${error.message}`, true);
-}
+async function deleteCategory(numeroCategorie) {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour supprimer une catégorie', true);
+        return;
+    }
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cette catégorie ?')) {
+        return;
+    }
+    try {
+        const response = await fetch(`${API_BASE_URL}/supprimer_categorie/${numeroCategorie}`, {
+            method: 'DELETE',
+            headers: { 'X-User-ID': userId }
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.erreur || `Erreur ${response.status}`);
+        await chargerCategories();
+        await chargerProduits();
+        loadCategoryList();
+        showToast('Catégorie supprimée avec succès');
+    } catch (error) {
+        showToast(`Erreur suppression catégorie: ${error.message}`, true);
+    }
 }
 
-async function assignCategory(numeroItem, numerCategorie) {
-const userId = localStorage.getItem('userId');
-if (!userId) {
-    showToast('Veuillez vous connecter pour assigner une catégorie', true);
-    return;
-}
-if (!numerCategorie) return;
-try {
-    const response = await fetch(`${API_BASE_URL}/assigner_categorie_produit`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-User-ID': userId
-        },
-        body: JSON.stringify({
-            numero_item: parseInt(numeroItem),
-            numer_categorie: parseInt(numerCategorie)
-        })
-    });
-    if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
-    await chargerProduits();
-    loadCategoryList();
-    showToast('Produit assigné à la catégorie avec succès');
-} catch (error) {
-    showToast(`Erreur assignation catégorie: ${error.message}`, true);
-}
+async function assignCategory(numeroItem, numeroCategorie) {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour assigner une catégorie', true);
+        return;
+    }
+    if (!numeroItem || numeroCategorie === '') return;
+    try {
+        const response = await fetch(`${API_BASE_URL}/assigner_categorie`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-User-ID': userId
+            },
+            body: JSON.stringify({
+                numero_item: parseInt(numeroItem),
+                numero_categorie: numeroCategorie ? parseInt(numeroCategorie) : null
+            })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.erreur || `Erreur ${response.status}`);
+        await chargerProduits();
+        loadCategoryList();
+        showToast('Produit assigné à la catégorie avec succès');
+    } catch (error) {
+        showToast(`Erreur assignation catégorie: ${error.message}`, true);
+    }
 }
 
 async function removeCategoryFromProduct(numeroItem) {
-const userId = localStorage.getItem('userId');
-if (!userId) {
-    showToast('Veuillez vous connecter pour retirer une catégorie', true);
-    return;
-}
-try {
-    const response = await fetch(`${API_BASE_URL}/retirer_categorie_produit/${numeroItem}`, {
-        method: 'PUT',
-        headers: { 'X-User-ID': userId }
-    });
-    if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
-    await chargerProduits();
-    loadCategoryList();
-    showToast('Produit retiré de la catégorie avec succès');
-} catch (error) {
-    showToast(`Erreur retrait catégorie: ${error.message}`, true);
-}
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour retirer une catégorie', true);
+        return;
+    }
+    try {
+        const response = await fetch(`${API_BASE_URL}/assigner_categorie`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-User-ID': userId
+            },
+            body: JSON.stringify({
+                numero_item: parseInt(numeroItem),
+                numero_categorie: null
+            })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.erreur || `Erreur ${response.status}`);
+        await chargerProduits();
+        loadCategoryList();
+        showToast('Produit retiré de la catégorie avec succès');
+    } catch (error) {
+        showToast(`Erreur retrait catégorie: ${error.message}`, true);
+    }
 }
 
 function checkLoginStatus() {
-const userId = localStorage.getItem('userId');
-const userEmail = localStorage.getItem('userEmail');
-const loginLogoutButton = document.getElementById('loginLogoutButton');
-const userDisplay = document.getElementById('userDisplay');
-if (userId && userEmail) {
-    userDisplay.textContent = userEmail;
-    userDisplay.classList.remove('hidden');
-    loginLogoutButton.innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-    loginLogoutButton.onclick = logout;
-    const storedSeller = localStorage.getItem('selectedSeller');
-    if (storedSeller) {
-        const { nom } = JSON.parse(storedSeller);
-        document.getElementById('selectedSellerName').textContent = nom;
-        document.getElementById('headerSellerName').textContent = nom;
-        document.getElementById('sellerPassword').disabled = true;
-        document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
-        document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
-        document.getElementById('sellerContent').classList.add('hidden');
-        document.getElementById('sellerChevron').classList.add('fa-chevron-down');
-        document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
+    const userId = localStorage.getItem('userId');
+    const userEmail = localStorage.getItem('userEmail');
+    const loginLogoutButton = document.getElementById('loginLogoutButton');
+    const userDisplay = document.getElementById('userDisplay');
+    if (userId && userEmail) {
+        userDisplay.textContent = userEmail;
+        userDisplay.classList.remove('hidden');
+        loginLogoutButton.innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+        loginLogoutButton.onclick = logout;
+        const storedSeller = localStorage.getItem('selectedSeller');
+        if (storedSeller) {
+            const { nom } = JSON.parse(storedSeller);
+            document.getElementById('selectedSellerName').textContent = nom;
+            document.getElementById('headerSellerName').textContent = nom;
+            document.getElementById('sellerPassword').disabled = true;
+            document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
+            document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
+            document.getElementById('sellerContent').classList.add('hidden');
+            document.getElementById('sellerChevron').classList.add('fa-chevron-down');
+            document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
+        }
+    } else {
+        userDisplay.classList.add('hidden');
+        loginLogoutButton.innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+        loginLogoutButton.onclick = login;
     }
-} else {
-    userDisplay.classList.add('hidden');
-    loginLogoutButton.innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-    loginLogoutButton.onclick = login;
-}
 }
 
 function login() {
-const email = prompt('Entrez votre email:');
-const password = prompt('Entrez votre mot de passe:');
-if (!email || !password) {
-    showToast('Email et mot de passe requis', true);
-    return;
-}
-fetch(`${API_BASE_URL}/connexion`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password })
-})
-    .then(response => {
-        if (!response.ok) throw new Error(`Erreur ${response.status}`);
-        return response.json();
+    const email = prompt('Entrez votre email:');
+    const password = prompt('Entrez votre mot de passe:');
+    if (!email || !password) {
+        showToast('Email et mot de passe requis', true);
+        return;
+    }
+    fetch(`${API_BASE_URL}/connexion`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
     })
-    .then(data => {
-        localStorage.setItem('userId', data.userId);
-        localStorage.setItem('userEmail', email);
-        showToast('Connexion réussie');
-        checkLoginStatus();
-        chargerUtilisateurs();
-        chargerClients();
-        chargerCategories();
-        chargerProduits();
-    })
-    .catch(error => showToast(`Erreur connexion: ${error.message}`, true));
+        .then(response => {
+            if (!response.ok) throw new Error(`Erreur ${response.status}`);
+            return response.json();
+        })
+        .then(data => {
+            localStorage.setItem('userId', data.userId);
+            localStorage.setItem('userEmail', email);
+            showToast('Connexion réussie');
+            checkLoginStatus();
+            chargerUtilisateurs();
+            chargerClients();
+            chargerCategories();
+            chargerProduits();
+        })
+        .catch(error => showToast(`Erreur connexion: ${error.message}`, true));
 }
 
 function logout() {
-localStorage.removeItem('userId');
-localStorage.removeItem('userEmail');
-localStorage.removeItem('selectedSeller');
-localStorage.removeItem('sellerPassword');
-localStorage.removeItem('pendingSales');
-tempSaleLines = [];
-document.getElementById('userDisplay').classList.add('hidden');
-document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-document.getElementById('loginLogoutButton').onclick = login;
-document.getElementById('sellerSelect').value = '0';
-document.getElementById('sellerPassword').value = '';
-document.getElementById('sellerPassword').disabled = false;
-document.getElementById('selectedSellerName').textContent = '-';
-document.getElementById('headerSellerName').textContent = '-';
-document.getElementById('validateSellerButton').textContent = 'Valider';
-document.getElementById('validateSellerButton').onclick = validerVendeur;
-document.getElementById('productsList').innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
-document.getElementById('tempSalesList').innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucune ligne ajoutée</td></tr>';
-document.getElementById('totalSale').textContent = '0.00 DA';
-document.getElementById('saleItemCount').classList.add('hidden');
-document.getElementById('validateSaleButton').disabled = true;
-document.getElementById('printSaleButton80mm').disabled = true;
-document.getElementById('holdSaleButton').disabled = true;
-showToast('Déconnexion réussie');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('selectedSeller');
+    localStorage.removeItem('sellerPassword');
+    localStorage.removeItem('pendingSales');
+    tempSaleLines = [];
+    document.getElementById('userDisplay').classList.add('hidden');
+    document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+    document.getElementById('loginLogoutButton').onclick = login;
+    document.getElementById('sellerSelect').value = '0';
+    document.getElementById('sellerPassword').value = '';
+    document.getElementById('sellerPassword').disabled = false;
+    document.getElementById('selectedSellerName').textContent = '-';
+    document.getElementById('headerSellerName').textContent = '-';
+    document.getElementById('validateSellerButton').textContent = 'Valider';
+    document.getElementById('validateSellerButton').onclick = validerVendeur;
+    document.getElementById('productsList').innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+    document.getElementById('tempSalesList').innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucune ligne ajoutée</td></tr>';
+    document.getElementById('totalSale').textContent = '0.00 DA';
+    document.getElementById('saleItemCount').classList.add('hidden');
+    document.getElementById('validateSaleButton').disabled = true;
+    document.getElementById('printSaleButton80mm').disabled = true;
+    document.getElementById('holdSaleButton').disabled = true;
+    showToast('Déconnexion réussie');
 }
 
 document.getElementById('searchProduct').addEventListener('input', filterProducts);
 document.getElementById('categoryFilter').addEventListener('change', () => {
-currentCategory = document.getElementById('categoryFilter').value;
-filterProducts();
+    currentCategory = document.getElementById('categoryFilter').value;
+    filterProducts();
 });
 document.getElementById('manageCategoriesButton').addEventListener('click', openCategoryModal);
 
 document.addEventListener('DOMContentLoaded', () => {
-checkLoginStatus();
-if (localStorage.getItem('userId')) {
-    chargerUtilisateurs();
-    chargerClients();
-    chargerCategories();
-    chargerProduits();
-}
-const urlParams = new URLSearchParams(window.location.search);
-const numeroComande = urlParams.get('numero_comande');
-if (numeroComande) {
-    isEditMode = true;
-    editNumeroComande = numeroComande;
-    loadSaleData(numeroComande);
-    document.getElementById('validateSaleButton').textContent = 'Modifier la vente';
-    document.getElementById('validateSaleButton').onclick = modifierVente;
-}
+    checkLoginStatus();
+    if (localStorage.getItem('userId')) {
+        chargerUtilisateurs();
+        chargerClients();
+        chargerCategories();
+        chargerProduits();
+    }
+    const urlParams = new URLSearchParams(window.location.search);
+    const numeroComande = urlParams.get('numero_comande');
+    if (numeroComande) {
+        isEditMode = true;
+        editNumeroComande = numeroComande;
+        loadSaleData(numeroComande);
+        document.getElementById('validateSaleButton').textContent = 'Modifier la vente';
+        document.getElementById('validateSaleButton').onclick = modifierVente;
+    }
 });
 </script>
 </body>
