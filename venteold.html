@@ -194,7 +194,7 @@
     <!-- Modal Ajouter/Modifier Catégorie -->
     <div id="categoryModal" class="modal">
         <div class="modal-content">
-            <span class="close" onclick="closeModal('categoryModal')">&times;</span>
+            <span class="close" onclick="closeModal('categoryModal')">×</span>
             <h2 id="categoryModalTitle" class="text-xl font-bold mb-4"></h2>
             <form id="categoryForm">
                 <div class="mb-4">
@@ -210,7 +210,7 @@
     <!-- Modal Assignation Produit -->
     <div id="assignProductModal" class="modal">
         <div class="modal-content">
-            <span class="close" onclick="closeModal('assignProductModal')">&times;</span>
+            <span class="close" onclick="closeModal('assignProductModal')">×</span>
             <h2 class="text-xl font-bold mb-4">Assigner un produit à une catégorie</h2>
             <form id="assignProductForm">
                 <div class="mb-4">
@@ -257,6 +257,7 @@
                 const response = await fetch(`${apiBaseUrl}/liste_categories`, {
                     headers: { 'X-User-ID': userId }
                 });
+                if (!response.ok) throw new Error('Erreur réseau ou serveur');
                 const categories = await response.json();
                 const tbody = document.getElementById('categoriesBody');
                 tbody.innerHTML = '';
@@ -303,9 +304,10 @@
                 const response = await fetch(`${apiBaseUrl}/liste_produits`, {
                     headers: { 'X-User-ID': userId }
                 });
+                if (!response.ok) throw new Error('Erreur réseau ou serveur');
                 const products = await response.json();
                 const productSelect = document.getElementById('productSelect');
-                productSelect.innerHTML = '';
+                productSelect.innerHTML = '<option value="">Sélectionner un produit</option>';
 
                 products.forEach(product => {
                     const option = document.createElement('option');
@@ -395,7 +397,7 @@
 
         // Supprime une catégorie
         async function deleteCategory(id) {
-            if (!confirm('Voulez-vous vraiment supprimer cette catégorie ?')) return;
+            if (!confirm('Voulez-vous vraiment supprimer cette catégorie ? Les produits associés seront désassignés.')) return;
 
             try {
                 const response = await fetch(`${apiBaseUrl}/supprimer_categorie/${id}`, {
@@ -406,6 +408,7 @@
                 if (response.ok) {
                     alert('Catégorie supprimée avec succès');
                     fetchCategories();
+                    fetchProductsByCategory();
                 } else {
                     alert(result.erreur || 'Erreur lors de la suppression');
                 }
@@ -452,29 +455,47 @@
             }
         }
 
-        // Récupère les produits par catégorie
+        // Récupère les produits par catégorie pour affichage et vente
         async function fetchProductsByCategory() {
             const categoryId = document.getElementById('categorySelect').value;
             try {
-                const response = await fetch(`${apiBaseUrl}/liste_produits_par_categorie${categoryId ? `?numero_categorie=${categoryId}` : ''}`, {
+                const url = categoryId 
+                    ? `${apiBaseUrl}/liste_produits_par_categorie?numero_categorie=${categoryId}`
+                    : `${apiBaseUrl}/liste_produits_par_categorie`;
+                const response = await fetch(url, {
                     headers: { 'X-User-ID': userId }
                 });
+                if (!response.ok) throw new Error('Erreur réseau ou serveur');
                 const result = await response.json();
                 const tbody = document.getElementById('productsBody');
                 tbody.innerHTML = '';
 
                 let products = [];
-                if (categoryId) {
+                if (categoryId && result.categories && result.categories.length > 0) {
+                    // Cas où une catégorie spécifique est sélectionnée
                     result.categories.forEach(category => {
-                        category.produits.forEach(product => {
-                            products.push({
-                                ...product,
-                                categoryDescription: category.description_c
+                        if (category.produits && category.produits.length > 0) {
+                            category.produits.forEach(product => {
+                                products.push({
+                                    numero_item: product.NUMERO_ITEM || product.numero_item,
+                                    designation: product.DESIGNATION || product.designation,
+                                    categoryDescription: category.description_c
+                                });
                             });
-                        });
+                        }
                     });
-                } else {
-                    products = result.produits;
+                } else if (!categoryId && result.produits) {
+                    // Cas "Sans catégorie" ou tous les produits non assignés
+                    products = result.produits.map(product => ({
+                        numero_item: product.NUMERO_ITEM || product.numero_item,
+                        designation: product.DESIGNATION || product.designation,
+                        categoryDescription: 'Sans catégorie'
+                    }));
+                }
+
+                if (products.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center">Aucun produit trouvé</td></tr>';
+                    return;
                 }
 
                 products.forEach(product => {
@@ -482,10 +503,10 @@
                     tr.innerHTML = `
                         <td>${product.numero_item}</td>
                         <td>${product.designation}</td>
-                        <td>${product.categoryDescription || 'Sans catégorie'}</td>
+                        <td>${product.categoryDescription}</td>
                         <td>
                             <button class="btn btn-primary" onclick="openAssignProductModalForProduct(${product.numero_item})">
-                                <i class="fas fa-link"></i>
+                                <i class="fas fa-link"></i> Réassigner
                             </button>
                         </td>
                     `;
