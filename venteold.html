@@ -38,7 +38,7 @@
         #salesSection { animation-delay: 0.4s; }
         footer { animation-delay: 1s; }
         .user-anim { animation: userPulse 1.5s infinite ease-in-out; }
-        .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
+        .count-anim { animation: countPulse; }
         .small-email { font-size: 0.75rem; line-height: 1rem; }
         .quantity-input { width: 60px; }
         .total-large {
@@ -890,7 +890,7 @@
             showToast(`Ligne "${ligne.designation}" supprimée`);
         }
 
-        async function validerVente() {
+              async function validerVente() {
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour valider la vente', true);
@@ -942,7 +942,10 @@
                     },
                     body: JSON.stringify(venteData)
                 });
-                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
                 const result = await response.json();
                 showToast(`Vente #${result.numero_comande} validée avec succès`);
                 tempSaleLines = [];
@@ -951,9 +954,10 @@
                 document.getElementById('saleClientId').value = '0';
                 togglePaymentForm();
                 updateTempSalesTable();
-                chargerProduits();
-                chargerClients();
+                await chargerProduits();
+                await chargerClients();
             } catch (error) {
+                console.error('Erreur validation vente:', error);
                 showToast(`Erreur validation vente: ${error.message}`, true);
             }
         }
@@ -1015,7 +1019,10 @@
                     },
                     body: JSON.stringify(venteData)
                 });
-                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
                 const result = await response.json();
                 showToast(`Vente #${result.numero_comande} modifiée avec succès`);
                 tempSaleLines = [];
@@ -1024,10 +1031,11 @@
                 document.getElementById('saleClientId').value = '0';
                 togglePaymentForm();
                 updateTempSalesTable();
-                chargerProduits();
-                chargerClients();
+                await chargerProduits();
+                await chargerClients();
                 window.location.href = 'page2.html';
             } catch (error) {
+                console.error('Erreur modification vente:', error);
                 showToast(`Erreur modification vente: ${error.message}`, true);
             }
         }
@@ -1042,7 +1050,10 @@
                 const response = await fetch(`${API_BASE_URL}/vente/${numeroComande}`, {
                     headers: { 'X-User-ID': userId }
                 });
-                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
                 const saleData = await response.json();
                 if (!Array.isArray(saleData.lignes)) {
                     throw new Error('Les lignes de vente sont manquantes ou invalides');
@@ -1091,6 +1102,7 @@
                     }
                 }
             } catch (error) {
+                console.error('Erreur chargement vente:', error);
                 showToast(`Erreur chargement vente: ${error.message}`, true);
             }
         }
@@ -1279,7 +1291,7 @@
                                 font-size: 10pt;
                                 line-height: 1.2;
                                 color: #000;
-                                box-shadow:0 0 10px rgba(0, 0, 0, 0.1);
+                                box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
                                 text-align: center;
                             }
                             h1 {
@@ -1303,124 +1315,44 @@
                             }
                             th {
                                 background: #f0f0f0;
+                                font-weight: bold;
                             }
                             .total {
-                                font-weight: bold;
                                 font-size: 12pt;
+                                font-weight: bold;
                                 margin-top: 5mm;
+                            }
+                            @media print {
+                                body {
+                                    padding: 0;
+                                    margin: 0;
+                                    display: block;
+                                }
+                                .printable {
+                                    box-shadow: none;
+                                    width: 80mm;
+                                    margin: 0;
+                                }
                             }
                         </style>
                     </head>
-                    <body>
+                    <body onload="window.print(); setTimeout(() => window.close(), 100)">
                         ${ticketContent}
                     </body>
                 </html>
             `);
             printWindow.document.close();
-            printWindow.focus();
-            setTimeout(() => {
-                printWindow.print();
-                printWindow.close();
-            }, 500);
-        }
-
-        function openCategoryModal() {
-            document.getElementById('categoryModal').style.display = 'flex';
-            document.getElementById('categoryDescription').value = '';
-            loadCategoryList();
-        }
-
-        function closeCategoryModal() {
-            document.getElementById('categoryModal').style.display = 'none';
-        }
-
-        async function loadCategoryList() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour gérer les catégories', true);
-                return;
-            }
-            try {
-                const [categoriesResponse, productsResponse] = await Promise.all([
-                    fetch(`${API_BASE_URL}/liste_categories`, { headers: { 'X-User-ID': userId } }),
-                    fetch(`${API_BASE_URL}/liste_produits`, { headers: { 'X-User-ID': userId } })
-                ]);
-                if (!categoriesResponse.ok || !productsResponse.ok) {
-                    throw new Error(`Erreur: ${await (categoriesResponse.ok ? productsResponse : categoriesResponse).text()}`);
-                }
-                const categories = await categoriesResponse.json();
-                const products = await productsResponse.json();
-                const categoryList = document.getElementById('categoryList');
-                categoryList.innerHTML = '';
-                const normalizedProducts = products.map(p => ({
-                    ...p,
-                    numer_categorie: p.numer_categorie || p.NUMER_CATEGORIE || null,
-                    numero_item: parseInt(p.numero_item || p.NUMERO_ITEM),
-                    designation: p.designation || p.DESIGNATION || 'N/A'
-                }));
-                const unassignedProducts = normalizedProducts.filter(p => p.numer_categorie === null);
-                const unassignedDiv = document.createElement('div');
-                unassignedDiv.className = 'mb-4';
-                unassignedDiv.innerHTML = `
-                    <div class="flex justify-between items-center mb-2">
-                        <span class="font-bold">Non assignés</span>
-                    </div>
-                    <div class="pl-4">
-                        ${unassignedProducts.length ? unassignedProducts.map(product => `
-                            <div class="flex justify-between items-center mb-1">
-                                <span>${product.designation}</span>
-                                <select onchange="assignCategory(${product.numero_item}, this.value)" class="border p-1 rounded w-40">
-                                    <option value="">Assigner à...</option>
-                                    ${categories.map(cat => `<option value="${cat.numer_categorie}">${cat.description_c}</option>`).join('')}
-                                </select>
-                            </div>
-                        `).join('') : '<p class="text-gray-500">Aucun produit non assigné</p>'}
-                    </div>
-                `;
-                categoryList.appendChild(unassignedDiv);
-                categories.forEach(category => {
-                    const categoryProducts = normalizedProducts.filter(p => p.numer_categorie === category.numer_categorie);
-                    const div = document.createElement('div');
-                    div.className = 'mb-4';
-                    div.innerHTML = `
-                        <div class="flex justify-between items-center mb-2">
-                            <span class="font-bold">${category.description_c}</span>
-                            <div class="space-x-2">
-                                <button onclick="editCategoryModal(${category.numer_categorie}, '${category.description_c.replace(/'/g, "\\'")}')" class="bg-yellow-600 text-white px-2 py-1 rounded-md hover:bg-yellow-700 transition">
-                                    <i class="fas fa-edit"></i> Modifier
-                                </button>
-                                <button onclick="deleteCategory(${category.numer_categorie})" class="bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
-                                    <i class="fas fa-trash"></i> Supprimer
-                                </button>
-                            </div>
-                        </div>
-                        <div class="pl-4">
-                            ${categoryProducts.length ? categoryProducts.map(product => `
-                                                              <div class="flex justify-between items-center mb-1">
-                                    <span>${product.designation}</span>
-                                    <button onclick="removeCategoryFromProduct(${product.numero_item}, ${category.numer_categorie})" class="bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
-                                        <i class="fas fa-times"></i> Retirer
-                                    </button>
-                                </div>
-                            `).join('') : '<p class="text-gray-500">Aucun produit dans cette catégorie</p>'}
-                        </div>
-                    `;
-                    categoryList.appendChild(div);
-                });
-            } catch (error) {
-                showToast(`Erreur chargement catégories: ${error.message}`, true);
-            }
         }
 
         async function addCategory() {
             const userId = localStorage.getItem('userId');
-            const description = document.getElementById('categoryDescription').value.trim();
             if (!userId) {
                 showToast('Veuillez vous connecter', true);
                 return;
             }
+            const description = document.getElementById('categoryDescription').value.trim();
             if (!description) {
-                showToast('Veuillez entrer une description', true);
+                showToast('Veuillez entrer une description de catégorie', true);
                 return;
             }
             try {
@@ -1432,41 +1364,80 @@
                     },
                     body: JSON.stringify({ description_c: description })
                 });
-                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
-                document.getElementById('categoryDescription').value = '';
-                await chargerCategories();
-                loadCategoryList();
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                const result = await response.json();
                 showToast('Catégorie ajoutée avec succès');
+                document.getElementById('categoryDescription').value = '';
+                await loadCategoryList();
+                await chargerCategories();
+                await chargerProduits();
             } catch (error) {
+                console.error('Erreur ajout catégorie:', error);
                 showToast(`Erreur ajout catégorie: ${error.message}`, true);
             }
         }
 
-        function editCategoryModal(numer_categorie, description) {
-            document.getElementById('editCategoryId').value = numer_categorie;
-            document.getElementById('editCategoryDescription').value = description;
-            document.getElementById('editCategoryModal').style.display = 'flex';
+        async function loadCategoryList() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter', true);
+                return;
+            }
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_categories`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                const categories = await response.json();
+                const categoryList = document.getElementById('categoryList');
+                categoryList.innerHTML = categories.length === 0
+                    ? '<p class="text-center text-gray-500">Aucune catégorie trouvée</p>'
+                    : categories.map(category => `
+                        <div class="border p-4 rounded-md shadow-sm bg-gray-50 flex justify-between items-center">
+                            <span>${category.description_c}</span>
+                            <div class="space-x-2">
+                                <button onclick="editCategory(${category.numer_categorie}, '${category.description_c.replace(/'/g, "\\'")}')" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition">
+                                    <i class="fas fa-edit mr-1"></i> Modifier
+                                </button>
+                                <button onclick="deleteCategory(${category.numer_categorie})" class="bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
+                                    <i class="fas fa-trash mr-1"></i> Supprimer
+                                </button>
+                            </div>
+                        </div>
+                    `).join('');
+            } catch (error) {
+                console.error('Erreur chargement catégories:', error);
+                showToast(`Erreur chargement catégories: ${error.message}`, true);
+            }
         }
 
-        function closeEditCategoryModal() {
-            document.getElementById('editCategoryModal').style.display = 'none';
+        function editCategory(id, description) {
+            document.getElementById('editCategoryId').value = id;
+            document.getElementById('editCategoryDescription').value = description;
+            document.getElementById('editCategoryModal').style.display = 'flex';
         }
 
         async function saveEditedCategory(event) {
             event.preventDefault();
             const userId = localStorage.getItem('userId');
-            const numer_categorie = document.getElementById('editCategoryId').value;
-            const description = document.getElementById('editCategoryDescription').value.trim();
             if (!userId) {
                 showToast('Veuillez vous connecter', true);
                 return;
             }
+            const id = document.getElementById('editCategoryId').value;
+            const description = document.getElementById('editCategoryDescription').value.trim();
             if (!description) {
-                showToast('Veuillez entrer une description', true);
+                showToast('Veuillez entrer une description de catégorie', true);
                 return;
             }
             try {
-                const response = await fetch(`${API_BASE_URL}/modifier_categorie/${numer_categorie}`, {
+                const response = await fetch(`${API_BASE_URL}/modifier_categorie/${id}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1474,160 +1445,170 @@
                     },
                     body: JSON.stringify({ description_c: description })
                 });
-                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
-                await chargerCategories();
-                loadCategoryList();
-                closeEditCategoryModal();
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
                 showToast('Catégorie modifiée avec succès');
+                closeEditCategoryModal();
+                await loadCategoryList();
+                await chargerCategories();
+                await chargerProduits();
             } catch (error) {
+                console.error('Erreur modification catégorie:', error);
                 showToast(`Erreur modification catégorie: ${error.message}`, true);
             }
         }
 
-        async function deleteCategory(numer_categorie) {
+        async function deleteCategory(id) {
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter', true);
                 return;
             }
-            if (!confirm('Voulez-vous vraiment supprimer cette catégorie ? Les produits associés seront désassignés.')) {
-                return;
-            }
+            if (!confirm('Voulez-vous vraiment supprimer cette catégorie ?')) return;
             try {
-                const response = await fetch(`${API_BASE_URL}/supprimer_categorie/${numer_categorie}`, {
+                const response = await fetch(`${API_BASE_URL}/supprimer_categorie/${id}`, {
                     method: 'DELETE',
                     headers: { 'X-User-ID': userId }
                 });
-                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                showToast('Catégorie supprimée avec succès');
+                await loadCategoryList();
                 await chargerCategories();
                 await chargerProduits();
-                loadCategoryList();
-                showToast('Catégorie supprimée avec succès');
             } catch (error) {
+                console.error('Erreur suppression catégorie:', error);
                 showToast(`Erreur suppression catégorie: ${error.message}`, true);
             }
         }
 
-   async function assignCategory(numero_item, numer_categorie) {
-    const userId = localStorage.getItem('userId');
-    console.log('Assigning:', { numero_item, numer_categorie, userId });
-    if (!userId) {
-        showToast('Veuillez vous connecter', true);
-        return;
-    }
-    try {
-        const response = await fetch(`${API_BASE_URL}/assigner_categorie`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-User-ID': userId
-            },
-            body: JSON.stringify({
-                numero_item: parseInt(numero_item),
-                numer_categorie: numer_categorie === "null" ? null : parseInt(numer_categorie)
-            })
-        });
-        const responseBody = await response.json();
-        console.log('Response:', response.status, responseBody);
-        if (!response.ok) {
-            throw new Error(responseBody.erreur || `Erreur HTTP ${response.status}`);
-        }
-        await chargerProduits();
-        loadCategoryList();
-        showToast('Produit assigné à la catégorie');
-    } catch (error) {
-        console.error('Fetch error:', error);
-        showToast(`Erreur assignation: ${error.message}`, true);
-    }
-}
-        async function removeCategoryFromProduct(numero_item, numer_categorie) {
+        async function assignCategory(numeroItem, selectElement) {
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter', true);
                 return;
             }
+            let numer_categorie = selectElement.value;
+            console.log(`Assignation catégorie: item=${numeroItem}, categorie=${numer_categorie}`);
+            if (numer_categorie === '') {
+                showToast('Veuillez sélectionner une catégorie valide', true);
+                selectElement.value = 'none'; // Réinitialiser à l'état initial
+                return;
+            }
+            numer_categorie = numer_categorie === 'none' ? null : parseInt(numer_categorie);
             try {
-                const response = await fetch(`${API_BASE_URL}/desassigner_categorie`, {
+                const response = await fetch(`${API_BASE_URL}/assigner_categorie`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-User-ID': userId
                     },
                     body: JSON.stringify({
-                        numero_item: parseInt(numero_item),
-                        numer_categorie: parseInt(numer_categorie)
+                        numero_item: parseInt(numeroItem),
+                        numer_categorie: numer_categorie
                     })
                 });
-                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                const result = await response.json();
+                showToast('Catégorie assignée avec succès');
                 await chargerProduits();
-                loadCategoryList();
-                showToast('Produit retiré de la catégorie');
             } catch (error) {
-                showToast(`Erreur retrait catégorie: ${error.message}`, true);
+                console.error('Erreur assignation catégorie:', error);
+                showToast(`Erreur assignation catégorie: ${error.message}`, true);
+                selectElement.value = 'none'; // Réinitialiser en cas d'erreur
             }
+        }
+
+        async function removeCategoryFromProduct(numeroItem) {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter', true);
+                return;
+            }
+            console.log(`Désassignation catégorie: item=${numeroItem}`);
+            try {
+                const response = await fetch(`${API_BASE_URL}/assigner_categorie`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify({
+                        numero_item: parseInt(numeroItem),
+                        numer_categorie: null
+                    })
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                showToast('Catégorie désassignée avec succès');
+                await chargerProduits();
+            } catch (error) {
+                console.error('Erreur désassignation catégorie:', error);
+                showToast(`Erreur désassignation catégorie: ${error.message}`, true);
+            }
+        }
+
+        function showCategoryModal() {
+            document.getElementById('categoryModal').style.display = 'flex';
+            loadCategoryList();
+        }
+
+        function closeCategoryModal() {
+            document.getElementById('categoryModal').style.display = 'none';
+        }
+
+        function closeEditCategoryModal() {
+            document.getElementById('editCategoryModal').style.display = 'none';
         }
 
         async function loginLogout() {
             const userId = localStorage.getItem('userId');
+            const loginLogoutButton = document.getElementById('loginLogoutButton');
             if (userId) {
                 localStorage.removeItem('userId');
                 localStorage.removeItem('userEmail');
                 localStorage.removeItem('selectedSeller');
                 localStorage.removeItem('sellerPassword');
                 document.getElementById('userDisplay').classList.add('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                document.getElementById('selectedSellerName').textContent = '-';
-                document.getElementById('headerSellerName').textContent = '-';
+                document.getElementById('userDisplay').textContent = '';
                 document.getElementById('sellerSelect').value = '0';
                 document.getElementById('sellerPassword').value = '';
                 document.getElementById('sellerPassword').disabled = false;
+                document.getElementById('selectedSellerName').textContent = '-';
+                document.getElementById('headerSellerName').textContent = '-';
                 document.getElementById('validateSellerButton').textContent = 'Valider';
                 document.getElementById('validateSellerButton').onclick = validerVendeur;
+                loginLogoutButton.innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                tempSaleLines = [];
+                updateTempSalesTable();
                 showToast('Déconnexion réussie');
+                window.location.href = 'index.html';
             } else {
-                const email = prompt('Entrez votre email:');
-                const password = prompt('Entrez votre mot de passe:');
-                if (email && password) {
-                    try {
-                        const response = await fetch(`${API_BASE_URL}/connexion`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ email, password })
-                        });
-                        if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
-                        const data = await response.json();
-                        localStorage.setItem('userId', data.numero);
-                        localStorage.setItem('userEmail', email);
-                        document.getElementById('userDisplay').textContent = email;
-                        document.getElementById('userDisplay').classList.remove('hidden');
-                        document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                        showToast('Connexion réussie');
-                        chargerUtilisateurs();
-                        chargerClients();
-                        chargerCategories();
-                        chargerProduits();
-                    } catch (error) {
-                        showToast(`Erreur connexion: ${error.message}`, true);
-                    }
-                } else {
-                    showToast('Email et mot de passe requis', true);
-                }
+                window.location.href = 'index.html';
             }
         }
 
         document.addEventListener('DOMContentLoaded', async () => {
             const userId = localStorage.getItem('userId');
             const userEmail = localStorage.getItem('userEmail');
+            const loginLogoutButton = document.getElementById('loginLogoutButton');
             if (userId && userEmail) {
                 document.getElementById('userDisplay').textContent = userEmail;
                 document.getElementById('userDisplay').classList.remove('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                await Promise.all([
-                    chargerUtilisateurs(),
-                    chargerClients(),
-                    chargerCategories(),
-                    chargerProduits()
-                ]);
+                loginLogoutButton.innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+                await chargerUtilisateurs();
+                await chargerClients();
+                await chargerCategories();
+                await chargerProduits();
                 const storedSeller = localStorage.getItem('selectedSeller');
                 if (storedSeller) {
                     const { nom } = JSON.parse(storedSeller);
@@ -1637,23 +1618,21 @@
                     document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
                     document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
                 }
+            } else {
+                loginLogoutButton.innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
             }
-            document.getElementById('searchProduct').addEventListener('input', filterProducts);
-            document.getElementById('categoryFilter').addEventListener('change', (e) => {
-                currentCategory = e.target.value;
-                filterProducts();
-            });
-            document.getElementById('manageCategoriesButton').addEventListener('click', openCategoryModal);
-            togglePaymentForm();
             const urlParams = new URLSearchParams(window.location.search);
             const numeroComande = urlParams.get('numero_comande');
             if (numeroComande) {
                 isEditMode = true;
-                editNumeroComande = numeroComande;
+                editNumeroComande = parseInt(numeroComande);
                 await loadSaleData(numeroComande);
                 document.getElementById('validateSaleButton').textContent = 'Modifier la vente';
                 document.getElementById('validateSaleButton').onclick = modifierVente;
             }
+            document.getElementById('searchProduct').addEventListener('input', filterProducts);
+            document.getElementById('categoryFilter').addEventListener('change', filterProducts);
+            document.getElementById('manageCategoriesButton').addEventListener('click', showCategoryModal);
         });
     </script>
 </body>
