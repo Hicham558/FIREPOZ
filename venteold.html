@@ -631,30 +631,30 @@
         }
 
         async function chargerCategories() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les catégories', true);
-                return;
-            }
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_categories`, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
-                categoriesCache = await response.json();
-                const categoryFilter = document.getElementById('categoryFilter');
-                categoryFilter.innerHTML = '<option value="all">Toutes les catégories</option><option value="none">Non assignés</option>';
-                categoriesCache.forEach(category => {
-                    const option = document.createElement('option');
-                    option.value = category.numer_categorie;
-                    option.textContent = category.description_c;
-                    categoryFilter.appendChild(option);
-                });
-            } catch (error) {
-                showToast('Erreur chargement catégories: ' + error.message, true);
-            }
-        }
-
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour voir les catégories', true);
+        return;
+    }
+    try {
+        const response = await fetch(`${API_BASE_URL}/liste_categories`, {
+            headers: { 'X-User-ID': userId }
+        });
+        if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
+        categoriesCache = await response.json();
+        console.log('Categories chargées:', categoriesCache);
+        const categoryFilter = document.getElementById('categoryFilter');
+        categoryFilter.innerHTML = '<option value="all">Toutes les catégories</option><option value="none">Non assignés</option>';
+        categoriesCache.forEach(category => {
+            const option = document.createElement('option');
+            option.value = category.numer_categorie;
+            option.textContent = category.description_c;
+            categoryFilter.appendChild(option);
+        });
+    } catch (error) {
+        showToast('Erreur chargement catégories: ' + error.message, true);
+    }
+}
         async function chargerProduits() {
             const userId = localStorage.getItem('userId');
             if (!userId) {
@@ -1514,11 +1514,14 @@
         showToast('Veuillez vous connecter', true);
         return;
     }
-    console.log('Assignation:', { numero_item, numer_categorie }); // Journaliser les paramètres
-    if (numer_categorie === '') {
-        showToast('Veuillez sélectionner une catégorie valide', true);
+    let categoryValue = null;
+    if (numer_categorie && !isNaN(parseInt(numer_categorie, 10))) {
+        categoryValue = parseInt(numer_categorie, 10);
+    } else if (numer_categorie !== '') {
+        showToast('Catégorie sélectionnée invalide', true);
         return;
     }
+    console.log('Assignation:', { numero_item, numer_categorie: categoryValue });
     try {
         const response = await fetch(`${API_BASE_URL}/assigner_categorie`, {
             method: 'POST',
@@ -1528,22 +1531,22 @@
             },
             body: JSON.stringify({
                 numero_item: parseInt(numero_item, 10),
-                numer_categorie: numer_categorie === null ? null : parseInt(numer_categorie, 10)
+                numer_categorie: categoryValue
             })
         });
+        const data = await response.json();
         if (!response.ok) {
-            const errorData = await response.json();
-            console.error('Erreur serveur:', errorData); // Journaliser la réponse
-            throw new Error(`Erreur ${response.status}: ${errorData.erreur || 'Erreur inconnue'}`);
+            throw new Error(`Erreur ${response.status}: ${data.erreur || 'Erreur inconnue'}`);
         }
         await chargerProduits();
         loadCategoryList();
         showToast('Produit assigné à la catégorie');
     } catch (error) {
-        console.error('Erreur assignation:', error); // Journaliser l'erreur complète
+        console.error('Erreur assignation:', error);
         showToast(`Erreur assignation catégorie: ${error.message}`, true);
     }
 }
+
         async function removeCategoryFromProduct(numero_item, numer_categorie) {
             const userId = localStorage.getItem('userId');
             if (!userId) {
