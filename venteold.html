@@ -1334,33 +1334,39 @@
             document.getElementById('categoryModal').style.display = 'none';
         }
 
-       async function loadCategoryList() {
+    async function loadCategoryList() {
     const userId = localStorage.getItem('userId');
     if (!userId) {
         showToast('Veuillez vous connecter pour gérer les catégories', true);
         return;
     }
     try {
-        const [categoriesResponse, productsResponse] = await Promise.all([
+        const [categoriesResponse, productsByCategoryResponse] = await Promise.all([
             fetch(`${API_BASE_URL}/liste_categories`, { headers: { 'X-User-ID': userId } }),
-            fetch(`${API_BASE_URL}/liste_produits`, { headers: { 'X-User-ID': userId } })
+            fetch(`${API_BASE_URL}/liste_produits_par_categorie`, { headers: { 'X-User-ID': userId } })
         ]);
-        if (!categoriesResponse.ok || !productsResponse.ok) {
-            throw new Error(`Erreur: ${await (categoriesResponse.ok ? productsResponse : categoriesResponse).text()}`);
+        if (!categoriesResponse.ok || !productsByCategoryResponse.ok) {
+            throw new Error(`Erreur: ${await (categoriesResponse.ok ? productsByCategoryResponse : categoriesResponse).text()}`);
         }
         const categories = await categoriesResponse.json();
-        const products = await productsResponse.json();
+        const { categories: productsByCategory } = await productsByCategoryResponse.json();
         console.log('Categories:', categories);
-        console.log('Products:', products);
+        console.log('Products by Category:', productsByCategory);
+
+        // Récupérer les produits non assignés avec liste_produits_par_categorie?numero_categorie=null
+        const unassignedResponse = await fetch(`${API_BASE_URL}/liste_produits_par_categorie?numero_categorie`, {
+            headers: { 'X-User-ID': userId }
+        });
+        if (!unassignedResponse.ok) {
+            throw new Error(`Erreur: ${await unassignedResponse.text()}`);
+        }
+        const { produits: unassignedProducts } = await unassignedResponse.json();
+        console.log('Unassigned Products:', unassignedProducts);
+
         const categoryList = document.getElementById('categoryList');
         categoryList.innerHTML = '';
-        const normalizedProducts = products.map(p => ({
-            ...p,
-            numer_categorie: p.numer_categorie || p.NUMER_CATEGORIE || null,
-            numero_item: parseInt(p.numero_item || p.NUMERO_ITEM),
-            designation: p.designation || p.DESIGNATION || 'N/A'
-        }));
-        const unassignedProducts = normalizedProducts.filter(p => p.numer_categorie === null);
+
+        // Afficher les produits non assignés
         const unassignedDiv = document.createElement('div');
         unassignedDiv.className = 'mb-4';
         unassignedDiv.innerHTML = `
@@ -1370,7 +1376,7 @@
             <div class="pl-4">
                 ${unassignedProducts.length ? unassignedProducts.map(product => `
                     <div class="flex justify-between items-center mb-1">
-                        <span>${product.designation}</span>
+                        <span>${product.designation || 'N/A'}</span>
                         <select onchange="assignCategory(${product.numero_item}, this.value)" class="border p-1 rounded w-40">
                             <option value="">Assigner à...</option>
                             ${categories.map(cat => `<option value="${cat.numer_categorie}">${cat.description_c}</option>`).join('')}
@@ -1380,8 +1386,9 @@
             </div>
         `;
         categoryList.appendChild(unassignedDiv);
-        categories.forEach(category => {
-            const categoryProducts = normalizedProducts.filter(p => p.numer_categorie === category.numer_categorie);
+
+        // Afficher les catégories et leurs produits
+        productsByCategory.forEach(category => {
             const div = document.createElement('div');
             div.className = 'mb-4';
             div.innerHTML = `
@@ -1397,9 +1404,9 @@
                     </div>
                 </div>
                 <div class="pl-4">
-                    ${categoryProducts.length ? categoryProducts.map(product => `
+                    ${category.produits.length ? category.produits.map(product => `
                         <div class="flex justify-between items-center mb-1">
-                            <span>${product.designation}</span>
+                            <span>${product.designation || 'N/A'}</span>
                             <button onclick="removeCategoryFromProduct(${product.numero_item}, ${category.numer_categorie})" class="bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
                                 <i class="fas fa-times"></i> Retirer
                             </button>
@@ -1510,7 +1517,7 @@
             }
         }
 
-       async function assignCategory(numero_item, numer_categorie) {
+      async function assignCategory(numero_item, numer_categorie) {
     const userId = localStorage.getItem('userId');
     if (!userId) {
         showToast('Veuillez vous connecter', true);
@@ -1523,12 +1530,7 @@
         showToast('Catégorie sélectionnée invalide', true);
         return;
     }
-    // Log pour voir les valeurs avant assignation
-    console.log('Avant assignation:', {
-        numero_item: numero_item,
-        numer_categorie: categoryValue,
-        userId: userId
-    });
+    console.log('Avant assignation:', { numero_item, numer_categorie: categoryValue, userId });
     try {
         const response = await fetch(`${API_BASE_URL}/assigner_categorie`, {
             method: 'POST',
@@ -1542,12 +1544,11 @@
             })
         });
         const data = await response.json();
-        console.log('Réponse serveur:', data);
         if (!response.ok) {
             throw new Error(`Erreur ${response.status}: ${data.erreur || 'Erreur inconnue'}`);
         }
-        await chargerProduits();
-        loadCategoryList();
+        await chargerProduits(); // Pour les autres formulaires
+        await loadCategoryList(); // Rafraîchir la modale des catégories
         showToast('Produit assigné à la catégorie');
     } catch (error) {
         console.error('Erreur assignation:', error);
