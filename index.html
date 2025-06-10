@@ -1447,73 +1447,95 @@
         });
 
         // --- Gestion du scanner ---
-        async function startScanner() {
-            if (isScanning) return;
+       async function startScanner() {
+    if (isScanning) return;
 
-            try {
-                if (!('BarcodeDetector' in window)) {
-                    showToast('Le détecteur de code-barres n\'est pas supporté par ce navigateur', true);
-                    return;
-                }
-
-                stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment' }
-                });
-
-                const video = document.createElement('video');
-                video.srcObject = stream;
-                video.autoplay = true;
-                video.playsInline = true;
-                video.style.width = '100%';
-                video.style.height = '100%';
-
-                const scannerPreview = document.getElementById('scannerPreview');
-                scannerPreview.innerHTML = '';
-                scannerPreview.appendChild(video);
-                scannerPreview.style.display = 'block';
-
-                barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
-
-                isScanning = true;
-                scanBarcode(video);
-            } catch (error) {
-                showToast('Erreur d\'accès à la caméra: ' + error.message, true);
-                console.error('Erreur scanner:', error);
-                stopScanner();
-            }
+    try {
+        // Vérifier si BarcodeDetector est supporté
+        if (!('BarcodeDetector' in window)) {
+            showToast('Le détecteur de code-barres n\'est pas supporté par ce navigateur. Utilisez Chrome ou Edge.', true);
+            return;
         }
 
-        function scanBarcode(video) {
-            if (!isScanning) return;
+        // Initialiser le flux vidéo
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment' }
+        });
 
-            barcodeDetector.detect(video)
-                .then(barcodes => {
-                    if (barcodes.length > 0) {
-                        const barcode = barcodes[0].rawValue;
-                        document.getElementById('productBar').value = barcode;
-                        showToast('Code-barres détecté: ' + barcode);
-                        stopScanner();
-                    } else {
-                        requestAnimationFrame(() => scanBarcode(video));
-                    }
-                })
-                .catch(error => {
-                    showToast('Erreur de détection de code-barres: ' + error.message, true);
-                    console.error('Erreur détection:', error);
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.autoplay = true;
+        video.playsInline = true;
+        video.style.width = '100%';
+        video.style.height = '100%';
+
+        const scannerPreview = document.getElementById('scannerPreview');
+        scannerPreview.innerHTML = '';
+        scannerPreview.appendChild(video);
+        scannerPreview.style.display = 'block';
+
+        // Attendre que la vidéo soit prête
+        await new Promise((resolve) => {
+            video.onloadedmetadata = () => {
+                video.play().then(resolve).catch(err => {
+                    showToast('Erreur de lecture vidéo : ' + err.message, true);
                     stopScanner();
                 });
-        }
+            };
+        });
 
-        function stopScanner() {
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                stream = null;
-            }
-            const scannerPreview = document.getElementById('scannerPreview');
-            scannerPreview.innerHTML = '';
-            scannerPreview.style.display = 'none';
-            isScanning = false;
-        }
+        // Initialiser BarcodeDetector
+        barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
+        isScanning = true;
+        scanBarcode(video);
+    } catch (error) {
+        showToast('Erreur d\'accès à la caméra : ' + error.message, true);
+        console.error('Erreur scanner:', error);
+        stopScanner();
+    }
+}
+
+function scanBarcode(video) {
+    if (!isScanning || !video.srcObject) {
+        stopScanner();
+        return;
+    }
+
+    try {
+        barcodeDetector.detect(video)
+            .then(barcodes => {
+                if (barcodes.length > 0) {
+                    const barcode = barcodes[0].rawValue;
+                    document.getElementById('productBar').value = barcode;
+                    showToast('Code-barres détecté : ' + barcode);
+                    stopScanner();
+                } else {
+                    requestAnimationFrame(() => scanBarcode(video));
+                }
+            })
+            .catch(error => {
+                showToast('Erreur de détection : ' + error.message, true);
+                console.error('Erreur détection:', error);
+                stopScanner();
+            });
+    } catch (error) {
+        showToast('Erreur lors de la détection du code-barres : ' + error.message, true);
+        console.error('Erreur détection synchrone:', error);
+        stopScanner();
+    }
+}
+
+function stopScanner() {
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+    }
+    const scannerPreview = document.getElementById('scannerPreview');
+    scannerPreview.innerHTML = '';
+    scannerPreview.style.display = 'none';
+    isScanning = false;
+    barcodeDetector = null;
+}
 
         // --- Gestion des utilisateurs ---
         async function chargerUtilisateurs() {
