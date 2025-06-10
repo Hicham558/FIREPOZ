@@ -655,84 +655,100 @@
         showToast('Erreur chargement catégories: ' + error.message, true);
     }
 }
-        async function chargerProduits() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les produits', true);
-                return;
-            }
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
-                produitsCache = await response.json();
-                produitsCache = produitsCache.map(produit => ({
-                    numero_item: parseInt(produit.numero_item || produit.NUMERO_ITEM),
-                    designation: produit.designation || produit.DESIGNATION || 'N/A',
-                    prix: parseFloat(produit.prix || produit.PRIX) || 0,
-                    prixba: parseFloat(produit.prixba || produit.PRIXBA) || 0,
-                    qte: parseFloat(produit.qte || produit.QTE) || 0,
-                    numer_categorie: produit.numer_categorie || produit.NUMER_CATEGORIE || null
-                }));
-                filterProducts();
-            } catch (error) {
-                document.getElementById('productsList').innerHTML = `
-                    <tr>
-                        <td colspan="5" class="text-center py-4 text-red-500">
-                            Erreur de chargement: ${error.message}
-                        </td>
-                    </tr>
-                `;
-                showToast(`Erreur chargement produits: ${error.message}`, true);
-            }
+       async function chargerProduits() {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour voir les produits', true);
+        return;
+    }
+    try {
+        const [productsResponse, productsByCategoryResponse] = await Promise.all([
+            fetch(`${API_BASE_URL}/liste_produits`, { headers: { 'X-User-ID': userId } }),
+            fetch(`${API_BASE_URL}/liste_produits_par_categorie`, { headers: { 'X-User-ID': userId } })
+        ]);
+        if (!productsResponse.ok || !productsByCategoryResponse.ok) {
+            throw new Error(`Erreur: ${await (productsResponse.ok ? productsByCategoryResponse : productsResponse).text()}`);
         }
+        const products = await productsResponse.json();
+        const productsByCategoryData = await productsByCategoryResponse.json();
+        const productsByCategory = productsByCategoryData.categories || [];
 
-        function filterProducts() {
-            const searchTerm = document.getElementById('searchProduct').value.toLowerCase();
-            const categoryFilter = document.getElementById('categoryFilter').value;
-            const tbody = document.getElementById('productsList');
-            const countElement = document.getElementById('productCount');
-            let filteredProducts = produitsCache.filter(p =>
-                p.designation.toLowerCase().includes(searchTerm)
-            );
-            if (categoryFilter !== 'all') {
-                filteredProducts = filteredProducts.filter(p =>
-                    categoryFilter === 'none' ? p.numer_categorie === null : p.numer_categorie === parseInt(categoryFilter)
-                );
-            }
-            if (filteredProducts.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
-                countElement.textContent = '0';
-                countElement.classList.remove('hidden');
-                return;
-            }
-            tbody.innerHTML = '';
-            filteredProducts.forEach(produit => {
-                const stockStatus = produit.qte <= 0 ? 'Rupture' : produit.qte <= 5 ? 'Stock faible' : produit.qte.toFixed(2);
-                const stockClass = produit.qte <= 0 ? 'stock-rupture' : produit.qte <= 5 ? 'stock-faible' : '';
-                const buttonDisabled = produit.qte <= 0 ? 'btn-disabled' : '';
-                const buttonAttrs = produit.qte <= 0 ? 'disabled' : '';
-                const category = categoriesCache.find(c => c.numer_categorie === produit.numer_categorie)?.description_c || 'Non assigné';
-                const tr = document.createElement('tr');
-                tr.className = `hover:bg-gray-50 ${stockClass}`;
-                tr.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <button onclick="selectProduct(${produit.numero_item}, ${produit.prix}, ${produit.prixba}, ${produit.qte}, '${produit.designation.replace(/'/g, "\\'")}')" class="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition duration-300 ${buttonDisabled}" ${buttonAttrs}>
-                            <i class="fas fa-plus"></i>
-                        </button>
-                    </td>
-                    <td class="px-6 py-4 text-sm text-gray-900">${produit.designation}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stockStatus}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${category}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.prix.toFixed(2)}</td>
-                `;
-                tbody.appendChild(tr);
+        // Créer une map pour associer numero_item à numer_categorie
+        const categoryMap = new Map();
+        productsByCategory.forEach(category => {
+            category.produits.forEach(product => {
+                categoryMap.set(product.numero_item, category.numero_categorie);
             });
-            countElement.textContent = filteredProducts.length;
-            countElement.classList.remove('hidden');
-        }
+        });
 
+        produitsCache = products.map(produit => ({
+            numero_item: parseInt(produit.numero_item || produit.NUMERO_ITEM),
+            designation: produit.designation || produit.DESIGNATION || 'N/A',
+            prix: parseFloat(produit.prix || produit.PRIX) || 0,
+            prixba: parseFloat(produit.prixba || produit.PRIXBA) || 0,
+            qte: parseFloat(produit.qte || produit.QTE) || 0,
+            numer_categorie: categoryMap.get(parseInt(produit.numero_item || produit.NUMERO_ITEM)) || null
+        }));
+
+        console.log('Produits chargés:', produitsCache);
+        filterProducts();
+    } catch (error) {
+        document.getElementById('productsList').innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center py-4 text-red-500">
+                    Erreur de chargement: ${error.message}
+                </td>
+            </tr>
+        `;
+        showToast(`Erreur chargement produits: ${error.message}`, true);
+    }
+}
+
+      function filterProducts() {
+    const searchTerm = document.getElementById('searchProduct').value.toLowerCase();
+    const categoryFilter = document.getElementById('categoryFilter').value;
+    const tbody = document.getElementById('productsList');
+    const countElement = document.getElementById('productCount');
+    let filteredProducts = produitsCache.filter(p =>
+        p.designation.toLowerCase().includes(searchTerm)
+    );
+    if (categoryFilter !== 'all') {
+        filteredProducts = filteredProducts.filter(p =>
+            categoryFilter === 'none' ? p.numer_categorie === null : p.numer_categorie === parseInt(categoryFilter)
+        );
+    }
+    console.log('Produits filtrés:', filteredProducts, 'Filtre catégorie:', categoryFilter);
+    if (filteredProducts.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
+        countElement.textContent = '0';
+        countElement.classList.remove('hidden');
+        return;
+    }
+    tbody.innerHTML = '';
+    filteredProducts.forEach(produit => {
+        const stockStatus = produit.qte <= 0 ? 'Rupture' : produit.qte <= 5 ? 'Stock faible' : produit.qte.toFixed(2);
+        const stockClass = produit.qte <= 0 ? 'stock-rupture' : produit.qte <= 5 ? 'stock-faible' : '';
+        const buttonDisabled = produit.qte <= 0 ? 'btn-disabled' : '';
+        const buttonAttrs = produit.qte <= 0 ? 'disabled' : '';
+        const category = categoriesCache.find(c => c.numer_categorie === produit.numer_categorie)?.description_c || 'Non assigné';
+        const tr = document.createElement('tr');
+        tr.className = `hover:bg-gray-50 ${stockClass}`;
+        tr.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <button onclick="selectProduct(${produit.numero_item}, ${produit.prix}, ${produit.prixba}, ${produit.qte}, '${produit.designation.replace(/'/g, "\\'")}')" class="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition duration-300 ${buttonDisabled}" ${buttonAttrs}>
+                    <i class="fas fa-plus"></i>
+                </button>
+            </td>
+            <td class="px-6 py-4 text-sm text-gray-900">${produit.designation}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stockStatus}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${category}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.prix.toFixed(2)}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+    countElement.textContent = filteredProducts.length;
+    countElement.classList.remove('hidden');
+}
         function selectProduct(numeroItem, prix, prixba, stock, designation) {
             const numeroItemInt = parseInt(numeroItem);
             const unitPrice = parseFloat(prix) || 0;
