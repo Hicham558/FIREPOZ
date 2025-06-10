@@ -59,64 +59,45 @@
    #productsSection { animation-delay: 0.2s; }
         #salesSection { animation-delay: 0.4s; }
         footer { animation-delay: 1s; }
-      #scannerPreview {
-    width: 100vw;
-    height: 100vh;
-    position: fixed;
-    top: 0;
-    left: 0;
-    z-index: 1000;
-    display: none;
-    object-fit: cover; /* Assure que la vidéo remplit l'écran sans déformation */
-}
-#scannerOverlay {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 999;
-}
-#scan-indicator {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 70%;
-    height: 50%;
-    border: 2px solid transparent;
-    border-radius: 8px;
-    transition: border-color 0.3s;
-    pointer-events: none;
-    z-index: 1001;
-}
-.scanning {
-    border-color: rgba(0, 255, 0, 0.5); /* Vert semi-transparent */
-}
-.detected {
-    border-color: rgba(0, 255, 0, 1); /* Vert opaque */
-}
-#camera-loading {
-    display: none;
-}
-#closeScannerButton {
-    z-index: 1002;
-    position: fixed;
-    top: 16px;
-    right: 16px;
-    background-color: #ef4444;
-    color: white;
-    padding: 8px 16px;
-    border-radius: 4px;
-    font-size: 16px;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-}
-#closeScannerButton:hover {
-    background-color: #dc2626;
-}
+        #scannerPreview {
+            width: 300px;
+            height: 200px;
+            border: 2px solid #e5e7eb;
+            position: fixed;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        #closeScannerButton {
+            z-index: 1001;
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background-color: #ef4444;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        #closeScannerButton:hover {
+            background-color: #dc2626;
+        }
+        #scannerOverlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+        }
         .user-anim { animation: userPulse 1.5s infinite ease-in-out; }
         .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
         .small-email { font-size: 0.75rem; line-height: 1rem; }
@@ -452,13 +433,13 @@
             </div>
         </div>
     </div>
-<video id="scannerPreview" autoplay playsinline class="relative"></video>
-<div id="scannerOverlay">
-    <div id="scan-indicator" role="region" aria-live="polite"></div>
-    <div id="camera-loading" class="absolute inset-0 flex items-center justify-center text-white bg-black bg-opacity-50">
-        <i class="fas fa-spinner fa-spin mr-2"></i>Chargement de la caméra...
-    </div>
-</div>
+
+    <video id="scannerPreview" autoplay playsinline class="relative" style="width: 300px; height: 200px; border: 2px solid #e5e7eb; position: fixed; top: 100px; left: 50%; transform: translateX(-50%); z-index: 1000; display: none; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+        <button id="closeScannerButton" class="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition duration-300">
+            <i class="fas fa-times"></i> Exit
+        </button>
+    </video>
+    <div id="scannerOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 999;"></div>
 
     <div id="pendingSalesModal">
         <div class="modal-content">
@@ -1784,131 +1765,75 @@ function updateTempSalesTable() {
             }, 500);
         }
 
-      let scannerStream = null;
-let scannerRunning = false;
-let lastScanTime = 0;
-const SCAN_COOLDOWN = 2000; // 2 secondes de cooldown entre scans
+        let scannerStream = null;
 
-async function startScanner() {
-    console.log('Démarrage du scanner...');
-    if (scannerRunning) return;
-    scannerRunning = true;
-
-    const scannerPreview = document.getElementById('scannerPreview');
-    const scannerOverlay = document.getElementById('scannerOverlay');
-    const scanIndicator = document.getElementById('scan-indicator');
-    const cameraLoading = document.getElementById('camera-loading');
-
-    let closeScannerButton = document.getElementById('closeScannerButton');
-    if (!closeScannerButton) {
-        closeScannerButton = document.createElement('button');
-        closeScannerButton.id = 'closeScannerButton';
-        closeScannerButton.innerHTML = '<i class="fas fa-times"></i> Fermer';
-        document.body.appendChild(closeScannerButton);
-    }
-
-    try {
-        scannerStream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { ideal: 'environment' } } // Test sans résolution fixe
-        });
-        scannerPreview.srcObject = scannerStream;
-        scannerPreview.style.display = 'block';
-        scannerOverlay.style.display = 'block';
-        cameraLoading.style.display = 'flex';
-        closeScannerButton.style.display = 'block';
-
-        scannerPreview.onloadedmetadata = () => {
-            console.log('Métadonnées vidéo chargées:', scannerPreview.videoWidth, scannerPreview.videoHeight);
-            cameraLoading.style.display = 'none';
-            scanIndicator.classList.add('scanning');
-        };
-
-        if (!('BarcodeDetector' in window)) {
-            throw new Error('API BarcodeDetector non supportée. Utilisez Chrome ou Edge sur Android.');
-        }
-
-        const barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
-        console.log('BarcodeDetector initialisé avec formats:', ['ean_13', 'code_128', 'upc_a', 'upc_e']);
-
-        const scan = async () => {
-            if (!scannerRunning) return;
-            console.log('Scan en cours...');
-            const canvas = document.createElement('canvas');
-            canvas.width = scannerPreview.videoWidth;
-            canvas.height = scannerPreview.videoHeight;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(scannerPreview, 0, 0, canvas.width, canvas.height);
-            console.log('Image capturée:', canvas.width, canvas.height);
+        async function startScanner() {
+            console.log('Démarrage du scanner...');
+            const scannerPreview = document.getElementById('scannerPreview');
+            const scannerOverlay = document.getElementById('scannerOverlay');
+            const closeScannerButton = document.getElementById('closeScannerButton');
 
             try {
-                const barcodes = await barcodeDetector.detect(canvas);
-                console.log('Barcodes détectés:', barcodes);
-                if (barcodes.length > 0) {
-                    const currentTime = Date.now();
-                    if (currentTime - lastScanTime < SCAN_COOLDOWN) return;
-                    lastScanTime = currentTime;
+                scannerStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' }
+                });
+                scannerPreview.srcObject = scannerStream;
+                scannerPreview.style.display = 'block';
+                scannerOverlay.style.display = 'block';
 
-                    const barcode = barcodes[0].rawValue;
-                    console.log('Code-barres détecté:', barcode);
-                    scanIndicator.classList.remove('scanning');
-                    scanIndicator.classList.add('detected');
-                    setTimeout(() => scanIndicator.classList.remove('detected'), 500);
+                const barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
+                let isProcessing = false;
 
-                    const product = produitsCache.find(p => p.BAR.toString() === barcode);
-                    console.log('Produit trouvé:', product);
-                    if (product) {
-                        selectProduct(product.NUMERO_ITEM, product.BAR, product.PRIX, product.PRIXBA, product.QTE, product.DESIGNATION);
-                        showToast(`Produit ajouté : ${product.DESIGNATION}`);
-                        stopScanner();
-                    } else {
-                        showToast('Produit non trouvé', true);
+                async function scanBarcode() {
+                    if (!scannerPreview.videoTracks || isProcessing) return;
+                    isProcessing = true;
+
+                    try {
+                        const barcodes = await barcodeDetector.detect(scannerPreview);
+                        if (barcodes.length > 0) {
+                            const barcode = barcodes[0].rawValue;
+                            console.log('Code-barres détecté:', barcode);
+                            const product = produitsCache.find(p => p.BAR.toString() === barcode);
+                            if (product) {
+                                selectProduct(product.NUMERO_ITEM, product.BAR, product.PRIX, product.PRIXBA, product.QTE, product.DESIGNATION);
+                                stopScanner();
+                            } else {
+                                showToast('Produit non trouvé', true);
+                            }
+                        }
+                    } catch (err) {
+                        console.error('Erreur détection code-barres:', err);
+                        showToast('Erreur lors du scan', true);
+                    } finally {
+                        isProcessing = false;
+                        if (scannerPreview.style.display === 'block') {
+                            requestAnimationFrame(scanBarcode);
+                        }
                     }
                 }
+
+                scannerPreview.play();
+                requestAnimationFrame(scanBarcode);
+
+                closeScannerButton.onclick = stopScanner;
             } catch (err) {
-                console.error('Erreur détection code-barres:', err);
-                showToast(`Erreur de détection : ${err.message}`, true);
+                console.error('Erreur démarrage scanner:', err);
+                showToast('Impossible d\'accéder à la caméra', true);
             }
-            if (scannerRunning) {
-                requestAnimationFrame(scan);
+        }
+
+        function stopScanner() {
+            console.log('Arrêt du scanner...');
+            const scannerPreview = document.getElementById('scannerPreview');
+            const scannerOverlay = document.getElementById('scannerOverlay');
+
+            if (scannerStream) {
+                scannerStream.getTracks().forEach(track => track.stop());
+                scannerStream = null;
             }
-        };
-
-        scannerPreview.play();
-        scan();
-
-        closeScannerButton.onclick = stopScanner;
-    } catch (err) {
-        console.error('Erreur démarrage scanner:', err);
-        showToast(`Impossible d'accéder à la caméra : ${err.message}`, true);
-        scannerRunning = false;
-        cameraLoading.style.display = 'none';
-        stopScanner();
-    }
-}
-
-function stopScanner() {
-    console.log('Arrêt du scanner...');
-    scannerRunning = false;
-
-    const scannerPreview = document.getElementById('scannerPreview');
-    const scannerOverlay = document.getElementById('scannerOverlay');
-    const scanIndicator = document.getElementById('scan-indicator');
-    const cameraLoading = document.getElementById('camera-loading');
-    const closeScannerButton = document.getElementById('closeScannerButton');
-
-    if (scannerStream) {
-        scannerStream.getTracks().forEach(track => track.stop());
-        scannerStream = null;
-    }
-
-    scannerPreview.style.display = 'none';
-    scannerOverlay.style.display = 'none';
-    scanIndicator.classList.remove('scanning', 'detected');
-    cameraLoading.style.display = 'none';
-    if (closeScannerButton) {
-        closeScannerButton.style.display = 'none';
-    }
-}
+            scannerPreview.style.display = 'none';
+            scannerOverlay.style.display = 'none';
+        }
 
         document.getElementById('productBar').addEventListener('change', (event) => {
             const barcode = event.target.value.trim();
