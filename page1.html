@@ -101,10 +101,6 @@
                         <input type="text" id="bar" name="bar" class="form-input w-full p-2 rounded" aria-required="true">
                     </div>
                     <div class="mb-2">
-                        <label for="additionalBarcodes" class="block text-sm font-medium text-[#b3cde0]">Codes-barres supplémentaires (séparés par des virgules)</label>
-                        <input type="text" id="additionalBarcodes" name="additionalBarcodes" class="form-input w-full p-2 rounded" placeholder="Ex. 1234567890123, 1234567890124">
-                    </div>
-                    <div class="mb-2">
                         <label for="prix" class="block text-sm font-medium text-[#b3cde0]">Prix (€)</label>
                         <input type="number" id="prix" name="prix" class="form-input w-full p-2 rounded" step="0.01" min="0" required aria-required="true">
                     </div>
@@ -114,6 +110,7 @@
                     </div>
                     <button type="submit" class="w-full bg-[#800020] text-[#e6e6e6] py-2 rounded hover:bg-[#b3cde0] hover:text-[#1a2a44] transition" aria-label="Ajouter le produit">Ajouter le produit</button>
                 </form>
+                <p class="text-sm text-[#b3cde0] mt-2">Les codes-barres supplémentaires peuvent être ajoutés après la création du produit.</p>
             </div>
         </div>
     </div>
@@ -129,7 +126,7 @@
         const API_BASE_URL = 'https://hicham03041979.onrender.com';
         let scannerRunning = false;
         let torchOn = false;
-        let lastScanTime =0;
+        let lastScanTime = 0;
         const SCAN_COOLDOWN = 2000;
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -315,8 +312,6 @@
 
             const designation = document.getElementById('designation').value.trim();
             const bar = document.getElementById('bar').value.trim();
-            const additionalBarcodesInput = document.getElementById('additionalBarcodes').value.trim();
-            const additionalBarcodes = additionalBarcodesInput ? additionalBarcodesInput.split(',').map(b => b.trim()).filter(b => b) : [];
             const prix = parseFloat(document.getElementById('prix').value);
             const qte = parseInt(document.getElementById('qte').value);
 
@@ -332,14 +327,8 @@
                 if (!response.ok) throw new Error(`Erreur ${response.status}`);
                 const produits = await response.json();
                 if (bar && produits.some(p => p.BAR === bar || p.ADDITIONAL_BARCODES.includes(bar))) {
-                    showToast('Ce code-barres principal existe déjà.', true);
+                    showToast('Ce code-barres existe déjà.', true);
                     return;
-                }
-                for (const additionalBarcode of additionalBarcodes) {
-                    if (produits.some(p => p.BAR === additionalBarcode || p.ADDITIONAL_BARCODES.includes(additionalBarcode))) {
-                        showToast(`Le code-barres supplémentaire ${additionalBarcode} existe déjà.`, true);
-                        return;
-                    }
                 }
             } catch (error) {
                 showToast(`Erreur : ${error.message}`, true);
@@ -353,11 +342,14 @@
                         'Content-Type': 'application/json',
                         'X-User-ID': userId
                     },
-                    body: JSON.stringify({ designation, bar, additional_barcodes: additionalBarcodes, prix, qte })
+                    body: JSON.stringify({ designation, bar, prix, qte })
                 });
                 const result = await response.json();
                 if (response.ok) {
-                    document.getElementById('result').innerHTML = `<p class="text-green-500">Produit ajouté !</p>`;
+                    document.getElementById('result').innerHTML = `
+                        <p class="text-green-500">Produit ajouté !</p>
+                        <p class="text-[#b3cde0]">Vous pouvez maintenant ajouter des codes-barres supplémentaires.</p>
+                        <button onclick="manageBarcodes('${result.id}', '${result.bar}')" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition mt-2">Gérer les codes-barres</button>`;
                     document.getElementById('addProductForm').classList.add('hidden');
                     document.getElementById('productForm').reset();
                     showToast('Produit ajouté !');
