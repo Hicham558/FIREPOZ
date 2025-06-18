@@ -10,8 +10,8 @@
     <link rel="manifest" href="/manifest.json">
     <style>
         body {
-            background: linear-gradient(to bottom, #1a2a44, #2e1a47);
-            color: #d9d9d9;
+            background: linear-gradient(to bottom, #1a2a44, #2e1a47); /* Dégradé Twilight */
+            color: #d9d9d9; /* Gris argenté */
         }
         #scanner-video {
             transform: scale(1.5);
@@ -32,18 +32,18 @@
             z-index: 10;
         }
         .scanning {
-            border-color: rgba(0, 255, 0, 0.5);
+            border-color: rgba(0, 255, 0, 0.5); /* Vert semi-transparent */
         }
         .detected {
-            border-color: rgba(0, 255, 0, 1);
+            border-color: rgba(0, 255, 0, 1); /* Vert opaque */
         }
         .toast {
             backdrop-filter: blur(5px);
-            background: rgba(26, 42, 68, 0.8);
+            background: rgba(26, 42, 68, 0.8); /* Bleu nuit semi-transparent */
         }
         .form-input {
-            background: #1a2a44;
-            border: 1px solid #800020;
+            background: #1a2a44; /* Bleu nuit */
+            border: 1px solid #800020; /* Rouge bordeaux */
             color: #d9d9d9;
         }
     </style>
@@ -97,8 +97,8 @@
                         <input type="text" id="designation" name="designation" class="form-input w-full p-2 rounded" required aria-required="true">
                     </div>
                     <div class="mb-2">
-                        <label for="bar" class="block text-sm font-medium text-[#b3cde0]">Code-barres principal</label>
-                        <input type="text" id="bar" name="bar" class="form-input w-full p-2 rounded" aria-required="true">
+                        <label for="bar" class="block text-sm font-medium text-[#b3cde0]">Code-barres</label>
+                        <input type="text" id="bar" name="bar" class="form-input w-full p-2 rounded" required aria-required="true">
                     </div>
                     <div class="mb-2">
                         <label for="prix" class="block text-sm font-medium text-[#b3cde0]">Prix (€)</label>
@@ -110,11 +110,11 @@
                     </div>
                     <button type="submit" class="w-full bg-[#800020] text-[#e6e6e6] py-2 rounded hover:bg-[#b3cde0] hover:text-[#1a2a44] transition" aria-label="Ajouter le produit">Ajouter le produit</button>
                 </form>
-                <p class="text-sm text-[#b3cde0] mt-2">Les codes-barres supplémentaires peuvent être ajoutés après la création du produit.</p>
             </div>
         </div>
     </div>
 
+    <!-- Toast pour notifications -->
     <div id="toast" class="fixed bottom-4 right-4 hidden toast">
         <div class="flex items-center px-6 py-3 rounded-md shadow-lg">
             <i id="toastIcon" class="mr-2"></i>
@@ -129,6 +129,7 @@
         let lastScanTime = 0;
         const SCAN_COOLDOWN = 2000;
 
+        // Vérification de l'utilisateur
         document.addEventListener('DOMContentLoaded', () => {
             const userId = localStorage.getItem('userId');
             if (!userId) {
@@ -137,6 +138,7 @@
             }
         });
 
+        // Afficher les notifications
         function showToast(message, isError = false) {
             const toast = document.getElementById('toast');
             const toastMessage = document.getElementById('toastMessage');
@@ -210,7 +212,7 @@
                     } catch (err) {
                         showToast(`Erreur de détection : ${err.message}`, true);
                     }
-                    requestAnimationFrame(scan);
+                    requestAnimationFrame(scan); // Utilisation de requestAnimationFrame pour une meilleure performance
                 };
 
                 scan();
@@ -266,26 +268,15 @@
                 });
                 if (!response.ok) throw new Error(`Erreur ${response.status}: ${response.statusText}`);
                 const produits = await response.json();
-                let produit = produits.find(p => p.BAR === barCode);
-                if (!produit) {
-                    produit = produits.find(p => p.ADDITIONAL_BARCODES.includes(barCode));
-                }
+                const produit = produits.find(p => p.BAR === barCode);
                 if (produit) {
-                    const additionalBarcodes = produit.ADDITIONAL_BARCODES.length > 0 
-                        ? `<p><strong>Codes-barres supplémentaires :</strong> ${produit.ADDITIONAL_BARCODES.join(', ')}</p>`
-                        : '';
                     resultElement.innerHTML = `
                         <div class="bg-[#2e1a47]/80 p-4 rounded-lg">
                             <p class="text-green-500 font-semibold">Produit trouvé :</p>
                             <p><strong>Désignation :</strong> ${produit.DESIGNATION}</p>
                             <p><strong>Quantité :</strong> ${produit.QTE}</p>
                             <p><strong>Prix :</strong> ${produit.PRIX} €</p>
-                            <p><strong>Code-barres principal :</strong> ${produit.BAR}</p>
-                            ${additionalBarcodes}
-                            <div class="mt-4 flex justify-center gap-2">
-                                <button onclick="manageBarcodes('${produit.NUMERO_ITEM}', '${produit.BAR}')" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition">Gérer les codes-barres</button>
-                                <button onclick="deleteProduct('${produit.NUMERO_ITEM}')" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition">Supprimer</button>
-                            </div>
+                            <p><strong>Code-barres :</strong> ${produit.BAR}</p>
                         </div>`;
                     document.getElementById('addProductForm').classList.add('hidden');
                     showToast('Produit trouvé !');
@@ -315,8 +306,8 @@
             const prix = parseFloat(document.getElementById('prix').value);
             const qte = parseInt(document.getElementById('qte').value);
 
-            if (!designation || isNaN(prix) || isNaN(qte)) {
-                showToast('Veuillez remplir tous les champs obligatoires', true);
+            if (!designation || !bar || isNaN(prix) || isNaN(qte)) {
+                showToast('Veuillez remplir tous les champs', true);
                 return;
             }
 
@@ -326,7 +317,7 @@
                 });
                 if (!response.ok) throw new Error(`Erreur ${response.status}`);
                 const produits = await response.json();
-                if (bar && produits.some(p => p.BAR === bar || p.ADDITIONAL_BARCODES.includes(bar))) {
+                if (produits.some(p => p.BAR === bar)) {
                     showToast('Ce code-barres existe déjà.', true);
                     return;
                 }
@@ -346,10 +337,7 @@
                 });
                 const result = await response.json();
                 if (response.ok) {
-                    document.getElementById('result').innerHTML = `
-                        <p class="text-green-500">Produit ajouté !</p>
-                        <p class="text-[#b3cde0]">Vous pouvez maintenant ajouter des codes-barres supplémentaires.</p>
-                        <button onclick="manageBarcodes('${result.id}', '${result.bar}')" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition mt-2">Gérer les codes-barres</button>`;
+                    document.getElementById('result').innerHTML = `<p class="text-green-500">Produit ajouté !</p>`;
                     document.getElementById('addProductForm').classList.add('hidden');
                     document.getElementById('productForm').reset();
                     showToast('Produit ajouté !');
@@ -363,138 +351,20 @@
             }
         });
 
-        async function manageBarcodes(numeroItem, mainBarcode) {
-            const userId = localStorage.getItem('userId');
-            const resultElement = document.getElementById('result');
-            resultElement.innerHTML = `
-                <div class="bg-[#2e1a47]/80 p-4 rounded-lg">
-                    <h3 class="text-lg font-semibold text-[#b3cde0] mb-2">Gérer les codes-barres pour l'item ${numeroItem}</h3>
-                    <div class="mb-4">
-                        <label for="newBarcode" class="block text-sm font-medium text-[#b3cde0]">Ajouter un nouveau code-barres</label>
-                        <input type="text" id="newBarcode" class="form-input w-full p-2 rounded mb-2" placeholder="Ex. 1234567890123">
-                        <button onclick="addBarcode('${numeroItem}')" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition">Ajouter</button>
-                    </div>
-                    <div id="barcodeList"></div>
-                </div>`;
-            await fetchBarcodes(numeroItem, mainBarcode);
-        }
-
-        async function fetchBarcodes(numeroItem, mainBarcode) {
-            const userId = localStorage.getItem('userId');
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) throw new Error(`Erreur ${response.status}`);
-                const produits = await response.json();
-                const produit = produits.find(p => p.NUMERO_ITEM === numeroItem);
-                if (produit) {
-                    const barcodeList = document.getElementById('barcodeList');
-                    barcodeList.innerHTML = '<p class="text-[#b3cde0] font-semibold">Codes-barres supplémentaires :</p>';
-                    if (produit.ADDITIONAL_BARCODES.length === 0) {
-                        barcodeList.innerHTML += '<p class="text-[#d9d9d9]">Aucun code-barres supplémentaire.</p>';
-                    } else {
-                        produit.ADDITIONAL_BARCODES.forEach(barcode => {
-                            barcodeList.innerHTML += `
-                                <div class="flex justify-between items-center p-2 bg-[#1a2a44]/50 rounded mb-1">
-                                    <span>${barcode}</span>
-                                    <button onclick="deleteBarcode('${numeroItem}', '${barcode}')" class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 transition">Supprimer</button>
-                                </div>`;
-                        });
-                    }
-                }
-            } catch (error) {
-                showToast(`Erreur : ${error.message}`, true);
-            }
-        }
-
-        async function addBarcode(numeroItem) {
-            const userId = localStorage.getItem('userId');
-            const newBarcode = document.getElementById('newBarcode').value.trim();
-            if (!newBarcode) {
-                showToast('Veuillez entrer un code-barres.', true);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/manage_barcodes/${numeroItem}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({ barcode: newBarcode })
-                });
-                const result = await response.json();
-                if (response.ok) {
-                    showToast('Code-barres ajouté !');
-                    document.getElementById('newBarcode').value = '';
-                    await fetchBarcodes(numeroItem, '');
-                } else {
-                    showToast(`Erreur : ${result.erreur}`, true);
-                }
-            } catch (error) {
-                showToast(`Erreur : ${error.message}`, true);
-            }
-        }
-
-        async function deleteBarcode(numeroItem, barcode) {
-            const userId = localStorage.getItem('userId');
-            try {
-                const response = await fetch(`${API_BASE_URL}/manage_barcodes/${numeroItem}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({ barcode })
-                });
-                const result = await response.json();
-                if (response.ok) {
-                    showToast('Code-barres supprimé !');
-                    await fetchBarcodes(numeroItem, '');
-                } else {
-                    showToast(`Erreur : ${result.erreur}`, true);
-                }
-            } catch (error) {
-                showToast(`Erreur : ${error.message}`, true);
-            }
-        }
-
-        async function deleteProduct(numeroItem) {
-            const userId = localStorage.getItem('userId');
-            if (!confirm('Voulez-vous vraiment supprimer ce produit ?')) return;
-            try {
-                const response = await fetch(`${API_BASE_URL}/supprimer_item/${numeroItem}`, {
-                    method: 'DELETE',
-                    headers: { 'X-User-ID': userId }
-                });
-                const result = await response.json();
-                if (response.ok) {
-                    document.getElementById('result').innerHTML = `<p class="text-green-500">Produit supprimé !</p>`;
-                    showToast('Produit supprimé !');
-                } else {
-                    showToast(`Erreur : ${result.erreur}`, true);
-                    document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${result.erreur}</p>`;
-                }
-            } catch (error) {
-                showToast(`Erreur : ${error.message}`, true);
-                document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${error.message}</p>`;
-            }
-        }
-
         function toggleAddProductForm() {
             const form = document.getElementById('addProductForm');
             form.classList.toggle('hidden');
             document.getElementById('result').innerHTML = '<p class="text-[#b3cde0]">Ajout manuel d\'un produit.</p>';
         }
 
+        // Gestion des erreurs réseau
         window.addEventListener('unhandledrejection', event => {
             if (event.reason.message.includes('Failed to fetch')) {
                 showToast('Erreur de connexion au serveur.', true);
             }
         });
 
+        // Service Worker
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/sw.js')
                 .then(() => console.log('Service Worker enregistré'))
