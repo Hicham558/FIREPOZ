@@ -10,8 +10,8 @@
     <link rel="manifest" href="/manifest.json">
     <style>
         body {
-            background: linear-gradient(to bottom, #1a2a44, #2e1a47);
-            color: #d9d9d9;
+            background: linear-gradient(to bottom, #1a2a44, #2e1a47); /* Dégradé Twilight */
+            color: #d9d9d9; /* Gris argenté */
         }
         #scanner-video {
             transform: scale(1.5);
@@ -32,39 +32,19 @@
             z-index: 10;
         }
         .scanning {
-            border-color: rgba(0, 255, 0, 0.5);
+            border-color: rgba(0, 255, 0, 0.5); /* Vert semi-transparent */
         }
         .detected {
-            border-color: rgba(0, 255, 0, 1);
+            border-color: rgba(0, 255, 0, 1); /* Vert opaque */
         }
         .toast {
             backdrop-filter: blur(5px);
-            background: rgba(26, 42, 68, 0.8);
+            background: rgba(26, 42, 68, 0.8); /* Bleu nuit semi-transparent */
         }
         .form-input {
-            background: #1a2a44;
-            border: 1px solid #800020;
+            background: #1a2a44; /* Bleu nuit */
+            border: 1px solid #800020; /* Rouge bordeaux */
             color: #d9d9d9;
-        }
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 50;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgba(0,0,0,0.5);
-        }
-        .modal-content {
-            background: #1a2a44;
-            margin: 15% auto;
-            padding: 20px;
-            border: 1px solid #800020;
-            width: 80%;
-            max-width: 500px;
-            border-radius: 8px;
         }
     </style>
 </head>
@@ -131,24 +111,6 @@
                     <button type="submit" class="w-full bg-[#800020] text-[#e6e6e6] py-2 rounded hover:bg-[#b3cde0] hover:text-[#1a2a44] transition" aria-label="Ajouter le produit">Ajouter le produit</button>
                 </form>
             </div>
-
-            <div id="productList" class="mt-4 p-4 bg-[#1a2a44]/50 rounded-lg">
-                <h3 class="text-lg font-semibold text-[#b3cde0] mb-2">Liste des produits</h3>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-[#d9d9d9]">
-                        <thead>
-                            <tr class="bg-[#2e1a47]">
-                                <th class="p-2">Désignation</th>
-                                <th class="p-2">Code-barres</th>
-                                <th class="p-2">Prix (€)</th>
-                                <th class="p-2">Quantité</th>
-                                <th class="p-2">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="productTableBody"></tbody>
-                    </table>
-                </div>
-            </div>
         </div>
     </div>
 
@@ -160,39 +122,19 @@
         </div>
     </div>
 
-    <!-- Modale pour ajouter un code-barres -->
-    <div id="barcodeModal" class="modal">
-        <div class="modal-content">
-            <h3 class="text-lg font-semibold text-[#b3cde0] mb-2">Ajouter un code-barres supplémentaire</h3>
-            <form id="barcodeForm">
-                <div class="mb-2">
-                    <label for="newBarcode" class="block text-sm font-medium text-[#b3cde0]">Nouveau code-barres</label>
-                    <input type="text" id="newBarcode" name="newBarcode" class="form-input w-full p-2 rounded" required aria-required="true">
-                </div>
-                <div class="flex justify-end gap-2">
-                    <button type="button" onclick="closeBarcodeModal()" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition">Annuler</button>
-                    <button type="submit" class="bg-[#800020] text-[#e6e6e6] px-4 py-2 rounded hover:bg-[#b3cde0] hover:text-[#1a2a44] transition">Ajouter</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
     <script>
         const API_BASE_URL = 'https://hicham03041979.onrender.com';
         let scannerRunning = false;
         let torchOn = false;
         let lastScanTime = 0;
         const SCAN_COOLDOWN = 2000;
-        let currentNumeroItem = null;
 
-        // Vérification de l'utilisateur et chargement initial des produits
+        // Vérification de l'utilisateur
         document.addEventListener('DOMContentLoaded', () => {
             const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Connexion requise pour utiliser le scanner', true);
                 setTimeout(() => window.location.href = 'index.html', 3000);
-            } else {
-                fetchProduits(userId);
             }
         });
 
@@ -270,7 +212,7 @@
                     } catch (err) {
                         showToast(`Erreur de détection : ${err.message}`, true);
                     }
-                    requestAnimationFrame(scan);
+                    requestAnimationFrame(scan); // Utilisation de requestAnimationFrame pour une meilleure performance
                 };
 
                 scan();
@@ -326,22 +268,15 @@
                 });
                 if (!response.ok) throw new Error(`Erreur ${response.status}: ${response.statusText}`);
                 const produits = await response.json();
-                let produit = produits.find(p => p.BAR === barCode);
-                if (!produit) {
-                    produit = produits.find(p => p.ADDITIONAL_BARCODES.includes(barCode));
-                }
+                const produit = produits.find(p => p.BAR === barCode);
                 if (produit) {
-                    const additionalBarcodes = produit.ADDITIONAL_BARCODES.length > 0 
-                        ? `<p><strong>Codes-barres supplémentaires :</strong> ${produit.ADDITIONAL_BARCODES.join(', ')}</p>`
-                        : '';
                     resultElement.innerHTML = `
                         <div class="bg-[#2e1a47]/80 p-4 rounded-lg">
                             <p class="text-green-500 font-semibold">Produit trouvé :</p>
                             <p><strong>Désignation :</strong> ${produit.DESIGNATION}</p>
                             <p><strong>Quantité :</strong> ${produit.QTE}</p>
                             <p><strong>Prix :</strong> ${produit.PRIX} €</p>
-                            <p><strong>Code-barres principal :</strong> ${produit.BAR}</p>
-                            ${additionalBarcodes}
+                            <p><strong>Code-barres :</strong> ${produit.BAR}</p>
                         </div>`;
                     document.getElementById('addProductForm').classList.add('hidden');
                     showToast('Produit trouvé !');
@@ -354,37 +289,6 @@
             } catch (error) {
                 showToast(`Erreur : ${error.message}`, true);
                 resultElement.innerHTML = `<p class="text-red-500">Erreur : ${error.message}</p>`;
-            }
-        }
-
-        async function fetchProduits(userId) {
-            const tableBody = document.getElementById('productTableBody');
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) throw new Error(`Erreur ${response.status}`);
-                const produits = await response.json();
-                tableBody.innerHTML = '';
-                if (produits.length === 0) {
-                    tableBody.innerHTML = '<tr><td colspan="5" class="p-2 text-center">Aucun produit trouvé.</td></tr>';
-                } else {
-                    produits.forEach(produit => {
-                        tableBody.innerHTML += `
-                            <tr class="border-b border-[#2e1a47]">
-                                <td class="p-2">${produit.DESIGNATION}</td>
-                                <td class="p-2">${produit.BAR}</td>
-                                <td class="p-2">${produit.PRIX} €</td>
-                                <td class="p-2">${produit.QTE}</td>
-                                <td class="p-2">
-                                    <button onclick="openBarcodeModal('${produit.NUMERO_ITEM}')" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition">Ajouter code-barres</button>
-                                </td>
-                            </tr>`;
-                    });
-                }
-            } catch (error) {
-                showToast(`Erreur lors du chargement des produits : ${error.message}`, true);
-                tableBody.innerHTML = '<tr><td colspan="5" class="p-2 text-center text-red-500">Erreur de chargement.</td></tr>';
             }
         }
 
@@ -413,7 +317,7 @@
                 });
                 if (!response.ok) throw new Error(`Erreur ${response.status}`);
                 const produits = await response.json();
-                if (produits.some(p => p.BAR === bar || p.ADDITIONAL_BARCODES.includes(bar))) {
+                if (produits.some(p => p.BAR === bar)) {
                     showToast('Ce code-barres existe déjà.', true);
                     return;
                 }
@@ -437,7 +341,6 @@
                     document.getElementById('addProductForm').classList.add('hidden');
                     document.getElementById('productForm').reset();
                     showToast('Produit ajouté !');
-                    fetchProduits(userId); // Rafraîchir la liste des produits
                 } else {
                     showToast(`Erreur : ${result.erreur}`, true);
                     document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${result.erreur}</p>`;
@@ -454,49 +357,6 @@
             document.getElementById('result').innerHTML = '<p class="text-[#b3cde0]">Ajout manuel d\'un produit.</p>';
         }
 
-        function openBarcodeModal(numeroItem) {
-            currentNumeroItem = numeroItem;
-            document.getElementById('barcodeModal').style.display = 'block';
-            document.getElementById('newBarcode').value = '';
-        }
-
-        function closeBarcodeModal() {
-            document.getElementById('barcodeModal').style.display = 'none';
-            currentNumeroItem = null;
-        }
-
-        document.getElementById('barcodeForm').addEventListener('submit', async function(event) {
-            event.preventDefault();
-            const userId = localStorage.getItem('userId');
-            const newBarcode = document.getElementById('newBarcode').value.trim();
-
-            if (!newBarcode) {
-                showToast('Veuillez entrer un code-barres.', true);
-                return;
-            }
-
-            try {
-                response = await fetch(`${API_BASE_URL}/manage_barcodes/${currentNumeroItem}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({ barcode: newBarcode })
-                });
-                const result = await response.json();
-                if (response.ok) {
-                    showToast('Code-barres ajouté !');
-                    closeBarcodeModal();
-                    fetchProduits(userId);
-                } else {
-                    showToast(`Erreur : ${result.erreur}`, true);
-                }
-            } catch (error) {
-                showToast(`Erreur : ${error.message}`, true);
-            }
-        });
-
         // Gestion des erreurs réseau
         window.addEventListener('unhandledrejection', event => {
             if (event.reason.message.includes('Failed to fetch')) {
@@ -506,7 +366,7 @@
 
         // Service Worker
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker(.register('/sw.js'))
+            navigator.serviceWorker.register('/sw.js')
                 .then(() => console.log('Service Worker enregistré'))
                 .catch(error => console.error('Erreur Service Worker :', error));
         }
