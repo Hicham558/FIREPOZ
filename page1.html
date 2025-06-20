@@ -80,7 +80,7 @@
             <div class="mb-6">
                 <div id="scanner-container" class="relative w-full aspect-[4/3] bg-[#2e1a47] rounded-lg overflow-hidden">
                     <video id="scanner-video" class="absolute inset-0 w-full h-full object-cover" autoplay muted playsinline aria-label="Flux vidéo pour scanner les codes-barres"></video>
-                    <div id="camera-loading" class="absolute inset-0 flex items-center justify-center text-[#b3cde0]">
+                    <div id="camera-loading" class="absolute inset- Cases flex items-center justify-center text-[#b3cde0]">
                         <i class="fas fa-spinner fa-spin mr-2"></i>Chargement de la caméra...
                     </div>
                     <div id="scan-indicator" role="region" aria-live="polite"></div>
@@ -102,7 +102,7 @@
                 <p class="text-lg">En attente de scan...</p>
             </div>
 
-            <div id="addProductForm" class="hidden mt-4 p-4 bg-[#1a2a44]/50 rounded-lg">
+            <div id="addProductForm" class="hidden mt-4 p-4 bg-[#1a2a47]/50 rounded-lg">
                 <h3 class="text-lg font-semibold text-[#b3cde0] mb-2">Ajouter un nouveau produit</h3>
                 <form id="productForm">
                     <div class="mb-2">
@@ -140,13 +140,12 @@
                                 <th class="p-2">Code-barres</th>
                                 <th class="p-2">Prix (€)</th>
                                 <th class="p-2">Quantité</th>
-                                <th class="p-2">Codes-barres liés</th>
                                 <th class="p-2">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="productTableBody">
                             <tr id="noProductsRow">
-                                <td colspan="6" class="p-2 text-center">Aucun produit trouvé. Ajoutez un produit pour commencer.</td>
+                                <td colspan="5" class="p-2 text-center">Aucun produit trouvé. Ajoutez un produit pour commencer.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -239,7 +238,7 @@
 
                 if (produits.length === 0) {
                     noProductsRow.style.display = 'table-row';
-                    productTableBody.innerHTML = '<tr id="noProductsRow"><td colspan="6" class="p-2 text-center">Aucun produit trouvé. Ajoutez un produit pour commencer.</td></tr>';
+                    productTableBody.innerHTML = '<tr id="noProductsRow"><td colspan="5" class="p-2 text-center">Aucun produit trouvé. Ajoutez un produit pour commencer.</td></tr>';
                 } else {
                     noProductsRow.style.display = 'none';
                     productTableBody.innerHTML = produits.map(produit => `
@@ -248,7 +247,6 @@
                             <td class="p-2">${produit.BAR || 'N/A'}</td>
                             <td class="p-2">${produit.PRIX ? produit.PRIX.toFixed(2) : '0.00'}</td>
                             <td class="p-2">${produit.QTE || 0}</td>
-                            <td class="p-2">${produit.linked_barcodes?.length ? produit.linked_barcodes.join(', ') : 'Aucun'}</td>
                             <td class="p-2 flex space-x-2">
                                 <button onclick="openViewLinkedBarcodesModal(${produit.NUMERO_ITEM})" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition" aria-label="Afficher les codes-barres liés">
                                     <i class="fas fa-eye mr-1"></i>Afficher
@@ -263,7 +261,7 @@
             } catch (error) {
                 console.error('Erreur lors du chargement des produits:', error);
                 showToast(`Erreur de chargement des produits : ${error.message}`, true);
-                productTableBody.innerHTML = '<tr id="noProductsRow"><td colspan="6" class="p-2 text-center">Erreur lors du chargement des produits.</td></tr>';
+                productTableBody.innerHTML = '<tr id="noProductsRow"><td colspan="5" class="p-2 text-center">Erreur lors du chargement des produits.</td></tr>';
             }
         }
 
@@ -353,7 +351,7 @@
             const resultElement = document.getElementById('result');
 
             if (videoElement.srcObject) {
-                videoElement.srcObject.getElementsByClassName().forEach(track => track.stop());
+                videoElement.srcObject.getTracks().forEach(track => track.stop());
                 videoElement.srcObject = null;
             }
             scanIndicator.classList.remove('scanning', 'detected');
@@ -370,7 +368,7 @@
             const videoElement = document.getElementById('scanner-video');
             if (!videoElement.srcObject) return;
 
-            const track = videoElement.srcObject.getVideoTracksByID()[0];
+            const track = videoElement.srcObject.getVideoTracks()[0];
             const capabilities = track.getCapabilities();
 
             if (!capabilities.torch) {
@@ -387,24 +385,36 @@
         async function fetchProduit(barCode, userId) {
             const resultElement = document.getElementById('result');
             try {
-                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
+                const response = await fetch(`${API_BASE_URL}/liste_codebar_lies?numero_item=0`, {
                     headers: { 'X-User-ID': userId }
                 });
-                if (!response.ok) throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-                const produits = await response.json();
-                const produit = produits.find(p => p.BAR === barCode || p.linked_barcodes?.includes(barCode));
-                if (produit) {
-                    resultElement.innerHTML = `
-                        <div class="bg-[#2e1a47]/80 p-4 rounded-lg">
-                            <p class="text-green-500 font-semibold">Produit trouvé :</p>
-                            <p><strong>Désignation :</strong> ${produit.DESIGNATION}</p>
-                            <p><strong>Quantité :</strong> ${produit.QTE}</p>
-                            <p><strong>Prix :</strong> ${produit.PRIX} €</p>
-                            <p><strong>Code-barres :</strong> ${produit.BAR}</p>
-                            <p><strong>Codes-barres liés :</strong> ${produit.linked_barcodes?.join(', ') || 'Aucun'}</p>
-                        </div>`;
-                    document.getElementById('addProductForm').classList.add('hidden');
-                    showToast('Produit trouvé !');
+                if (!response.ok && response.status !== 404) throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                const linkedBarcodesResult = response.ok ? await response.json() : { linked_barcodes: [] };
+                const linked_barcodes = linkedBarcodesResult.linked_barcodes || [];
+
+                const produitsResponse = await fetch(`${API_BASE_URL}/liste_produits`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!produitsResponse.ok) throw new Error(`Erreur ${produitsResponse.status}: ${produitsResponse.statusText}`);
+                const produits = await produitsResponse.json();
+
+                const produit = produits.find(p => p.BAR === barCode);
+                if (produit || linked_barcodes.includes(barCode)) {
+                    if (produit) {
+                        resultElement.innerHTML = `
+                            <div class="bg-[#2e1a47]/80 p-4 rounded-lg">
+                                <p class="text-green-500 font-semibold">Produit trouvé :</p>
+                                <p><strong>Désignation :</strong> ${produit.DESIGNATION}</p>
+                                <p><strong>Quantité :</strong> ${produit.QTE}</p>
+                                <p><strong>Prix :</strong> ${produit.PRIX} €</p>
+                                <p><strong>Code-barres :</strong> ${produit.BAR}</p>
+                            </div>`;
+                        document.getElementById('addProductForm').classList.add('hidden');
+                        showToast('Produit trouvé !');
+                    } else {
+                        resultElement.innerHTML = `<p class="text-green-500">Code-barres lié détecté : ${barCode}</p>`;
+                        showToast('Code-barres lié trouvé !');
+                    }
                 } else {
                     resultElement.innerHTML = `<p class="text-yellow-500">Produit inconnu : ${barCode}</p>`;
                     document.getElementById('bar').value = barCode;
@@ -469,7 +479,17 @@
                 if (response.ok) {
                     const linked_barcodes = result.linked_barcodes || [];
                     if (linked_barcodes.length > 0) {
-                        linkedBarcodesList.innerHTML = `<ul class="list-disc pl-5">${linked_barcodes.map(bc => `<li>${bc}</li>`).join('')}</ul>`;
+                        linkedBarcodesList.innerHTML = `
+                            <ul class="list-disc pl-5">
+                                ${linked_barcodes.map(bc => `
+                                    <li class="flex justify-between items-center">
+                                        <span>${bc}</span>
+                                        <button onclick="deleteLinkedBarcode(${numero_item}, '${bc.replace(/'/g, "\\'")}', '${userId.replace(/'/g, "\\'")}')" class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 transition" aria-label="Supprimer le code-barres lié">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </li>
+                                `).join('')}
+                            </ul>`;
                     } else {
                         linkedBarcodesList.innerHTML = `<p>Aucun code-barres lié trouvé.</p>`;
                     }
@@ -483,7 +503,30 @@
         }
 
         function closeViewLinkedBarcodesModal() {
-            document.getElementById('viewLinkedBarcodesModal').classList.add('hidden');
+            document.getElement سریال:Id('viewLinkedBarcodesModal').classList.add('hidden');
+        }
+
+        async function deleteLinkedBarcode(numero_item, bar2, userId) {
+            if (!confirm(`Voulez-vous vraiment supprimer le code-barres lié ${bar2} ?`)) return;
+            try {
+                const response = await fetch(`${API_BASE_URL}/supprimer_codebar_lie`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify({ numero_item, bar2 })
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    showToast('Code-barres lié supprimé !');
+                    openViewLinkedBarcodesModal(numero_item); // Rafraîchir la modale
+                } else {
+                    showToast(`Erreur : ${result.erreur}`, true);
+                }
+            } catch (error) {
+                showToast(`Erreur réseau : ${error.message}`, true);
+            }
         }
 
         document.getElementById('productForm').addEventListener('submit', async function(event) {
@@ -512,7 +555,7 @@
                 });
                 if (!response.ok) throw new Error(`Erreur ${response.status}`);
                 const produits = await response.json();
-                if (bar && produits.some(p => p.BAR === bar || p.linked_barcodes?.includes(bar))) {
+                if (bar && produits.some(p => p.BAR === bar)) {
                     showToast('Ce code-barres existe déjà.', true);
                     return;
                 }
