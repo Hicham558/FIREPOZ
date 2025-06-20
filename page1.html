@@ -46,7 +46,7 @@
             border: 1px solid #800020;
             color: #d9d9d9;
         }
-        .linked-barcode-modal {
+        .modal {
             background: rgba(26, 42, 68, 0.95);
             backdrop-filter: blur(5px);
         }
@@ -141,7 +141,7 @@
                                 <th class="p-2">Prix (€)</th>
                                 <th class="p-2">Quantité</th>
                                 <th class="p-2">Codes-barres liés</th>
-                                <th class="p-2">Action</th>
+                                <th class="p-2">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="productTableBody">
@@ -153,7 +153,7 @@
                 </div>
             </div>
 
-            <div id="linkedBarcodeModal" class="fixed inset-0 hidden linked-barcode-modal flex items-center justify-center z-50">
+            <div id="linkedBarcodeModal" class="fixed inset-0 hidden modal flex items-center justify-center z-50">
                 <div class="bg-[#1a2a44] p-6 rounded-lg max-w-md w-full">
                     <h3 class="text-lg font-semibold text-[#b3cde0] mb-4">Ajouter un code-barres lié</h3>
                     <form id="linkedBarcodeForm">
@@ -168,6 +168,18 @@
                             <button type="submit" class="bg-[#800020] text-[#e6e6e6] px-4 py-2 rounded hover:bg-[#b3cde0] hover:text-[#1a2a44] transition">Ajouter</button>
                         </div>
                     </form>
+                </div>
+            </div>
+
+            <div id="viewLinkedBarcodesModal" class="fixed inset-0 hidden modal flex items-center justify-center z-50">
+                <div class="bg-[#1a2a44] p-6 rounded-lg max-w-md w-full">
+                    <h3 class="text-lg font-semibold text-[#b3cde0] mb-4">Codes-barres liés</h3>
+                    <div id="linkedBarcodesList" class="mb-4 text-[#d9d9d9]">
+                        <p>Aucun code-barres lié trouvé.</p>
+                    </div>
+                    <div class="flex justify-end">
+                        <button type="button" onclick="closeViewLinkedBarcodesModal()" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition">Fermer</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -236,8 +248,11 @@
                             <td class="p-2">${produit.BAR || 'N/A'}</td>
                             <td class="p-2">${produit.PRIX ? produit.PRIX.toFixed(2) : '0.00'}</td>
                             <td class="p-2">${produit.QTE || 0}</td>
-                            <td class="p-2">${produit.linked_barcodes?.join(', ') || 'Aucun'}</td>
-                            <td class="p-2">
+                            <td class="p-2">${produit.linked_barcodes?.length ? produit.linked_barcodes.join(', ') : 'Aucun'}</td>
+                            <td class="p-2 flex space-x-2">
+                                <button onclick="openViewLinkedBarcodesModal(${produit.NUMERO_ITEM})" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition" aria-label="Afficher les codes-barres liés">
+                                    <i class="fas fa-eye mr-1"></i>Afficher
+                                </button>
                                 <button onclick="openLinkedBarcodeModal(${produit.NUMERO_ITEM})" class="bg-[#800020] text-[#e6e6e6] px-2 py-1 rounded hover:bg-[#b3cde0] hover:text-[#1a2a44] transition" aria-label="Ajouter un code-barres lié">
                                     <i class="fas fa-barcode mr-1"></i>Ajouter
                                 </button>
@@ -269,11 +284,11 @@
             const scanIndicator = document.getElementById('scan-indicator');
             const resultElement = document.getElementById('result');
 
-            resultElement.innerHTML = '<p class="text-[#b3cde0]">Démarrage du scan...</p>';
+            resultElement.innerHTML = '<p class="text-[#b3cde0]">Démarrage du scanner...</p>';
 
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: { ideal: 'environment' }, width: { ideal: 480 }, height: { ideal: 360 } }
+                    video: { facingMode: 'environment', width: { ideal: 480 }, height: { ideal: 360 } }
                 });
                 videoElement.srcObject = stream;
                 videoElement.onloadedmetadata = () => {
@@ -338,7 +353,7 @@
             const resultElement = document.getElementById('result');
 
             if (videoElement.srcObject) {
-                videoElement.srcObject.getTracks().forEach(track => track.stop());
+                videoElement.srcObject.getElementsByClassName().forEach(track => track.stop());
                 videoElement.srcObject = null;
             }
             scanIndicator.classList.remove('scanning', 'detected');
@@ -355,7 +370,7 @@
             const videoElement = document.getElementById('scanner-video');
             if (!videoElement.srcObject) return;
 
-            const track = videoElement.srcObject.getVideoTracks()[0];
+            const track = videoElement.srcObject.getVideoTracksByID()[0];
             const capabilities = track.getCapabilities();
 
             if (!capabilities.torch) {
@@ -443,6 +458,34 @@
             }
         }
 
+        async function openViewLinkedBarcodesModal(numero_item) {
+            const userId = localStorage.getItem('userId');
+            const linkedBarcodesList = document.getElementById('linkedBarcodesList');
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_codebar_lies?numero_item=${numero_item}`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    const linked_barcodes = result.linked_barcodes || [];
+                    if (linked_barcodes.length > 0) {
+                        linkedBarcodesList.innerHTML = `<ul class="list-disc pl-5">${linked_barcodes.map(bc => `<li>${bc}</li>`).join('')}</ul>`;
+                    } else {
+                        linkedBarcodesList.innerHTML = `<p>Aucun code-barres lié trouvé.</p>`;
+                    }
+                    document.getElementById('viewLinkedBarcodesModal').classList.remove('hidden');
+                } else {
+                    showToast(`Erreur : ${result.erreur}`, true);
+                }
+            } catch (error) {
+                showToast(`Erreur réseau : ${error.message}`, true);
+            }
+        }
+
+        function closeViewLinkedBarcodesModal() {
+            document.getElementById('viewLinkedBarcodesModal').classList.add('hidden');
+        }
+
         document.getElementById('productForm').addEventListener('submit', async function(event) {
             event.preventDefault();
             const userId = localStorage.getItem('userId');
@@ -521,7 +564,7 @@
         function toggleAddProductForm() {
             const form = document.getElementById('addProductForm');
             form.classList.toggle('hidden');
-            document.getElementById('result').innerHTML = '<p class="text-[#b3cde0]">Ajout manuel d\'un produit.</p>';
+            document.getElementById('result').innerHTML = '<p class="text-[#b3cde0]">Ajout manuel d’un produit.</p>';
         }
 
         window.addEventListener('unhandledrejection', event => {
