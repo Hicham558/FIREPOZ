@@ -10,8 +10,8 @@
     <link rel="manifest" href="/manifest.json">
     <style>
         body {
-            background: linear-gradient(to bottom, #1a2a44, #2e1a47); /* Dégradé Twilight */
-            color: #d9d9d9; /* Gris argenté */
+            background: linear-gradient(to bottom, #1a2a44, #2e1a47);
+            color: #d9d9d9;
         }
         #scanner-video {
             transform: scale(1.5);
@@ -32,19 +32,32 @@
             z-index: 10;
         }
         .scanning {
-            border-color: rgba(0, 255, 0, 0.5); /* Vert semi-transparent */
+            border-color: rgba(0, 255, 0, 0.5);
         }
         .detected {
-            border-color: rgba(0, 255, 0, 1); /* Vert opaque */
+            border-color: rgba(0, 255, 0, 1);
         }
         .toast {
             backdrop-filter: blur(5px);
-            background: rgba(26, 42, 68, 0.8); /* Bleu nuit semi-transparent */
+            background: rgba(26, 42, 68, 0.8);
         }
         .form-input {
-            background: #1a2a44; /* Bleu nuit */
-            border: 1px solid #800020; /* Rouge bordeaux */
+            background: #1a2a44;
+            border: 1px solid #800020;
             color: #d9d9d9;
+        }
+        .linked-barcode-modal {
+            background: rgba(26, 42, 68, 0.95);
+            backdrop-filter: blur(5px);
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #2e1a47;
         }
     </style>
 </head>
@@ -78,7 +91,7 @@
                         <button onclick="stopScanner()" class="flex items-center bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition" aria-label="Arrêter le scanner">
                             <i class="fas fa-stop mr-1"></i>Arrêter
                         </button>
-                        <button onclick="toggleTorch()" class="flex items-center bg-yellow-500 text-white px-4 py-2 rounded-md hover:bg-yellow-600 transition" aria-label="Activer/désactiver le flash">
+                        <button onclick="toggleTorch()" class="flex items-center bg黄色-500 text-white px-4 py-2 rounded-md hover:bg-yellow-600 transition" aria-label="Activer/désactiver le flash">
                             <i class="fas fa-lightbulb mr-1"></i>Flash
                         </button>
                     </div>
@@ -111,6 +124,49 @@
                     <button type="submit" class="w-full bg-[#800020] text-[#e6e6e6] py-2 rounded hover:bg-[#b3cde0] hover:text-[#1a2a44] transition" aria-label="Ajouter le produit">Ajouter le produit</button>
                 </form>
             </div>
+
+            <!-- Grille des produits -->
+            <div id="productList" class="mt-6">
+                <h3 class="text-lg font-semibold text-[#b3cde0] mb-2">Liste des produits</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-[#d9d9d9]">
+                        <thead>
+                            <tr class="bg-[#2e1a47]">
+                                <th class="p-2">Désignation</th>
+                                <th class="p-2">Code-barres</th>
+                                <th class="p-2">Prix (€)</th>
+                                <th class="p-2">Quantité</th>
+                                <th class="p-2">Codes-barres liés</th>
+                                <th class="p-2">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="productTableBody">
+                            <tr id="noProductsRow">
+                                <td colspan="6" class="p-2 text-center">Aucun produit trouvé. Ajoutez un produit pour commencer.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Modal pour ajouter un code-barres lié -->
+            <div id="linkedBarcodeModal" class="fixed inset-0 hidden linked-barcode-modal flex items-center justify-center z-50">
+                <div class="bg-[#1a2a44] p-6 rounded-lg max-w-md w-full">
+                    <h3 class="text-lg font-semibold text-[#b3cde0] mb-4">Ajouter un code-barres lié</h3>
+                    <form id="linkedBarcodeForm">
+                        <input type="hidden" id="linkedItemId" name="numero_item">
+                        <div class="mb-4">
+                            <label for="linkedBarcode" class="block text-sm font-medium text-[#b3cde0]">Code-barres lié</label>
+                            <input type="text" id="linkedBarcode" name="linkedBarcode" class="form-input w-full p-2 rounded" required aria-required="true">
+                        </div>
+                        <div class="flex justify-end gap-2">
+                            <button type="button" onclick="closeLinkedBarcodeModal()" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition">Annuler</button>
+                            <button type="button" onclick="startLinkedBarcodeScan()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition">Scanner</button>
+                            <button type="submit" class="bg-[#800020] text-[#e6e6e6] px-4 py-2 rounded hover:bg-[#b3cde0] hover:text-[#1a2a44] transition">Ajouter</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -128,13 +184,18 @@
         let torchOn = false;
         let lastScanTime = 0;
         const SCAN_COOLDOWN = 2000;
+        let isLinkedBarcodeScan = false;
+        let currentItemId = null;
 
-        // Vérification de l'utilisateur
+        // Vérification de l'utilisateur et chargement initial
         document.addEventListener('DOMContentLoaded', () => {
             const userId = localStorage.getItem('userId');
+            console.log('DOMContentLoaded, userId:', userId);
             if (!userId) {
                 showToast('Connexion requise pour utiliser le scanner', true);
                 setTimeout(() => window.location.href = 'index.html', 3000);
+            } else {
+                loadProducts(userId);
             }
         });
 
@@ -150,6 +211,45 @@
             toast.classList.remove('hidden');
 
             setTimeout(() => toast.classList.add('hidden'), 3000);
+        }
+
+        async function loadProducts(userId) {
+            const productTableBody = document.getElementById('productTableBody');
+            const noProductsRow = document.getElementById('noProductsRow');
+            console.log('loadProducts called with userId:', userId);
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                const produits = await response.json();
+                console.log('Produits reçus:', produits);
+
+                if (produits.length === 0) {
+                    noProductsRow.style.display = 'table-row';
+                    productTableBody.innerHTML = '<tr id="noProductsRow"><td colspan="6" class="p-2 text-center">Aucun produit trouvé. Ajoutez un produit pour commencer.</td></tr>';
+                } else {
+                    noProductsRow.style.display = 'none';
+                    productTableBody.innerHTML = produits.map(produit => `
+                        <tr class="border-b border-[#2e1a47]">
+                            <td class="p-2">${produit.DESIGNATION || 'N/A'}</td>
+                            <td class="p-2">${produit.BAR || 'N/A'}</td>
+                            <td class="p-2">${produit.PRIX ? produit.PRIX.toFixed(2) : '0.00'}</td>
+                            <td class="p-2">${produit.QTE || 0}</td>
+                            <td class="p-2">${produit.linked_barcodes?.length || 0}</td>
+                            <td class="p-2">
+                                <button onclick="openLinkedBarcodeModal('${produit.NUMERO_ITEM}')" class="bg-[#800020] text-[#e6e6e6] px-2 py-1 rounded hover:bg-[#b3cde0] hover:text-[#1a2a44] transition" aria-label="Ajouter un code-barres lié">
+                                    <i class="fas fa-barcode mr-1"></i>Ajouter
+                                </button>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Erreur lors du chargement des produits:', error);
+                showToast(`Erreur de chargement des produits : ${error.message}`, true);
+                productTableBody.innerHTML = '<tr id="noProductsRow"><td colspan="6" class="p-2 text-center">Erreur lors du chargement des produits.</td></tr>';
+            }
         }
 
         async function startScanner() {
@@ -206,13 +306,21 @@
                             scanIndicator.classList.remove('scanning');
                             scanIndicator.classList.add('detected');
                             setTimeout(() => scanIndicator.classList.remove('detected'), 500);
-                            resultElement.innerHTML = `<p class="text-green-500">Code détecté : ${code}</p><p>Recherche en cours...</p>`;
-                            await fetchProduit(code, userId);
+
+                            if (isLinkedBarcodeScan) {
+                                document.getElementById('linkedBarcode').value = code;
+                                await addLinkedBarcode(currentItemId, code, userId);
+                                closeLinkedBarcodeModal();
+                                stopScanner();
+                            } else {
+                                resultElement.innerHTML = `<p class="text-green-500">Code détecté : ${code}</p><p>Recherche en cours...</p>`;
+                                await fetchProduit(code, userId);
+                            }
                         }
                     } catch (err) {
                         showToast(`Erreur de détection : ${err.message}`, true);
                     }
-                    requestAnimationFrame(scan); // Utilisation de requestAnimationFrame pour une meilleure performance
+                    requestAnimationFrame(scan);
                 };
 
                 scan();
@@ -236,6 +344,7 @@
             scanIndicator.classList.remove('scanning', 'detected');
             scannerRunning = false;
             torchOn = false;
+            isLinkedBarcodeScan = false;
             resultElement.innerHTML = '<p class="text-[#d9d9d9]">Scan arrêté. Cliquez sur "Démarrer" pour recommencer.</p>';
             document.getElementById('addProductForm').classList.add('hidden');
             document.getElementById('camera-loading').style.display = 'flex';
@@ -268,7 +377,7 @@
                 });
                 if (!response.ok) throw new Error(`Erreur ${response.status}: ${response.statusText}`);
                 const produits = await response.json();
-                const produit = produits.find(p => p.BAR === barCode);
+                const produit = produits.find(p => p.BAR === barCode || p.linked_barcodes?.includes(barCode));
                 if (produit) {
                     resultElement.innerHTML = `
                         <div class="bg-[#2e1a47]/80 p-4 rounded-lg">
@@ -277,6 +386,7 @@
                             <p><strong>Quantité :</strong> ${produit.QTE}</p>
                             <p><strong>Prix :</strong> ${produit.PRIX} €</p>
                             <p><strong>Code-barres :</strong> ${produit.BAR}</p>
+                            <p><strong>Codes-barres liés :</strong> ${produit.linked_barcodes?.join(', ') || 'Aucun'}</p>
                         </div>`;
                     document.getElementById('addProductForm').classList.add('hidden');
                     showToast('Produit trouvé !');
@@ -286,9 +396,50 @@
                     document.getElementById('addProductForm').classList.remove('hidden');
                     showToast('Produit non trouvé. Ajoutez-le.', true);
                 }
+                loadProducts(userId); // Recharger la grille après un scan
             } catch (error) {
                 showToast(`Erreur : ${error.message}`, true);
                 resultElement.innerHTML = `<p class="text-red-500">Erreur : ${error.message}</p>`;
+            }
+        }
+
+        function openLinkedBarcodeModal(numero_item) {
+            currentItemId = numero_item;
+            document.getElementById('linkedItemId').value = numero_item;
+            document.getElementById('linkedBarcode').value = '';
+            document.getElementById('linkedBarcodeModal').classList.remove('hidden');
+        }
+
+        function closeLinkedBarcodeModal() {
+            document.getElementById('linkedBarcodeModal').classList.add('hidden');
+            isLinkedBarcodeScan = false;
+            stopScanner();
+        }
+
+        function startLinkedBarcodeScan() {
+            isLinkedBarcodeScan = true;
+            startScanner();
+        }
+
+        async function addLinkedBarcode(numero_item, barcode, userId) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/ajouter_codebar_lie`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify({ numero_item, barcode })
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    showToast('Code-barres lié ajouté !');
+                    loadProducts(userId);
+                } else {
+                    showToast(`Erreur : ${result.erreur}`, true);
+                }
+            } catch (error) {
+                showToast(`Erreur réseau : ${error.message}`, true);
             }
         }
 
@@ -317,7 +468,7 @@
                 });
                 if (!response.ok) throw new Error(`Erreur ${response.status}`);
                 const produits = await response.json();
-                if (produits.some(p => p.BAR === bar)) {
+                if (produits.some(p => p.BAR === bar || p.linked_barcodes?.includes(bar))) {
                     showToast('Ce code-barres existe déjà.', true);
                     return;
                 }
@@ -341,6 +492,7 @@
                     document.getElementById('addProductForm').classList.add('hidden');
                     document.getElementById('productForm').reset();
                     showToast('Produit ajouté !');
+                    loadProducts(userId);
                 } else {
                     showToast(`Erreur : ${result.erreur}`, true);
                     document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${result.erreur}</p>`;
@@ -349,6 +501,21 @@
                 showToast(`Erreur réseau : ${error.message}`, true);
                 document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${error.message}</p>`;
             }
+        });
+
+        document.getElementById('linkedBarcodeForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const userId = localStorage.getItem('userId');
+            const numero_item = document.getElementById('linkedItemId').value;
+            const barcode = document.getElementById('linkedBarcode').value.trim();
+
+            if (!barcode) {
+                showToast('Veuillez entrer un code-barres', true);
+                return;
+            }
+
+            await addLinkedBarcode(numero_item, barcode, userId);
+            closeLinkedBarcodeModal();
         });
 
         function toggleAddProductForm() {
