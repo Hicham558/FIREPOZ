@@ -80,7 +80,7 @@
             <div class="mb-6">
                 <div id="scanner-container" class="relative w-full aspect-[4/3] bg-[#2e1a47] rounded-lg overflow-hidden">
                     <video id="scanner-video" class="absolute inset-0 w-full h-full object-cover" autoplay muted playsinline aria-label="Flux vidéo pour scanner les codes-barres"></video>
-                    <div id="camera-loading" class="absolute inset- Cases flex items-center justify-center text-[#b3cde0]">
+                    <div id="camera-loading" class="absolute inset-0 flex items-center justify-center text-[#b3cde0]">
                         <i class="fas fa-spinner fa-spin mr-2"></i>Chargement de la caméra...
                     </div>
                     <div id="scan-indicator" role="region" aria-live="polite"></div>
@@ -203,10 +203,13 @@
         document.addEventListener('DOMContentLoaded', () => {
             const userId = localStorage.getItem('userId');
             console.log('DOMContentLoaded, userId:', userId);
+            const resultElement = document.getElementById('result');
             if (!userId) {
                 showToast('Connexion requise pour utiliser le scanner', true);
+                resultElement.innerHTML = `<p class="text-red-500">Erreur : Aucun utilisateur connecté. Redirection vers la page d'accueil...</p>`;
                 setTimeout(() => window.location.href = 'index.html', 3000);
             } else {
+                resultElement.innerHTML = `<p class="text-[#b3cde0]">Chargement des produits...</p>`;
                 loadProducts(userId);
             }
         });
@@ -227,41 +230,59 @@
         async function loadProducts(userId) {
             const productTableBody = document.getElementById('productTableBody');
             const noProductsRow = document.getElementById('noProductsRow');
+            const resultElement = document.getElementById('result');
             console.log('loadProducts called with userId:', userId);
+
             try {
+                resultElement.innerHTML = `<p class="text-[#b3cde0]">Chargement des produits...</p>`;
                 const response = await fetch(`${API_BASE_URL}/liste_produits`, {
                     headers: { 'X-User-ID': userId }
                 });
-                if (!response.ok) throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                console.log('Response status:', response.status);
+                if (!response.ok) {
+                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                }
                 const produits = await response.json();
                 console.log('Produits reçus:', produits);
 
+                if (!Array.isArray(produits)) {
+                    throw new Error('Réponse inattendue : les produits ne sont pas un tableau');
+                }
+
                 if (produits.length === 0) {
+                    console.log('Aucun produit trouvé');
                     noProductsRow.style.display = 'table-row';
                     productTableBody.innerHTML = '<tr id="noProductsRow"><td colspan="5" class="p-2 text-center">Aucun produit trouvé. Ajoutez un produit pour commencer.</td></tr>';
+                    resultElement.innerHTML = `<p class="text-[#d9d9d9]">Aucun produit disponible. Utilisez le formulaire pour en ajouter.</p>`;
                 } else {
+                    console.log('Rendu des produits:', produits);
                     noProductsRow.style.display = 'none';
-                    productTableBody.innerHTML = produits.map(produit => `
-                        <tr class="border-b border-[#2e1a47]">
-                            <td class="p-2">${produit.DESIGNATION || 'N/A'}</td>
-                            <td class="p-2">${produit.BAR || 'N/A'}</td>
-                            <td class="p-2">${produit.PRIX ? produit.PRIX.toFixed(2) : '0.00'}</td>
-                            <td class="p-2">${produit.QTE || 0}</td>
-                            <td class="p-2 flex space-x-2">
-                                <button onclick="openViewLinkedBarcodesModal(${produit.NUMERO_ITEM})" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition" aria-label="Afficher les codes-barres liés">
-                                    <i class="fas fa-eye mr-1"></i>Afficher
-                                </button>
-                                <button onclick="openLinkedBarcodeModal(${produit.NUMERO_ITEM})" class="bg-[#800020] text-[#e6e6e6] px-2 py-1 rounded hover:bg-[#b3cde0] hover:text-[#1a2a44] transition" aria-label="Ajouter un code-barres lié">
-                                    <i class="fas fa-barcode mr-1"></i>Ajouter
-                                </button>
-                            </td>
-                        </tr>
-                    `).join('');
+                    productTableBody.innerHTML = produits.map(produit => {
+                        console.log('Produit:', produit);
+                        return `
+                            <tr class="border-b border-[#2e1a47]">
+                                <td class="p-2">${produit.DESIGNATION || 'N/A'}</td>
+                                <td class="p-2">${produit.BAR || 'N/A'}</td>
+                                <td class="p-2">${produit.PRIX ? produit.PRIX.toFixed(2) : '0.00'}</td>
+                                <td class="p-2">${produit.QTE || 0}</td>
+                                <td class="p-2 flex space-x-2">
+                                    <button onclick="openViewLinkedBarcodesModal(${produit.NUMERO_ITEM})" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition" aria-label="Afficher les codes-barres liés">
+                                        <i class="fas fa-eye mr-1"></i>Afficher
+                                    </button>
+                                    <button onclick="openLinkedBarcodeModal(${produit.NUMERO_ITEM})" class="bg-[#800020] text-[#e6e6e6] px-2 py-1 rounded hover:bg-[#b3cde0] hover:text-[#1a2a44] transition" aria-label="Ajouter un code-barres lié">
+                                        <i class="fas fa-barcode mr-1"></i>Ajouter
+                                    </button>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
+                    resultElement.innerHTML = `<p class="text-[#d9d9d9]">Produits chargés avec succès.</p>`;
                 }
             } catch (error) {
                 console.error('Erreur lors du chargement des produits:', error);
                 showToast(`Erreur de chargement des produits : ${error.message}`, true);
                 productTableBody.innerHTML = '<tr id="noProductsRow"><td colspan="5" class="p-2 text-center">Erreur lors du chargement des produits.</td></tr>';
+                resultElement.innerHTML = `<p class="text-red-500">Erreur : ${error.message}</p>`;
             }
         }
 
@@ -270,8 +291,10 @@
             scannerRunning = true;
 
             const userId = localStorage.getItem('userId');
+            const resultElement = document.getElementById('result');
             if (!userId) {
                 showToast('Connexion requise', true);
+                resultElement.innerHTML = `<p class="text-red-500">Erreur : Aucun utilisateur connecté.</p>`;
                 stopScanner();
                 setTimeout(() => window.location.href = 'index.html', 3000);
                 return;
@@ -280,9 +303,8 @@
             const videoElement = document.getElementById('scanner-video');
             const loadingElement = document.getElementById('camera-loading');
             const scanIndicator = document.getElementById('scan-indicator');
-            const resultElement = document.getElementById('result');
 
-            resultElement.innerHTML = '<p class="text-[#b3cde0]">Démarrage du scanner...</p>';
+            resultElement.innerHTML = `<p class="text-[#b3cde0]">Démarrage du scanner...</p>`;
 
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
@@ -292,6 +314,7 @@
                 videoElement.onloadedmetadata = () => {
                     loadingElement.style.display = 'none';
                     scanIndicator.classList.add('scanning');
+                    console.log('Scanner démarré, caméra chargée');
                 };
 
                 if (!('BarcodeDetector' in window)) {
@@ -316,6 +339,7 @@
                             lastScanTime = currentTime;
 
                             const code = barcodes[0].rawValue;
+                            console.log('Code-barres détecté:', code);
                             scanIndicator.classList.remove('scanning');
                             scanIndicator.classList.add('detected');
                             setTimeout(() => scanIndicator.classList.remove('detected'), 500);
@@ -331,6 +355,7 @@
                             }
                         }
                     } catch (err) {
+                        console.error('Erreur de détection:', err);
                         showToast(`Erreur de détection : ${err.message}`, true);
                     }
                     requestAnimationFrame(scan);
@@ -338,6 +363,7 @@
 
                 scan();
             } catch (err) {
+                console.error('Erreur démarrage scanner:', err);
                 showToast(`Erreur : ${err.message}. Vérifiez les autorisations.`, true);
                 resultElement.innerHTML = `<p class="text-red-500">Erreur : ${err.message}</p>`;
                 scannerRunning = false;
@@ -358,9 +384,10 @@
             scannerRunning = false;
             torchOn = false;
             isLinkedBarcodeScan = false;
-            resultElement.innerHTML = '<p class="text-[#d9d9d9]">Scan arrêté. Cliquez sur "Démarrer" pour recommencer.</p>';
+            resultElement.innerHTML = `<p class="text-[#d9d9d9]">Scan arrêté. Cliquez sur "Démarrer" pour recommencer.</p>`;
             document.getElementById('addProductForm').classList.add('hidden');
             document.getElementById('camera-loading').style.display = 'flex';
+            console.log('Scanner arrêté');
         }
 
         function toggleTorch() {
@@ -385,44 +412,45 @@
         async function fetchProduit(barCode, userId) {
             const resultElement = document.getElementById('result');
             try {
-                const response = await fetch(`${API_BASE_URL}/liste_codebar_lies?numero_item=0`, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok && response.status !== 404) throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-                const linkedBarcodesResult = response.ok ? await response.json() : { linked_barcodes: [] };
-                const linked_barcodes = linkedBarcodesResult.linked_barcodes || [];
-
                 const produitsResponse = await fetch(`${API_BASE_URL}/liste_produits`, {
                     headers: { 'X-User-ID': userId }
                 });
                 if (!produitsResponse.ok) throw new Error(`Erreur ${produitsResponse.status}: ${produitsResponse.statusText}`);
                 const produits = await produitsResponse.json();
+                console.log('Produits pour fetchProduit:', produits);
 
                 const produit = produits.find(p => p.BAR === barCode);
-                if (produit || linked_barcodes.includes(barCode)) {
-                    if (produit) {
-                        resultElement.innerHTML = `
-                            <div class="bg-[#2e1a47]/80 p-4 rounded-lg">
-                                <p class="text-green-500 font-semibold">Produit trouvé :</p>
-                                <p><strong>Désignation :</strong> ${produit.DESIGNATION}</p>
-                                <p><strong>Quantité :</strong> ${produit.QTE}</p>
-                                <p><strong>Prix :</strong> ${produit.PRIX} €</p>
-                                <p><strong>Code-barres :</strong> ${produit.BAR}</p>
-                            </div>`;
-                        document.getElementById('addProductForm').classList.add('hidden');
-                        showToast('Produit trouvé !');
-                    } else {
+                if (produit) {
+                    resultElement.innerHTML = `
+                        <div class="bg-[#2e1a47]/80 p-4 rounded-lg">
+                            <p class="text-green-500 font-semibold">Produit trouvé :</p>
+                            <p><strong>Désignation :</strong> ${produit.DESIGNATION}</p>
+                            <p><strong>Quantité :</strong> ${produit.QTE}</p>
+                            <p><strong>Prix :</strong> ${produit.PRIX} €</p>
+                            <p><strong>Code-barres :</strong> ${produit.BAR}</p>
+                        </div>`;
+                    document.getElementById('addProductForm').classList.add('hidden');
+                    showToast('Produit trouvéCTO: trouvé !');
+                } else {
+                    // Vérifier les codes-barres liés
+                    const linkedResponse = await fetch(`${API_BASE_URL}/liste_codebar_lies?numero_item=0`, {
+                        headers: { 'X-User-ID': userId }
+                    });
+                    const linkedResult = linkedResponse.ok ? await linkedResponse.json() : { linked_barcodes: [] };
+                    const linked_barcodes = linkedResult.linked_barcodes || [];
+                    if (linked_barcodes.includes(barCode)) {
                         resultElement.innerHTML = `<p class="text-green-500">Code-barres lié détecté : ${barCode}</p>`;
                         showToast('Code-barres lié trouvé !');
+                    } else {
+                        resultElement.innerHTML = `<p class="text-yellow-500">Produit inconnu : ${barCode}</p>`;
+                        document.getElementById('bar').value = barCode;
+                        document.getElementById('addProductForm').classList.remove('hidden');
+                        showToast('Produit non trouvé. Ajoutez-le.', true);
                     }
-                } else {
-                    resultElement.innerHTML = `<p class="text-yellow-500">Produit inconnu : ${barCode}</p>`;
-                    document.getElementById('bar').value = barCode;
-                    document.getElementById('addProductForm').classList.remove('hidden');
-                    showToast('Produit non trouvé. Ajoutez-le.', true);
                 }
                 loadProducts(userId);
             } catch (error) {
+                console.error('Erreur fetchProduit:', error);
                 showToast(`Erreur : ${error.message}`, true);
                 resultElement.innerHTML = `<p class="text-red-500">Erreur : ${error.message}</p>`;
             }
@@ -464,6 +492,7 @@
                     showToast(`Erreur : ${result.erreur}`, true);
                 }
             } catch (error) {
+                console.error('Erreur addLinkedBarcode:', error);
                 showToast(`Erreur réseau : ${error.message}`, true);
             }
         }
@@ -498,12 +527,13 @@
                     showToast(`Erreur : ${result.erreur}`, true);
                 }
             } catch (error) {
+                console.error('Erreur openViewLinkedBarcodesModal:', error);
                 showToast(`Erreur réseau : ${error.message}`, true);
             }
         }
 
         function closeViewLinkedBarcodesModal() {
-            document.getElement سریال:Id('viewLinkedBarcodesModal').classList.add('hidden');
+            document.getElementById('viewLinkedBarcodesModal').classList.add('hidden');
         }
 
         async function deleteLinkedBarcode(numero_item, bar2, userId) {
@@ -525,6 +555,7 @@
                     showToast(`Erreur : ${result.erreur}`, true);
                 }
             } catch (error) {
+                console.error('Erreur deleteLinkedBarcode:', error);
                 showToast(`Erreur réseau : ${error.message}`, true);
             }
         }
@@ -532,8 +563,10 @@
         document.getElementById('productForm').addEventListener('submit', async function(event) {
             event.preventDefault();
             const userId = localStorage.getItem('userId');
+            const resultElement = document.getElementById('result');
             if (!userId) {
                 showToast('Connexion requise', true);
+                resultElement.innerHTML = `<p class="text-red-500">Erreur : Aucun utilisateur connecté.</p>`;
                 setTimeout(() => window.location.href = 'index.html', 3000);
                 return;
             }
@@ -546,6 +579,7 @@
 
             if (!designation || isNaN(prix) || isNaN(qte)) {
                 showToast('Veuillez remplir tous les champs obligatoires', true);
+                resultElement.innerHTML = `<p class="text-red-500">Erreur : Champs obligatoires manquants.</p>`;
                 return;
             }
 
@@ -557,10 +591,13 @@
                 const produits = await response.json();
                 if (bar && produits.some(p => p.BAR === bar)) {
                     showToast('Ce code-barres existe déjà.', true);
+                    resultElement.innerHTML = `<p class="text-red-500">Erreur : Ce code-barres existe déjà.</p>`;
                     return;
                 }
             } catch (error) {
+                console.error('Erreur vérification code-barres:', error);
                 showToast(`Erreur : ${error.message}`, true);
+                resultElement.innerHTML = `<p class="text-red-500">Erreur : ${error.message}</p>`;
                 return;
             }
 
@@ -575,18 +612,19 @@
                 });
                 const result = await response.json();
                 if (response.ok) {
-                    document.getElementById('result').innerHTML = `<p class="text-green-500">Produit ajouté !</p>`;
+                    resultElement.innerHTML = `<p class="text-green-500">Produit ajouté !</p>`;
                     document.getElementById('addProductForm').classList.add('hidden');
                     document.getElementById('productForm').reset();
                     showToast('Produit ajouté !');
                     loadProducts(userId);
                 } else {
                     showToast(`Erreur : ${result.erreur}`, true);
-                    document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${result.erreur}</p>`;
+                    resultElement.innerHTML = `<p class="text-red-500">Erreur : ${result.erreur}</p>`;
                 }
             } catch (error) {
+                console.error('Erreur ajout produit:', error);
                 showToast(`Erreur réseau : ${error.message}`, true);
-                document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : ${error.message}</p>`;
+                resultElement.innerHTML = `<p class="text-red-500">Erreur : ${error.message}</p>`;
             }
         });
 
@@ -600,6 +638,7 @@
                 await addLinkedBarcode(numero_item, barcode, userId);
                 closeLinkedBarcodeModal();
             } catch (error) {
+                console.error('Erreur submit linkedBarcodeForm:', error);
                 showToast(`Erreur : ${error.message}`, true);
             }
         });
@@ -607,12 +646,14 @@
         function toggleAddProductForm() {
             const form = document.getElementById('addProductForm');
             form.classList.toggle('hidden');
-            document.getElementById('result').innerHTML = '<p class="text-[#b3cde0]">Ajout manuel d’un produit.</p>';
+            document.getElementById('result').innerHTML = `<p class="text-[#b3cde0]">Ajout manuel d’un produit.</p>`;
         }
 
         window.addEventListener('unhandledrejection', event => {
+            console.error('Unhandled rejection:', event.reason);
             if (event.reason.message.includes('Failed to fetch')) {
                 showToast('Erreur de connexion au serveur.', true);
+                document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : Connexion au serveur échouée.</p>`;
             }
         });
 
