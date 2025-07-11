@@ -1845,14 +1845,20 @@ async function startScanner() {
                 console.log('Barcodes détectés:', barcodes);
                 if (barcodes.length > 0) {
                     const currentTime = Date.now();
-                    if (currentTime - lastScanTime < SCAN_COOLDOWN) return;
+                    if (currentTime - lastScanTime < SCAN_COOLDOWN) {
+                        requestAnimationFrame(scan);
+                        return;
+                    }
                     lastScanTime = currentTime;
 
                     const barcode = barcodes[0].rawValue;
                     console.log('Code-barres détecté:', barcode);
                     scanIndicator.classList.remove('scanning');
                     scanIndicator.classList.add('detected');
-                    setTimeout(() => scanIndicator.classList.remove('detected'), 500);
+                    setTimeout(() => {
+                        scanIndicator.classList.remove('detected');
+                        scanIndicator.classList.add('scanning'); // Remettre en mode scanning
+                    }, 500);
 
                     const userId = localStorage.getItem('userId');
                     const response = await fetch(`${API_BASE_URL}/rechercher_produit_codebar?codebar=${encodeURIComponent(barcode)}`, {
@@ -1864,6 +1870,7 @@ async function startScanner() {
                         const errorText = await response.text();
                         console.error('Erreur API:', errorText);
                         showToast('Produit non trouvé', true);
+                        requestAnimationFrame(scan);
                         return;
                     }
 
@@ -1881,7 +1888,7 @@ async function startScanner() {
                             produit.designation
                         );
                         showToast(`Produit ajouté : ${produit.designation}`);
-                        stopScanner();
+                        // Ne pas appeler stopScanner ici pour garder le scanner actif
                     } else {
                         showToast('Produit non trouvé', true);
                     }
