@@ -215,6 +215,7 @@
         <!-- Paramètres de la base de données -->
         <div class="kpi-card bg-white shadow-md rounded-lg p-6 mb-6">
             <h3 class="text-xl font-semibold mb-4 text-gray-800">Paramètres de la Base de Données</h3>
+            <div id="serverIpAddress" class="text-sm font-medium text-gray-700 hidden mb-4"></div>
             <form id="databaseSettingsForm" class="space-y-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700">
@@ -230,7 +231,7 @@
                     <input id="localDbName" type="text" name="localDbName" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="restocafee">
                 </div>
                 <div>
-                    <label for="localDbUser" class="block text-sm font-medium text-gray-700">Utilisateur de la Base de Données</label>
+                    <label for="localDdUser" class="block text-sm font-medium text-gray-700">Utilisateur de la Base de Données</label>
                     <input id="localDbUser" type="text" name="localDbUser" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="postgres">
                 </div>
                 <div>
@@ -348,6 +349,30 @@
             return true;
         }
 
+        // Récupérer les configurations client depuis l'API
+        async function fetchClientConfig() {
+            if (!checkLoginStatus()) return null;
+            try {
+                const response = await fetchWithHeaders(`${API_BASE_URL}/get_client_config`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Configuration client reçue:', data);
+                    return data;
+                } else {
+                    const errorData = await response.json();
+                    showToast(errorData.erreur || 'Erreur lors de la récupération de la configuration', true);
+                    return null;
+                }
+            } catch (error) {
+                showToast(`Erreur réseau: ${error.message}`, true);
+                console.error('Erreur lors de la récupération de la configuration:', error);
+                return null;
+            }
+        }
+
         // Collecter tous les paramètres
         function collectAllSettings() {
             const settings = {
@@ -383,11 +408,20 @@
             return settings;
         }
 
-        // Charger les paramètres depuis localStorage
-        function loadSettings() {
+        // Charger les paramètres depuis localStorage et l'API
+        async function loadSettings() {
             if (!checkLoginStatus()) return;
-            console.log('Chargement des paramètres depuis localStorage');
-            const settings = JSON.parse(localStorage.getItem('settings')) || {};
+            console.log('Chargement des paramètres');
+
+            // Charger les paramètres depuis localStorage
+            const localSettings = JSON.parse(localStorage.getItem('settings')) || {};
+
+            // Récupérer les configurations depuis l'API
+            const apiSettings = await fetchClientConfig();
+
+            // Fusionner les paramètres locaux et ceux de l'API (l'API a la priorité)
+            const settings = { ...localSettings, ...apiSettings };
+
             const fields = [
                 { id: 'companyName', default: '' },
                 { id: 'companyAddress', default: '' },
@@ -416,6 +450,7 @@
                 { id: 'localDbPassword', default: 'masterkey' },
                 { id: 'localDbPort', default: 5432 }
             ];
+
             fields.forEach(({ id, default: defaultValue, type }) => {
                 const element = document.getElementById(id);
                 if (element) {
@@ -428,12 +463,23 @@
                     console.warn(`Élément ${id} non trouvé lors du chargement`);
                 }
             });
-            // Charger le logo
+
+            // Afficher le logo si disponible
             if (settings.companyLogo) {
                 const logoPreview = document.getElementById('logoPreview');
-                logoPreview.src = settings.companyLogo;
-                logoPreview.classList.remove('hidden');
+                if (logoPreview) {
+                    logoPreview.src = settings.companyLogo;
+                    logoPreview.classList.remove('hidden');
+                }
             }
+
+            // Afficher l'adresse IP si disponible
+            const ipDisplay = document.getElementById('serverIpAddress');
+            if (ipDisplay && settings.localDbHost) {
+                ipDisplay.textContent = `Adresse IP du serveur: ${settings.localDbHost}`;
+                ipDisplay.classList.remove('hidden');
+            }
+
             applyTheme(settings.theme);
         }
 
