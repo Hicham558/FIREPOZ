@@ -224,7 +224,7 @@
                 </div>
                 <div>
                     <label for="localDbHost" class="block text-sm font-medium text-gray-700">Hôte de la Base de Données Locale</label>
-                    <input id="localDbHost" type="text" name="localDbHost" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="ex: 192.168.1.100">
+                    <input id="localDbHost" type="text" name="localDbHost" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="ex: db.example.com">
                 </div>
                 <div>
                     <label for="localDbName" class="block text-sm font-medium text-gray-700">Nom de la Base de Données</label>
@@ -243,6 +243,7 @@
                     <input id="localDbPort" type="number" name="localDbPort" min="1" max="65535" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="5432">
                 </div>
                 <button type="button" id="testDbConnection" class="w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700 transition mt-2">Tester Connexion</button>
+                <button type="button" id="testPublicDbConnection" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition mt-2">Tester Connexion IP Publique</button>
             </form>
         </div>
     </main>
@@ -620,6 +621,33 @@
             }
         }
 
+        // Tester la connexion à l'IP publique
+        async function testPublicDbConnection() {
+            if (!checkLoginStatus()) return;
+            const settings = collectAllSettings();
+            const { localDbHost, localDbName, localDbUser, localDbPassword, localDbPort } = settings;
+            if (!localDbHost) {
+                showToast('L\'hôte de la base de données locale est requis', true);
+                return;
+            }
+            try {
+                const response = await fetchWithHeaders(`${API_BASE_URL}/test_public_db`, {
+                    method: 'GET',
+                    headers: { 'X-Use-Local': 'true' }
+                });
+                if (response.ok) {
+                    const text = await response.text();
+                    showToast(text || 'Connexion à la base de données publique réussie');
+                } else {
+                    const data = await response.json();
+                    showToast(data.erreur || 'Erreur lors du test de connexion publique', true);
+                }
+            } catch (error) {
+                showToast(`Erreur: ${error.message}`, true);
+                console.error('Erreur lors du test de connexion publique:', error);
+            }
+        }
+
         // Fonction fetch avec en-têtes personnalisés
         async function fetchWithHeaders(url, options = {}) {
             const userId = localStorage.getItem('userId');
@@ -688,6 +716,10 @@
             // Écouteur pour tester la connexion
             const testDbButton = document.getElementById('testDbConnection');
             if (testDbButton) testDbButton.addEventListener('click', testDbConnection);
+
+            // Écouteur pour tester la connexion IP publique
+            const testPublicDbButton = document.getElementById('testPublicDbConnection');
+            if (testPublicDbButton) testPublicDbButton.addEventListener('click', testPublicDbConnection);
         }
 
         // Initialisation
