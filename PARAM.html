@@ -622,38 +622,62 @@
         }
 
         // Tester la connexion à l'IP publique
-        async function testPublicDbConnection() {
-            if (!checkLoginStatus()) return;
-            const settings = collectAllSettings();
-            const { localDbHost, localDbName, localDbUser, localDbPassword, localDbPort } = settings;
-            if (!localDbHost) {
-                showToast('L\'hôte de la base de données locale est requis', true);
-                return;
-            }
-            try {
-                const queryParams = new URLSearchParams({
-                    local_db_host: localDbHost,
-                    local_db_name: localDbName,
-                    local_db_user: localDbUser,
-                    local_db_password: localDbPassword,
-                    local_db_port: localDbPort
-                });
-                const response = await fetchWithHeaders(`${API_BASE_URL}/test_public_db?${queryParams}`, {
-                    method: 'GET'
-                });
-                if (response.ok) {
-                    const text = await response.text();
-                    showToast(text || 'Connexion à la base de données publique réussie');
-                } else {
-                    const data = await response.json();
-                    showToast(data.erreur || 'Erreur lors du test de connexion publique', true);
-                }
-            } catch (error) {
-                showToast(`Erreur: ${error.message}`, true);
-                console.error('Erreur lors du test de connexion publique:', error);
-            }
-        }
+      async function testPublicDbConnection() {
+    if (!checkLoginStatus()) return;
+    const settings = collectAllSettings();
+    const { localDbHost, localDbName, localDbUser, localDbPassword, localDbPort } = settings;
+    if (!localDbHost) {
+        showToast('L\'hôte de la base de données locale est requis', true);
+        return;
+    }
 
+    const body = {
+        local_db_host: localDbHost,
+        local_db_name: localDbName,
+        local_db_user: localDbUser,
+        local_db_password: localDbPassword,
+        local_db_port: localDbPort
+    };
+
+    async function attemptFetch(attempt = 1, maxAttempts = 3, delay = 1000) {
+        try {
+            const response = await fetch(`${API_BASE_URL}/test_public_db`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-User-ID': localStorage.getItem('userId') || 'test-user-id'
+                },
+                body: JSON.stringify(body),
+                signal: AbortSignal.timeout(10000)
+            });
+            if (response.ok) {
+                const text = await response.text();
+                showToast(text || 'Connexion à la base de données publique réussie');
+            } else {
+                const data = await response.json();
+                showToast(data.erreur || `Erreur lors du test de connexion (code ${response.status})`, true);
+            }
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                showToast(`Délai d'attente dépassé lors de la tentative ${attempt}`, true);
+                if (attempt < maxAttempts) {
+                    showToast(`Nouvelle tentative ${attempt + 1} dans ${delay}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    return attemptFetch(attempt + 1, maxAttempts, delay * 2);
+                } else {
+                    showToast('Erreur: toutes les tentatives ont échoué (timeout)', true);
+                }
+            } else if (error.message.includes('Failed to fetch')) {
+                showToast('Erreur réseau: impossible de contacter le serveur. Vérifiez l\'URL ou l\'état du serveur.', true);
+            } else {
+                showToast(`Erreur: ${error.message}`, true);
+            }
+            console.error('Erreur lors du test de connexion publique:', error);
+        }
+    }
+
+    await attemptFetch();
+}
         // Fonction fetch avec en-têtes personnalisés
         async function fetchWithHeaders(url, options = {}) {
             const userId = localStorage.getItem('userId');
