@@ -201,7 +201,7 @@
                     </label>
                 </div>
                 <div>
-                    <label for="syncInterval" class="block text-sm font-medium text-gray-700">Intervalle de Synchronisation (minutes)</label>
+                    <label for="syncInterval" class="block text- sm font-medium text-gray-700">Intervalle de Synchronisation (minutes)</label>
                     <input id="syncInterval" type="number" name="syncInterval" min="1" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="30">
                 </div>
                 <div>
@@ -573,16 +573,12 @@
             if (!checkLoginStatus()) return;
             const settings = collectAllSettings();
             const { localDbHost, localDbName, localDbUser, localDbPassword, localDbPort } = settings;
-            if (!localDbHost) {
-                showToast('L\'hôte de la base de données locale est requis', true);
-                return;
-            }
             try {
                 const response = await fetchWithHeaders(`${API_BASE_URL}/update_client_config`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        local_db_host: localDbHost,
+                        local_db_host: localDbHost || '',
                         local_db_name: localDbName,
                         local_db_user: localDbUser,
                         local_db_password: localDbPassword,
@@ -622,62 +618,58 @@
         }
 
         // Tester la connexion à l'IP publique
-      async function testPublicDbConnection() {
-    if (!checkLoginStatus()) return;
-    const settings = collectAllSettings();
-    const { localDbHost, localDbName, localDbUser, localDbPassword, localDbPort } = settings;
-    if (!localDbHost) {
-        showToast('L\'hôte de la base de données locale est requis', true);
-        return;
-    }
+        async function testPublicDbConnection() {
+            if (!checkLoginStatus()) return;
+            const settings = collectAllSettings();
+            const { localDbHost, localDbName, localDbUser, localDbPassword, localDbPort } = settings;
+            const body = {
+                local_db_host: localDbHost || '',
+                local_db_name: localDbName,
+                local_db_user: localDbUser,
+                local_db_password: localDbPassword,
+                local_db_port: localDbPort
+            };
 
-    const body = {
-        local_db_host: localDbHost,
-        local_db_name: localDbName,
-        local_db_user: localDbUser,
-        local_db_password: localDbPassword,
-        local_db_port: localDbPort
-    };
-
-    async function attemptFetch(attempt = 1, maxAttempts = 3, delay = 1000) {
-        try {
-            const response = await fetch(`${API_BASE_URL}/test_public_db`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-User-ID': localStorage.getItem('userId') || 'test-user-id'
-                },
-                body: JSON.stringify(body),
-                signal: AbortSignal.timeout(10000)
-            });
-            if (response.ok) {
-                const text = await response.text();
-                showToast(text || 'Connexion à la base de données publique réussie');
-            } else {
-                const data = await response.json();
-                showToast(data.erreur || `Erreur lors du test de connexion (code ${response.status})`, true);
-            }
-        } catch (error) {
-            if (error.name === 'AbortError') {
-                showToast(`Délai d'attente dépassé lors de la tentative ${attempt}`, true);
-                if (attempt < maxAttempts) {
-                    showToast(`Nouvelle tentative ${attempt + 1} dans ${delay}ms...`);
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                    return attemptFetch(attempt + 1, maxAttempts, delay * 2);
-                } else {
-                    showToast('Erreur: toutes les tentatives ont échoué (timeout)', true);
+            async function attemptFetch(attempt = 1, maxAttempts = 3, delay = 1000) {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/test_public_db`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-User-ID': localStorage.getItem('userId') || 'test-user-id'
+                        },
+                        body: JSON.stringify(body),
+                        signal: AbortSignal.timeout(10000)
+                    });
+                    if (response.ok) {
+                        const text = await response.text();
+                        showToast(text || 'Connexion à la base de données publique réussie');
+                    } else {
+                        const data = await response.json();
+                        showToast(data.erreur || `Erreur lors du test de connexion (code ${response.status})`, true);
+                    }
+                } catch (error) {
+                    if (error.name === 'AbortError') {
+                        showToast(`Délai d'attente dépassé lors de la tentative ${attempt}`, true);
+                        if (attempt < maxAttempts) {
+                            showToast(`Nouvelle tentative ${attempt + 1} dans ${delay}ms...`);
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            return attemptFetch(attempt + 1, maxAttempts, delay * 2);
+                        } else {
+                            showToast('Erreur: toutes les tentatives ont échoué (timeout)', true);
+                        }
+                    } else if (error.message.includes('Failed to fetch')) {
+                        showToast('Erreur réseau: impossible de contacter le serveur. Vérifiez l\'URL ou l\'état du serveur.', true);
+                    } else {
+                        showToast(`Erreur: ${error.message}`, true);
+                    }
+                    console.error('Erreur lors du test de connexion publique:', error);
                 }
-            } else if (error.message.includes('Failed to fetch')) {
-                showToast('Erreur réseau: impossible de contacter le serveur. Vérifiez l\'URL ou l\'état du serveur.', true);
-            } else {
-                showToast(`Erreur: ${error.message}`, true);
             }
-            console.error('Erreur lors du test de connexion publique:', error);
-        }
-    }
 
-    await attemptFetch();
-}
+            await attemptFetch();
+        }
+
         // Fonction fetch avec en-têtes personnalisés
         async function fetchWithHeaders(url, options = {}) {
             const userId = localStorage.getItem('userId');
