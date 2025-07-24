@@ -6,6 +6,7 @@ const urlsToCache = [
   './vente.html',
   './page1.html',
   './page2.html',
+'./map.html','./venteold.html',
   './HISTO.html',
   './PARAM.html',
   './HELP.html',
