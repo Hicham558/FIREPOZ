@@ -621,62 +621,37 @@
             }
         }
 
-       async function chargerUtilisateurs() {
-    console.log('Chargement des utilisateurs...');
-    const userId = localStorage.getItem('userId');
-    if (!userId) {
-        showToast('Veuillez vous connecter pour voir les utilisateurs', true);
-        return;
-    }
-
-    try {
-        const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-            headers: { 'X-User-ID': userId }
-        });
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Erreur ${response.status}: ${errorText}`);
-        }
-        const utilisateurs = await response.json();
-        console.log('Utilisateurs reçus:', utilisateurs); // Débogage : afficher la réponse
-
-        const selectElement = document.getElementById('userFilter');
-        if (!selectElement) {
-            console.error('Erreur : Élément userFilter non trouvé dans le DOM');
-            showToast('Erreur : Menu des utilisateurs non trouvé', true);
-            return;
-        }
-
-        selectElement.innerHTML = `<option value="0">Tous les utilisateurs</option>`;
-
-        if (!utilisateurs || !Array.isArray(utilisateurs)) {
-            console.error('Erreur : Liste des utilisateurs invalide ou vide');
-            showToast('Erreur : Liste des utilisateurs invalide', true);
-            return;
-        }
-
-        utilisateurs.forEach(user => {
-            if (user.numero_util == null || user.numero_util === '') {
-                console.warn(`Utilisateur avec numero_util invalide :`, user);
-                return; // Ignorer les utilisateurs avec numero_util invalide
+        async function chargerUtilisateurs() {
+            console.log('Chargement des utilisateurs...');
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir les utilisateurs', true);
+                return;
             }
-            const option = document.createElement('option');
-            option.value = user.numero_util;
-            option.textContent = `${user.nom || 'N/A'} (${user.statue || 'N/A'})`;
-            selectElement.appendChild(option);
-        });
 
-        // Débogage : afficher les options finales du menu déroulant
-        console.log('Options du userFilter :', Array.from(selectElement.options).map(opt => ({
-            value: opt.value,
-            text: opt.textContent
-        })));
-    } catch (error) {
-        showToast('Erreur lors du chargement des utilisateurs : ' + error.message, true);
-        console.error('Erreur utilisateurs :', error);
-    }
-}
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                const utilisateurs = await response.json();
+                const selectElement = document.getElementById('userFilter');
 
+                selectElement.innerHTML = `<option value="0">Tous les utilisateurs</option>`;
+                utilisateurs.forEach(user => {
+                    const option = document.createElement('option');
+                    option.value = user.numero_util;
+                    option.textContent = `${user.nom} (${user.statue})`;
+                    selectElement.appendChild(option);
+                });
+            } catch (error) {
+                showToast('Erreur lors du chargement des utilisateurs: ' + error.message, true);
+                console.error('Erreur utilisateurs:', error);
+            }
+        }
 
         async function chargerVentesJour(date = '', numeroClt = '', numeroUtil = '0') {
             console.log('Chargement des ventes...', { date, numeroClt, numeroUtil });
@@ -1290,33 +1265,20 @@
             window.print();
         }
 
- async function reloadData() {
-    const date = document.getElementById('dateFilter').value || '';
-    const client = document.getElementById('clientFilter').value || '';
-    const fournisseur = document.getElementById('fournisseurFilter').value || '';
-    let user = document.getElementById('userFilter')?.value;
+      async function reloadData() {
+    const date = document.getElementById('dateFilter').value;
+    const client = document.getElementById('clientFilter').value;
+    const user = document.getElementById('userFilter').value;
+    const fournisseur = document.getElementById('fournisseurFilter').value;
 
-    // Débogage : afficher la valeur sélectionnée
-    console.log('Valeur userFilter sélectionnée :', user);
-
-    // Si user est undefined ou vide, utiliser la valeur par défaut "0"
-    if (user == null || user === '') {
-        console.warn('userFilter est undefined ou vide, utilisation de "0"');
-        user = '0';
-    }
-
-    try {
-        await Promise.all([
-            chargerVentesJour(date, client, user),
-            chargerAchatsJour(date, user, fournisseur),
-            chargerArticlesPlusVendus(date, client, user),
-            chargerProfit(date, client, user),
-            chargerStockValue() // Ne dépend pas des filtres
-        ]);
-    } catch (error) {
-        console.error('Erreur lors du rechargement des données :', error);
-        showToast('Erreur lors du rechargement des données : ' + error.message, true);
-    }
+    // Reload all data with the selected filters
+    await Promise.all([
+        chargerVentesJour(date, client, user),
+        chargerAchatsJour(date, user, fournisseur),
+        chargerArticlesPlusVendus(date, client, user),
+        chargerProfit(date, client, user),
+        chargerStockValue() // Stock value doesn't depend on filters
+    ]);
 }
 
 // Debug function to ensure action buttons are visible
