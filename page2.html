@@ -622,36 +622,39 @@
         }
 
         async function chargerUtilisateurs() {
-            console.log('Chargement des utilisateurs...');
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les utilisateurs', true);
-                return;
-            }
+    console.log('Chargement des utilisateurs...');
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour voir les utilisateurs', true);
+        return;
+    }
 
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                const utilisateurs = await response.json();
-                const selectElement = document.getElementById('userFilter');
-
-                selectElement.innerHTML = `<option value="0">Tous les utilisateurs</option>`;
-                utilisateurs.forEach(user => {
-                    const option = document.createElement('option');
-                    option.value = user.numero_util;
-                    option.textContent = `${user.nom} (${user.statue})`;
-                    selectElement.appendChild(option);
-                });
-            } catch (error) {
-                showToast('Erreur lors du chargement des utilisateurs: ' + error.message, true);
-                console.error('Erreur utilisateurs:', error);
-            }
+    try {
+        const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+            headers: { 'X-User-ID': userId }
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Erreur ${response.status}: ${errorText}`);
         }
+        const utilisateurs = await response.json();
+        console.log('Utilisateurs reçus:', utilisateurs); // Debug: voir la structure des données
+        
+        const selectElement = document.getElementById('userFilter');
+        selectElement.innerHTML = `<option value="0">Tous les utilisateurs</option>`;
+        
+        utilisateurs.forEach(user => {
+            const option = document.createElement('option');
+            // Utilisez l'ID correct selon la structure des données
+            option.value = user.numero_util || user.id || user.user_id || '0';
+            option.textContent = `${user.nom || 'Inconnu'} (${user.statue || 'N/A'})`;
+            selectElement.appendChild(option);
+        });
+    } catch (error) {
+        showToast('Erreur lors du chargement des utilisateurs: ' + error.message, true);
+        console.error('Erreur utilisateurs:', error);
+    }
+}
 
         async function chargerVentesJour(date = '', numeroClt = '', numeroUtil = '0') {
             console.log('Chargement des ventes...', { date, numeroClt, numeroUtil });
@@ -1265,19 +1268,20 @@
             window.print();
         }
 
-      async function reloadData() {
+  async function reloadData() {
     const date = document.getElementById('dateFilter').value;
     const client = document.getElementById('clientFilter').value;
     const user = document.getElementById('userFilter').value;
     const fournisseur = document.getElementById('fournisseurFilter').value;
 
-    // Reload all data with the selected filters
+    console.log('Filtres:', { date, client, user, fournisseur }); // Debug
+
     await Promise.all([
         chargerVentesJour(date, client, user),
         chargerAchatsJour(date, user, fournisseur),
         chargerArticlesPlusVendus(date, client, user),
         chargerProfit(date, client, user),
-        chargerStockValue() // Stock value doesn't depend on filters
+        chargerStockValue()
     ]);
 }
 
