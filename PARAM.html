@@ -58,7 +58,11 @@
                     <label for="apiBaseUrl" class="block text-sm font-medium text-gray-700">URL de l'API</label>
                     <input id="apiBaseUrl" type="text" name="apiBaseUrl" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="ex: https://your-subdomain.loca.lt">
                 </div>
-                <button type="button" onclick="saveApiSettings()" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition">Sauvegarder URL</button>
+                <div class="flex space-x-4">
+                    <button type="button" onclick="saveApiSettings()" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition">Sauvegarder URL</button>
+                    <button type="button" onclick="resetApiUrl()" class="w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700 transition">Revenir à l'API par défaut</button>
+                    <button type="button" onclick="testDbConnection()" class="w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700 transition">Tester Connexion</button>
+                </div>
             </form>
         </div>
 
@@ -223,36 +227,6 @@
                 </div>
             </form>
         </div>
-
-        <!-- Paramètres de la base de données -->
-        <div class="kpi-card bg-white shadow-md rounded-lg p-6 mb-6">
-            <h3 class="text-xl font-semibold mb-4 text-gray-800">Paramètres de la Base de Données</h3>
-            <div id="serverIpAddress" class="text-sm font-medium text-gray-700 hidden mb-4"></div>
-            <form id="databaseSettingsForm" class="space-y-4">
-                <div>
-                    <label for="localDbHost" class="block text-sm font-medium text-gray-700">Hôte de la Base de Données Locale</label>
-                    <input id="localDbHost" type="text" name="localDbHost" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="ex: db.example.com">
-                </div>
-                <div>
-                    <label for="localDbName" class="block text-sm font-medium text-gray-700">Nom de la Base de Données</label>
-                    <input id="localDbName" type="text" name="localDbName" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="restocafee">
-                </div>
-                <div>
-                    <label for="localDbUser" class="block text-sm font-medium text-gray-700">Utilisateur de la Base de Données</label>
-                    <input id="localDbUser" type="text" name="localDbUser" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="postgres">
-                </div>
-                <div>
-                    <label for="localDbPassword" class="block text-sm font-medium text-gray-700">Mot de Passe de la Base de Données</label>
-                    <input id="localDbPassword" type="password" name="localDbPassword" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="masterkey">
-                </div>
-                <div>
-                    <label for="localDbPort" class="block text-sm font-medium text-gray-700">Port de la Base de Données</label>
-                    <input id="localDbPort" type="number" name="localDbPort" min="1" max="65535" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="5432">
-                </div>
-                <button type="button" id="testDbConnection" class="w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700 transition mt-2">Tester Connexion</button>
-                <button type="button" id="testPublicDbConnection" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition mt-2">Tester Connexion IP Publique</button>
-            </form>
-        </div>
     </main>
 
     <!-- Toast notification -->
@@ -265,7 +239,8 @@
 
     <script>
         let stream = null;
-        const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'https://hicham03041979.onrender.com';
+        const DEFAULT_API_URL = 'https://khelladihicham03041979.onrender.com';
+        let API_BASE_URL = localStorage.getItem('apiBaseUrl') || DEFAULT_API_URL;
 
         // Afficher une notification toast
         function showToast(message, isError = false) {
@@ -388,10 +363,25 @@
                 return;
             }
             const apiBaseUrl = document.getElementById('apiBaseUrl').value.trim();
-            const urlToSave = apiBaseUrl || 'https://hicham03041979.onrender.com';
+            const urlToSave = apiBaseUrl || DEFAULT_API_URL;
             localStorage.setItem('apiBaseUrl', urlToSave);
+            API_BASE_URL = urlToSave;
             showToast(`URL de l'API sauvegardée: ${urlToSave}`);
             console.log('API_BASE_URL sauvegardée:', urlToSave);
+        }
+
+        // Réinitialiser l'URL de l'API à la valeur par défaut
+        function resetApiUrl() {
+            if (!checkLoginStatus()) {
+                console.log('Réinitialisation annulée: utilisateur non connecté');
+                return;
+            }
+            const apiBaseUrlInput = document.getElementById('apiBaseUrl');
+            apiBaseUrlInput.value = DEFAULT_API_URL;
+            localStorage.setItem('apiBaseUrl', DEFAULT_API_URL);
+            API_BASE_URL = DEFAULT_API_URL;
+            showToast(`URL de l'API réinitialisée à: ${DEFAULT_API_URL}`);
+            console.log('API_BASE_URL réinitialisée:', DEFAULT_API_URL);
         }
 
         // Collecter tous les paramètres
@@ -418,12 +408,7 @@
                 enableCache: document.getElementById('enableCache')?.checked || false,
                 syncInterval: parseInt(document.getElementById('syncInterval')?.value) || 30,
                 offlineMode: document.getElementById('offlineMode')?.checked || false,
-                localDbHost: (document.getElementById('localDbHost')?.value || ''),
-                localDbName: (document.getElementById('localDbName')?.value || 'restocafee'),
-                localDbUser: (document.getElementById('localDbUser')?.value || 'postgres'),
-                localDbPassword: (document.getElementById('localDbPassword')?.value || 'masterkey'),
-                localDbPort: parseInt(document.getElementById('localDbPort')?.value) || 5432,
-                apiBaseUrl: (document.getElementById('apiBaseUrl')?.value || 'https://hicham03041979.onrender.com')
+                apiBaseUrl: (document.getElementById('apiBaseUrl')?.value || DEFAULT_API_URL)
             };
             console.log('Paramètres collectés:', settings);
             return settings;
@@ -444,7 +429,7 @@
             const settings = { ...localSettings, ...apiSettings };
 
             // Ajouter la configuration de l'API
-            settings.apiBaseUrl = localStorage.getItem('apiBaseUrl') || 'https://hicham03041979.onrender.com';
+            settings.apiBaseUrl = localStorage.getItem('apiBaseUrl') || DEFAULT_API_URL;
 
             const fields = [
                 { id: 'companyName', default: '' },
@@ -467,12 +452,7 @@
                 { id: 'enableCache', default: false, type: 'checked' },
                 { id: 'syncInterval', default: 30 },
                 { id: 'offlineMode', default: false, type: 'checked' },
-                { id: 'localDbHost', default: '' },
-                { id: 'localDbName', default: 'restocafee' },
-                { id: 'localDbUser', default: 'postgres' },
-                { id: 'localDbPassword', default: 'masterkey' },
-                { id: 'localDbPort', default: 5432 },
-                { id: 'apiBaseUrl', default: 'https://hicham03041979.onrender.com' }
+                { id: 'apiBaseUrl', default: DEFAULT_API_URL }
             ];
 
             fields.forEach(({ id, default: defaultValue, type }) => {
@@ -497,13 +477,6 @@
                 }
             }
 
-            // Afficher l'adresse IP si disponible
-            const ipDisplay = document.getElementById('serverIpAddress');
-            if (ipDisplay && settings.localDbHost) {
-                ipDisplay.textContent = `Adresse IP du serveur: ${settings.localDbHost}`;
-                ipDisplay.classList.remove('hidden');
-            }
-
             applyTheme(settings.theme);
         }
 
@@ -520,9 +493,6 @@
                 localStorage.setItem('apiBaseUrl', settings.apiBaseUrl);
             }
             showToast(`Paramètres ${formId.replace('SettingsForm', '').toLowerCase()} sauvegardés`);
-            if (formId === 'databaseSettingsForm') {
-                updateClientConfig();
-            }
         }
 
         // Gérer le téléchargement du logo
@@ -594,35 +564,6 @@
             setTimeout(() => window.location.href = './index.html', 1000);
         }
 
-        // Mettre à jour la configuration de la base de données dans Supabase
-        async function updateClientConfig() {
-            if (!checkLoginStatus()) return;
-            const settings = collectAllSettings();
-            const { localDbHost, localDbName, localDbUser, localDbPassword, localDbPort } = settings;
-            try {
-                const response = await fetchWithHeaders(`${API_BASE_URL}/update_client_config`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        local_db_host: localDbHost,
-                        local_db_name: localDbName,
-                        local_db_user: localDbUser,
-                        local_db_password: localDbPassword,
-                        local_db_port: localDbPort
-                    })
-                });
-                const data = await response.json();
-                if (response.ok) {
-                    showToast(data.statut || 'Configuration de la base de données mise à jour');
-                } else {
-                    showToast(data.erreur || 'Erreur lors de la mise à jour de la configuration', true);
-                }
-            } catch (error) {
-                showToast(`Erreur: ${error.message}`, true);
-                console.error('Erreur lors de la mise à jour de la configuration:', error);
-            }
-        }
-
         // Tester la connexion à la base de données
         async function testDbConnection() {
             if (!checkLoginStatus()) return;
@@ -641,59 +582,6 @@
                 showToast(`Erreur: ${error.message}`, true);
                 console.error('Erreur lors du test de connexion:', error);
             }
-        }
-
-        // Tester la connexion à l'IP publique
-        async function testPublicDbConnection() {
-            if (!checkLoginStatus()) return;
-            const settings = collectAllSettings();
-            const { localDbHost, localDbName, localDbUser, localDbPassword, localDbPort } = settings;
-            const body = {
-                local_db_host: localDbHost,
-                local_db_name: localDbName,
-                local_db_user: localDbUser,
-                local_db_password: localDbPassword,
-                local_db_port: localDbPort
-            };
-
-            async function attemptFetch(attempt = 1, maxAttempts = 3, delay = 1000) {
-                try {
-                    const response = await fetch(`${API_BASE_URL}/test_public_db`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-User-ID': localStorage.getItem('userId') || 'test-user-id'
-                        },
-                        body: JSON.stringify(body),
-                        signal: AbortSignal.timeout(10000)
-                    });
-                    if (response.ok) {
-                        const text = await response.text();
-                        showToast(text || 'Connexion à la base de données publique réussie');
-                    } else {
-                        const data = await response.json();
-                        showToast(data.erreur || `Erreur lors du test de connexion (code ${response.status})`, true);
-                    }
-                } catch (error) {
-                    if (error.name === 'AbortError') {
-                        showToast(`Délai d'attente dépassé lors de la tentative ${attempt}`, true);
-                        if (attempt < maxAttempts) {
-                            showToast(`Nouvelle tentative ${attempt + 1} dans ${delay}ms...`);
-                            await new Promise(resolve => setTimeout(resolve, delay));
-                            return attemptFetch(attempt + 1, maxAttempts, delay * 2);
-                        } else {
-                            showToast('Erreur: toutes les tentatives ont échoué (timeout)', true);
-                        }
-                    } else if (error.message.includes('Failed to fetch')) {
-                        showToast('Erreur réseau: impossible de contacter le serveur. Vérifiez l\'URL ou l\'état du serveur.', true);
-                    } else {
-                        showToast(`Erreur: ${error.message}`, true);
-                    }
-                    console.error('Erreur lors du test de connexion publique:', error);
-                }
-            }
-
-            await attemptFetch();
         }
 
         // Fonction fetch avec en-têtes personnalisés
@@ -730,11 +618,6 @@
                 { id: 'enableCache', form: 'performanceSettingsForm', type: 'change' },
                 { id: 'syncInterval', form: 'performanceSettingsForm', type: 'input' },
                 { id: 'offlineMode', form: 'performanceSettingsForm', type: 'change' },
-                { id: 'localDbHost', form: 'databaseSettingsForm', type: 'input' },
-                { id: 'localDbName', form: 'databaseSettingsForm', type: 'input' },
-                { id: 'localDbUser', form: 'databaseSettingsForm', type: 'input' },
-                { id: 'localDbPassword', form: 'databaseSettingsForm', type: 'input' },
-                { id: 'localDbPort', form: 'databaseSettingsForm', type: 'input' },
                 { id: 'apiBaseUrl', form: 'apiSettingsForm', type: 'input' }
             ];
 
@@ -762,10 +645,6 @@
             // Écouteur pour tester la connexion
             const testDbButton = document.getElementById('testDbConnection');
             if (testDbButton) testDbButton.addEventListener('click', testDbConnection);
-
-            // Écouteur pour tester la connexion IP publique
-            const testPublicDbButton = document.getElementById('testPublicDbConnection');
-            if (testPublicDbButton) testPublicDbButton.addEventListener('click', testPublicDbConnection);
         }
 
         // Initialisation
