@@ -54,9 +54,14 @@
         <div class="kpi-card bg-white shadow-md rounded-lg p-6 mb-6">
             <h3 class="text-xl font-semibold mb-4 text-gray-800">Paramètres de l'API</h3>
             <form id="apiSettingsForm" class="space-y-4">
-                <div>
-                    <label for="apiBaseUrl" class="block text-sm font-medium text-gray-700">URL de l'API</label>
-                    <input id="apiBaseUrl" type="text" name="apiBaseUrl" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="ex: https://your-subdomain.loca.lt">
+                <div class="flex items-center space-x-2">
+                    <div class="flex-1">
+                        <label for="apiBaseUrl" class="block text-sm font-medium text-gray-700">URL de l'API</label>
+                        <input id="apiBaseUrl" type="text" name="apiBaseUrl" class="mt-1 block w-full border-gray-300 bg-white text-gray-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="ex: https://your-subdomain.loca.lt">
+                    </div>
+                    <button type="button" onclick="scanQrCode()" class="mt-6 bg-gray-600 text-white p-2 rounded-md hover:bg-gray-700 transition flex items-center justify-center" aria-label="Scanner un QR code pour l'URL de l'API">
+                        <i class="fas fa-qrcode"></i>
+                    </button>
                 </div>
                 <div class="space-y-4">
                     <div class="flex space-x-4">
@@ -262,6 +267,69 @@
             toast.classList.remove('hidden');
 
             setTimeout(() => toast.classList.add('hidden'), 3000);
+        }
+
+        // Scanner un QR code pour l'URL de l'API
+        async function scanQrCode() {
+            if (!checkLoginStatus()) {
+                console.log('Scan annulé: utilisateur non connecté');
+                return;
+            }
+            if (!('BarcodeDetector' in window)) {
+                showToast('Le scan de QR code n\'est pas pris en charge par ce navigateur', true);
+                return;
+            }
+            try {
+                const resolution = document.getElementById('cameraResolution').value;
+                const facingMode = document.getElementById('cameraFacing').value;
+                const constraints = {
+                    video: {
+                        facingMode: facingMode,
+                        width: { ideal: resolution === 'high' ? 1920 : resolution === 'medium' ? 1280 : 640 },
+                        height: { ideal: resolution === 'high' ? 1080 : resolution === 'medium' ? 720 : 480 }
+                    }
+                };
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                const video = document.createElement('video');
+                video.srcObject = stream;
+                video.setAttribute('playsinline', '');
+                video.play();
+
+                const cameraPreview = document.getElementById('cameraPreview');
+                cameraPreview.innerHTML = '';
+                cameraPreview.appendChild(video);
+                cameraPreview.style.display = 'block';
+
+                const barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
+                const detectQrCode = async () => {
+                    const barcodes = await barcodeDetector.detect(video);
+                    if (barcodes.length > 0) {
+                        const qrCodeValue = barcodes[0].rawValue;
+                        if (qrCodeValue.match(/^https?:\/\//)) {
+                            const apiBaseUrlInput = document.getElementById('apiBaseUrl');
+                            apiBaseUrlInput.value = qrCodeValue;
+                            saveApiSettings();
+                            showToast(`URL scannée: ${qrCodeValue}`);
+                        } else {
+                            showToast('Le QR code ne contient pas une URL valide', true);
+                        }
+                        stopCamera();
+                        clearInterval(interval);
+                    }
+                };
+                const interval = setInterval(detectQrCode, 1000);
+                setTimeout(() => {
+                    if (stream) {
+                        stopCamera();
+                        clearInterval(interval);
+                        showToast('Aucun QR code détecté après 10 secondes', true);
+                    }
+                }, 10000);
+            } catch (error) {
+                showToast(`Erreur lors du scan: ${error.message}`, true);
+                console.error('Erreur scan QR:', error);
+                stopCamera();
+            }
         }
 
         // Appliquer le thème depuis localStorage
