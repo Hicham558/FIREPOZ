@@ -21,10 +21,17 @@
     @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-    @keyframes user { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
     @keyframes countPulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
     @keyframes kpiPop { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
     @keyframes clientPulse { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
+    @keyframes drawerOpen {
+      from { max-height: 0; opacity: 0; }
+      to { max-height: 1000px; opacity: 1; }
+    }
+    @keyframes drawerClose {
+      from { max-height: 1000px; opacity: 1; }
+      to { max-height: 0; opacity: 0; }
+    }
     .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
     .animate-pulse { animation: pulse 2s infinite ease-in-out; }
     .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
@@ -32,13 +39,15 @@
     .top-client-updated { animation: clientPulse 0.6s ease-in-out; }
     .toast-in { animation: toastIn 0.5s both; }
     .toast-out { animation: toastOut 0.5s both; }
+    .drawer-open { animation: drawerOpen 0.3s ease-out forwards; }
+    .drawer-close { animation: drawerClose 0.3s ease-out forwards; }
     #clientsSection { animation-delay: 0.2s; }
     #fournisseursSection { animation-delay: 0.4s; }
     #productsSection { animation-delay: 0.6s; }
     #utilisateursSection { animation-delay: 0.8s; }
     footer { animation-delay: 1.2s; }
     #scannerPreview { width: 100%; max-width: 300px; height: 200px; border: 2px solid #e5e7eb; margin-bottom: 1rem; display: none; background: #000; }
-    .user-anim { animation: userPulse 1.5s infinite ease-in-out; }
+    .user-anim { animation: pulse 1.5s infinite ease-in-out; }
     .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
     .small-email { font-size: 0.75rem; line-height: 1rem; }
     .kpi-card { transition: transform 0.3s ease, box-shadow 0.3s ease; }
@@ -93,6 +102,16 @@
       align-items: center;
       justify-content: center;
       font-size: 1rem;
+    }
+    .section-content {
+      max-height: 0;
+      opacity: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+    }
+    .section-content.open {
+      max-height: 1000px;
+      opacity: 1;
     }
   </style>
 </head>
@@ -219,71 +238,73 @@
         <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('clientsSection')">
           <h2 class="text-xl font-semibold text-gray-800 flex items-center">
             <i class="fas fa-users mr-2 text-indigo-500"></i> Gestion Clients
-            <span id="clientCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+            <span id="clientCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim">0</span>
           </h2>
           <button class="text-gray-600 hover:text-gray-800 transition">
             <i class="fas fa-chevron-down" id="clientsChevron"></i>
           </button>
         </div>
-        <div class="p-6 hidden" id="clientsContent">
-          <div class="mb-4">
-            <div class="relative">
-              <input type="text" id="searchClient" placeholder="Rechercher des clients..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-              <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+        <div class="section-content" id="clientsContent">
+          <div class="p-6">
+            <div class="mb-4">
+              <div class="relative">
+                <input type="text" id="searchClient" placeholder="Rechercher des clients..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+              </div>
+              <div class="flex justify-end mt-2">
+                <button onclick="toggleClientForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-plus mr-2"></i>Ajouter
+                </button>
+              </div>
             </div>
-            <div class="flex justify-end mt-2">
-              <button onclick="toggleClientForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
-                <i class="fas fa-plus mr-2"></i>Ajouter
-              </button>
-            </div>
-          </div>
 
-          <div id="clientForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
-            <h3 class="font-medium mb-3" id="clientFormTitle">Nouveau Client</h3>
-            <input type="hidden" id="clientId">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
-                <input type="text" id="clientNom" class="w-full px-3 py-2 border rounded-md" required>
+            <div id="clientForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
+              <h3 class="font-medium mb-3" id="clientFormTitle">Nouveau Client</h3>
+              <input type="hidden" id="clientId">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
+                  <input type="text" id="clientNom" class="w-full px-3 py-2 border rounded-md" required>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Contact</label>
+                  <input type="text" id="clientContact" class="w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
+                  <input type="text" id="clientAdresse" class="w-full px-3 py-2 border rounded-md">
+                </div>
               </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Contact</label>
-                <input type="text" id="clientContact" class="w-full px-3 py-2 border rounded-md">
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
-                <input type="text" id="clientAdresse" class="w-full px-3 py-2 border rounded-md">
+              <div class="flex justify-end space-x-3 mt-4">
+                <button onclick="resetClientForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-times mr-2"></i>Annuler
+                </button>
+                <button onclick="saveClient()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-save mr-2"></i>Enregistrer
+                </button>
               </div>
             </div>
-            <div class="flex justify-end space-x-3 mt-4">
-              <button onclick="resetClientForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
-                <i class="fas fa-times mr-2"></i>Annuler
-              </button>
-              <button onclick="saveClient()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
-                <i class="fas fa-save mr-2"></i>Enregistrer
-              </button>
-            </div>
-          </div>
 
-          <div class="table-container">
-            <table class="min-w-full divide-y divide-gray-200">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th class="hidden-id">ID</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody id="clientsList" class="bg-white divide-y divide-gray-200">
-                <tr>
-                  <td colspan="7" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                </tr>
-              </tbody>
-            </table>
+            <div class="table-container">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="hidden-id">ID</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="clientsList" class="bg-white divide-y divide-gray-200">
+                  <tr>
+                    <td colspan="7" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -293,71 +314,73 @@
         <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('fournisseursSection')">
           <h2 class="text-xl font-semibold text-gray-800 flex items-center">
             <i class="fas fa-truck mr-2 text-indigo-500"></i> Gestion Fournisseurs
-            <span id="fournisseurCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+            <span id="fournisseurCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim">0</span>
           </h2>
           <button class="text-gray-600 hover:text-gray-800 transition">
             <i class="fas fa-chevron-down" id="fournisseursChevron"></i>
           </button>
         </div>
-        <div class="p-6 hidden" id="fournisseursContent">
-          <div class="mb-4">
-            <div class="relative">
-              <input type="text" id="searchFournisseur" placeholder="Rechercher des fournisseurs..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-              <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+        <div class="section-content" id="fournisseursContent">
+          <div class="p-6">
+            <div class="mb-4">
+              <div class="relative">
+                <input type="text" id="searchFournisseur" placeholder="Rechercher des fournisseurs..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+              </div>
+              <div class="flex justify-end mt-2">
+                <button onclick="toggleFournisseurForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-plus mr-2"></i>Ajouter
+                </button>
+              </div>
             </div>
-            <div class="flex justify-end mt-2">
-              <button onclick="toggleFournisseurForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
-                <i class="fas fa-plus mr-2"></i>Ajouter
-              </button>
-            </div>
-          </div>
 
-          <div id="fournisseurForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
-            <h3 class="font-medium mb-3" id="fournisseurFormTitle">Nouveau Fournisseur</h3>
-            <input type="hidden" id="fournisseurId">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
-                <input type="text" id="fournisseurNom" class="w-full px-3 py-2 border rounded-md" required>
+            <div id="fournisseurForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
+              <h3 class="font-medium mb-3" id="fournisseurFormTitle">Nouveau Fournisseur</h3>
+              <input type="hidden" id="fournisseurId">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
+                  <input type="text" id="fournisseurNom" class="w-full px-3 py-2 border rounded-md" required>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Contact</label>
+                  <input type="text" id="fournisseurContact" class="w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
+                  <input type="text" id="fournisseurAdresse" class="w-full px-3 py-2 border rounded-md">
+                </div>
               </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Contact</label>
-                <input type="text" id="fournisseurContact" class="w-full px-3 py-2 border rounded-md">
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
-                <input type="text" id="fournisseurAdresse" class="w-full px-3 py-2 border rounded-md">
+              <div class="flex justify-end space-x-3 mt-4">
+                <button onclick="resetFournisseurForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-times mr-2"></i>Annuler
+                </button>
+                <button onclick="saveFournisseur()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-save mr-2"></i>Enregistrer
+                </button>
               </div>
             </div>
-            <div class="flex justify-end space-x-3 mt-4">
-              <button onclick="resetFournisseurForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
-                <i class="fas fa-times mr-2"></i>Annuler
-              </button>
-              <button onclick="saveFournisseur()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
-                <i class="fas fa-save mr-2"></i>Enregistrer
-              </button>
-            </div>
-          </div>
 
-          <div class="table-container">
-            <table class="min-w-full divide-y divide-gray-200">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th class="hidden-id">ID</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody id="fournisseursList" class="bg-white divide-y divide-gray-200">
-                <tr>
-                  <td colspan="7" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                </tr>
-              </tbody>
-            </table>
+            <div class="table-container">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="hidden-id">ID</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="fournisseursList" class="bg-white divide-y divide-gray-200">
+                  <tr>
+                    <td colspan="7" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -367,87 +390,89 @@
         <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('productsSection')">
           <h2 class="text-xl font-semibold text-gray-800 flex items-center">
             <i class="fas fa-boxes mr-2 text-indigo-500"></i> Liste des Produits
-            <span id="productCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+            <span id="productCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim">0</span>
           </h2>
           <button class="text-gray-600 hover:text-gray-800 transition">
             <i class="fas fa-chevron-down" id="productsChevron"></i>
           </button>
         </div>
-        <div class="p-6 hidden" id="productsContent">
-          <div class="mb-4">
-            <div class="relative">
-              <input type="text" id="searchProduct" placeholder="Rechercher des produits..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-              <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-            </div>
-            <div class="flex justify-end mt-2">
-              <button onclick="toggleProductForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
-                <i class="fas fa-plus mr-2"></i>Ajouter
-              </button>
-            </div>
-          </div>
-
-          <div id="productForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
-            <h3 class="font-medium mb-3" id="productFormTitle">Nouveau Produit</h3>
-            <input type="hidden" id="productId">
-            <div id="scannerPreview"></div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Désignation*</label>
-                <input type="text" id="productDesignation" class="w-full px-3 py-2 border rounded-md" required>
-              </div>
+        <div class="section-content" id="productsContent">
+          <div class="p-6">
+            <div class="mb-4">
               <div class="relative">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Code Barre (facultatif)</label>
-                <input type="text" id="productBar" class="w-full px-3 py-2 border rounded-md" placeholder="Laisser vide pour générer automatiquement">
-                <button id="scanButton" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition duration-300" onclick="startScanner()">
-                  <i class="fas fa-camera"></i> Scanner
+                <input type="text" id="searchProduct" placeholder="Rechercher des produits..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+              </div>
+              <div class="flex justify-end mt-2">
+                <button onclick="toggleProductForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-plus mr-2"></i>Ajouter
                 </button>
               </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Prix Vente*</label>
-                <input type="number" id="productPrix" step="0.01" class="w-full px-3 py-2 border rounded-md" required>
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Prix Achat</label>
-                <input type="number" id="productPrixba" step="0.01" class="w-full px-3 py-2 border rounded-md" placeholder="Ex: 300.00">
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Quantité*</label>
-                <input type="number" id="productQte" class="w-full px-3 py-2 border rounded-md" required>
-              </div>
             </div>
-            <div class="flex justify-end space-x-3 mt-4">
-              <button onclick="stopScanner()" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition duration-300 transform hover:scale-105">
-                <i class="fas fa-stop mr-2"></i>Arrêter
-              </button>
-              <button onclick="resetProductForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
-                <i class="fas fa-times mr-2"></i>Annuler
-              </button>
-              <button onclick="saveProduct()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
-                <i class="fas fa-save mr-2"></i>Enregistrer
-              </button>
-            </div>
-          </div>
 
-          <div class="table-container">
-            <table class="min-w-full divide-y divide-gray-200">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th class="hidden-id">ID</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Désignation</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code Barre</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Vente</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Achat</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody id="productsList" class="bg-white divide-y divide-gray-200">
-                <tr>
-                  <td colspan="8" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                </tr>
-              </tbody>
-            </table>
+            <div id="productForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
+              <h3 class="font-medium mb-3" id="productFormTitle">Nouveau Produit</h3>
+              <input type="hidden" id="productId">
+              <div id="scannerPreview"></div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Désignation*</label>
+                  <input type="text" id="productDesignation" class="w-full px-3 py-2 border rounded-md" required>
+                </div>
+                <div class="relative">
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Code Barre (facultatif)</label>
+                  <input type="text" id="productBar" class="w-full px-3 py-2 border rounded-md" placeholder="Laisser vide pour générer automatiquement">
+                  <button id="scanButton" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition duration-300" onclick="startScanner()">
+                    <i class="fas fa-camera"></i> Scanner
+                  </button>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Prix Vente*</label>
+                  <input type="number" id="productPrix" step="0.01" class="w-full px-3 py-2 border rounded-md" required>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Prix Achat</label>
+                  <input type="number" id="productPrixba" step="0.01" class="w-full px-3 py-2 border rounded-md" placeholder="Ex: 300.00">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Quantité*</label>
+                  <input type="number" id="productQte" class="w-full px-3 py-2 border rounded-md" required>
+                </div>
+              </div>
+              <div class="flex justify-end space-x-3 mt-4">
+                <button onclick="stopScanner()" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-stop mr-2"></i>Arrêter
+                </button>
+                <button onclick="resetProductForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-times mr-2"></i>Annuler
+                </button>
+                <button onclick="saveProduct()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-save mr-2"></i>Enregistrer
+                </button>
+              </div>
+            </div>
+
+            <div class="table-container">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="hidden-id">ID</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Désignation</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code Barre</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Vente</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Achat</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="productsList" class="bg-white divide-y divide-gray-200">
+                  <tr>
+                    <td colspan="8" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -457,71 +482,73 @@
         <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('utilisateursSection')">
           <h2 class="text-xl font-semibold text-gray-800 flex items-center">
             <i class="fas fa-user-tie mr-2 text-indigo-500"></i> Gestion Utilisateurs
-            <span id="utilisateurCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+            <span id="utilisateurCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim">0</span>
           </h2>
           <button class="text-gray-600 hover:text-gray-800 transition">
             <i class="fas fa-chevron-down" id="utilisateursChevron"></i>
           </button>
         </div>
-        <div class="p-6 hidden" id="utilisateursContent">
-          <div class="mb-4">
-            <div class="relative">
-              <input type="text" id="searchUtilisateur" placeholder="Rechercher des utilisateurs..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-              <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+        <div class="section-content" id="utilisateursContent">
+          <div class="p-6">
+            <div class="mb-4">
+              <div class="relative">
+                <input type="text" id="searchUtilisateur" placeholder="Rechercher des utilisateurs..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+              </div>
+              <div class="flex justify-end mt-2">
+                <button onclick="toggleUtilisateurForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-plus mr-2"></i>Ajouter
+                </button>
+              </div>
             </div>
-            <div class="flex justify-end mt-2">
-              <button onclick="toggleUtilisateurForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
-                <i class="fas fa-plus mr-2"></i>Ajouter
-              </button>
-            </div>
-          </div>
 
-          <div id="utilisateurForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
-            <h3 class="font-medium mb-3" id="utilisateurFormTitle">Nouvel Utilisateur</h3>
-            <input type="hidden" id="utilisateurId">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
-                <input type="text" id="utilisateurNom" class="w-full px-3 py-2 border rounded-md" required>
+            <div id="utilisateurForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
+              <h3 class="font-medium mb-3" id="utilisateurFormTitle">Nouvel Utilisateur</h3>
+              <input type="hidden" id="utilisateurId">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
+                  <input type="text" id="utilisateurNom" class="w-full px-3 py-2 border rounded-md" required>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe*</label>
+                  <input type="password" id="utilisateurPassword" class="w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Statut*</label>
+                  <select id="utilisateurStatut" class="w-full px-3 py-2 border rounded-md">
+                    <option value="admin">Admin</option>
+                    <option value="emplo">Employé</option>
+                  </select>
+                </div>
               </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe*</label>
-                <input type="password" id="utilisateurPassword" class="w-full px-3 py-2 border rounded-md">
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Statut*</label>
-                <select id="utilisateurStatut" class="w-full px-3 py-2 border rounded-md">
-                  <option value="admin">Admin</option>
-                  <option value="emplo">Employé</option>
-                </select>
+              <div class="flex justify-end space-x-3 mt-4">
+                <button onclick="resetUtilisateurForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-times mr-2"></i>Annuler
+                </button>
+                <button onclick="saveUtilisateur()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-save mr-2"></i>Enregistrer
+                </button>
               </div>
             </div>
-            <div class="flex justify-end space-x-3 mt-4">
-              <button onclick="resetUtilisateurForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
-                <i class="fas fa-times mr-2"></i>Annuler
-              </button>
-              <button onclick="saveUtilisateur()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
-                <i class="fas fa-save mr-2"></i>Enregistrer
-              </button>
-            </div>
-          </div>
 
-          <div class="table-container">
-            <table class="min-w-full divide-y divide-gray-200">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody id="utilisateursList" class="bg-white divide-y divide-gray-200">
-                <tr>
-                  <td colspan="4" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                </tr>
-              </tbody>
-            </table>
+            <div class="table-container">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="utilisateursList" class="bg-white divide-y divide-gray-200">
+                  <tr>
+                    <td colspan="4" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -601,6 +628,44 @@
       return btoa(combined);
     }
 
+    // Charger les compteurs au démarrage
+    async function loadAllCounts() {
+      const userId = localStorage.getItem('userId');
+      if (!userId) return;
+
+      try {
+        const [clientsRes, fournisseursRes, produitsRes, utilisateursRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/liste_clients`, { headers: { 'X-User-ID': userId } }),
+          fetch(`${API_BASE_URL}/liste_fournisseurs`, { headers: { 'X-User-ID': userId } }),
+          fetch(`${API_BASE_URL}/liste_produits`, { headers: { 'X-User-ID': userId } }),
+          fetch(`${API_BASE_URL}/liste_utilisateurs`, { headers: { 'X-User-ID': userId } })
+        ]);
+
+        if (clientsRes.ok) {
+          const clients = await clientsRes.json();
+          document.getElementById('clientCount').textContent = clients.length;
+          document.getElementById('clientCount').classList.remove('hidden');
+        }
+        if (fournisseursRes.ok) {
+          const fournisseurs = await fournisseursRes.json();
+          document.getElementById('fournisseurCount').textContent = fournisseurs.length;
+          document.getElementById('fournisseurCount').classList.remove('hidden');
+        }
+        if (produitsRes.ok) {
+          const produits = await produitsRes.json();
+          document.getElementById('productCount').textContent = produits.length;
+          document.getElementById('productCount').classList.remove('hidden');
+        }
+        if (utilisateursRes.ok) {
+          const utilisateurs = await utilisateursRes.json();
+          document.getElementById('utilisateurCount').textContent = utilisateurs.length;
+          document.getElementById('utilisateurCount').classList.remove('hidden');
+        }
+      } catch (error) {
+        console.error('Erreur chargement compteurs:', error);
+      }
+    }
+
     // Vérifier si l'utilisateur est connecté au chargement de la page
     document.addEventListener('DOMContentLoaded', () => {
       const userId = localStorage.getItem('userId');
@@ -611,6 +676,7 @@
         document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
         document.getElementById('loginModal').classList.add('hidden');
         chargerKPI();
+        loadAllCounts(); // Charger les compteurs immédiatement
       } else {
         document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
         document.getElementById('loginModal').classList.remove('hidden');
@@ -649,12 +715,14 @@
     function toggleSection(sectionId) {
       const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
       const chevron = document.getElementById(`${sectionId.replace('Section', 'Chevron')}`);
-      content.classList.toggle('hidden');
+      const isOpening = !content.classList.contains('open');
+
+      content.classList.toggle('open');
       chevron.classList.toggle('fa-chevron-down');
       chevron.classList.toggle('fa-chevron-up');
 
       // Charger les données uniquement si la section est ouverte et les données n'ont pas encore été chargées
-      if (!content.classList.contains('hidden')) {
+      if (isOpening) {
         if (sectionId === 'clientsSection' && !clientsLoaded) {
           chargerClients();
           clientsLoaded = true;
@@ -799,6 +867,7 @@
         document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
         document.getElementById('loginModal').classList.add('hidden');
         chargerKPI();
+        loadAllCounts();
       } else {
         localStorage.setItem('userId', userId);
         localStorage.setItem('userEmail', emailLowerCase);
@@ -807,6 +876,7 @@
         document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
         document.getElementById('loginModal').classList.add('hidden');
         chargerKPI();
+        loadAllCounts();
         showToast('Nouveau compte créé avec succès');
       }
     }
@@ -825,10 +895,10 @@
         document.getElementById('fournisseursList').innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
         document.getElementById('productsList').innerHTML = '<tr><td colspan="8" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
         document.getElementById('utilisateursList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
-        document.getElementById('clientCount').classList.add('hidden');
-        document.getElementById('fournisseurCount').classList.add('hidden');
-        document.getElementById('productCount').classList.add('hidden');
-        document.getElementById('utilisateurCount').classList.add('hidden');
+        document.getElementById('clientCount').textContent = '0';
+        document.getElementById('fournisseurCount').textContent = '0';
+        document.getElementById('productCount').textContent = '0';
+        document.getElementById('utilisateurCount').textContent = '0';
         document.getElementById('totalCA').textContent = '0.00 DA';
         document.getElementById('totalProfit').textContent = '0.00 DA';
         document.getElementById('salesCount').textContent = '0';
@@ -839,7 +909,6 @@
           caChartInstance.destroy();
           caChartInstance = null;
         }
-        // Reset loaded flags
         clientsLoaded = false;
         fournisseursLoaded = false;
         produitsLoaded = false;
@@ -889,12 +958,9 @@
         }
         const clients = await response.json();
         const tbody = document.getElementById('clientsList');
-        const countElement = document.getElementById('clientCount');
 
         if (clients.length === 0) {
           tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun client trouvé</td></tr>';
-          countElement.textContent = '0';
-          countElement.classList.remove('hidden');
           return;
         }
 
@@ -920,8 +986,6 @@
           `;
           tbody.appendChild(tr);
         });
-        countElement.textContent = clients.length;
-        countElement.classList.remove('hidden');
       } catch (error) {
         document.getElementById('clientsList').innerHTML = `
           <tr>
@@ -969,6 +1033,7 @@
 
         showToast('Client supprimé avec succès');
         chargerClients();
+        loadAllCounts(); // Mettre à jour le compteur
       } catch (error) {
         showToast(error.message, true);
         console.error('Erreur suppression client:', error);
@@ -1016,6 +1081,7 @@
         showToast(id ? 'Client modifié avec succès' : 'Client ajouté avec succès');
         resetClientForm();
         chargerClients();
+        loadAllCounts(); // Mettre à jour le compteur
       } catch (error) {
         showToast(error.message, true);
         console.error('Erreur sauvegarde client:', error);
@@ -1072,12 +1138,9 @@
         }
         const fournisseurs = await response.json();
         const tbody = document.getElementById('fournisseursList');
-        const countElement = document.getElementById('fournisseurCount');
 
         if (fournisseurs.length === 0) {
           tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun fournisseur trouvé</td></tr>';
-          countElement.textContent = '0';
-          countElement.classList.remove('hidden');
           return;
         }
 
@@ -1103,8 +1166,6 @@
           `;
           tbody.appendChild(tr);
         });
-        countElement.textContent = fournisseurs.length;
-        countElement.classList.remove('hidden');
       } catch (error) {
         document.getElementById('fournisseursList').innerHTML = `
           <tr>
@@ -1152,6 +1213,7 @@
 
         showToast('Fournisseur supprimé avec succès');
         chargerFournisseurs();
+        loadAllCounts(); // Mettre à jour le compteur
       } catch (error) {
         showToast(error.message, true);
         console.error('Erreur suppression fournisseur:', error);
@@ -1199,6 +1261,7 @@
         showToast(id ? 'Fournisseur modifié avec succès' : 'Fournisseur ajouté avec succès');
         resetFournisseurForm();
         chargerFournisseurs();
+        loadAllCounts(); // Mettre à jour le compteur
       } catch (error) {
         showToast(error.message, true);
         console.error('Erreur sauvegarde fournisseur:', error);
@@ -1235,73 +1298,72 @@
       });
     });
 
-    // --- Gestion des produits ---
-    async function chargerProduits() {
-      const userId = localStorage.getItem('userId');
-      if (!userId) {
-        showToast('Veuillez vous connecter pour voir les produits', true);
-        document.getElementById('productsList').innerHTML = '<tr><td colspan="8" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
-        return;
-      }
+      // --- Gestion des produits ---
+        async function chargerProduits() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir les produits', true);
+                return;
+            }
 
-      try {
-        const response = await fetch(`${API_BASE_URL}/liste_produits`, {
-          headers: {
-            'X-User-ID': userId
-          }
-        });
-        if (!response.ok) {
-          throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
+                    headers: {
+                        'X-User-ID': userId
+                    }
+                });
+                if (!response.ok) {
+                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                }
+                const produits = await response.json();
+                const tbody = document.getElementById('productsList');
+                const countElement = document.getElementById('productCount');
+
+                if (produits.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
+                    countElement.textContent = '0';
+                    countElement.classList.remove('hidden');
+                    return;
+                }
+
+                tbody.innerHTML = '';
+                produits.forEach(produit => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-gray-50';
+                    tr.innerHTML = `
+                        <td class="hidden-id">${produit.NUMERO_ITEM || 'N/A'}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.REF || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || '0.00').toFixed(2)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <button onclick="modifierProduit('${produit.NUMERO_ITEM}', '${produit.BAR}', '${produit.DESIGNATION}', '${produit.PRIX}', '${produit.PRIXBA}', '${produit.QTE}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
+                                <i class="fas fa-edit"></i> Modifier
+                            </button>
+                            <button onclick="supprimerProduit('${produit.NUMERO_ITEM}')" class="text-red-600 hover:text-red-800 transition">
+                                <i class="fas fa-trash-alt"></i> Supprimer
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                countElement.textContent = produits.length;
+                countElement.classList.remove('hidden');
+            } catch (error) {
+                document.getElementById('productsList').innerHTML = `
+                    <tr>
+                        <td colspan="8" class="text-center py-4 text-red-500">
+                            Erreur de chargement: ${error.message}
+                        </td>
+                    </tr
+                `;
+                console.error('Erreur produits:', error);
+            }
         }
-        const produits = await response.json();
-        const tbody = document.getElementById('productsList');
-        const countElement = document.getElementById('productCount');
 
-        if (produits.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
-          countElement.textContent = '0';
-          countElement.classList.remove('hidden');
-          return;
-        }
-
-        tbody.innerHTML = '';
-        produits.forEach(produit => {
-          const tr = document.createElement('tr');
-          tr.className = 'hover:bg-gray-50';
-          tr.innerHTML = `
-            <td class="hidden-id">${produit.NUMERO_ITEM || 'N/A'}</td>
-            <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.REF || 'N/A'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || '0.00').toFixed(2)}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-              <button onclick="modifierProduit('${produit.NUMERO_ITEM}', '${produit.BAR}', '${produit.DESIGNATION}', '${produit.PRIX}', '${produit.PRIXBA}', '${produit.QTE}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
-                <i class="fas fa-edit"></i> Modifier
-              </button>
-              <button onclick="supprimerProduit('${produit.NUMERO_ITEM}')" class="text-red-600 hover:text-red-800 transition">
-                <i class="fas fa-trash-alt"></i> Supprimer
-              </button>
-            </td>
-          `;
-          tbody.appendChild(tr);
-        });
-        countElement.textContent = produits.length;
-        countElement.classList.remove('hidden');
-      } catch (error) {
-        document.getElementById('productsList').innerHTML = `
-          <tr>
-            <td colspan="8" class="text-center py-4 text-red-500">
-              Erreur de chargement: ${error.message}
-            </td>
-          </tr>
-        `;
-        console.error('Erreur produits:', error);
-      }
-    }
-
-            function modifierProduit(numero_item, bar, designation, prix, prixba, qte) {
+        function modifierProduit(numero_item, bar, designation, prix, prixba, qte) {
     document.getElementById('productId').value = numero_item;
     document.getElementById('productBar').value = bar || ''; // S'assurer que bar peut être vide
     document.getElementById('productDesignation').value = designation;
