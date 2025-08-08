@@ -18,7 +18,45 @@
         .btn-disabled { background-color: #d1d5db !important; cursor: not-allowed !important; }
         .solde-negatif { color: #ef4444; }
         .solde-positif { color: #10b981; }
-        #pendingReceptionsModal {
+        /* Animation tiroir pour productsContent */
+#productsContent {
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+}
+
+#productsContent.open {
+    max-height: 1000px; /* Ajuste selon la hauteur max nécessaire */
+    opacity: 1;
+}
+
+@keyframes drawerOpen {
+    from { max-height: 0; opacity: 0; }
+    to { max-height: 1000px; opacity: 1; }
+}
+
+@keyframes drawerClose {
+    from { max-height: 1000px; opacity: 1; }
+    to { max-height: 0; opacity: 0; }
+}
+
+/* Réduire le padding de l'en-tête de #productsSection */
+#productsSection .header {
+    padding: 8px 16px; /* Réduit de p-6 (24px) à 8px verticalement */
+    transition: padding 0.3s ease;
+}
+
+/* Restaurer le padding quand la section est ouverte */
+#productsSection.open .header {
+    padding: 24px 16px; /* Padding d'origine (p-6) */
+}
+
+/* Réduire la marge inférieure de #productsSection */
+#productsSection {
+    margin-bottom: 16px; /* Réduit de mb-8 (32px) à 16px */
+}
+		#pendingReceptionsModal {
             display: none;
             position: fixed;
             top: 0;
@@ -156,16 +194,16 @@
 
             <!-- Section produits -->
             <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="productsSection">
-                <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('productsSection')">
-                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-boxes mr-2 text-indigo-500"></i> Produits Disponibles
-                        <span id="productCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
-                    </h2>
-                    <button class="text-gray-600 hover:text-gray-800 transition">
-                        <i class="fas fa-chevron-down" id="productsChevron"></i>
-                    </button>
-                </div>
-                <div class="p-6 hidden" id="productsContent">
+    <div class="header flex justify-between items-center cursor-pointer" onclick="toggleSection('productsSection')">
+        <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+            <i class="fas fa-boxes mr-2 text-indigo-500"></i> Produits Disponibles
+            <span id="productCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+        </h2>
+        <button class="text-gray-600 hover:text-gray-800 transition">
+            <i class="fas fa-chevron-down" id="productsChevron"></i>
+        </button>
+    </div>
+    <div class="p-6" id="productsContent">
                     <div class="mb-4 flex flex-col md:flex-row gap-4">
                         <div class="relative w-full md:w-1/2">
                             <input type="text" id="searchProduct" placeholder="Rechercher un produit..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
@@ -296,7 +334,8 @@
         let utilisateursCache = [];
         let isEditMode = false;
         let numeroMouvement = null;
-
+        let produitsLoaded = false;
+		
         function togglePasswordVisibility() {
             const passwordInput = document.getElementById('sellerPassword');
             const toggleIcon = document.getElementById('togglePassword');
@@ -311,14 +350,21 @@
             }
         }
 
-        function toggleSection(sectionId) {
-            const section = document.getElementById(sectionId);
-            const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
-            const chevron = document.getElementById(`${sectionId.replace('Section', 'Chevron')}`);
-            content.classList.toggle('hidden');
-            chevron.classList.toggle('fa-chevron-down');
-            chevron.classList.toggle('fa-chevron-up');
-        }
+       function toggleSection(sectionId) {
+    const section = document.getElementById(sectionId);
+    const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
+    const chevron = document.getElementById(`${sectionId.replace('Section', 'Chevron')}`);
+
+    section.classList.toggle('open'); // Ajoute/supprime 'open' sur #productsSection
+    content.classList.toggle('open');
+    chevron.classList.toggle('fa-chevron-down');
+    chevron.classList.toggle('fa-chevron-up');
+
+    // Charger les produits uniquement si la section est ouverte et non chargée
+    if (content.classList.contains('open') && !produitsLoaded) {
+        chargerProduits();
+    }
+}
 
         function calculerTotalAchat() {
             const total = tempReceptionLines.reduce((sum, ligne) => {
@@ -335,7 +381,32 @@
             };
         }
 
-        async function loadReceptionData(numeroMouvement) {
+        async function loadProductCount() {
+    console.log('Chargement du compteur de produits...');
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour voir le compteur', true);
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/liste_produits`, {
+            headers: { 'X-User-ID': userId }
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Erreur ${response.status}: ${errorText}`);
+        }
+        const produits = await response.json();
+        const countElement = document.getElementById('productCount');
+        countElement.textContent = produits.length;
+        countElement.classList.remove('hidden');
+    } catch (error) {
+        console.error('Erreur chargement compteur produits:', error);
+        showToast(`Erreur chargement compteur: ${error.message}`, true);
+    }
+}
+		async function loadReceptionData(numeroMouvement) {
             console.log('Chargement des données de la réception:', numeroMouvement);
             const userId = localStorage.getItem('userId');
             if (!userId) {
@@ -390,7 +461,7 @@
             window.location.replace('achat.html');
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
+       document.addEventListener('DOMContentLoaded', () => {
     console.log('Page chargée, vérification utilisateur...');
     const userId = localStorage.getItem('userId');
     const userEmail = localStorage.getItem('userEmail');
@@ -403,7 +474,6 @@
         document.getElementById('validateReceptionButton').innerHTML = '<i class="fas fa-check mr-2"></i>Modifier la réception';
     }
 
-    // Hide pending buttons in edit mode
     const pendingButtonsContainer = document.getElementById('pendingButtonsContainer');
     if (isEditMode) {
         pendingButtonsContainer.classList.add('hidden');
@@ -417,7 +487,13 @@
         document.getElementById('userDisplay').classList.remove('hidden');
         document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
         document.getElementById('sellerSelect').disabled = true;
-        chargerUtilisateurs().then(() => {
+
+        // Charger les utilisateurs, fournisseurs, produits et compteur
+        Promise.all([
+            chargerUtilisateurs(),
+            chargerFournisseurs(),
+            loadProductCount() // Ajout ici
+        ]).then(() => {
             const storedSeller = localStorage.getItem('selectedSeller');
             if (storedSeller) {
                 const { numero_util, nom } = JSON.parse(storedSeller);
@@ -440,18 +516,14 @@
                     document.getElementById('sellerChevron').classList.add('fa-chevron-up');
                     document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
                 }
+                sellerSelect.disabled = false;
+            });
+            if (isEditMode) {
+                loadReceptionData(numeroMouvement);
             } else {
-                document.getElementById('sellerContent').classList.remove('hidden');
-                document.getElementById('sellerChevron').classList.add('fa-chevron-up');
-                document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
+                chargerProduits(); // Charger les produits uniquement si pas en mode édition
             }
-            sellerSelect.disabled = false;
         });
-        chargerFournisseurs();
-        chargerProduits();
-        if (isEditMode) {
-            loadReceptionData(numeroMouvement);
-        }
     } else {
         console.log('Aucun utilisateur connecté, redirection vers index.html');
         document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
@@ -628,46 +700,85 @@
             }
         }
 
-        async function chargerProduits() {
-            console.log('Chargement des produits...');
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les produits', true);
-                return;
-            }
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
-                    headers: { 'X-User-ID': userId }
-                });
-                console.log('Réponse liste_produits:', response.status, response.statusText);
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('Erreur texte liste_produits:', errorText);
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-                produitsCache = await response.json();
-                console.log('Produits reçus:', produitsCache);
-                produitsCache = produitsCache.map(produit => ({
-                    ...produit,
-                    NUMERO_ITEM: parseInt(produit.NUMERO_ITEM) || 0,
-                    BAR: parseInt(produit.BAR) || 0,
-                    PRIXBA: parseFloat(produit.PRIXBA) || 0.0,
-                    QTE: parseFloat(produit.QTE) || 0
-                }));
-                updateProductTable();
-            } catch (error) {
-                document.getElementById('productsList').innerHTML = `
-                    <tr>
-                        <td colspan="6" class="text-center py-4 text-red-500">
-                            Erreur de chargement: ${error.message}
-                        </td>
-                    </tr>
-                `;
-                console.error('Erreur produits:', error);
-                showToast(`Erreur chargement produits: ${error.message}`, true);
-            }
-        }
+       async function chargerProduits() {
+    if (produitsLoaded) {
+        console.log('Produits déjà chargés, mise à jour du tableau uniquement.');
+        updateProductTable();
+        return;
+    }
 
+    console.log('Chargement des produits...');
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour voir les produits', true);
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/liste_produits`, {
+            headers: { 'X-User-ID': userId }
+        });
+        console.log('Réponse liste_produits:', response.status, response.statusText);
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Erreur texte liste_produits:', errorText);
+            throw new Error(`Erreur ${response.status}: ${errorText}`);
+        }
+        produitsCache = await response.json();
+        console.log('Produits reçus:', produitsCache);
+        produitsCache = produitsCache.map(produit => ({
+            ...produit,
+            NUMERO_ITEM: parseInt(produit.NUMERO_ITEM) || 0,
+            BAR: parseInt(produit.BAR) || 0,
+            PRIXBA: parseFloat(produit.PRIXBA) || 0.0,
+            QTE: parseFloat(produit.QTE) || 0
+        }));
+        produitsLoaded = true; // Marquer comme chargé
+        updateProductTable();
+    } catch (error) {
+        document.getElementById('productsList').innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center py-4 text-red-500">
+                    Erreur de chargement: ${error.message}
+                </td>
+            </tr>
+        `;
+        console.error('Erreur produits:', error);
+        showToast(`Erreur chargement produits: ${error.message}`, true);
+    }
+}
+
+function updateProductTable(filteredProducts = produitsCache) {
+    const tbody = document.getElementById('productsList');
+    const countElement = document.getElementById('productCount');
+
+    if (filteredProducts.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
+        countElement.textContent = '0';
+        countElement.classList.remove('hidden');
+        return;
+    }
+
+    tbody.innerHTML = '';
+    filteredProducts.forEach(produit => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <button onclick="selectProduct(${produit.NUMERO_ITEM}, ${produit.PRIXBA}, '${produit.DESIGNATION.replace(/'/g, "\\'")}')" class="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition duration-300">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </td>
+            <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE.toFixed(2)}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.NUMERO_ITEM || 'N/A'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || 0).toFixed(2)}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+    countElement.textContent = filteredProducts.length;
+    countElement.classList.remove('hidden');
+}
         function updateProductTable(filteredProducts = produitsCache) {
             const tbody = document.getElementById('productsList');
             const countElement = document.getElementById('productCount');
