@@ -124,20 +124,13 @@ button:disabled {
     opacity: 0.5 !important;
     cursor: not-allowed !important;
 }
-
-/* Styles pour boutons désactivés */
-.action-delete[disabled], 
-.action-save[disabled],
-.action-edit[disabled] {
-    opacity: 0.3 !important;
-    cursor: not-allowed !important;
-    pointer-events: none !important;
-    background-color: #cccccc !important;
-}
-
-/* Contour rouge pour boutons désactivés (optionnel) */
-.action-delete[disabled] {
-    border: 1px solid #ff0000 !important;
+/* Style désactivé pour tous les boutons Supprimer */
+.btn-delete[data-status="EMPLO"] {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+    background-color: #f8f9fa !important;
+    border: 1px dashed #dc3545 !important;
 }
   </style>
 </head>
@@ -1102,7 +1095,7 @@ function toggleActionButtons(isEmploye) {
               Erreur de chargement: ${error.message}
             </td>
           </tr>
-        `;
+        `;disableAllDeleteButtons();
         console.error('Erreur clients:', error);
       }
     }
@@ -1118,11 +1111,6 @@ function toggleActionButtons(isEmploye) {
 
     async function supprimerClient(id) {
           // Vérification renforcée du statut
-    const isEmploye = await checkIfEmploye();
-    if (isEmploye) {
-        showToast('Action non autorisée pour les employés', true);
-        return;
-    }
 
 		const userId = localStorage.getItem('userId');
       if (!userId) {
@@ -1289,7 +1277,7 @@ function toggleActionButtons(isEmploye) {
               Erreur de chargement: ${error.message}
             </td>
           </tr>
-        `;
+        `;disableAllDeleteButtons();
         console.error('Erreur fournisseurs:', error);
       }
     }
@@ -1305,11 +1293,6 @@ function toggleActionButtons(isEmploye) {
 
     async function supprimerFournisseur(id) {
           // Vérification renforcée du statut
-    const isEmploye = await checkIfEmploye();
-    if (isEmploye) {
-        showToast('Action non autorisée pour les employés', true);
-        return;
-    }
 
 		const userId = localStorage.getItem('userId');
       if (!userId) {
@@ -1481,7 +1464,7 @@ function toggleActionButtons(isEmploye) {
                             Erreur de chargement: ${error.message}
                         </td>
                     </tr
-                `;
+                `;disableAllDeleteButtons();
                 console.error('Erreur produits:', error);
             }
         }
@@ -1498,12 +1481,6 @@ function toggleActionButtons(isEmploye) {
 }
 
         async function supprimerProduit(id) {
-               // Vérification renforcée du statut
-    const isEmploye = await checkIfEmploye();
-    if (isEmploye) {
-        showToast('Action non autorisée pour les employés', true);
-        return;
-    }
 
 			const userId = localStorage.getItem('userId');
             if (!userId) {
@@ -1788,7 +1765,7 @@ function stopScanner() {
                             Erreur de chargement: ${error.message}
                         </td>
                     </tr>
-                `;
+                `;disableAllDeleteButtons();
                 console.error('Erreur utilisateurs:', error);
             }
         }
@@ -1806,11 +1783,6 @@ function stopScanner() {
 
         async function supprimerUtilisateur(numero) {
               // Vérification renforcée du statut
-    const isEmploye = await checkIfEmploye();
-    if (isEmploye) {
-        showToast('Action non autorisée pour les employés', true);
-        return;
-    }
 
 			const userId = localStorage.getItem('userId');
             if (!userId) {
@@ -1842,22 +1814,6 @@ function stopScanner() {
                 console.error('Erreur suppression utilisateur:', error);
             }
         }
-         async function checkIfEmploye() {
-    const storedSeller = localStorage.getItem('selectedSeller');
-    const userId = localStorage.getItem('userId');
-    
-    try {
-        const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-            headers: { 'X-User-ID': userId }
-        });
-        const utilisateurs = await response.json();
-        const seller = utilisateurs.find(u => u.numero === JSON.parse(storedSeller).numero_util);
-        return seller?.statut.toLowerCase() === 'emplo';
-    } catch (error) {
-        console.error('Erreur vérification statut:', error);
-        return true; // En cas d'erreur, bloquer par sécurité
-    }
-}
         async function saveUtilisateur() {
             const userId = localStorage.getItem('userId');
             if (!userId) {
@@ -1946,7 +1902,19 @@ function stopScanner() {
             });
         });
    
-
+function disableAllDeleteButtons() {
+    const status = localStorage.getItem('userStatus'); // 'ADMIN' ou 'EMPLO'
+    document.querySelectorAll('.btn-delete').forEach(btn => {
+        btn.dataset.status = status; // Marque le statut
+        if (status === 'EMPLO') {
+            btn.classList.add('disabled');
+            btn.onclick = (e) => {
+                e.preventDefault();
+                showToast("Action non autorisée pour les employés", true);
+            };
+        }
+    });
+}
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js');
