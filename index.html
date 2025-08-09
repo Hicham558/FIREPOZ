@@ -123,6 +123,9 @@
 button:disabled {
     opacity: 0.5 !important;
     cursor: not-allowed !important;
+    pointer-events: none !important;
+    background-color: #e5e7eb !important; /* Gris clair pour les boutons désactivés */
+    color: #6b7280 !important; /* Texte grisé */
 }
 /* Style désactivé pour tous les boutons Supprimer */
 .btn-delete[data-status="EMPLO"] {
@@ -741,46 +744,65 @@ button:disabled {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       });
     });
-async function checkSellerStatus() {
-    const storedSeller = localStorage.getItem('selectedSeller');
-    const userId = localStorage.getItem('userId');
-    
-    if (!userId) {
-        toggleActionButtons(true); // Désactiver si non connecté
-        return;
-    }
+function toggleActionButtons(isEmploye) {
+    // Sélectionner les boutons Modifier et Supprimer dans les tables
+    const actionButtons = document.querySelectorAll(`
+        #clientsList button:has(i.fa-edit),
+        #clientsList button:has(i.fa-trash-alt),
+        #fournisseursList button:has(i.fa-edit),
+        #fournisseursList button:has(i.fa-trash-alt),
+        #productsList button:has(i.fa-edit),
+        #productsList button:has(i.fa-trash-alt),
+        #utilisateursList button:has(i.fa-edit),
+        #utilisateursList button:has(i.fa-trash-alt)
+    `);
 
-    try {
-        if (storedSeller) {
-            const { numero_util, nom } = JSON.parse(storedSeller);
-            document.getElementById('currentSellerName').textContent = nom || 'Inconnu';
-            
-            const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-                headers: { 'X-User-ID': userId }
-            });
-            
-            if (!response.ok) throw new Error('Erreur de chargement des utilisateurs');
-            
-            const utilisateurs = await response.json();
-            const seller = utilisateurs.find(u => u.numero == numero_util);
-            
-            if (seller) {
-                const isEmploye = seller.statut.toLowerCase() === 'emplo';
-                toggleActionButtons(isEmploye);
-            } else {
-                toggleActionButtons(true); // Désactiver si vendeur non trouvé
-            }
+    // Sélectionner les boutons Ajouter et Enregistrer
+    const addSaveButtons = document.querySelectorAll(`
+        button:has(i.fa-plus),
+        button:has(i.fa-save)
+    `);
+
+    // Désactiver ou activer les boutons Modifier et Supprimer
+    actionButtons.forEach(btn => {
+        if (isEmploye) {
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+            btn.style.pointerEvents = 'none'; // Empêche tout clic
+            // Supprimer les gestionnaires d'événements
+            btn.replaceWith(btn.cloneNode(true));
         } else {
-            document.getElementById('currentSellerName').textContent = 'Inconnu';
-            toggleActionButtons(true); // Désactiver si aucun vendeur sélectionné
+            btn.disabled = false;
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            btn.style.pointerEvents = 'auto';
         }
-    } catch (error) {
-        console.error('Erreur vérification statut:', error);
-        showToast('Erreur de vérification du statut du vendeur', true);
-        toggleActionButtons(true); // Désactiver en cas d'erreur
-    }
+    });
+
+    // Désactiver ou activer les boutons Ajouter et Enregistrer
+    addSaveButtons.forEach(btn => {
+        if (isEmploye) {
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+            btn.style.pointerEvents = 'none';
+            btn.replaceWith(btn.cloneNode(true));
+        } else {
+            btn.disabled = false;
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            btn.style.pointerEvents = 'auto';
+        }
+    });
+
+    // Toujours permettre Annuler et Arrêter
+    document.querySelectorAll(`
+        button:has(i.fa-times),
+        button:has(i.fa-stop)
+    `).forEach(btn => {
+        btn.disabled = false;
+        btn.classList.remove('opacity-50', 'cursor-not-allowed');
+        btn.style.pointerEvents = 'auto';
+    });
 }
-    // Fonction pour charger les KPI
+	  // Fonction pour charger les KPI
     async function chargerKPI() {
       const userId = localStorage.getItem('userId');
       if (!userId) {
@@ -1028,7 +1050,23 @@ async function checkSellerStatus() {
             </td>
           `;
           tbody.appendChild(tr);
-        });
+        });// Vérifier le statut et désactiver les boutons si employé
+const storedSeller = localStorage.getItem('selectedSeller');
+if (storedSeller) {
+    const { numero_util } = JSON.parse(storedSeller);
+    fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+        headers: { 'X-User-ID': userId }
+    })
+    .then(response => response.json())
+    .then(utilisateurs => {
+        const seller = utilisateurs.find(u => u.numero == numero_util);
+        if (seller) {
+            const isEmploye = seller.statut.toLowerCase() === 'emplo';
+            toggleActionButtons(isEmploye);
+        }
+    })
+    .catch(error => console.error('Erreur vérification statut:', error));
+}
       } catch (error) {
         document.getElementById('clientsList').innerHTML = `
           <tr>
@@ -1036,7 +1074,7 @@ async function checkSellerStatus() {
               Erreur de chargement: ${error.message}
             </td>
           </tr>
-        `;disableAllDeleteButtons();
+        `;
         console.error('Erreur clients:', error);
       }
     }
@@ -1210,7 +1248,23 @@ async function checkSellerStatus() {
             </td>
           `;
           tbody.appendChild(tr);
-        });
+        });// Vérifier le statut et désactiver les boutons si employé
+const storedSeller = localStorage.getItem('selectedSeller');
+if (storedSeller) {
+    const { numero_util } = JSON.parse(storedSeller);
+    fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+        headers: { 'X-User-ID': userId }
+    })
+    .then(response => response.json())
+    .then(utilisateurs => {
+        const seller = utilisateurs.find(u => u.numero == numero_util);
+        if (seller) {
+            const isEmploye = seller.statut.toLowerCase() === 'emplo';
+            toggleActionButtons(isEmploye);
+        }
+    })
+    .catch(error => console.error('Erreur vérification statut:', error));
+}
       } catch (error) {
         document.getElementById('fournisseursList').innerHTML = `
           <tr>
@@ -1395,7 +1449,23 @@ async function checkSellerStatus() {
                         </td>
                     `;
                     tbody.appendChild(tr);
-                });
+                });// Vérifier le statut et désactiver les boutons si employé
+const storedSeller = localStorage.getItem('selectedSeller');
+if (storedSeller) {
+    const { numero_util } = JSON.parse(storedSeller);
+    fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+        headers: { 'X-User-ID': userId }
+    })
+    .then(response => response.json())
+    .then(utilisateurs => {
+        const seller = utilisateurs.find(u => u.numero == numero_util);
+        if (seller) {
+            const isEmploye = seller.statut.toLowerCase() === 'emplo';
+            toggleActionButtons(isEmploye);
+        }
+    })
+    .catch(error => console.error('Erreur vérification statut:', error));
+}
                 countElement.textContent = produits.length;
                 countElement.classList.remove('hidden');
             } catch (error) {
@@ -1405,7 +1475,7 @@ async function checkSellerStatus() {
                             Erreur de chargement: ${error.message}
                         </td>
                     </tr
-                `;disableAllDeleteButtons();
+                `;
                 console.error('Erreur produits:', error);
             }
         }
@@ -1696,7 +1766,23 @@ function stopScanner() {
                         </td>
                     `;
                     tbody.appendChild(tr);
-                });
+                });// Vérifier le statut et désactiver les boutons si employé
+const storedSeller = localStorage.getItem('selectedSeller');
+if (storedSeller) {
+    const { numero_util } = JSON.parse(storedSeller);
+    fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+        headers: { 'X-User-ID': userId }
+    })
+    .then(response => response.json())
+    .then(utilisateurs => {
+        const seller = utilisateurs.find(u => u.numero == numero_util);
+        if (seller) {
+            const isEmploye = seller.statut.toLowerCase() === 'emplo';
+            toggleActionButtons(isEmploye);
+        }
+    })
+    .catch(error => console.error('Erreur vérification statut:', error));
+}
                 countElement.textContent = utilisateurs.length;
                 countElement.classList.remove('hidden');
             } catch (error) {
@@ -1706,7 +1792,7 @@ function stopScanner() {
                             Erreur de chargement: ${error.message}
                         </td>
                     </tr>
-                `;disableAllDeleteButtons();
+                `;
                 console.error('Erreur utilisateurs:', error);
             }
         }
