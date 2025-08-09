@@ -124,11 +124,11 @@ button:disabled {
     opacity: 0.5 !important;
     cursor: not-allowed !important;
 }
-/* Style désactivé pour tous les boutons Supprimer */
-.btn-delete[data-status="EMPLO"] {
-    opacity: 0.5;
-    cursor: not-allowed;
-    pointer-events: none;
+/* Style pour désactiver les boutons Supprimer pour les employés */
+button.text-red-600[data-status="EMPLO"] {
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
     background-color: #f8f9fa !important;
     border: 1px dashed #dc3545 !important;
 }
@@ -780,7 +780,7 @@ async function checkSellerStatus() {
 }
 
 function toggleActionButtons(isEmploye) {
-    // Désactiver TOUS les boutons de suppression et modification
+    // Sélectionner tous les boutons de suppression et d'autres actions (ajouter, modifier, sauvegarder)
     const actionButtons = document.querySelectorAll(`
         button:has(i.fa-trash-alt), 
         button:has(i.fa-edit),
@@ -793,12 +793,14 @@ function toggleActionButtons(isEmploye) {
             // Pour les employés, désactiver complètement
             btn.disabled = true;
             btn.classList.add('opacity-50', 'cursor-not-allowed');
+            btn.dataset.status = 'EMPLO'; // Ajouter l'attribut data-status pour les boutons Supprimer
             // Supprimer les gestionnaires d'événements existants
             btn.replaceWith(btn.cloneNode(true));
         } else {
             // Pour les admins, tout activer
             btn.disabled = false;
             btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            btn.dataset.status = 'ADMIN'; // Attribuer ADMIN pour cohérence
         }
     });
 
@@ -809,8 +811,9 @@ function toggleActionButtons(isEmploye) {
     `).forEach(btn => {
         btn.disabled = false;
         btn.classList.remove('opacity-50', 'cursor-not-allowed');
+        btn.dataset.status = ''; // Pas de statut pour ces boutons
     });
-}
+}	
 	  // Fonction pour gérer l'animation développer/envelopper
     function toggleSection(sectionId) {
       const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
@@ -1041,64 +1044,69 @@ function toggleActionButtons(isEmploye) {
     }
 
     // --- Gestion des clients ---
-    async function chargerClients() {
-      const userId = localStorage.getItem('userId');
-      if (!userId) {
+   async function chargerClients() {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
         showToast('Veuillez vous connecter pour voir les clients', true);
         document.getElementById('clientsList').innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
         return;
-      }
+    }
 
-      try {
+    try {
         const response = await fetch(`${API_BASE_URL}/liste_clients`, {
-          headers: {
-            'X-User-ID': userId
-          }
+            headers: {
+                'X-User-ID': userId
+            }
         });
         if (!response.ok) {
-          throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+            throw new Error(`Erreur ${response.status}: ${response.statusText}`);
         }
         const clients = await response.json();
         const tbody = document.getElementById('clientsList');
 
         if (clients.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun client trouvé</td></tr>';
-          return;
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun client trouvé</td></tr>';
+            return;
         }
 
         tbody.innerHTML = '';
         clients.forEach(client => {
-          const tr = document.createElement('tr');
-          tr.className = 'hover:bg-gray-50';
-          tr.innerHTML = `
-            <td class="hidden-id">${client.numero_clt || 'N/A'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${client.nom || 'N/A'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.solde || '0'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.reference || 'N/A'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.contact || 'N/A'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.adresse || 'N/A'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-              <button onclick="modifierClient('${client.numero_clt}', '${client.nom}', '${client.contact}', '${client.adresse}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
-                <i class="fas fa-edit"></i> Modifier
-              </button>
-              <button onclick="supprimerClient('${client.numero_clt}')" class="text-red-600 hover:text-red-800 transition">
-                <i class="fas fa-trash-alt"></i> Supprimer
-              </button>
-            </td>
-          `;
-          tbody.appendChild(tr);
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-gray-50';
+            tr.innerHTML = `
+                <td class="hidden-id">${client.numero_clt || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${client.nom || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.solde || '0'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.reference || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.contact || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.adresse || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <button onclick="modifierClient('${client.numero_clt}', '${client.nom}', '${client.contact}', '${client.adresse}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
+                        <i class="fas fa-edit"></i> Modifier
+                    </button>
+                    <button onclick="supprimerClient('${client.numero_clt}')" class="text-red-600 hover:text-red-800 transition">
+                        <i class="fas fa-trash-alt"></i> Supprimer
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
         });
-      } catch (error) {
+        // Ajouter l'appel ici
+        const storedSeller = localStorage.getItem('selectedSeller');
+        const isEmploye = storedSeller && JSON.parse(storedSeller).statut?.toLowerCase() === 'emplo';
+        toggleActionButtons(isEmploye);
+    } catch (error) {
         document.getElementById('clientsList').innerHTML = `
-          <tr>
-            <td colspan="7" class="text-center py-4 text-red-500">
-              Erreur de chargement: ${error.message}
-            </td>
-          </tr>
-        `;disableAllDeleteButtons();
+            <tr>
+                <td colspan="7" class="text-center py-4 text-red-500">
+                    Erreur de chargement: ${error.message}
+                </td>
+            </tr>
+        `;
         console.error('Erreur clients:', error);
-      }
+        toggleActionButtons(true); // Désactiver en cas d'erreur
     }
+}
 
     function modifierClient(id, nom, contact, adresse) {
       document.getElementById('clientId').value = id;
@@ -1223,64 +1231,69 @@ function toggleActionButtons(isEmploye) {
     });
 
     // --- Gestion des fournisseurs ---
-    async function chargerFournisseurs() {
-      const userId = localStorage.getItem('userId');
-      if (!userId) {
+  async function chargerFournisseurs() {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
         showToast('Veuillez vous connecter pour voir les fournisseurs', true);
         document.getElementById('fournisseursList').innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
         return;
-      }
+    }
 
-      try {
+    try {
         const response = await fetch(`${API_BASE_URL}/liste_fournisseurs`, {
-          headers: {
-            'X-User-ID': userId
-          }
+            headers: {
+                'X-User-ID': userId
+            }
         });
         if (!response.ok) {
-          throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+            throw new Error(`Erreur ${response.status}: ${response.statusText}`);
         }
         const fournisseurs = await response.json();
         const tbody = document.getElementById('fournisseursList');
 
         if (fournisseurs.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun fournisseur trouvé</td></tr>';
-          return;
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun fournisseur trouvé</td></tr>';
+            return;
         }
 
         tbody.innerHTML = '';
         fournisseurs.forEach(fournisseur => {
-          const tr = document.createElement('tr');
-          tr.className = 'hover:bg-gray-50';
-          tr.innerHTML = `
-            <td class="hidden-id">${fournisseur.numero_fou || 'N/A'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${fournisseur.nom || 'N/A'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.solde || '0'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.reference || 'N/A'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.contact || 'N/A'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.adresse || 'N/A'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-              <button onclick="modifierFournisseur('${fournisseur.numero_fou}', '${fournisseur.nom}', '${fournisseur.contact}', '${fournisseur.adresse}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
-                <i class="fas fa-edit"></i> Modifier
-              </button>
-              <button onclick="supprimerFournisseur('${fournisseur.numero_fou}')" class="text-red-600 hover:text-red-800 transition">
-                <i class="fas fa-trash-alt"></i> Supprimer
-              </button>
-            </td>
-          `;
-          tbody.appendChild(tr);
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-gray-50';
+            tr.innerHTML = `
+                <td class="hidden-id">${fournisseur.numero_fou || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${fournisseur.nom || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.solde || '0'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.reference || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.contact || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.adresse || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <button onclick="modifierFournisseur('${fournisseur.numero_fou}', '${fournisseur.nom}', '${fournisseur.contact}', '${fournisseur.adresse}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
+                        <i class="fas fa-edit"></i> Modifier
+                    </button>
+                    <button onclick="supprimerFournisseur('${fournisseur.numero_fou}')" class="text-red-600 hover:text-red-800 transition">
+                        <i class="fas fa-trash-alt"></i> Supprimer
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
         });
-      } catch (error) {
+        // Ajouter l'appel ici
+        const storedSeller = localStorage.getItem('selectedSeller');
+        const isEmploye = storedSeller && JSON.parse(storedSeller).statut?.toLowerCase() === 'emplo';
+        toggleActionButtons(isEmploye);
+    } catch (error) {
         document.getElementById('fournisseursList').innerHTML = `
-          <tr>
-            <td colspan="7" class="text-center py-4 text-red-500">
-              Erreur de chargement: ${error.message}
-            </td>
-          </tr>
-        `;disableAllDeleteButtons();
+            <tr>
+                <td colspan="7" class="text-center py-4 text-red-500">
+                    Erreur de chargement: ${error.message}
+                </td>
+            </tr>
+        `;
         console.error('Erreur fournisseurs:', error);
-      }
+        toggleActionButtons(true); // Désactiver en cas d'erreur
     }
+}
 
     function modifierFournisseur(id, nom, contact, adresse) {
       document.getElementById('fournisseurId').value = id;
@@ -1405,70 +1418,75 @@ function toggleActionButtons(isEmploye) {
     });
 
       // --- Gestion des produits ---
-        async function chargerProduits() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les produits', true);
-                return;
+      async function chargerProduits() {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour voir les produits', true);
+        document.getElementById('productsList').innerHTML = '<tr><td colspan="8" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/liste_produits`, {
+            headers: {
+                'X-User-ID': userId
             }
+        });
+        if (!response.ok) {
+            throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+        }
+        const produits = await response.json();
+        const tbody = document.getElementById('productsList');
+        const countElement = document.getElementById('productCount');
 
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
-                });
-                if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-                }
-                const produits = await response.json();
-                const tbody = document.getElementById('productsList');
-                const countElement = document.getElementById('productCount');
-
-                if (produits.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
-                    countElement.textContent = '0';
-                    countElement.classList.remove('hidden');
-                    return;
-                }
-
-                tbody.innerHTML = '';
-                produits.forEach(produit => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="hidden-id">${produit.NUMERO_ITEM || 'N/A'}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.REF || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || '0.00').toFixed(2)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <button onclick="modifierProduit('${produit.NUMERO_ITEM}', '${produit.BAR}', '${produit.DESIGNATION}', '${produit.PRIX}', '${produit.PRIXBA}', '${produit.QTE}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
-                                <i class="fas fa-edit"></i> Modifier
-                            </button>
-                            <button onclick="supprimerProduit('${produit.NUMERO_ITEM}')" class="text-red-600 hover:text-red-800 transition">
-                                <i class="fas fa-trash-alt"></i> Supprimer
-                            </button>
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-                countElement.textContent = produits.length;
-                countElement.classList.remove('hidden');
-            } catch (error) {
-                document.getElementById('productsList').innerHTML = `
-                    <tr>
-                        <td colspan="8" class="text-center py-4 text-red-500">
-                            Erreur de chargement: ${error.message}
-                        </td>
-                    </tr
-                `;disableAllDeleteButtons();
-                console.error('Erreur produits:', error);
-            }
+        if (produits.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
+            countElement.textContent = '0';
+            countElement.classList.remove('hidden');
+            return;
         }
 
+        tbody.innerHTML = '';
+        produits.forEach(produit => {
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-gray-50';
+            tr.innerHTML = `
+                <td class="hidden-id">${produit.NUMERO_ITEM || 'N/A'}</td>
+                <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.REF || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || '0.00').toFixed(2)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <button onclick="modifierProduit('${produit.NUMERO_ITEM}', '${produit.BAR}', '${produit.DESIGNATION}', '${produit.PRIX}', '${produit.PRIXBA}', '${produit.QTE}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
+                        <i class="fas fa-edit"></i> Modifier
+                    </button>
+                    <button onclick="supprimerProduit('${produit.NUMERO_ITEM}')" class="text-red-600 hover:text-red-800 transition">
+                        <i class="fas fa-trash-alt"></i> Supprimer
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+        countElement.textContent = produits.length;
+        countElement.classList.remove('hidden');
+        // Ajouter l'appel ici
+        const storedSeller = localStorage.getItem('selectedSeller');
+        const isEmploye = storedSeller && JSON.parse(storedSeller).statut?.toLowerCase() === 'emplo';
+        toggleActionButtons(isEmploye);
+    } catch (error) {
+        document.getElementById('productsList').innerHTML = `
+            <tr>
+                <td colspan="8" class="text-center py-4 text-red-500">
+                    Erreur de chargement: ${error.message}
+                </td>
+            </tr>
+        `;
+        console.error('Erreur produits:', error);
+        toggleActionButtons(true); // Désactiver en cas d'erreur
+    }
+}
         function modifierProduit(numero_item, bar, designation, prix, prixba, qte) {
     document.getElementById('productId').value = numero_item;
     document.getElementById('productBar').value = bar || ''; // S'assurer que bar peut être vide
@@ -1710,66 +1728,71 @@ function stopScanner() {
 }
 
         // --- Gestion des utilisateurs ---
-        async function chargerUtilisateurs() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les utilisateurs', true);
-                return;
+      async function chargerUtilisateurs() {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour voir les utilisateurs', true);
+        document.getElementById('utilisateursList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+            headers: {
+                'X-User-ID': userId
             }
+        });
+        if (!response.ok) {
+            throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+        }
+        const utilisateurs = await response.json();
+        const tbody = document.getElementById('utilisateursList');
+        const countElement = document.getElementById('utilisateurCount');
 
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
-                });
-                if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-                }
-                const utilisateurs = await response.json();
-                const tbody = document.getElementById('utilisateursList');
-                const countElement = document.getElementById('utilisateurCount');
-
-                if (utilisateurs.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun utilisateur trouvé</td></tr>';
-                    countElement.textContent = '0';
-                    countElement.classList.remove('hidden');
-                    return;
-                }
-
-                tbody.innerHTML = '';
-                utilisateurs.forEach(utilisateur => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.numero || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${utilisateur.nom || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.statut || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <button onclick="modifierUtilisateur('${utilisateur.numero}', '${utilisateur.nom}', '${utilisateur.statut}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
-                                <i class="fas fa-edit"></i> Modifier
-                            </button>
-                            <button onclick="supprimerUtilisateur('${utilisateur.numero}')" class="text-red-600 hover:text-red-800 transition">
-                                <i class="fas fa-trash-alt"></i> Supprimer
-                            </button>
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-                countElement.textContent = utilisateurs.length;
-                countElement.classList.remove('hidden');
-            } catch (error) {
-                document.getElementById('utilisateursList').innerHTML = `
-                    <tr>
-                        <td colspan="4" class="text-center py-4 text-red-500">
-                            Erreur de chargement: ${error.message}
-                        </td>
-                    </tr>
-                `;disableAllDeleteButtons();
-                console.error('Erreur utilisateurs:', error);
-            }
+        if (utilisateurs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun utilisateur trouvé</td></tr>';
+            countElement.textContent = '0';
+            countElement.classList.remove('hidden');
+            return;
         }
 
+        tbody.innerHTML = '';
+        utilisateurs.forEach(utilisateur => {
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-gray-50';
+            tr.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.numero || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${utilisateur.nom || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.statut || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <button onclick="modifierUtilisateur('${utilisateur.numero}', '${utilisateur.nom}', '${utilisateur.statut}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
+                        <i class="fas fa-edit"></i> Modifier
+                    </button>
+                    <button onclick="supprimerUtilisateur('${utilisateur.numero}')" class="text-red-600 hover:text-red-800 transition">
+                        <i class="fas fa-trash-alt"></i> Supprimer
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+        countElement.textContent = utilisateurs.length;
+        countElement.classList.remove('hidden');
+        // Ajouter l'appel ici
+        const storedSeller = localStorage.getItem('selectedSeller');
+        const isEmploye = storedSeller && JSON.parse(storedSeller).statut?.toLowerCase() === 'emplo';
+        toggleActionButtons(isEmploye);
+    } catch (error) {
+        document.getElementById('utilisateursList').innerHTML = `
+            <tr>
+                <td colspan="4" class="text-center py-4 text-red-500">
+                    Erreur de chargement: ${error.message}
+                </td>
+            </tr>
+        `;
+        console.error('Erreur utilisateurs:', error);
+        toggleActionButtons(true); // Désactiver en cas d'erreur
+    }
+}
         function modifierUtilisateur(numero, nom, statut) {
             document.getElementById('utilisateurId').value = numero;
             document.getElementById('utilisateurNom').value = nom;
