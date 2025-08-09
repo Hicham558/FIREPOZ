@@ -125,18 +125,20 @@ button:disabled {
     cursor: not-allowed !important;
 }
 
-/* Style spécifique pour les actions désactivées */
-.disabled-action {
-    opacity: 0.5;
-    pointer-events: none;
+/* Styles pour boutons désactivés */
+.action-delete[disabled], 
+.action-save[disabled],
+.action-edit[disabled] {
+    opacity: 0.3 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+    background-color: #cccccc !important;
 }
 
-/* Exceptions pour les boutons Annuler/Arrêter */
-.bg-gray-500:disabled, 
-.bg-red-500:disabled {
-    opacity: 1 !important;
-    cursor: pointer !important;
-}  
+/* Contour rouge pour boutons désactivés (optionnel) */
+.action-delete[disabled] {
+    border: 1px solid #ff0000 !important;
+}
   </style>
 </head>
 <body class="bg-gray-100">
@@ -785,34 +787,33 @@ async function checkSellerStatus() {
 }
 
 function toggleActionButtons(isEmploye) {
-    // Désactiver suppression et modification pour les employés
+    // Désactiver TOUS les boutons de suppression et modification
     const actionButtons = document.querySelectorAll(`
-        #clientsList button:has(i.fa-trash-alt), 
-        #clientsList button:has(i.fa-edit),
-        #fournisseursList button:has(i.fa-trash-alt),
-        #fournisseursList button:has(i.fa-edit),
-        #productsList button:has(i.fa-trash-alt),
-        #productsList button:has(i.fa-edit),
-        #utilisateursList button:has(i.fa-trash-alt),
-        #utilisateursList button:has(i.fa-edit),
-        #clientForm button:has(i.fa-save),
-        #fournisseurForm button:has(i.fa-save),
-        #productForm button:has(i.fa-save),
-        #utilisateurForm button:has(i.fa-save)
+        button:has(i.fa-trash-alt), 
+        button:has(i.fa-edit),
+        button:has(i.fa-save),
+        button:has(i.fa-plus)
     `);
 
     actionButtons.forEach(btn => {
-        btn.disabled = isEmploye;
-        btn.classList.toggle('opacity-50', isEmploye);
-        btn.classList.toggle('cursor-not-allowed', isEmploye);
+        if (isEmploye) {
+            // Pour les employés, désactiver complètement
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+            // Supprimer les gestionnaires d'événements existants
+            btn.replaceWith(btn.cloneNode(true));
+        } else {
+            // Pour les admins, tout activer
+            btn.disabled = false;
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
     });
 
     // Toujours permettre Annuler et Arrêter
-    const cancelButtons = document.querySelectorAll(`
+    document.querySelectorAll(`
         button:has(i.fa-times),
         button:has(i.fa-stop)
-    `);
-    cancelButtons.forEach(btn => {
+    `).forEach(btn => {
         btn.disabled = false;
         btn.classList.remove('opacity-50', 'cursor-not-allowed');
     });
@@ -1116,7 +1117,14 @@ function toggleActionButtons(isEmploye) {
     }
 
     async function supprimerClient(id) {
-      const userId = localStorage.getItem('userId');
+          // Vérification renforcée du statut
+    const isEmploye = await checkIfEmploye();
+    if (isEmploye) {
+        showToast('Action non autorisée pour les employés', true);
+        return;
+    }
+
+		const userId = localStorage.getItem('userId');
       if (!userId) {
         showToast('Veuillez vous connecter pour supprimer un client', true);
         return;
@@ -1296,7 +1304,14 @@ function toggleActionButtons(isEmploye) {
     }
 
     async function supprimerFournisseur(id) {
-      const userId = localStorage.getItem('userId');
+          // Vérification renforcée du statut
+    const isEmploye = await checkIfEmploye();
+    if (isEmploye) {
+        showToast('Action non autorisée pour les employés', true);
+        return;
+    }
+
+		const userId = localStorage.getItem('userId');
       if (!userId) {
         showToast('Veuillez vous connecter pour supprimer un fournisseur', true);
         return;
@@ -1483,7 +1498,14 @@ function toggleActionButtons(isEmploye) {
 }
 
         async function supprimerProduit(id) {
-            const userId = localStorage.getItem('userId');
+               // Vérification renforcée du statut
+    const isEmploye = await checkIfEmploye();
+    if (isEmploye) {
+        showToast('Action non autorisée pour les employés', true);
+        return;
+    }
+
+			const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour supprimer un produit', true);
                 return;
@@ -1783,7 +1805,14 @@ function stopScanner() {
         }
 
         async function supprimerUtilisateur(numero) {
-            const userId = localStorage.getItem('userId');
+              // Vérification renforcée du statut
+    const isEmploye = await checkIfEmploye();
+    if (isEmploye) {
+        showToast('Action non autorisée pour les employés', true);
+        return;
+    }
+
+			const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour supprimer un utilisateur', true);
                 return;
@@ -1813,7 +1842,22 @@ function stopScanner() {
                 console.error('Erreur suppression utilisateur:', error);
             }
         }
-
+         async function checkIfEmploye() {
+    const storedSeller = localStorage.getItem('selectedSeller');
+    const userId = localStorage.getItem('userId');
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+            headers: { 'X-User-ID': userId }
+        });
+        const utilisateurs = await response.json();
+        const seller = utilisateurs.find(u => u.numero === JSON.parse(storedSeller).numero_util);
+        return seller?.statut.toLowerCase() === 'emplo';
+    } catch (error) {
+        console.error('Erreur vérification statut:', error);
+        return true; // En cas d'erreur, bloquer par sécurité
+    }
+}
         async function saveUtilisateur() {
             const userId = localStorage.getItem('userId');
             if (!userId) {
