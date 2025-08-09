@@ -119,7 +119,24 @@
 .cursor-not-allowed {
     cursor: not-allowed;
 }
-	  
+	/* Style pour boutons désactivés */
+button:disabled {
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+}
+
+/* Style spécifique pour les actions désactivées */
+.disabled-action {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+/* Exceptions pour les boutons Annuler/Arrêter */
+.bg-gray-500:disabled, 
+.bg-red-500:disabled {
+    opacity: 1 !important;
+    cursor: pointer !important;
+}  
   </style>
 </head>
 <body class="bg-gray-100">
@@ -680,7 +697,7 @@
     }
 
     // Vérifier si l'utilisateur est connecté au chargement de la page
-   document.addEventListener('DOMContentLoaded', async () => {
+  document.addEventListener('DOMContentLoaded', () => {
     const userId = localStorage.getItem('userId');
     const userEmail = localStorage.getItem('userEmail');
     
@@ -690,14 +707,15 @@
         document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
         document.getElementById('loginModal').classList.add('hidden');
         
-        await checkSellerStatus(); // Attendre la vérification du statut
-        chargerKPI();
-        loadAllCounts();
+        // Vérifier le statut avant de charger les autres éléments
+        checkSellerStatus().then(() => {
+            chargerKPI();
+            loadAllCounts();
+        });
     } else {
         document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
         document.getElementById('loginModal').classList.remove('hidden');
-        // Désactiver tous les boutons si non connecté
-        toggleActionButtons(true);
+        toggleActionButtons(true); // Tout désactiver si non connecté
     }
 
       // Vérification de la connexion API
@@ -732,14 +750,16 @@ async function checkSellerStatus() {
     const storedSeller = localStorage.getItem('selectedSeller');
     const userId = localStorage.getItem('userId');
     
-    if (!userId) return;
+    if (!userId) {
+        toggleActionButtons(true); // Désactiver si non connecté
+        return;
+    }
 
     try {
         if (storedSeller) {
             const { numero_util, nom } = JSON.parse(storedSeller);
             document.getElementById('currentSellerName').textContent = nom || 'Inconnu';
             
-            // Charger la liste des utilisateurs pour vérifier le statut
             const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
                 headers: { 'X-User-ID': userId }
             });
@@ -755,46 +775,46 @@ async function checkSellerStatus() {
             }
         } else {
             document.getElementById('currentSellerName').textContent = 'Inconnu';
-            // Par défaut, désactiver les boutons si aucun vendeur n'est sélectionné
-            toggleActionButtons(true);
+            toggleActionButtons(true); // Désactiver si aucun vendeur sélectionné
         }
     } catch (error) {
         console.error('Erreur vérification statut:', error);
         showToast('Erreur de vérification du statut du vendeur', true);
+        toggleActionButtons(true); // Désactiver en cas d'erreur
     }
 }
 
-function toggleActionButtons(disableButtons) {
-    const actionButtons = [
-        ...document.querySelectorAll('#clientForm button, #fournisseurForm button, #productForm button, #utilisateurForm button'),
-        ...document.querySelectorAll('#clientsList button, #fournisseursList button, #productsList button, #utilisateursList button')
-    ].filter(btn => 
-        btn.textContent.includes('Ajouter') || 
-        btn.textContent.includes('Supprimer') || 
-        btn.textContent.includes('Modifier') ||
-        btn.textContent.includes('Enregistrer')
-    );
-    
+function toggleActionButtons(isEmploye) {
+    // Désactiver suppression et modification pour les employés
+    const actionButtons = document.querySelectorAll(`
+        #clientsList button:has(i.fa-trash-alt), 
+        #clientsList button:has(i.fa-edit),
+        #fournisseursList button:has(i.fa-trash-alt),
+        #fournisseursList button:has(i.fa-edit),
+        #productsList button:has(i.fa-trash-alt),
+        #productsList button:has(i.fa-edit),
+        #utilisateursList button:has(i.fa-trash-alt),
+        #utilisateursList button:has(i.fa-edit),
+        #clientForm button:has(i.fa-save),
+        #fournisseurForm button:has(i.fa-save),
+        #productForm button:has(i.fa-save),
+        #utilisateurForm button:has(i.fa-save)
+    `);
+
     actionButtons.forEach(btn => {
-        btn.disabled = disableButtons;
-        btn.classList.toggle('opacity-50', disableButtons);
-        btn.classList.toggle('cursor-not-allowed', disableButtons);
+        btn.disabled = isEmploye;
+        btn.classList.toggle('opacity-50', isEmploye);
+        btn.classList.toggle('cursor-not-allowed', isEmploye);
     });
-}
-function toggleActionButtons(disableButtons) {
-    // Sélectionner tous les boutons d'action sauf Annuler et Arrêter
-    const actionButtons = [
-        ...document.querySelectorAll('#clientForm button:not(.bg-gray-500), #fournisseurForm button:not(.bg-gray-500), #productForm button:not(.bg-gray-500):not(.bg-red-500), #utilisateurForm button:not(.bg-gray-500)'),
-        ...document.querySelectorAll('#clientsList button, #fournisseursList button, #productsList button, #utilisateursList button')
-    ];
-    
-    actionButtons.forEach(btn => {
-        // Ne pas désactiver les boutons Annuler et Arrêter
-        if (!btn.classList.contains('bg-gray-500') && !btn.classList.contains('bg-red-500')) {
-            btn.disabled = disableButtons;
-            btn.classList.toggle('opacity-50', disableButtons);
-            btn.classList.toggle('cursor-not-allowed', disableButtons);
-        }
+
+    // Toujours permettre Annuler et Arrêter
+    const cancelButtons = document.querySelectorAll(`
+        button:has(i.fa-times),
+        button:has(i.fa-stop)
+    `);
+    cancelButtons.forEach(btn => {
+        btn.disabled = false;
+        btn.classList.remove('opacity-50', 'cursor-not-allowed');
     });
 }
 	  // Fonction pour gérer l'animation développer/envelopper
