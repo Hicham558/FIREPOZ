@@ -113,6 +113,12 @@
       max-height: 1000px;
       opacity: 1;
     }
+	  .opacity-50 {
+    opacity: 0.5;
+}
+.cursor-not-allowed {
+    cursor: not-allowed;
+}
   </style>
 </head>
 <body class="bg-gray-100">
@@ -717,56 +723,60 @@
         window.scrollTo({ top: 0, behavior: 'smooth' });
       });
     });
-function checkSellerStatus() {
+async function checkSellerStatus() {
     const storedSeller = localStorage.getItem('selectedSeller');
-    const sellerPassword = localStorage.getItem('sellerPassword');
     const userId = localStorage.getItem('userId');
     
     if (!userId) return;
 
-    if (storedSeller) {
-        try {
+    try {
+        if (storedSeller) {
             const { numero_util, nom } = JSON.parse(storedSeller);
             document.getElementById('currentSellerName').textContent = nom || 'Inconnu';
             
             // Charger la liste des utilisateurs pour vérifier le statut
-            fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+            const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
                 headers: { 'X-User-ID': userId }
-            })
-            .then(response => response.json())
-            .then(utilisateurs => {
-                const seller = utilisateurs.find(u => u.numero == numero_util);
-                if (seller) {
-                    const isEmploye = seller.statut.toLowerCase() === 'emplo';
-                    
-                    // Désactiver les boutons d'ajout/suppression/modification si employé
-                    const actionButtons = [
-                        ...document.querySelectorAll('#clientForm button, #fournisseurForm button, #productForm button, #utilisateurForm button'),
-                        ...document.querySelectorAll('#clientsList button, #fournisseursList button, #productsList button, #utilisateursList button')
-                    ];
-                    
-                    actionButtons.forEach(btn => {
-                        if (isEmploye && (btn.textContent.includes('Ajouter') || 
-                                          btn.textContent.includes('Supprimer') || 
-                                          btn.textContent.includes('Modifier'))) {
-                            btn.disabled = true;
-                            btn.classList.add('opacity-50', 'cursor-not-allowed');
-                        } else {
-                            btn.disabled = false;
-                            btn.classList.remove('opacity-50', 'cursor-not-allowed');
-                        }
-                    });
-                }
-            })
-            .catch(error => console.error('Erreur vérification statut:', error));
-        } catch (error) {
-            console.error('Erreur parsing seller:', error);
+            });
+            
+            if (!response.ok) throw new Error('Erreur de chargement des utilisateurs');
+            
+            const utilisateurs = await response.json();
+            const seller = utilisateurs.find(u => u.numero == numero_util);
+            
+            if (seller) {
+                const isEmploye = seller.statut.toLowerCase() === 'emplo';
+                toggleActionButtons(isEmploye);
+            }
+        } else {
+            document.getElementById('currentSellerName').textContent = 'Inconnu';
+            // Par défaut, désactiver les boutons si aucun vendeur n'est sélectionné
+            toggleActionButtons(true);
         }
-    } else {
-        document.getElementById('currentSellerName').textContent = 'Inconnu';
+    } catch (error) {
+        console.error('Erreur vérification statut:', error);
+        showToast('Erreur de vérification du statut du vendeur', true);
     }
 }
-    // Fonction pour gérer l'animation développer/envelopper
+
+function toggleActionButtons(disableButtons) {
+    const actionButtons = [
+        ...document.querySelectorAll('#clientForm button, #fournisseurForm button, #productForm button, #utilisateurForm button'),
+        ...document.querySelectorAll('#clientsList button, #fournisseursList button, #productsList button, #utilisateursList button')
+    ].filter(btn => 
+        btn.textContent.includes('Ajouter') || 
+        btn.textContent.includes('Supprimer') || 
+        btn.textContent.includes('Modifier') ||
+        btn.textContent.includes('Enregistrer')
+    );
+    
+    actionButtons.forEach(btn => {
+        btn.disabled = disableButtons;
+        btn.classList.toggle('opacity-50', disableButtons);
+        btn.classList.toggle('cursor-not-allowed', disableButtons);
+    });
+}
+	  // Fonction pour gérer l'animation développer/envelopper
     function toggleSection(sectionId) {
       const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
       const chevron = document.getElementById(`${sectionId.replace('Section', 'Chevron')}`);
