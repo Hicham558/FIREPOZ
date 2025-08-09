@@ -119,22 +119,6 @@
 .cursor-not-allowed {
     cursor: not-allowed;
 }
-	/* Style pour boutons désactivés */
-button:disabled {
-    opacity: 0.5 !important;
-    cursor: not-allowed !important;
-    pointer-events: none !important;
-    background-color: #e5e7eb !important; /* Gris clair pour les boutons désactivés */
-    color: #6b7280 !important; /* Texte grisé */
-}
-/* Style désactivé pour tous les boutons Supprimer */
-.btn-delete[data-status="EMPLO"] {
-    opacity: 0.5;
-    cursor: not-allowed;
-    pointer-events: none;
-    background-color: #f8f9fa !important;
-    border: 1px dashed #dc3545 !important;
-}
   </style>
 </head>
 <body class="bg-gray-100">
@@ -695,26 +679,21 @@ button:disabled {
     }
 
     // Vérifier si l'utilisateur est connecté au chargement de la page
-  document.addEventListener('DOMContentLoaded', () => {
-    const userId = localStorage.getItem('userId');
-    const userEmail = localStorage.getItem('userEmail');
-    
-    if (userId && userEmail) {
+    document.addEventListener('DOMContentLoaded', () => {
+      const userId = localStorage.getItem('userId');
+      const userEmail = localStorage.getItem('userEmail');
+      if (userId && userEmail) {
         document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
         document.getElementById('userDisplay').classList.remove('hidden');
         document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
         document.getElementById('loginModal').classList.add('hidden');
-        
-        // Vérifier le statut avant de charger les autres éléments
-        checkSellerStatus().then(() => {
-            chargerKPI();
-            loadAllCounts();
-        });
-    } else {
+         checkSellerStatus()
+		chargerKPI();
+        loadAllCounts(); // Charger les compteurs immédiatement
+      } else {
         document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
         document.getElementById('loginModal').classList.remove('hidden');
-        toggleActionButtons(true); // Tout désactiver si non connecté
-    }
+      }
 
       // Vérification de la connexion API
       fetch(`${API_BASE_URL}/`)
@@ -744,65 +723,88 @@ button:disabled {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       });
     });
-function toggleActionButtons(isEmploye) {
-    // Sélectionner les boutons Modifier et Supprimer dans les tables
-    const actionButtons = document.querySelectorAll(`
-        #clientsList button:has(i.fa-edit),
-        #clientsList button:has(i.fa-trash-alt),
-        #fournisseursList button:has(i.fa-edit),
-        #fournisseursList button:has(i.fa-trash-alt),
-        #productsList button:has(i.fa-edit),
-        #productsList button:has(i.fa-trash-alt),
-        #utilisateursList button:has(i.fa-edit),
-        #utilisateursList button:has(i.fa-trash-alt)
-    `);
+async function checkSellerStatus() {
+    const storedSeller = localStorage.getItem('selectedSeller');
+    const userId = localStorage.getItem('userId');
+    
+    if (!userId) return;
 
-    // Sélectionner les boutons Ajouter et Enregistrer
-    const addSaveButtons = document.querySelectorAll(`
-        button:has(i.fa-plus),
-        button:has(i.fa-save)
-    `);
+    try {
+        if (storedSeller) {
+            const { numero_util, nom } = JSON.parse(storedSeller);
+            document.getElementById('currentSellerName').textContent = nom || 'Inconnu';
+            
+            // Charger la liste des utilisateurs pour vérifier le statut
+            const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+                headers: { 'X-User-ID': userId }
+            });
+            
+            if (!response.ok) throw new Error('Erreur de chargement des utilisateurs');
+            
+            const utilisateurs = await response.json();
+            const seller = utilisateurs.find(u => u.numero == numero_util);
+            
+            if (seller) {
+                const isEmploye = seller.statut.toLowerCase() === 'emplo';
+                toggleActionButtons(isEmploye);
+            }
+        } else {
+            document.getElementById('currentSellerName').textContent = 'Inconnu';
+            // Par défaut, désactiver les boutons si aucun vendeur n'est sélectionné
+            toggleActionButtons(true);
+        }
+    } catch (error) {
+        console.error('Erreur vérification statut:', error);
+        showToast('Erreur de vérification du statut du vendeur', true);
+    }
+}
 
-    // Désactiver ou activer les boutons Modifier et Supprimer
+function toggleActionButtons(disableButtons) {
+    const actionButtons = [
+        ...document.querySelectorAll('#clientForm button, #fournisseurForm button, #productForm button, #utilisateurForm button'),
+        ...document.querySelectorAll('#clientsList button, #fournisseursList button, #productsList button, #utilisateursList button')
+    ].filter(btn => 
+        btn.textContent.includes('Ajouter') || 
+        btn.textContent.includes('Supprimer') || 
+        btn.textContent.includes('Modifier') ||
+        btn.textContent.includes('Enregistrer')
+    );
+    
     actionButtons.forEach(btn => {
-        if (isEmploye) {
-            btn.disabled = true;
-            btn.classList.add('opacity-50', 'cursor-not-allowed');
-            btn.style.pointerEvents = 'none'; // Empêche tout clic
-            // Supprimer les gestionnaires d'événements
-            btn.replaceWith(btn.cloneNode(true));
-        } else {
-            btn.disabled = false;
-            btn.classList.remove('opacity-50', 'cursor-not-allowed');
-            btn.style.pointerEvents = 'auto';
-        }
-    });
-
-    // Désactiver ou activer les boutons Ajouter et Enregistrer
-    addSaveButtons.forEach(btn => {
-        if (isEmploye) {
-            btn.disabled = true;
-            btn.classList.add('opacity-50', 'cursor-not-allowed');
-            btn.style.pointerEvents = 'none';
-            btn.replaceWith(btn.cloneNode(true));
-        } else {
-            btn.disabled = false;
-            btn.classList.remove('opacity-50', 'cursor-not-allowed');
-            btn.style.pointerEvents = 'auto';
-        }
-    });
-
-    // Toujours permettre Annuler et Arrêter
-    document.querySelectorAll(`
-        button:has(i.fa-times),
-        button:has(i.fa-stop)
-    `).forEach(btn => {
-        btn.disabled = false;
-        btn.classList.remove('opacity-50', 'cursor-not-allowed');
-        btn.style.pointerEvents = 'auto';
+        btn.disabled = disableButtons;
+        btn.classList.toggle('opacity-50', disableButtons);
+        btn.classList.toggle('cursor-not-allowed', disableButtons);
     });
 }
-	  // Fonction pour charger les KPI
+	  // Fonction pour gérer l'animation développer/envelopper
+    function toggleSection(sectionId) {
+      const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
+      const chevron = document.getElementById(`${sectionId.replace('Section', 'Chevron')}`);
+      const isOpening = !content.classList.contains('open');
+
+      content.classList.toggle('open');
+      chevron.classList.toggle('fa-chevron-down');
+      chevron.classList.toggle('fa-chevron-up');
+
+      // Charger les données uniquement si la section est ouverte et les données n'ont pas encore été chargées
+      if (isOpening) {
+        if (sectionId === 'clientsSection' && !clientsLoaded) {
+          chargerClients();
+          clientsLoaded = true;
+        } else if (sectionId === 'fournisseursSection' && !fournisseursLoaded) {
+          chargerFournisseurs();
+          fournisseursLoaded = true;
+        } else if (sectionId === 'productsSection' && !produitsLoaded) {
+          chargerProduits();
+          produitsLoaded = true;
+        } else if (sectionId === 'utilisateursSection' && !utilisateursLoaded) {
+          chargerUtilisateurs();
+          utilisateursLoaded = true;
+        }
+      }
+    }
+
+    // Fonction pour charger les KPI
     async function chargerKPI() {
       const userId = localStorage.getItem('userId');
       if (!userId) {
@@ -1050,23 +1052,7 @@ function toggleActionButtons(isEmploye) {
             </td>
           `;
           tbody.appendChild(tr);
-        });// Vérifier le statut et désactiver les boutons si employé
-const storedSeller = localStorage.getItem('selectedSeller');
-if (storedSeller) {
-    const { numero_util } = JSON.parse(storedSeller);
-    fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-        headers: { 'X-User-ID': userId }
-    })
-    .then(response => response.json())
-    .then(utilisateurs => {
-        const seller = utilisateurs.find(u => u.numero == numero_util);
-        if (seller) {
-            const isEmploye = seller.statut.toLowerCase() === 'emplo';
-            toggleActionButtons(isEmploye);
-        }
-    })
-    .catch(error => console.error('Erreur vérification statut:', error));
-}
+        });
       } catch (error) {
         document.getElementById('clientsList').innerHTML = `
           <tr>
@@ -1089,9 +1075,7 @@ if (storedSeller) {
     }
 
     async function supprimerClient(id) {
-          // Vérification renforcée du statut
-
-		const userId = localStorage.getItem('userId');
+      const userId = localStorage.getItem('userId');
       if (!userId) {
         showToast('Veuillez vous connecter pour supprimer un client', true);
         return;
@@ -1248,23 +1232,7 @@ if (storedSeller) {
             </td>
           `;
           tbody.appendChild(tr);
-        });// Vérifier le statut et désactiver les boutons si employé
-const storedSeller = localStorage.getItem('selectedSeller');
-if (storedSeller) {
-    const { numero_util } = JSON.parse(storedSeller);
-    fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-        headers: { 'X-User-ID': userId }
-    })
-    .then(response => response.json())
-    .then(utilisateurs => {
-        const seller = utilisateurs.find(u => u.numero == numero_util);
-        if (seller) {
-            const isEmploye = seller.statut.toLowerCase() === 'emplo';
-            toggleActionButtons(isEmploye);
-        }
-    })
-    .catch(error => console.error('Erreur vérification statut:', error));
-}
+        });
       } catch (error) {
         document.getElementById('fournisseursList').innerHTML = `
           <tr>
@@ -1272,7 +1240,7 @@ if (storedSeller) {
               Erreur de chargement: ${error.message}
             </td>
           </tr>
-        `;disableAllDeleteButtons();
+        `;
         console.error('Erreur fournisseurs:', error);
       }
     }
@@ -1287,9 +1255,7 @@ if (storedSeller) {
     }
 
     async function supprimerFournisseur(id) {
-          // Vérification renforcée du statut
-
-		const userId = localStorage.getItem('userId');
+      const userId = localStorage.getItem('userId');
       if (!userId) {
         showToast('Veuillez vous connecter pour supprimer un fournisseur', true);
         return;
@@ -1449,23 +1415,7 @@ if (storedSeller) {
                         </td>
                     `;
                     tbody.appendChild(tr);
-                });// Vérifier le statut et désactiver les boutons si employé
-const storedSeller = localStorage.getItem('selectedSeller');
-if (storedSeller) {
-    const { numero_util } = JSON.parse(storedSeller);
-    fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-        headers: { 'X-User-ID': userId }
-    })
-    .then(response => response.json())
-    .then(utilisateurs => {
-        const seller = utilisateurs.find(u => u.numero == numero_util);
-        if (seller) {
-            const isEmploye = seller.statut.toLowerCase() === 'emplo';
-            toggleActionButtons(isEmploye);
-        }
-    })
-    .catch(error => console.error('Erreur vérification statut:', error));
-}
+                });
                 countElement.textContent = produits.length;
                 countElement.classList.remove('hidden');
             } catch (error) {
@@ -1492,8 +1442,7 @@ if (storedSeller) {
 }
 
         async function supprimerProduit(id) {
-
-			const userId = localStorage.getItem('userId');
+            const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour supprimer un produit', true);
                 return;
@@ -1766,23 +1715,7 @@ function stopScanner() {
                         </td>
                     `;
                     tbody.appendChild(tr);
-                });// Vérifier le statut et désactiver les boutons si employé
-const storedSeller = localStorage.getItem('selectedSeller');
-if (storedSeller) {
-    const { numero_util } = JSON.parse(storedSeller);
-    fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-        headers: { 'X-User-ID': userId }
-    })
-    .then(response => response.json())
-    .then(utilisateurs => {
-        const seller = utilisateurs.find(u => u.numero == numero_util);
-        if (seller) {
-            const isEmploye = seller.statut.toLowerCase() === 'emplo';
-            toggleActionButtons(isEmploye);
-        }
-    })
-    .catch(error => console.error('Erreur vérification statut:', error));
-}
+                });
                 countElement.textContent = utilisateurs.length;
                 countElement.classList.remove('hidden');
             } catch (error) {
@@ -1809,9 +1742,7 @@ if (storedSeller) {
         }
 
         async function supprimerUtilisateur(numero) {
-              // Vérification renforcée du statut
-
-			const userId = localStorage.getItem('userId');
+            const userId = localStorage.getItem('userId');
             if (!userId) {
                 showToast('Veuillez vous connecter pour supprimer un utilisateur', true);
                 return;
@@ -1841,6 +1772,7 @@ if (storedSeller) {
                 console.error('Erreur suppression utilisateur:', error);
             }
         }
+
         async function saveUtilisateur() {
             const userId = localStorage.getItem('userId');
             if (!userId) {
@@ -1929,19 +1861,7 @@ if (storedSeller) {
             });
         });
    
-function disableAllDeleteButtons() {
-    const status = localStorage.getItem('userStatus'); // 'ADMIN' ou 'EMPLO'
-    document.querySelectorAll('.btn-delete').forEach(btn => {
-        btn.dataset.status = status; // Marque le statut
-        if (status === 'EMPLO') {
-            btn.classList.add('disabled');
-            btn.onclick = (e) => {
-                e.preventDefault();
-                showToast("Action non autorisée pour les employés", true);
-            };
-        }
-    });
-}
+
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js');
