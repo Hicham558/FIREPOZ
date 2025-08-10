@@ -119,16 +119,18 @@
 .cursor-not-allowed {
     cursor: not-allowed;
 }
-	
-/* Style pour cacher les boutons d'action pour les employés */
-.action-btn-employe {
-    display: none !important;
+	/* Style pour boutons désactivés */
+button:disabled {
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
 }
-
-/* Style pour désactiver le bouton Ajouter pour les employés */
-.btn-add-disabled {
+/* Style désactivé pour tous les boutons Supprimer */
+.btn-delete[data-status="EMPLO"] {
     opacity: 0.5;
     cursor: not-allowed;
+    pointer-events: none;
+    background-color: #f8f9fa !important;
+    border: 1px dashed #dc3545 !important;
 }
   </style>
 </head>
@@ -691,9 +693,7 @@
 
     // Vérifier si l'utilisateur est connecté au chargement de la page
   document.addEventListener('DOMContentLoaded', () => {
-     checkSellerStatus(); // Appelle toggleActionButtons() après vérification du statut
-
-	const userId = localStorage.getItem('userId');
+    const userId = localStorage.getItem('userId');
     const userEmail = localStorage.getItem('userEmail');
     
     if (userId && userEmail) {
@@ -727,7 +727,7 @@
         document.getElementById('kpiSection').style.opacity = '0.5';
         setTimeout(chargerKPI, 300);
       });
-       checkSellerStatus();
+
       // Bouton remonter en haut
       window.addEventListener('scroll', () => {
         if (window.scrollY > 300) {
@@ -741,7 +741,6 @@
         window.scrollTo({ top: 0, behavior: 'smooth' });
       });
     });
-// Dans votre fonction checkSellerStatus()
 async function checkSellerStatus() {
     const storedSeller = localStorage.getItem('selectedSeller');
     const userId = localStorage.getItem('userId');
@@ -753,15 +752,25 @@ async function checkSellerStatus() {
 
     try {
         if (storedSeller) {
-            const { numero_util, nom, statut } = JSON.parse(storedSeller);
+            const { numero_util, nom } = JSON.parse(storedSeller);
             document.getElementById('currentSellerName').textContent = nom || 'Inconnu';
             
-            // Cacher/montrer les boutons selon le statut
-            const isEmploye = statut.toLowerCase() === 'emplo';
-            toggleActionButtons(isEmploye);
+            const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+                headers: { 'X-User-ID': userId }
+            });
+            
+            if (!response.ok) throw new Error('Erreur de chargement des utilisateurs');
+            
+            const utilisateurs = await response.json();
+            const seller = utilisateurs.find(u => u.numero == numero_util);
+            
+            if (seller) {
+                const isEmploye = seller.statut.toLowerCase() === 'emplo';
+                toggleActionButtons(isEmploye);
+            }
         } else {
             document.getElementById('currentSellerName').textContent = 'Inconnu';
-            toggleActionButtons(true); // Par défaut, désactiver si aucun vendeur sélectionné
+            toggleActionButtons(true); // Désactiver si aucun vendeur sélectionné
         }
     } catch (error) {
         console.error('Erreur vérification statut:', error);
@@ -769,77 +778,31 @@ async function checkSellerStatus() {
         toggleActionButtons(true); // Désactiver en cas d'erreur
     }
 }
-
 function toggleActionButtons(isEmploye) {
-    // Sélectionner tous les boutons Modifier et Supprimer
-    const actionButtons = document.querySelectorAll(`
-        button:has(i.fa-trash-alt), 
-        button:has(i.fa-edit)
-    `);
+    // Sélectionner toutes les cellules de la colonne Actions
+    const actionCells = document.querySelectorAll('td:has(button), th:has(button)');
+    
+    actionCells.forEach(cell => {
+        if (isEmploye) {
+            // Pour les employés, cacher complètement la colonne Actions
+            cell.style.display = 'none';
+        } else {
+            // Pour les admins, afficher la colonne Actions
+            cell.style.display = '';
+        }
+    });
 
-    // Bouton Ajouter
-    const addButtons = document.querySelectorAll(`
-        button:has(i.fa-plus)
-    `);
-
-    if (isEmploye) {
-        // Pour les employés - cacher Modifier/Supprimer et désactiver Ajouter
-        actionButtons.forEach(btn => {
-            btn.classList.add('action-btn-employe');
-        });
-        
-        addButtons.forEach(btn => {
-            btn.classList.add('btn-add-disabled');
-            btn.disabled = true;
-        });
-    } else {
-        // Pour les admins - montrer Modifier/Supprimer et activer Ajouter
-        actionButtons.forEach(btn => {
-            btn.classList.remove('action-btn-employe');
-        });
-        
-        addButtons.forEach(btn => {
-            btn.classList.remove('btn-add-disabled');
-            btn.disabled = false;
-        });
-    }
-}
-
-function showUIForUnauthenticated() {
-    document.getElementById('currentSellerName').textContent = 'Non connecté';
-    toggleActionButtons(true);
-}
-	 function toggleActionButtons(isEmploye) {
-    // Sélectionner tous les boutons d'actions (Ajouter/Modifier/Supprimer)
-    const actionButtons = document.querySelectorAll(`
-        button[onclick*="supprimer"], 
-        button[onclick*="modifier"],
-        button[onclick*="ajouter"],
-        button:has(i.fa-trash-alt),
-        button:has(i.fa-edit),
-        button:has(i.fa-plus)
-    `);
-
-    actionButtons.forEach(btn => {
+    // Désactiver aussi les boutons d'ajout dans les en-têtes
+    const addButtons = document.querySelectorAll('button:has(i.fa-plus)');
+    addButtons.forEach(btn => {
         if (isEmploye) {
             btn.disabled = true;
             btn.classList.add('opacity-50', 'cursor-not-allowed');
-            // Supprimer les événements existants (empêche toute action)
-            const clone = btn.cloneNode(true);
-            btn.replaceWith(clone);
+            btn.replaceWith(btn.cloneNode(true));
         } else {
             btn.disabled = false;
             btn.classList.remove('opacity-50', 'cursor-not-allowed');
         }
-    });
-
-    // Toujours permettre Annuler et Arrêter
-    document.querySelectorAll(`
-        button:has(i.fa-times),
-        button:has(i.fa-stop)
-    `).forEach(btn => {
-        btn.disabled = false;
-        btn.classList.remove('opacity-50', 'cursor-not-allowed');
     });
 }
 	  // Fonction pour gérer l'animation développer/envelopper
@@ -1126,7 +1089,7 @@ function showUIForUnauthenticated() {
               Erreur de chargement: ${error.message}
             </td>
           </tr>
-        `;
+        `;disableAllDeleteButtons();
         console.error('Erreur clients:', error);
       }
     }
@@ -1141,7 +1104,8 @@ function showUIForUnauthenticated() {
     }
 
     async function supprimerClient(id) {
-        
+          // Vérification renforcée du statut
+
 		const userId = localStorage.getItem('userId');
       if (!userId) {
         showToast('Veuillez vous connecter pour supprimer un client', true);
@@ -1307,7 +1271,7 @@ function showUIForUnauthenticated() {
               Erreur de chargement: ${error.message}
             </td>
           </tr>
-        `;
+        `;disableAllDeleteButtons();
         console.error('Erreur fournisseurs:', error);
       }
     }
@@ -1494,7 +1458,7 @@ function showUIForUnauthenticated() {
                             Erreur de chargement: ${error.message}
                         </td>
                     </tr
-                `;
+                `;disableAllDeleteButtons();
                 console.error('Erreur produits:', error);
             }
         }
@@ -1795,7 +1759,7 @@ function stopScanner() {
                             Erreur de chargement: ${error.message}
                         </td>
                     </tr>
-                `;
+                `;disableAllDeleteButtons();
                 console.error('Erreur utilisateurs:', error);
             }
         }
