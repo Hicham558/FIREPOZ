@@ -59,7 +59,7 @@
     .opacity-50 { opacity: 0.5; }
     .cursor-not-allowed { cursor: not-allowed; }
     button:disabled { opacity: 0.5 !important; cursor: not-allowed !important; }
-    button[data-status="EMPLO"] { opacity: 0.5 !important; cursor: not-allowed !important; pointer-events: none !important; background-color: #f8f9fa !important; border: 1px dashed #ccc !important; }
+    .hidden-actions { display: none; }
   </style>
 </head>
 <body class="bg-gray-100">
@@ -208,7 +208,6 @@
                 </button>
               </div>
             </div>
-
             <div id="clientForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
               <h3 class="font-medium mb-3" id="clientFormTitle">Nouveau Client</h3>
               <input type="hidden" id="clientId">
@@ -235,7 +234,6 @@
                 </button>
               </div>
             </div>
-
             <div class="table-container">
               <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
@@ -284,7 +282,6 @@
                 </button>
               </div>
             </div>
-
             <div id="fournisseurForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
               <h3 class="font-medium mb-3" id="fournisseurFormTitle">Nouveau Fournisseur</h3>
               <input type="hidden" id="fournisseurId">
@@ -311,7 +308,6 @@
                 </button>
               </div>
             </div>
-
             <div class="table-container">
               <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
@@ -360,7 +356,6 @@
                 </button>
               </div>
             </div>
-
             <div id="productForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
               <h3 class="font-medium mb-3" id="productFormTitle">Nouveau Produit</h3>
               <input type="hidden" id="productId">
@@ -402,7 +397,6 @@
                 </button>
               </div>
             </div>
-
             <div class="table-container">
               <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
@@ -452,7 +446,6 @@
                 </button>
               </div>
             </div>
-
             <div id="utilisateurForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
               <h3 class="font-medium mb-3" id="utilisateurFormTitle">Nouvel Utilisateur</h3>
               <input type="hidden" id="utilisateurId">
@@ -482,7 +475,6 @@
                 </button>
               </div>
             </div>
-
             <div class="table-container">
               <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
@@ -621,7 +613,6 @@
     document.addEventListener('DOMContentLoaded', () => {
       const userId = localStorage.getItem('userId');
       const userEmail = localStorage.getItem('userEmail');
-      console.log('Initialisation - userId:', userId, 'userEmail:', userEmail);
       
       if (userId && userEmail) {
         document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
@@ -629,13 +620,11 @@
         document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
         document.getElementById('loginModal').classList.add('hidden');
         
-        console.log('Utilisateur connecté, vérification du statut...');
         checkSellerStatus().then(() => {
           chargerKPI();
           loadAllCounts();
         });
       } else {
-        console.log('Aucun utilisateur connecté, affichage du modal de connexion');
         document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
         document.getElementById('loginModal').classList.remove('hidden');
         toggleActionButtons(true);
@@ -672,15 +661,13 @@
       const userId = localStorage.getItem('userId');
       
       if (!userId) {
-        console.log('Aucun userId trouvé, désactivation des boutons');
         toggleActionButtons(true);
         return;
       }
 
       try {
         if (storedSeller) {
-          const { numero_util, nom, statut } = JSON.parse(storedSeller);
-          console.log('Vendeur trouvé:', { numero_util, nom, statut });
+          const { numero_util, nom } = JSON.parse(storedSeller);
           document.getElementById('currentSellerName').textContent = nom || 'Inconnu';
           
           const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
@@ -694,53 +681,38 @@
           
           if (seller) {
             const isEmploye = seller.statut.toLowerCase() === 'emplo';
-            console.log('Statut du vendeur:', seller.statut, 'isEmploye:', isEmploye);
+            localStorage.setItem('userStatus', isEmploye ? 'EMPLO' : 'ADMIN');
             toggleActionButtons(isEmploye);
-          } else {
-            console.log('Vendeur non trouvé dans la liste, désactivation par défaut');
-            toggleActionButtons(true);
           }
         } else {
-          console.log('Aucun vendeur sélectionné, désactivation par défaut');
           document.getElementById('currentSellerName').textContent = 'Inconnu';
+          localStorage.setItem('userStatus', 'EMPLO');
           toggleActionButtons(true);
         }
       } catch (error) {
         console.error('Erreur vérification statut:', error);
         showToast('Erreur de vérification du statut du vendeur', true);
+        localStorage.setItem('userStatus', 'EMPLO');
         toggleActionButtons(true);
       }
     }
 
     function toggleActionButtons(isEmploye) {
-      const actionButtons = document.querySelectorAll(`
-        button:has(i.fa-trash-alt),
-        button:has(i.fa-edit),
-        button:has(i.fa-save),
-        button:has(i.fa-plus)
-      `);
-
-      actionButtons.forEach(btn => {
-        if (isEmploye) {
-          btn.disabled = true;
-          btn.classList.add('opacity-50', 'cursor-not-allowed');
-          btn.setAttribute('data-status', 'EMPLO');
-          const newBtn = btn.cloneNode(true);
-          btn.replaceWith(newBtn);
-        } else {
-          btn.disabled = false;
-          btn.classList.remove('opacity-50', 'cursor-not-allowed');
-          btn.setAttribute('data-status', 'ADMIN');
-        }
+      const addButtons = document.querySelectorAll('button:has(i.fa-plus)');
+      addButtons.forEach(btn => {
+        btn.disabled = isEmploye;
+        btn.classList.toggle('opacity-50', isEmploye);
+        btn.classList.toggle('cursor-not-allowed', isEmploye);
       });
 
-      document.querySelectorAll(`
-        button:has(i.fa-times),
-        button:has(i.fa-stop)
-      `).forEach(btn => {
+      const actionColumns = document.querySelectorAll('.action-column');
+      actionColumns.forEach(col => {
+        col.classList.toggle('hidden-actions', isEmploye);
+      });
+
+      document.querySelectorAll('button:has(i.fa-times), button:has(i.fa-stop)').forEach(btn => {
         btn.disabled = false;
         btn.classList.remove('opacity-50', 'cursor-not-allowed');
-        btn.removeAttribute('data-status');
       });
     }
 
@@ -895,6 +867,7 @@
         localStorage.removeItem('userEmail');
         localStorage.removeItem('selectedSeller');
         localStorage.removeItem('sellerPassword');
+        localStorage.removeItem('userStatus');
         document.getElementById('userDisplay').textContent = '';
         document.getElementById('userDisplay').classList.add('hidden');
         document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
@@ -945,7 +918,6 @@
       }, 3000);
     }
 
-    // --- Gestion des clients ---
     async function chargerClients() {
       const userId = localStorage.getItem('userId');
       if (!userId) {
@@ -954,6 +926,7 @@
         return;
       }
 
+      const isEmploye = localStorage.getItem('userStatus') === 'EMPLO';
       try {
         const response = await fetch(`${API_BASE_URL}/liste_clients`, {
           headers: { 'X-User-ID': userId }
@@ -980,7 +953,7 @@
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.reference || 'N/A'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.contact || 'N/A'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.adresse || 'N/A'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 action-column${isEmploye ? ' hidden-actions' : ''}">
               <button onclick="modifierClient('${client.numero_clt}', '${client.nom}', '${client.contact}', '${client.adresse}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
                 <i class="fas fa-edit"></i> Modifier
               </button>
@@ -991,19 +964,9 @@
           `;
           tbody.appendChild(tr);
         });
-        const storedSeller = localStorage.getItem('selectedSeller');
-        const isEmploye = storedSeller && JSON.parse(storedSeller).statut?.toLowerCase() === 'emplo';
-        toggleActionButtons(isEmploye);
       } catch (error) {
-        document.getElementById('clientsList').innerHTML = `
-          <tr>
-            <td colspan="7" class="text-center py-4 text-red-500">
-              Erreur de chargement: ${error.message}
-            </td>
-          </tr>
-        `;
+        document.getElementById('clientsList').innerHTML = `<tr><td colspan="7" class="text-center py-4 text-red-500">Erreur de chargement: ${error.message}</td></tr>`;
         console.error('Erreur clients:', error);
-        toggleActionButtons(true);
       }
     }
 
@@ -1018,14 +981,6 @@
 
     async function supprimerClient(id) {
       const userId = localStorage.getItem('userId');
-      const storedSeller = localStorage.getItem('selectedSeller');
-      const isEmploye = storedSeller && JSON.parse(storedSeller).statut?.toLowerCase() === 'emplo';
-
-      if (isEmploye) {
-        showToast('Action non autorisée pour les employés', true);
-        return;
-      }
-
       if (!userId) {
         showToast('Veuillez vous connecter pour supprimer un client', true);
         return;
@@ -1057,14 +1012,6 @@
 
     async function saveClient() {
       const userId = localStorage.getItem('userId');
-      const storedSeller = localStorage.getItem('selectedSeller');
-      const isEmploye = storedSeller && JSON.parse(storedSeller).statut?.toLowerCase() === 'emplo';
-
-      if (isEmploye) {
-        showToast('Action non autorisée pour les employés', true);
-        return;
-      }
-
       if (!userId) {
         showToast('Veuillez vous connecter pour sauvegarder un client', true);
         return;
@@ -1137,7 +1084,6 @@
       });
     });
 
-    // --- Gestion des fournisseurs ---
     async function chargerFournisseurs() {
       const userId = localStorage.getItem('userId');
       if (!userId) {
@@ -1146,6 +1092,7 @@
         return;
       }
 
+      const isEmploye = localStorage.getItem('userStatus') === 'EMPLO';
       try {
         const response = await fetch(`${API_BASE_URL}/liste_fournisseurs`, {
           headers: { 'X-User-ID': userId }
@@ -1172,7 +1119,7 @@
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.reference || 'N/A'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.contact || 'N/A'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.adresse || 'N/A'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 action-column${isEmploye ? ' hidden-actions' : ''}">
               <button onclick="modifierFournisseur('${fournisseur.numero_fou}', '${fournisseur.nom}', '${fournisseur.contact}', '${fournisseur.adresse}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
                 <i class="fas fa-edit"></i> Modifier
               </button>
@@ -1183,19 +1130,9 @@
           `;
           tbody.appendChild(tr);
         });
-        const storedSeller = localStorage.getItem('selectedSeller');
-        const isEmploye = storedSeller && JSON.parse(storedSeller).statut?.toLowerCase() === 'emplo';
-        toggleActionButtons(isEmploye);
       } catch (error) {
-        document.getElementById('fournisseursList').innerHTML = `
-          <tr>
-            <td colspan="7" class="text-center py-4 text-red-500">
-              Erreur de chargement: ${error.message}
-            </td>
-          </tr>
-        `;
+        document.getElementById('fournisseursList').innerHTML = `<tr><td colspan="7" class="text-center py-4 text-red-500">Erreur de chargement: ${error.message}</td></tr>`;
         console.error('Erreur fournisseurs:', error);
-        toggleActionButtons(true);
       }
     }
 
@@ -1210,14 +1147,6 @@
 
     async function supprimerFournisseur(id) {
       const userId = localStorage.getItem('userId');
-      const storedSeller = localStorage.getItem('selectedSeller');
-      const isEmploye = storedSeller && JSON.parse(storedSeller).statut?.toLowerCase() === 'emplo';
-
-      if (isEmploye) {
-        showToast('Action non autorisée pour les employés', true);
-        return;
-      }
-
       if (!userId) {
         showToast('Veuillez vous connecter pour supprimer un fournisseur', true);
         return;
@@ -1247,17 +1176,8 @@
       }
     }
 
-
-async function saveFournisseur() {
+    async function saveFournisseur() {
       const userId = localStorage.getItem('userId');
-      const storedSeller = localStorage.getItem('selectedSeller');
-      const isEmploye = storedSeller && JSON.parse(storedSeller).statut?.toLowerCase() === 'emplo';
-
-      if (isEmploye) {
-        showToast('Action non autorisée pour les employés', true);
-        return;
-      }
-
       if (!userId) {
         showToast('Veuillez vous connecter pour sauvegarder un fournisseur', true);
         return;
@@ -1309,6 +1229,7 @@ async function saveFournisseur() {
       document.getElementById('fournisseurForm').classList.add('hidden');
     }
 
+
     function toggleFournisseurForm() {
       document.getElementById('fournisseurForm').classList.toggle('hidden');
     }
@@ -1330,7 +1251,6 @@ async function saveFournisseur() {
       });
     });
 
-    // --- Gestion des produits ---
     async function chargerProduits() {
       const userId = localStorage.getItem('userId');
       if (!userId) {
@@ -1339,6 +1259,7 @@ async function saveFournisseur() {
         return;
       }
 
+      const isEmploye = localStorage.getItem('userStatus') === 'EMPLO';
       try {
         const response = await fetch(`${API_BASE_URL}/liste_produits`, {
           headers: { 'X-User-ID': userId }
@@ -1359,61 +1280,43 @@ async function saveFournisseur() {
           const tr = document.createElement('tr');
           tr.className = 'hover:bg-gray-50';
           tr.innerHTML = `
-            <td class="hidden-id">${produit.numero || 'N/A'}</td>
+            <td class="hidden-id">${produit.numero_prd || 'N/A'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${produit.designation || 'N/A'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.code_barre || 'N/A'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.reference || 'N/A'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.prix_vente || '0'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.prix_achat || '0'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.qte_stock || '0'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-              <button onclick="modifierProduit('${produit.numero}', '${produit.designation}', '${produit.code_barre}', '${produit.prix_vente}', '${produit.prix_achat}', '${produit.qte_stock}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 action-column${isEmploye ? ' hidden-actions' : ''}">
+              <button onclick="modifierProduit('${produit.numero_prd}', '${produit.designation}', '${produit.code_barre}', '${produit.prix_vente}', '${produit.prix_achat}', '${produit.qte_stock}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
                 <i class="fas fa-edit"></i> Modifier
               </button>
-              <button onclick="supprimerProduit('${produit.numero}')" class="text-red-600 hover:text-red-800 transition">
+              <button onclick="supprimerProduit('${produit.numero_prd}')" class="text-red-600 hover:text-red-800 transition">
                 <i class="fas fa-trash-alt"></i> Supprimer
               </button>
             </td>
           `;
           tbody.appendChild(tr);
         });
-        const storedSeller = localStorage.getItem('selectedSeller');
-        const isEmploye = storedSeller && JSON.parse(storedSeller).statut?.toLowerCase() === 'emplo';
-        toggleActionButtons(isEmploye);
       } catch (error) {
-        document.getElementById('productsList').innerHTML = `
-          <tr>
-            <td colspan="8" class="text-center py-4 text-red-500">
-              Erreur de chargement: ${error.message}
-            </td>
-          </tr>
-        `;
+        document.getElementById('productsList').innerHTML = `<tr><td colspan="8" class="text-center py-4 text-red-500">Erreur de chargement: ${error.message}</td></tr>`;
         console.error('Erreur produits:', error);
-        toggleActionButtons(true);
       }
     }
 
-    function modifierProduit(id, designation, codeBarre, prixVente, prixAchat, qteStock) {
+    function modifierProduit(id, designation, code_barre, prix_vente, prix_achat, qte_stock) {
       document.getElementById('productId').value = id;
       document.getElementById('productDesignation').value = designation;
-      document.getElementById('productBar').value = codeBarre;
-      document.getElementById('productPrix').value = prixVente;
-      document.getElementById('productPrixba').value = prixAchat;
-      document.getElementById('productQte').value = qteStock;
+      document.getElementById('productBar').value = code_barre;
+      document.getElementById('productPrix').value = prix_vente;
+      document.getElementById('productPrixba').value = prix_achat;
+      document.getElementById('productQte').value = qte_stock;
       document.getElementById('productFormTitle').textContent = 'Modifier Produit';
       document.getElementById('productForm').classList.remove('hidden');
     }
 
     async function supprimerProduit(id) {
       const userId = localStorage.getItem('userId');
-      const storedSeller = localStorage.getItem('selectedSeller');
-      const isEmploye = storedSeller && JSON.parse(storedSeller).statut?.toLowerCase() === 'emplo';
-
-      if (isEmploye) {
-        showToast('Action non autorisée pour les employés', true);
-        return;
-      }
-
       if (!userId) {
         showToast('Veuillez vous connecter pour supprimer un produit', true);
         return;
@@ -1445,14 +1348,6 @@ async function saveFournisseur() {
 
     async function saveProduit() {
       const userId = localStorage.getItem('userId');
-      const storedSeller = localStorage.getItem('selectedSeller');
-      const isEmploye = storedSeller && JSON.parse(storedSeller).statut?.toLowerCase() === 'emplo';
-
-      if (isEmploye) {
-        showToast('Action non autorisée pour les employés', true);
-        return;
-      }
-
       if (!userId) {
         showToast('Veuillez vous connecter pour sauvegarder un produit', true);
         return;
@@ -1460,13 +1355,13 @@ async function saveFournisseur() {
 
       const id = document.getElementById('productId').value;
       const designation = document.getElementById('productDesignation').value.trim();
-      const codeBarre = document.getElementById('productBar').value.trim();
-      const prixVente = parseFloat(document.getElementById('productPrix').value);
-      const prixAchat = parseFloat(document.getElementById('productPrixba').value) || 0;
-      const qteStock = parseInt(document.getElementById('productQte').value) || 0;
+      const code_barre = document.getElementById('productBar').value.trim();
+      const prix_vente = parseFloat(document.getElementById('productPrix').value);
+      const prix_achat = parseFloat(document.getElementById('productPrixba').value) || 0;
+      const qte_stock = parseInt(document.getElementById('productQte').value);
 
-      if (!designation || isNaN(prixVente) || prixVente <= 0) {
-        showToast('Veuillez remplir les champs obligatoires (Désignation, Prix Vente)', true);
+      if (!designation || isNaN(prix_vente) || isNaN(qte_stock)) {
+        showToast('Veuillez remplir tous les champs obligatoires', true);
         return;
       }
 
@@ -1479,13 +1374,7 @@ async function saveFournisseur() {
             'Content-Type': 'application/json',
             'X-User-ID': userId
           },
-          body: JSON.stringify({
-            designation,
-            code_barre: codeBarre,
-            prix_vente: prixVente,
-            prix_achat: prixAchat,
-            qte_stock: qteStock
-          })
+          body: JSON.stringify({ designation, code_barre, prix_vente, prix_achat, qte_stock })
         });
 
         const result = await response.json();
@@ -1525,9 +1414,9 @@ async function saveFournisseur() {
 
       rows.forEach(row => {
         const designation = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-        const codeBarre = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
+        const code_barre = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
         const reference = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
-        if (designation?.includes(searchTerm) || codeBarre?.includes(searchTerm) || reference?.includes(searchTerm)) {
+        if (designation?.includes(searchTerm) || code_barre?.includes(searchTerm) || reference?.includes(searchTerm)) {
           row.style.display = '';
         } else {
           row.style.display = 'none';
@@ -1535,58 +1424,6 @@ async function saveFournisseur() {
       });
     });
 
-    async function startScanner() {
-      if (isScanning) return;
-      isScanning = true;
-
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-        const video = document.getElementById('scannerPreview');
-        video.srcObject = stream;
-        video.style.display = 'block';
-        video.play();
-
-        if ('BarcodeDetector' in window) {
-          barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'qr_code'] });
-          scanBarcode(video);
-        } else {
-          showToast('Le détecteur de code-barres n\'est pas supporté par ce navigateur', true);
-          stopScanner();
-        }
-      } catch (error) {
-        showToast('Erreur d\'accès à la caméra', true);
-        console.error('Erreur scanner:', error);
-        stopScanner();
-      }
-    }
-
-    async function scanBarcode(video) {
-      if (!isScanning) return;
-
-      try {
-        const barcodes = await barcodeDetector.detect(video);
-        if (barcodes.length > 0) {
-          document.getElementById('productBar').value = barcodes[0].rawValue;
-          stopScanner();
-          return;
-        }
-      } catch (error) {
-        console.error('Erreur détection code-barres:', error);
-      }
-
-      setTimeout(() => scanBarcode(video), 100);
-    }
-
-    function stopScanner() {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-        stream = null;
-      }
-      document.getElementById('scannerPreview').style.display = 'none';
-      isScanning = false;
-    }
-
-    // --- Gestion des utilisateurs ---
     async function chargerUtilisateurs() {
       const userId = localStorage.getItem('userId');
       if (!userId) {
@@ -1595,6 +1432,7 @@ async function saveFournisseur() {
         return;
       }
 
+      const isEmploye = localStorage.getItem('userStatus') === 'EMPLO';
       try {
         const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
           headers: { 'X-User-ID': userId }
@@ -1611,59 +1449,40 @@ async function saveFournisseur() {
         }
 
         tbody.innerHTML = '';
-        utilisateurs.forEach(user => {
+        utilisateurs.forEach(utilisateur => {
           const tr = document.createElement('tr');
           tr.className = 'hover:bg-gray-50';
           tr.innerHTML = `
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${user.numero || 'N/A'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${user.nom || 'N/A'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${user.statut || 'N/A'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-              <button onclick="modifierUtilisateur('${user.numero}', '${user.nom}', '${user.statut}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.numero || 'N/A'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${utilisateur.nom || 'N/A'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.statut || 'N/A'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 action-column${isEmploye ? ' hidden-actions' : ''}">
+              <button onclick="modifierUtilisateur('${utilisateur.numero}', '${utilisateur.nom}', '${utilisateur.statut}')" class="text-blue-600 hover:text-blue-800 transition mr-2">
                 <i class="fas fa-edit"></i> Modifier
               </button>
-              <button onclick="supprimerUtilisateur('${user.numero}')" class="text-red-600 hover:text-red-800 transition">
+              <button onclick="supprimerUtilisateur('${utilisateur.numero}')" class="text-red-600 hover:text-red-800 transition">
                 <i class="fas fa-trash-alt"></i> Supprimer
               </button>
             </td>
           `;
           tbody.appendChild(tr);
         });
-        const storedSeller = localStorage.getItem('selectedSeller');
-        const isEmploye = storedSeller && JSON.parse(storedSeller).statut?.toLowerCase() === 'emplo';
-        toggleActionButtons(isEmploye);
       } catch (error) {
-        document.getElementById('utilisateursList').innerHTML = `
-          <tr>
-            <td colspan="4" class="text-center py-4 text-red-500">
-              Erreur de chargement: ${error.message}
-            </td>
-          </tr>
-        `;
+        document.getElementById('utilisateursList').innerHTML = `<tr><td colspan="4" class="text-center py-4 text-red-500">Erreur de chargement: ${error.message}</td></tr>`;
         console.error('Erreur utilisateurs:', error);
-        toggleActionButtons(true);
       }
     }
 
     function modifierUtilisateur(id, nom, statut) {
       document.getElementById('utilisateurId').value = id;
       document.getElementById('utilisateurNom').value = nom;
-      document.getElementById('utilisateurStatut').value = statut.toLowerCase();
-      document.getElementById('utilisateurPassword').value = '';
+      document.getElementById('utilisateurStatut').value = statut;
       document.getElementById('utilisateurFormTitle').textContent = 'Modifier Utilisateur';
       document.getElementById('utilisateurForm').classList.remove('hidden');
     }
 
     async function supprimerUtilisateur(id) {
       const userId = localStorage.getItem('userId');
-      const storedSeller = localStorage.getItem('selectedSeller');
-      const isEmploye = storedSeller && JSON.parse(storedSeller).statut?.toLowerCase() === 'emplo';
-
-      if (isEmploye) {
-        showToast('Action non autorisée pour les employés', true);
-        return;
-      }
-
       if (!userId) {
         showToast('Veuillez vous connecter pour supprimer un utilisateur', true);
         return;
@@ -1695,14 +1514,6 @@ async function saveFournisseur() {
 
     async function saveUtilisateur() {
       const userId = localStorage.getItem('userId');
-      const storedSeller = localStorage.getItem('selectedSeller');
-      const isEmploye = storedSeller && JSON.parse(storedSeller).statut?.toLowerCase() === 'emplo';
-
-      if (isEmploye) {
-        showToast('Action non autorisée pour les employés', true);
-        return;
-      }
-
       if (!userId) {
         showToast('Veuillez vous connecter pour sauvegarder un utilisateur', true);
         return;
@@ -1714,16 +1525,14 @@ async function saveFournisseur() {
       const statut = document.getElementById('utilisateurStatut').value;
 
       if (!nom || (!id && !password)) {
-        showToast('Veuillez remplir les champs obligatoires (Nom, Mot de passe pour un nouvel utilisateur)', true);
+        showToast('Veuillez remplir tous les champs obligatoires', true);
         return;
       }
 
       try {
         const url = id ? `${API_BASE_URL}/modifier_utilisateur/${id}` : `${API_BASE_URL}/ajouter_utilisateur`;
         const method = id ? 'PUT' : 'POST';
-        const body = { nom, statut };
-        if (password) body.password = password;
-
+        const body = id ? { nom, statut } : { nom, password, statut };
         const response = await fetch(url, {
           method: method,
           headers: {
@@ -1775,6 +1584,59 @@ async function saveFournisseur() {
         }
       });
     });
+
+    async function startScanner() {
+      if (isScanning) return;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.setAttribute('playsinline', true);
+        video.play();
+        document.getElementById('scannerPreview').innerHTML = '';
+        document.getElementById('scannerPreview').appendChild(video);
+        document.getElementById('scannerPreview').style.display = 'block';
+
+        if ('BarcodeDetector' in window) {
+          barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'qr_code'] });
+          isScanning = true;
+          scanBarcode(video);
+        } else {
+          showToast('Détecteur de code-barres non supporté par ce navigateur', true);
+          stopScanner();
+        }
+      } catch (error) {
+        showToast('Erreur d\'accès à la caméra', true);
+        console.error('Erreur scanner:', error);
+        stopScanner();
+      }
+    }
+
+    function scanBarcode(video) {
+      if (!isScanning) return;
+      barcodeDetector.detect(video).then(barcodes => {
+        if (barcodes.length > 0) {
+          document.getElementById('productBar').value = barcodes[0].rawValue;
+          stopScanner();
+        } else {
+          setTimeout(() => scanBarcode(video), 100);
+        }
+      }).catch(err => {
+        showToast('Erreur lors de la détection du code-barres', true);
+        console.error('Erreur détection:', err);
+        stopScanner();
+      });
+    }
+
+    function stopScanner() {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+      }
+      document.getElementById('scannerPreview').innerHTML = '';
+      document.getElementById('scannerPreview').style.display = 'none';
+      isScanning = false;
+    }
   </script>
 </body>
 </html>
