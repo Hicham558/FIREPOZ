@@ -120,19 +120,15 @@
     cursor: not-allowed;
 }
 	
-/* Styles pour boutons désactivés */
-button:disabled {
-    opacity: 0.5 !important;
-    cursor: not-allowed !important;
-    pointer-events: none !important;
+/* Style pour cacher les boutons d'action pour les employés */
+.action-btn-employe {
+    display: none !important;
 }
-/* Style désactivé pour tous les boutons Supprimer */
-.btn-delete[data-status="EMPLO"] {
+
+/* Style pour désactiver le bouton Ajouter pour les employés */
+.btn-add-disabled {
     opacity: 0.5;
     cursor: not-allowed;
-    pointer-events: none;
-    background-color: #f8f9fa !important;
-    border: 1px dashed #dc3545 !important;
 }
   </style>
 </head>
@@ -731,7 +727,7 @@ button:disabled {
         document.getElementById('kpiSection').style.opacity = '0.5';
         setTimeout(chargerKPI, 300);
       });
-
+       checkSellerStatus();
       // Bouton remonter en haut
       window.addEventListener('scroll', () => {
         if (window.scrollY > 300) {
@@ -747,39 +743,65 @@ button:disabled {
     });
 // Dans votre fonction checkSellerStatus()
 async function checkSellerStatus() {
-    try {
-        const userId = localStorage.getItem('userId');
-        if (!userId) {
-            showUIForUnauthenticated();
-            return;
-        }
+    const storedSeller = localStorage.getItem('selectedSeller');
+    const userId = localStorage.getItem('userId');
+    
+    if (!userId) {
+        toggleActionButtons(true); // Désactiver si non connecté
+        return;
+    }
 
-        const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-            headers: { 'X-User-ID': userId }
-        });
-        
-        const utilisateurs = await response.json();
-        const storedSeller = localStorage.getItem('selectedSeller');
-        
+    try {
         if (storedSeller) {
-            const sellerData = JSON.parse(storedSeller);
-            const seller = utilisateurs.find(u => u.numero == sellerData.numero_util);
+            const { numero_util, nom, statut } = JSON.parse(storedSeller);
+            document.getElementById('currentSellerName').textContent = nom || 'Inconnu';
             
-            if (seller) {
-                document.getElementById('currentSellerName').textContent = seller.nom;
-                toggleActionButtons(seller.statut.toLowerCase() === 'emplo');
-                return;
-            }
+            // Cacher/montrer les boutons selon le statut
+            const isEmploye = statut.toLowerCase() === 'emplo';
+            toggleActionButtons(isEmploye);
+        } else {
+            document.getElementById('currentSellerName').textContent = 'Inconnu';
+            toggleActionButtons(true); // Par défaut, désactiver si aucun vendeur sélectionné
         }
-        
-        // Cas par défaut
-        document.getElementById('currentSellerName').textContent = 'Non défini';
-        toggleActionButtons(true);
-        
     } catch (error) {
         console.error('Erreur vérification statut:', error);
-        document.getElementById('currentSellerName').textContent = 'Erreur';
-        toggleActionButtons(true);
+        showToast('Erreur de vérification du statut du vendeur', true);
+        toggleActionButtons(true); // Désactiver en cas d'erreur
+    }
+}
+
+function toggleActionButtons(isEmploye) {
+    // Sélectionner tous les boutons Modifier et Supprimer
+    const actionButtons = document.querySelectorAll(`
+        button:has(i.fa-trash-alt), 
+        button:has(i.fa-edit)
+    `);
+
+    // Bouton Ajouter
+    const addButtons = document.querySelectorAll(`
+        button:has(i.fa-plus)
+    `);
+
+    if (isEmploye) {
+        // Pour les employés - cacher Modifier/Supprimer et désactiver Ajouter
+        actionButtons.forEach(btn => {
+            btn.classList.add('action-btn-employe');
+        });
+        
+        addButtons.forEach(btn => {
+            btn.classList.add('btn-add-disabled');
+            btn.disabled = true;
+        });
+    } else {
+        // Pour les admins - montrer Modifier/Supprimer et activer Ajouter
+        actionButtons.forEach(btn => {
+            btn.classList.remove('action-btn-employe');
+        });
+        
+        addButtons.forEach(btn => {
+            btn.classList.remove('btn-add-disabled');
+            btn.disabled = false;
+        });
     }
 }
 
