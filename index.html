@@ -780,49 +780,38 @@ async function checkSellerStatus() {
 }
 function toggleActionButtons(isEmploye) {
     try {
-        // 1. Gérer les boutons "Ajouter"
+        // 1. Désactiver les boutons "Ajouter"
         const addButtons = document.querySelectorAll('button:has(i.fa-plus)');
         addButtons.forEach(btn => {
             btn.disabled = isEmploye;
-            if (isEmploye) {
-                btn.classList.add('opacity-50', 'cursor-not-allowed');
-            } else {
-                btn.classList.remove('opacity-50', 'cursor-not-allowed');
-            }
+            btn.classList.toggle('opacity-50', isEmploye);
+            btn.classList.toggle('cursor-not-allowed', isEmploye);
         });
 
-        // 2. Cacher la colonne Actions dans toutes les tables
-        const tables = document.querySelectorAll('.table-container table');
+        // 2. Cacher uniquement les boutons Supprimer/Modifier pour les employés
+        const actionButtons = document.querySelectorAll(`
+            button:has(i.fa-trash-alt), 
+            button:has(i.fa-edit)
+        `);
         
-        tables.forEach(table => {
-            // Trouver l'en-tête de la colonne Actions
-            const headers = table.querySelectorAll('thead th');
-            let actionColIndex = -1;
-
-            headers.forEach((header, index) => {
-                if (header.textContent.trim() === 'Actions' || header.querySelector('button')) {
-                    actionColIndex = index;
+        actionButtons.forEach(btn => {
+            if (isEmploye) {
+                // Créer un span vide pour remplacer le bouton
+                const span = document.createElement('span');
+                span.className = 'hidden-action';
+                btn.parentNode.replaceChild(span, btn);
+            } else {
+                // Restaurer les boutons si nécessaire
+                const hiddenSpan = btn.parentNode.querySelector('span.hidden-action');
+                if (hiddenSpan && btn.parentNode.contains(hiddenSpan)) {
+                    hiddenSpan.parentNode.replaceChild(btn, hiddenSpan);
                 }
-            });
-
-            // Si on a trouvé la colonne Actions
-            if (actionColIndex !== -1) {
-                // Cacher l'en-tête
-                headers[actionColIndex].style.display = isEmploye ? 'none' : 'table-cell';
-
-                // Cacher les cellules dans les lignes
-                const rows = table.querySelectorAll('tbody tr');
-                rows.forEach(row => {
-                    const cells = row.querySelectorAll('td');
-                    if (cells[actionColIndex]) {
-                        cells[actionColIndex].style.display = isEmploye ? 'none' : 'table-cell';
-                    }
-                });
             }
         });
+
     } catch (error) {
         console.error('Erreur dans toggleActionButtons:', error);
-        // Vous pouvez ajouter ici une notification à l'utilisateur si nécessaire
+        showToast('Erreur de configuration des droits d\'accès', true);
     }
 }
 	  // Fonction pour gérer l'animation développer/envelopper
