@@ -779,29 +779,41 @@ async function checkSellerStatus() {
     }
 }
 function toggleActionButtons(isEmploye) {
-    // Sélectionner toutes les cellules de la colonne Actions
-    const actionCells = document.querySelectorAll('td:has(button), th:has(button)');
-    
-    actionCells.forEach(cell => {
-        if (isEmploye) {
-            // Pour les employés, cacher complètement la colonne Actions
-            cell.style.display = 'none';
-        } else {
-            // Pour les admins, afficher la colonne Actions
-            cell.style.display = '';
-        }
-    });
-
-    // Désactiver aussi les boutons d'ajout dans les en-têtes
+    // 1. Gérer les boutons Ajouter
     const addButtons = document.querySelectorAll('button:has(i.fa-plus)');
     addButtons.forEach(btn => {
-        if (isEmploye) {
-            btn.disabled = true;
-            btn.classList.add('opacity-50', 'cursor-not-allowed');
-            btn.replaceWith(btn.cloneNode(true));
-        } else {
-            btn.disabled = false;
-            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+        btn.disabled = isEmploye;
+        btn.classList.toggle('opacity-50', isEmploye);
+        btn.classList.toggle('cursor-not-allowed', isEmploye);
+        if (isEmploye) btn.replaceWith(btn.cloneNode(true));
+    });
+
+    // 2. Cacher toute la colonne Actions pour les employés
+    const tables = document.querySelectorAll('table');
+    tables.forEach(table => {
+        // Trouver l'index de la colonne Actions
+        const headers = table.querySelectorAll('thead th');
+        let actionIndex = -1;
+        
+        headers.forEach((th, index) => {
+            if (th.textContent.includes('Actions') || th.querySelector('button')) {
+                actionIndex = index;
+            }
+        });
+
+        // Si on a trouvé la colonne Actions
+        if (actionIndex !== -1) {
+            // Cacher l'en-tête
+            headers[actionIndex].style.display = isEmploye ? 'none' : '';
+
+            // Cacher les cellules dans chaque ligne
+            const rows = table.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                if (cells.length > actionIndex) {
+                    cells[actionIndex].style.display = isEmploye ? 'none' : '';
+                }
+            });
         }
     });
 }
