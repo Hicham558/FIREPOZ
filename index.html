@@ -745,45 +745,49 @@ button:disabled {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       });
     });
+// Dans votre fonction checkSellerStatus()
 async function checkSellerStatus() {
-    const storedSeller = localStorage.getItem('selectedSeller');
-    const userId = localStorage.getItem('userId');
-    
-    if (!userId) {
-        toggleActionButtons(true); // Désactiver si non connecté
-        return;
-    }
-
     try {
+        const userId = localStorage.getItem('userId');
+        if (!userId) {
+            showUIForUnauthenticated();
+            return;
+        }
+
+        const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+            headers: { 'X-User-ID': userId }
+        });
+        
+        const utilisateurs = await response.json();
+        const storedSeller = localStorage.getItem('selectedSeller');
+        
         if (storedSeller) {
-            const { numero_util, nom } = JSON.parse(storedSeller);
-            document.getElementById('currentSellerName').textContent = nom || 'Inconnu';
-            
-            const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-                headers: { 'X-User-ID': userId }
-            });
-            
-            if (!response.ok) throw new Error('Erreur de chargement des utilisateurs');
-            
-            const utilisateurs = await response.json();
-            const seller = utilisateurs.find(u => u.numero == numero_util);
+            const sellerData = JSON.parse(storedSeller);
+            const seller = utilisateurs.find(u => u.numero == sellerData.numero_util);
             
             if (seller) {
-                const isEmploye = seller.statut.toLowerCase() === 'emplo';
-                toggleActionButtons(isEmploye);
+                document.getElementById('currentSellerName').textContent = seller.nom;
+                toggleActionButtons(seller.statut.toLowerCase() === 'emplo');
+                return;
             }
-        } else {
-            document.getElementById('currentSellerName').textContent = 'Inconnu';
-            toggleActionButtons(true); // Désactiver si aucun vendeur sélectionné
         }
+        
+        // Cas par défaut
+        document.getElementById('currentSellerName').textContent = 'Non défini';
+        toggleActionButtons(true);
+        
     } catch (error) {
         console.error('Erreur vérification statut:', error);
-        showToast('Erreur de vérification du statut du vendeur', true);
-        toggleActionButtons(true); // Désactiver en cas d'erreur
+        document.getElementById('currentSellerName').textContent = 'Erreur';
+        toggleActionButtons(true);
     }
 }
 
-function toggleActionButtons(isEmploye) {
+function showUIForUnauthenticated() {
+    document.getElementById('currentSellerName').textContent = 'Non connecté';
+    toggleActionButtons(true);
+}
+	  function toggleActionButtons(isEmploye) {
     // Sélectionner tous les boutons d'actions (Ajouter/Modifier/Supprimer)
     const actionButtons = document.querySelectorAll(`
         button[onclick*="supprimer"], 
