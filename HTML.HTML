@@ -206,74 +206,75 @@
             }
         }
 
-        async function validerVendeur() {
-            const numeroUtil = document.getElementById('sellerSelect').value;
-            const password2 = document.getElementById('sellerPassword').value;
-            const userId = localStorage.getItem('userId');
+    async function validerVendeur() {
+    console.log('Validation de l\'utilisateur...');
+    const sellerSelect = document.getElementById('sellerSelect');
+    const numeroUtil = sellerSelect.value;
+    const password2 = document.getElementById('sellerPassword').value;
+    const userId = localStorage.getItem('userId');
 
-            if (numeroUtil === '0') {
-                showToast('Veuillez sélectionner un vendeur', true);
-                return;
-            }
-            if (!password2) {
-                showToast('Veuillez entrer le mot de passe', true);
-                return;
-            }
-            if (!userId) {
-                showToast('Utilisateur principal non connecté', true);
-                return;
-            }
+    if (!userId) {
+        showToast('Veuillez vous connecter pour valider un utilisateur', true);
+        return;
+    }
 
-            try {
-                // Vérification du mot de passe via l'API
-                const response = await fetch(`${API_BASE_URL}/verifier_utilisateur`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({
-                        numero_util: numeroUtil,
-                        mot_de_passe: password2
-                    })
-                });
+    if (!numeroUtil || numeroUtil === '0') {
+        showToast('Veuillez sélectionner un utilisateur', true);
+        return;
+    }
 
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText || 'Échec de la vérification du mot de passe'}`);
-                }
+    if (!password2) {
+        showToast('Veuillez entrer le mot de passe', true);
+        return;
+    }
 
-                const result = await response.json();
-                if (!result.valide) {
-                    showToast('Mot de passe incorrect', true);
-                    return;
-                }
+    try {
+        const response = await fetch(`${API_BASE_URL}/valider_utilisateur`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-User-ID': userId
+            },
+            body: JSON.stringify({
+                numero_util: parseInt(numeroUtil),
+                password2: password2
+            })
+        });
 
-                // Si le mot de passe est correct, stocker les informations
-                const selectedOption = document.getElementById('sellerSelect').options[document.getElementById('sellerSelect').selectedIndex];
-                const sellerName = selectedOption.text;
-                
-                localStorage.setItem('selectedSeller', JSON.stringify({
-                    numero_util: numeroUtil,
-                    nom: sellerName
-                }));
-                localStorage.setItem('sellerPassword', password2); // Attention : à revoir pour la sécurité
-
-                // Mettre à jour l'interface
-                document.getElementById('selectedSellerName').textContent = sellerName;
-                document.getElementById('headerSellerName').textContent = sellerName;
-                document.getElementById('sellerPassword').disabled = true;
-                document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
-                document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
-                document.getElementById('sellerContent').classList.add('hidden');
-                document.getElementById('sellerChevron').classList.add('fa-chevron-down');
-                document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
-                showToast(`Vendeur ${sellerName} validé`);
-            } catch (error) {
-                showToast(`Erreur validation vendeur: ${error.message}`, true);
-                console.error('Erreur validation:', error);
-            }
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Erreur ${response.status}: ${errorText || 'Échec de la validation'}`);
         }
+
+        const result = await response.json();
+        if (!result.success) {
+            throw new Error(result.message || 'Identifiants invalides');
+        }
+
+        const selectedOption = sellerSelect.options[sellerSelect.selectedIndex];
+        const sellerName = selectedOption.text;
+
+        localStorage.setItem('selectedSeller', JSON.stringify({
+            numero_util: numeroUtil,
+            nom: sellerName
+        }));
+        localStorage.setItem('sellerPassword', password2);
+
+        document.getElementById('selectedSellerName').textContent = sellerName;
+        document.getElementById('headerSellerName').textContent = sellerName;
+        document.getElementById('sellerPassword').disabled = true;
+        document.getElementById('validateSellerButton').textContent = 'Changer d\'utilisateur';
+        document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
+        document.getElementById('sellerContent').classList.add('hidden');
+        document.getElementById('sellerChevron').classList.add('fa-chevron-down');
+        document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
+
+        showToast(`Utilisateur ${sellerName} validé avec succès`);
+    } catch (error) {
+        console.error('Erreur validation utilisateur:', error);
+        showToast(`Erreur: ${error.message}`, true);
+    }
+}  
 
         function changeAndValidateSeller() {
             document.getElementById('sellerSelect').value = '0';
