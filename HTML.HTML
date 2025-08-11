@@ -3,149 +3,98 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion des Utilisateurs</title>
+    <title>Gestion des Versements</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        .password-input-container { position: relative; display: inline-block; }
-        .password-toggle { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; }
-        .small-email { font-size: 0.75rem; line-height: 1rem; }
-        .btn-disabled { background-color: #d1d5db !important; cursor: not-allowed !important; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes toastIn { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes toastOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(40px); } }
-        .toast-in { animation: toastIn 0.5s both; }
-        .toast-out { animation: toastOut 0.5s both; }
-        .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
-        #usersContent {
-            max-height: 0;
-            opacity: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease, opacity 0.3s ease;
+        .password-input-container {
+            position: relative;
+            display: inline-block;
         }
-        #usersContent.open {
-            max-height: 1000px;
-            opacity: 1;
+        .password-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes smoothBlink { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
+        .seller-anim { animation: smoothBlink 1.5s infinite ease-in-out; }
+        select, input {
+            transition: all 0.3s ease;
+        }
+        select:focus, input:focus {
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+        }
+        select option {
+            padding: 8px;
+            background: #fff;
+            color: #333;
         }
     </style>
 </head>
 <body class="bg-gray-100">
-    <!-- Barre de navigation -->
-    <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md">
+    <!-- Barre de navigation simplifiée -->
+    <nav class="bg-indigo-600 text-white p-4">
         <div class="container mx-auto flex justify-between items-center">
             <div class="flex flex-col">
                 <h1 class="text-2xl font-bold flex items-center">
                     <i class="fas fa-fire mr-2 text-amber-400"></i> FirePoz
                 </h1>
-                <span id="userDisplay" class="small-email hidden"></span>
+                <span id="userDisplay" class="text-xs"></span>
             </div>
-            <div class="space-x-4 flex items-center">
+            <div>
                 <a href="index.html" class="hover:text-indigo-200 transition flex items-center">
                     <i class="fas fa-home mr-1"></i> Accueil
                 </a>
-                <a href="vente.html" class="hover:text-indigo-200 transition flex items-center">
-                    <i class="fas fa-shopping-cart mr-1"></i> Vente
-                </a>
-                <button id="loginLogoutButton" onclick="loginLogout()" class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition flex items-center">
-                    <i class="fas fa-sign-out-alt mr-1"></i>Déconnexion
-                </button>
             </div>
         </div>
     </nav>
 
-    <div class="container mx-auto px-4 pt-20">
-        <!-- Section utilisateur -->
-        <div id="usersSection" class="bg-white rounded-lg shadow-md mb-8 animate-fade-in">
-            <div class="p-6 cursor-pointer" onclick="toggleSection('usersSection')">
+    <div class="container mx-auto px-4 pt-4">
+        <!-- Section vendeur -->
+        <div id="sellerSection" class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8">
+            <div class="p-6 cursor-pointer" onclick="toggleSection('sellerSection')">
                 <div class="flex justify-between items-center">
                     <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-users mr-2 text-indigo-500"></i> Gestion des Utilisateurs
+                        <i class="fas fa-user mr-2 text-indigo-500"></i> Sélection du Vendeur
                     </h2>
                     <button class="text-gray-600 hover:text-gray-800 transition">
-                        <i class="fas fa-chevron-down" id="usersChevron"></i>
+                        <i class="fas fa-chevron-down" id="sellerChevron"></i>
                     </button>
+                </div>
+                <div class="mt-2">
+                    <span class="text-sm font-medium text-gray-700">Vendeur: </span>
+                    <span id="headerSellerName" class="text-sm text-indigo-600 seller-anim">-</span>
                 </div>
             </div>
-            <div class="p-6 hidden" id="usersContent">
-                <div class="mb-6">
-                    <h3 class="text-lg font-medium mb-4">Ajouter un nouvel utilisateur</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Nom complet</label>
-                            <input type="text" id="newUserName" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                            <input type="email" id="newUserEmail" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        </div>
-                        <div class="password-input-container">
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe</label>
-                            <input type="password" id="newUserPassword" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <i class="fas fa-eye password-toggle" id="toggleNewPassword" onclick="togglePasswordVisibility('newUserPassword', 'toggleNewPassword')"></i>
-                        </div>
-                        <div class="password-input-container">
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Confirmer mot de passe</label>
-                            <input type="password" id="newUserConfirmPassword" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <i class="fas fa-eye password-toggle" id="toggleConfirmPassword" onclick="togglePasswordVisibility('newUserConfirmPassword', 'toggleConfirmPassword')"></i>
+            <div class="p-6 hidden" id="sellerContent">
+                <div class="flex flex-col md:flex-row gap-4 mb-4">
+                    <div class="relative w-full md:w-1/3">
+                        <span class="text-sm font-medium text-gray-700 mr-2">Vendeur: </span>
+                        <select id="sellerSelect" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300">
+                            <option value="0">Sélectionner un vendeur</option>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700 top-6">
+                            <i class="fas fa-chevron-down"></i>
                         </div>
                     </div>
-                    <button onclick="addNewUser()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300">
-                        <i class="fas fa-user-plus mr-2"></i>Créer l'utilisateur
-                    </button>
-                </div>
-
-                <div class="mb-6">
-                    <h3 class="text-lg font-medium mb-4">Modifier un utilisateur existant</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Utilisateur</label>
-                            <select id="editUserSelect" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300">
-                                <option value="0">Sélectionner un utilisateur</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Nouveau nom</label>
-                            <input type="text" id="editUserName" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" disabled>
-                        </div>
-                        <div class="password-input-container">
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Nouveau mot de passe</label>
-                            <input type="password" id="editUserPassword" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" disabled>
-                            <i class="fas fa-eye password-toggle" id="toggleEditPassword" onclick="togglePasswordVisibility('editUserPassword', 'toggleEditPassword')"></i>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Confirmation mot de passe</label>
-                            <input type="password" id="editUserConfirmPassword" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" disabled>
-                        </div>
+                    <div class="relative w-full md:w-1/3 password-input-container">
+                        <span class="text-sm font-medium text-gray-700 mr-2">Mot de passe: </span>
+                        <input type="password" id="sellerPassword" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Entrez le mot de passe">
+                        <i class="fas fa-eye password-toggle" id="togglePassword" onclick="togglePasswordVisibility()"></i>
                     </div>
-                    <div class="flex space-x-2">
-                        <button onclick="updateUser()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300" disabled id="updateUserButton">
-                            <i class="fas fa-save mr-2"></i>Mettre à jour
-                        </button>
-                        <button onclick="deleteUser()" class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition duration-300" disabled id="deleteUserButton">
-                            <i class="fas fa-trash mr-2"></i>Supprimer
+                    <div class="w-full md:w-1/3">
+                        <button id="validateSellerButton" onclick="validerVendeur()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300">
+                            <i class="fas fa-check mr-2"></i>Valider
                         </button>
                     </div>
                 </div>
-
-                <div>
-                    <h3 class="text-lg font-medium mb-4">Liste des utilisateurs</h3>
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date création</th>
-                                </tr>
-                            </thead>
-                            <tbody id="usersList" class="bg-white divide-y divide-gray-200">
-                                <tr>
-                                    <td colspan="4" class="text-center py-4 text-gray-500">Chargement en cours...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                <div class="mb-4">
+                    <span class="text-sm font-medium text-gray-700">Vendeur sélectionné: </span>
+                    <span id="selectedSellerName" class="text-sm text-indigo-600 seller-anim">-</span>
                 </div>
             </div>
         </div>
@@ -160,389 +109,221 @@
 
     <script>
         const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'https://hicham03041979.onrender.com';
-        let usersCache = [];
 
-        document.addEventListener('DOMContentLoaded', async () => {
-            console.log('Page chargée, vérification utilisateur...');
-            const userId = localStorage.getItem('userId');
-            const userEmail = localStorage.getItem('userEmail');
-
-            if (userId && userEmail) {
-                console.log('Utilisateur connecté:', userId, userEmail);
-                document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
-                document.getElementById('userDisplay').classList.remove('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                
-                try {
-                    await loadUsers();
-                } catch (error) {
-                    console.error('Erreur chargement initial:', error);
-                    showToast('Erreur lors du chargement initial', true);
-                }
+        function togglePasswordVisibility() {
+            const passwordInput = document.getElementById('sellerPassword');
+            const toggleIcon = document.getElementById('togglePassword');
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.classList.remove('fa-eye');
+                toggleIcon.classList.add('fa-eye-slash');
             } else {
-                console.log('Aucun utilisateur connecté, redirection vers index.html');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                window.location.replace('index.html');
-            }
-
-            // Vérification de l'état de l'API
-            checkApiStatus();
-        });
-
-        function checkApiStatus() {
-            fetch(`${API_BASE_URL}/`)
-                .then(response => {
-                    if (!response.ok) throw new Error('API non disponible');
-                    return response.text();
-                })
-                .then(text => console.log('Statut API:', text))
-                .catch(err => {
-                    console.error('API non disponible:', err);
-                    showToast('Erreur de connexion à l\'API', true);
-                });
-        }
-
-        function togglePasswordVisibility(inputId, iconId) {
-            const input = document.getElementById(inputId);
-            const icon = document.getElementById(iconId);
-            if (input.type === 'password') {
-                input.type = 'text';
-                icon.classList.remove('fa-eye');
-                icon.classList.add('fa-eye-slash');
-            } else {
-                input.type = 'password';
-                icon.classList.remove('fa-eye-slash');
-                icon.classList.add('fa-eye');
+                passwordInput.type = 'password';
+                toggleIcon.classList.remove('fa-eye-slash');
+                toggleIcon.classList.add('fa-eye');
             }
         }
 
         function toggleSection(sectionId) {
-            const section = document.getElementById(sectionId);
             const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
             const chevron = document.getElementById(`${sectionId.replace('Section', 'Chevron')}`);
-            
-            section.classList.toggle('open');
-            content.classList.toggle('open');
+            content.classList.toggle('hidden');
             chevron.classList.toggle('fa-chevron-down');
             chevron.classList.toggle('fa-chevron-up');
-            
-            if (sectionId === 'usersSection' && content.classList.contains('open') && usersCache.length === 0) {
-                loadUsers();
-            }
-        }
-
-        async function loadUsers() {
-            console.log('Chargement des utilisateurs...');
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les utilisateurs', true);
-                return;
-            }
-
-            try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 10000);
-                
-                const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-                    headers: { 'X-User-ID': userId },
-                    signal: controller.signal
-                });
-                
-                clearTimeout(timeoutId);
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-
-                usersCache = await response.json();
-                updateUsersTable();
-                populateEditUserSelect();
-                showToast('Liste des utilisateurs mise à jour');
-
-            } catch (error) {
-                console.error('Erreur chargement utilisateurs:', error);
-                document.getElementById('usersList').innerHTML = `
-                    <tr>
-                        <td colspan="4" class="text-center py-4 text-red-500">
-                            Erreur de chargement: ${error.message}
-                        </td>
-                    </tr>
-                `;
-                showToast(`Erreur chargement utilisateurs: ${error.message}`, true);
-            }
-        }
-
-        function updateUsersTable(filteredUsers = usersCache) {
-            const tbody = document.getElementById('usersList');
-            if (!tbody) {
-                console.error('usersList introuvable');
-                showToast('Erreur: éléments du tableau introuvables', true);
-                return;
-            }
-
-            if (filteredUsers.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun utilisateur trouvé</td></tr>';
-                return;
-            }
-
-            tbody.innerHTML = '';
-            filteredUsers.forEach(user => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${user.numero || 'N/A'}</td>
-                    <td class="px-6 py-4 text-sm text-gray-900">${user.nom || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${user.email || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${user.date_creation ? new Date(user.date_creation).toLocaleDateString('fr-FR') : 'N/A'}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
-
-        function populateEditUserSelect() {
-            const select = document.getElementById('editUserSelect');
-            select.innerHTML = '<option value="0">Sélectionner un utilisateur</option>';
-            
-            usersCache.forEach(user => {
-                const option = document.createElement('option');
-                option.value = user.numero;
-                option.textContent = user.nom;
-                select.appendChild(option);
-            });
-
-            select.addEventListener('change', function() {
-                const userId = this.value;
-                const nameInput = document.getElementById('editUserName');
-                const passwordInput = document.getElementById('editUserPassword');
-                const confirmInput = document.getElementById('editUserConfirmPassword');
-                const updateButton = document.getElementById('updateUserButton');
-                const deleteButton = document.getElementById('deleteUserButton');
-
-                if (userId === '0') {
-                    nameInput.value = '';
-                    passwordInput.value = '';
-                    confirmInput.value = '';
-                    nameInput.disabled = true;
-                    passwordInput.disabled = true;
-                    confirmInput.disabled = true;
-                    updateButton.disabled = true;
-                    deleteButton.disabled = true;
-                } else {
-                    const selectedUser = usersCache.find(u => u.numero === userId);
-                    nameInput.value = selectedUser.nom || '';
-                    passwordInput.value = '';
-                    confirmInput.value = '';
-                    nameInput.disabled = false;
-                    passwordInput.disabled = false;
-                    confirmInput.disabled = false;
-                    updateButton.disabled = false;
-                    deleteButton.disabled = false;
-                }
-            });
-        }
-
-        async function addNewUser() {
-            const name = document.getElementById('newUserName').value.trim();
-            const email = document.getElementById('newUserEmail').value.trim();
-            const password = document.getElementById('newUserPassword').value;
-            const confirmPassword = document.getElementById('newUserConfirmPassword').value;
-            const userId = localStorage.getItem('userId');
-
-            if (!name || !email || !password || !confirmPassword) {
-                showToast('Veuillez remplir tous les champs', true);
-                return;
-            }
-
-            if (password !== confirmPassword) {
-                showToast('Les mots de passe ne correspondent pas', true);
-                return;
-            }
-
-            if (!validateEmail(email)) {
-                showToast('Veuillez entrer une adresse email valide', true);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/creer_utilisateur`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({
-                        nom: name,
-                        email: email,
-                        password: password
-                    })
-                });
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-
-                const result = await response.json();
-                showToast(`Utilisateur ${name} créé avec succès`);
-                
-                // Réinitialiser les champs
-                document.getElementById('newUserName').value = '';
-                document.getElementById('newUserEmail').value = '';
-                document.getElementById('newUserPassword').value = '';
-                document.getElementById('newUserConfirmPassword').value = '';
-                
-                // Recharger la liste
-                await loadUsers();
-
-            } catch (error) {
-                console.error('Erreur création utilisateur:', error);
-                showToast(`Erreur création utilisateur: ${error.message}`, true);
-            }
-        }
-
-        async function updateUser() {
-            const userId = localStorage.getItem('userId');
-            const selectedUserId = document.getElementById('editUserSelect').value;
-            const newName = document.getElementById('editUserName').value.trim();
-            const newPassword = document.getElementById('editUserPassword').value;
-            const confirmPassword = document.getElementById('editUserConfirmPassword').value;
-
-            if (selectedUserId === '0') {
-                showToast('Veuillez sélectionner un utilisateur', true);
-                return;
-            }
-
-            if (!newName) {
-                showToast('Le nom ne peut pas être vide', true);
-                return;
-            }
-
-            if (newPassword && newPassword !== confirmPassword) {
-                showToast('Les mots de passe ne correspondent pas', true);
-                return;
-            }
-
-            try {
-                const updateData = {
-                    numero: selectedUserId,
-                    nom: newName
-                };
-
-                if (newPassword) {
-                    updateData.password = newPassword;
-                }
-
-                const response = await fetch(`${API_BASE_URL}/modifier_utilisateur`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify(updateData)
-                });
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-
-                showToast('Utilisateur mis à jour avec succès');
-                await loadUsers();
-
-            } catch (error) {
-                console.error('Erreur mise à jour utilisateur:', error);
-                showToast(`Erreur mise à jour utilisateur: ${error.message}`, true);
-            }
-        }
-
-        async function deleteUser() {
-            const userId = localStorage.getItem('userId');
-            const selectedUserId = document.getElementById('editUserSelect').value;
-
-            if (selectedUserId === '0') {
-                showToast('Veuillez sélectionner un utilisateur', true);
-                return;
-            }
-
-            if (!confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action est irréversible.')) {
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/supprimer_utilisateur/${selectedUserId}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'X-User-ID': userId
-                    }
-                });
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText}`);
-                }
-
-                showToast('Utilisateur supprimé avec succès');
-                await loadUsers();
-
-                // Réinitialiser les champs
-                document.getElementById('editUserSelect').value = '0';
-                document.getElementById('editUserName').value = '';
-                document.getElementById('editUserPassword').value = '';
-                document.getElementById('editUserConfirmPassword').value = '';
-                document.getElementById('editUserName').disabled = true;
-                document.getElementById('editUserPassword').disabled = true;
-                document.getElementById('editUserConfirmPassword').disabled = true;
-                document.getElementById('updateUserButton').disabled = true;
-                document.getElementById('deleteUserButton').disabled = true;
-
-            } catch (error) {
-                console.error('Erreur suppression utilisateur:', error);
-                showToast(`Erreur suppression utilisateur: ${error.message}`, true);
-            }
-        }
-
-        function validateEmail(email) {
-            const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            return re.test(email);
-        }
-
-        function loginLogout() {
-            console.log('Déconnexion en cours...');
-            const userId = localStorage.getItem('userId');
-            if (userId) {
-                localStorage.removeItem('userId');
-                localStorage.removeItem('userEmail');
-                document.getElementById('userDisplay').textContent = '';
-                document.getElementById('userDisplay').classList.add('hidden');
-                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                window.location.replace('index.html');
-            }
         }
 
         function showToast(message, isError = false) {
             const toast = document.getElementById('toast');
             const toastMessage = document.getElementById('toastMessage');
             const toastIcon = document.getElementById('toastIcon');
-            
-            if (!toast || !toastMessage || !toastIcon) {
-                console.error('Éléments toast introuvables');
-                return;
-            }
-            
             toast.className = isError
-                ? 'fixed bottom-4 right-4 flex items-center bg-red-500 text-white px-6 py-3 rounded-md shadow-lg toast-in'
-                : 'fixed bottom-4 right-4 flex items-center bg-green-500 text-white px-6 py-3 rounded-md shadow-lg toast-in';
-            
-            toastIcon.className = isError ? 'fas fa-exclamation-circle mr-2' : 'fas fa-check-circle mr-2';
+                ? 'fixed bottom-4 right-4 flex items-center bg-red-500 text-white px-6 py-3 rounded-md shadow-lg'
+                : 'fixed bottom-4 right-4 flex items-center bg-green-500 text-white px-6 py-3 rounded-md shadow-lg';
+            toastIcon.className = isError
+                ? 'fas fa-exclamation-circle mr-2'
+                : 'fas fa-check-circle mr-2';
             toastMessage.textContent = message;
             toast.classList.remove('hidden');
-            
-            setTimeout(() => {
-                toast.classList.remove('toast-in');
-                toast.classList.add('toast-out');
-                setTimeout(() => toast.classList.add('hidden'), 500);
-            }, 3000);
+            setTimeout(() => toast.classList.add('hidden'), 3000);
         }
+
+        async function verifierMotDePasse(userId, password) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/verifier_mot_de_passe`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        userId: userId,
+                        password: password
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Mot de passe incorrect');
+                }
+
+                const result = await response.json();
+                return result.valid;
+            } catch (error) {
+                console.error('Erreur vérification mot de passe:', error);
+                return false;
+            }
+        }
+
+        async function validerVendeur() {
+            const numeroUtil = document.getElementById('sellerSelect').value;
+            const password = document.getElementById('sellerPassword').value;
+            const currentUserId = localStorage.getItem('userId');
+
+            if (numeroUtil === '0') {
+                showToast('Veuillez sélectionner un vendeur', true);
+                return;
+            }
+
+            if (!password) {
+                showToast('Veuillez entrer le mot de passe', true);
+                return;
+            }
+
+            try {
+                // Vérification du mot de passe
+                const passwordValid = await verifierMotDePasse(numeroUtil, password);
+                
+                if (!passwordValid) {
+                    showToast('Mot de passe incorrect', true);
+                    return;
+                }
+
+                // Stocker les informations du vendeur
+                const selectedOption = document.getElementById('sellerSelect').options[document.getElementById('sellerSelect').selectedIndex];
+                const sellerName = selectedOption.text;
+                
+                localStorage.setItem('selectedSeller', JSON.stringify({
+                    numero_util: numeroUtil,
+                    nom: sellerName
+                }));
+                localStorage.setItem('sellerPassword', password);
+
+                // Mettre à jour l'interface
+                document.getElementById('selectedSellerName').textContent = sellerName;
+                document.getElementById('headerSellerName').textContent = sellerName;
+                document.getElementById('sellerPassword').disabled = true;
+                document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
+                document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
+                document.getElementById('sellerContent').classList.add('hidden');
+                document.getElementById('sellerChevron').classList.add('fa-chevron-down');
+                document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
+                
+                showToast(`Vendeur ${sellerName} validé avec succès`);
+            } catch (error) {
+                showToast(`Erreur validation vendeur: ${error.message}`, true);
+                console.error('Erreur validation:', error);
+            }
+        }
+
+        function changeAndValidateSeller() {
+            document.getElementById('sellerSelect').value = '0';
+            document.getElementById('sellerPassword').value = '';
+            document.getElementById('sellerPassword').disabled = false;
+            document.getElementById('selectedSellerName').textContent = '-';
+            document.getElementById('headerSellerName').textContent = '-';
+            document.getElementById('validateSellerButton').textContent = 'Valider';
+            document.getElementById('validateSellerButton').onclick = validerVendeur;
+            document.getElementById('sellerContent').classList.remove('hidden');
+            document.getElementById('sellerChevron').classList.add('fa-chevron-up');
+            document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
+            localStorage.removeItem('selectedSeller');
+            localStorage.removeItem('sellerPassword');
+        }
+
+        async function chargerUtilisateurs() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter', true);
+                return false;
+            }
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                const utilisateurs = await response.json();
+                const sellerSelect = document.getElementById('sellerSelect');
+                sellerSelect.innerHTML = '<option value="0">Sélectionner un vendeur</option>';
+                utilisateurs.forEach(utilisateur => {
+                    const option = document.createElement('option');
+                    option.value = utilisateur.numero;
+                    option.textContent = utilisateur.nom;
+                    sellerSelect.appendChild(option);
+                });
+                return true;
+            } catch (error) {
+                showToast(`Erreur chargement utilisateurs: ${error.message}`, true);
+                console.error('Erreur utilisateurs:', error);
+                return false;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const userId = localStorage.getItem('userId');
+            const userEmail = localStorage.getItem('userEmail');
+            
+            if (userId && userEmail) {
+                document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
+                chargerUtilisateurs().then((success) => {
+                    if (!success) {
+                        document.getElementById('sellerContent').classList.remove('hidden');
+                        document.getElementById('sellerChevron').classList.add('fa-chevron-up');
+                        document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
+                        return;
+                    }
+                    
+                    const storedSeller = localStorage.getItem('selectedSeller');
+                    if (storedSeller) {
+                        try {
+                            const { numero_util, nom } = JSON.parse(storedSeller);
+                            const sellerSelect = document.getElementById('sellerSelect');
+                            const optionExists = Array.from(sellerSelect.options).some(option => option.value === numero_util);
+                            
+                            if (optionExists) {
+                                sellerSelect.value = numero_util;
+                                document.getElementById('selectedSellerName').textContent = nom;
+                                document.getElementById('headerSellerName').textContent = nom;
+                                document.getElementById('sellerPassword').disabled = true;
+                                document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
+                                document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
+                                document.getElementById('sellerContent').classList.add('hidden');
+                                document.getElementById('sellerChevron').classList.add('fa-chevron-down');
+                                document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
+                            } else {
+                                localStorage.removeItem('selectedSeller');
+                                localStorage.removeItem('sellerPassword');
+                                document.getElementById('sellerContent').classList.remove('hidden');
+                                document.getElementById('sellerChevron').classList.add('fa-chevron-up');
+                                document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
+                            }
+                        } catch (error) {
+                            localStorage.removeItem('selectedSeller');
+                            localStorage.removeItem('sellerPassword');
+                            document.getElementById('sellerContent').classList.remove('hidden');
+                            document.getElementById('sellerChevron').classList.add('fa-chevron-up');
+                            document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
+                        }
+                    } else {
+                        document.getElementById('sellerContent').classList.remove('hidden');
+                        document.getElementById('sellerChevron').classList.add('fa-chevron-up');
+                        document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
+                    }
+                });
+            } else {
+                window.location.href = 'index.html';
+            }
+        });
     </script>
 </body>
 </html>
