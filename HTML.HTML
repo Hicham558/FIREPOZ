@@ -33,10 +33,37 @@
             background: #fff;
             color: #333;
         }
+        .small-email {
+            font-size: 0.75rem;
+            line-height: 1rem;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
-    <div class="container mx-auto px-4 pt-4">
+    <!-- Barre de navigation -->
+    <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex flex-col">
+                <h1 class="text-2xl font-bold flex items-center">
+                    <i class="fas fa-fire mr-2 text-amber-400"></i> FirePoz
+                </h1>
+                <span id="userDisplayNav" class="small-email hidden"></span>
+            </div>
+            <div class="space-x-4 flex items-center">
+                <a href="index.html" class="hover:text-indigo-200 transition flex items-center">
+                    <i class="fas fa-home mr-1"></i> Accueil
+                </a>
+                <a href="vente.html" class="hover:text-indigo-200 transition flex items-center">
+                    <i class="fas fa-shopping-cart mr-1"></i> Vente
+                </a>
+                <button id="loginLogoutButtonNav" onclick="loginLogout()" class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition flex items-center">
+                    <i class="fas fa-sign-out-alt mr-1"></i>Déconnexion
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto px-4 pt-20">
         <!-- Section vendeur -->
         <div id="sellerSection" class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8">
             <div class="p-6 cursor-pointer" onclick="toggleSection('sellerSection')">
@@ -142,7 +169,9 @@
             localStorage.removeItem('selectedSeller');
             localStorage.removeItem('sellerPassword');
             document.getElementById('userDisplay').textContent = '';
+            document.getElementById('userDisplayNav').textContent = '';
             document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+            document.getElementById('loginLogoutButtonNav').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
             window.location.href = 'index.html';
         }
 
@@ -177,47 +206,75 @@
             }
         }
 
-       async function validerVendeur() {
-    const numeroUtil = document.getElementById('sellerSelect').value;
-    const password2 = document.getElementById('sellerPassword').value;
-    const userId = localStorage.getItem('userId');
+        async function validerVendeur() {
+            const numeroUtil = document.getElementById('sellerSelect').value;
+            const password2 = document.getElementById('sellerPassword').value;
+            const userId = localStorage.getItem('userId');
 
-    if (numeroUtil === '0') {
-        showToast('Veuillez sélectionner un vendeur', true);
-        return;
-    }
-    if (!password2) {
-        showToast('Veuillez entrer le mot de passe', true);
-        return;
-    }
+            if (numeroUtil === '0') {
+                showToast('Veuillez sélectionner un vendeur', true);
+                return;
+            }
+            if (!password2) {
+                showToast('Veuillez entrer le mot de passe', true);
+                return;
+            }
+            if (!userId) {
+                showToast('Utilisateur principal non connecté', true);
+                return;
+            }
 
-    try {
-        // Pas d'appel API, on valide côté client pour l'instant
-        const selectedOption = document.getElementById('sellerSelect').options[document.getElementById('sellerSelect').selectedIndex];
-        const sellerName = selectedOption.text;
-        
-        // Stocker les informations du vendeur
-        localStorage.setItem('selectedSeller', JSON.stringify({
-            numero_util: numeroUtil,
-            nom: sellerName
-        }));
-        localStorage.setItem('sellerPassword', password2);
+            try {
+                // Vérification du mot de passe via l'API
+                const response = await fetch(`${API_BASE_URL}/verifier_utilisateur`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify({
+                        numero_util: numeroUtil,
+                        mot_de_passe: password2
+                    })
+                });
 
-        // Mettre à jour l'interface
-        document.getElementById('selectedSellerName').textContent = sellerName;
-        document.getElementById('headerSellerName').textContent = sellerName;
-        document.getElementById('sellerPassword').disabled = true;
-        document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
-        document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
-        document.getElementById('sellerContent').classList.add('hidden');
-        document.getElementById('sellerChevron').classList.add('fa-chevron-down');
-        document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
-        showToast(`Vendeur ${sellerName} validé`);
-    } catch (error) {
-        showToast(`Erreur validation vendeur: ${error.message}`, true);
-        console.error('Erreur validation:', error);
-    }
-}
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur ${response.status}: ${errorText || 'Échec de la vérification du mot de passe'}`);
+                }
+
+                const result = await response.json();
+                if (!result.valide) {
+                    showToast('Mot de passe incorrect', true);
+                    return;
+                }
+
+                // Si le mot de passe est correct, stocker les informations
+                const selectedOption = document.getElementById('sellerSelect').options[document.getElementById('sellerSelect').selectedIndex];
+                const sellerName = selectedOption.text;
+                
+                localStorage.setItem('selectedSeller', JSON.stringify({
+                    numero_util: numeroUtil,
+                    nom: sellerName
+                }));
+                localStorage.setItem('sellerPassword', password2); // Attention : à revoir pour la sécurité
+
+                // Mettre à jour l'interface
+                document.getElementById('selectedSellerName').textContent = sellerName;
+                document.getElementById('headerSellerName').textContent = sellerName;
+                document.getElementById('sellerPassword').disabled = true;
+                document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
+                document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
+                document.getElementById('sellerContent').classList.add('hidden');
+                document.getElementById('sellerChevron').classList.add('fa-chevron-down');
+                document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
+                showToast(`Vendeur ${sellerName} validé`);
+            } catch (error) {
+                showToast(`Erreur validation vendeur: ${error.message}`, true);
+                console.error('Erreur validation:', error);
+            }
+        }
+
         function changeAndValidateSeller() {
             document.getElementById('sellerSelect').value = '0';
             document.getElementById('sellerPassword').value = '';
@@ -238,7 +295,10 @@
             const userEmail = localStorage.getItem('userEmail');
             if (userId && userEmail) {
                 document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
+                document.getElementById('userDisplayNav').textContent = userEmail.toLowerCase();
+                document.getElementById('userDisplayNav').classList.remove('hidden');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+                document.getElementById('loginLogoutButtonNav').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
                 document.getElementById('sellerSelect').disabled = true;
                 chargerUtilisateurs().then((success) => {
                     if (!success) {
@@ -288,6 +348,7 @@
                 });
             } else {
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                document.getElementById('loginLogoutButtonNav').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
                 window.location.href = 'index.html';
             }
         });
