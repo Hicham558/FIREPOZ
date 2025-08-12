@@ -1706,68 +1706,72 @@ function stopScanner() {
 
         // --- Gestion des utilisateurs ---
         async function chargerUtilisateurs() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour voir les utilisateurs', true);
-                return;
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour voir les utilisateurs', true);
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+            headers: {
+                'X-User-ID': userId
             }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-                    headers: {
-                        'X-User-ID': userId
-                    }
-                });
-                if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-                }
-                const utilisateurs = await response.json();
-                const tbody = document.getElementById('utilisateursList');
-                const countElement = document.getElementById('utilisateurCount');
-
-                if (utilisateurs.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun utilisateur trouvé</td></tr>';
-                    countElement.textContent = '0';
-                    countElement.classList.remove('hidden');
-                    return;
-                }
-
-                tbody.innerHTML = '';
-                utilisateurs.forEach(utilisateur => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50';
-                    tr.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.numero || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${utilisateur.nom || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.statut || 'N/A'}</td>
-                       <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-    <div class="action-buttons">
-        <button onclick="modifierUtilisateur('${utilisateur.numero}', '${utilisateur.nom}', '${utilisateur.statut}')" 
-                class="btn-edit text-blue-600 hover:text-blue-800 transition mr-2">
-            <i class="fas fa-edit"></i> Modifier
-        </button>
-        <button onclick="supprimerUtilisateur('${utilisateur.numero}')" 
-                class="btn-delete text-red-600 hover:text-red-800 transition">
-            <i class="fas fa-trash-alt"></i> Supprimer
-        </button>
-    </div>
-</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-                countElement.textContent = utilisateurs.length;
-                countElement.classList.remove('hidden');
-            } catch (error) {
-                document.getElementById('utilisateursList').innerHTML = `
-                    <tr>
-                        <td colspan="4" class="text-center py-4 text-red-500">
-                            Erreur de chargement: ${error.message}
-                        </td>
-                    </tr>
-                `;disableAllDeleteButtons();
-                console.error('Erreur utilisateurs:', error);
-            }
+        });
+        if (!response.ok) {
+            throw new Error(`Erreur ${response.status}: ${response.statusText}`);
         }
+        const utilisateurs = await response.json();
+        const tbody = document.getElementById('utilisateursList');
+        const countElement = document.getElementById('utilisateurCount');
+
+        if (utilisateurs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun utilisateur trouvé</td></tr>';
+            countElement.textContent = '0';
+            countElement.classList.remove('hidden');
+        } else {
+            tbody.innerHTML = '';
+            utilisateurs.forEach(utilisateur => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50';
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.numero || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${utilisateur.nom || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.statut || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div class="action-buttons">
+                            <button onclick="modifierUtilisateur('${utilisateur.numero}', '${utilisateur.nom}', '${utilisateur.statut}')" 
+                                    class="btn-edit text-blue-600 hover:text-blue-800 transition mr-2">
+                                <i class="fas fa-edit"></i> Modifier
+                            </button>
+                            <button onclick="supprimerUtilisateur('${utilisateur.numero}')" 
+                                    class="btn-delete text-red-600 hover:text-red-800 transition">
+                                <i class="fas fa-trash-alt"></i> Supprimer
+                            </button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            countElement.textContent = utilisateurs.length;
+            countElement.classList.remove('hidden');
+        }
+
+        // Mettre à jour l'état du bouton Ajouter
+        updateUtilisateurAddButtonState();
+    } catch (error) {
+        document.getElementById('utilisateursList').innerHTML = `
+            <tr>
+                <td colspan="4" class="text-center py-4 text-red-500">
+                    Erreur de chargement: ${error.message}
+                </td>
+            </tr>
+        `;
+        disableAllDeleteButtons();
+        console.error('Erreur utilisateurs:', error);
+        updateUtilisateurAddButtonState(); // Mettre à jour même en cas d'erreur
+    }
+}
 
         function modifierUtilisateur(numero, nom, statut) {
             document.getElementById('utilisateurId').value = numero;
@@ -1900,7 +1904,17 @@ function stopScanner() {
                 }
             });
         });
-   
+  function updateUtilisateurAddButtonState() {
+    const utilisateurCount = parseInt(document.getElementById('utilisateurCount').textContent) || 0;
+    const addButton = document.querySelector('#utilisateursSection button:has(i.fa-plus)');
+    if (utilisateurCount === 0) {
+        addButton.disabled = false;
+        addButton.classList.remove('opacity-50', 'cursor-not-allowed');
+    } else {
+        addButton.disabled = true;
+        addButton.classList.add('opacity-50', 'cursor-not-allowed');
+    }
+} 
 function disableAllDeleteButtons() {
     const status = localStorage.getItem('userStatus'); // 'ADMIN' ou 'EMPLO'
     document.querySelectorAll('.btn-delete').forEach(btn => {
@@ -1922,3 +1936,4 @@ if ('serviceWorker' in navigator) {
 </body>
 </html>
        
+tu
