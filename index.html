@@ -1705,7 +1705,95 @@ function stopScanner() {
 }
 
         // --- Gestion des utilisateurs ---
-        
+      async function chargerUtilisateurs() {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour voir les utilisateurs', true);
+        document.getElementById('utilisateursList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+            headers: {
+                'X-User-ID': userId
+            }
+        });
+        if (!response.ok) {
+            throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+        }
+        const utilisateurs = await response.json();
+        const tbody = document.getElementById('utilisateursList');
+        const countElement = document.getElementById('utilisateurCount');
+        const addButton = document.querySelector('#utilisateursSection button:has(i.fa-plus)');
+
+        // Vérifier si l'utilisateur connecté est un admin
+        const storedSeller = localStorage.getItem('selectedSeller');
+        let isAdmin = false;
+        if (storedSeller) {
+            const { numero_util } = JSON.parse(storedSeller);
+            const currentUser = utilisateurs.find(u => u.numero == numero_util);
+            isAdmin = currentUser && currentUser.statut.toLowerCase() === 'admin';
+        }
+
+        if (utilisateurs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun utilisateur trouvé</td></tr>';
+            countElement.textContent = '0';
+            countElement.classList.remove('hidden');
+            // Activer le bouton Ajouter si aucun utilisateur ET l'utilisateur est admin
+            if (isAdmin) {
+                addButton.disabled = false;
+                addButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                addButton.disabled = true;
+                addButton.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        } else {
+            tbody.innerHTML = '';
+            utilisateurs.forEach(utilisateur => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50';
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.numero || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${utilisateur.nom || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.statut || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div class="action-buttons">
+                            <button onclick="modifierUtilisateur('${utilisateur.numero}', '${utilisateur.nom}', '${utilisateur.statut}')" 
+                                    class="btn-edit text-blue-600 hover:text-blue-800 transition mr-2">
+                                <i class="fas fa-edit"></i> Modifier
+                            </button>
+                            <button onclick="supprimerUtilisateur('${utilisateur.numero}')" 
+                                    class="btn-delete text-red-600 hover:text-red-800 transition">
+                                <i class="fas fa-trash-alt"></i> Supprimer
+                            </button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            countElement.textContent = utilisateurs.length;
+            countElement.classList.remove('hidden');
+            // Désactiver le bouton Ajouter si des utilisateurs existent ou si l'utilisateur n'est pas admin
+            addButton.disabled = true;
+            addButton.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+    } catch (error) {
+        document.getElementById('utilisateursList').innerHTML = `
+            <tr>
+                <td colspan="4" class="text-center py-4 text-red-500">
+                    Erreur de chargement: ${error.message}
+                </td>
+            </tr>
+        `;
+        disableAllDeleteButtons();
+        console.error('Erreur utilisateurs:', error);
+        // Désactiver le bouton Ajouter en cas d'erreur
+        const addButton = document.querySelector('#utilisateursSection button:has(i.fa-plus)');
+        addButton.disabled = true;
+        addButton.classList.add('opacity-50', 'cursor-not-allowed');
+    }
+}
         function modifierUtilisateur(numero, nom, statut) {
             document.getElementById('utilisateurId').value = numero;
             document.getElementById('utilisateurNom').value = nom;
@@ -1803,95 +1891,7 @@ function stopScanner() {
                 console.error('Erreur sauvegarde utilisateur:', error);
             }
         }
-async function chargerUtilisateurs() {
-    const userId = localStorage.getItem('userId');
-    if (!userId) {
-        showToast('Veuillez vous connecter pour voir les utilisateurs', true);
-        document.getElementById('utilisateursList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
-        return;
-    }
 
-    try {
-        const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-            headers: {
-                'X-User-ID': userId
-            }
-        });
-        if (!response.ok) {
-            throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-        }
-        const utilisateurs = await response.json();
-        const tbody = document.getElementById('utilisateursList');
-        const countElement = document.getElementById('utilisateurCount');
-        const addButton = document.querySelector('#utilisateursSection button:has(i.fa-plus)');
-
-        // Vérifier si l'utilisateur connecté est un admin
-        const storedSeller = localStorage.getItem('selectedSeller');
-        let isAdmin = false;
-        if (storedSeller) {
-            const { numero_util } = JSON.parse(storedSeller);
-            const currentUser = utilisateurs.find(u => u.numero == numero_util);
-            isAdmin = currentUser && currentUser.statut.toLowerCase() === 'admin';
-        }
-
-        if (utilisateurs.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun utilisateur trouvé</td></tr>';
-            countElement.textContent = '0';
-            countElement.classList.remove('hidden');
-            // Activer le bouton Ajouter si aucun utilisateur ET l'utilisateur est admin
-            if (isAdmin) {
-                addButton.disabled = false;
-                addButton.classList.remove('opacity-50', 'cursor-not-allowed');
-            } else {
-                addButton.disabled = true;
-                addButton.classList.add('opacity-50', 'cursor-not-allowed');
-            }
-        } else {
-            tbody.innerHTML = '';
-            utilisateurs.forEach(utilisateur => {
-                const tr = document.createElement('tr');
-                tr.className = 'hover:bg-gray-50';
-                tr.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.numero || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${utilisateur.nom || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.statut || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <div class="action-buttons">
-                            <button onclick="modifierUtilisateur('${utilisateur.numero}', '${utilisateur.nom}', '${utilisateur.statut}')" 
-                                    class="btn-edit text-blue-600 hover:text-blue-800 transition mr-2">
-                                <i class="fas fa-edit"></i> Modifier
-                            </button>
-                            <button onclick="supprimerUtilisateur('${utilisateur.numero}')" 
-                                    class="btn-delete text-red-600 hover:text-red-800 transition">
-                                <i class="fas fa-trash-alt"></i> Supprimer
-                            </button>
-                        </div>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
-            countElement.textContent = utilisateurs.length;
-            countElement.classList.remove('hidden');
-            // Désactiver le bouton Ajouter si des utilisateurs existent ou si l'utilisateur n'est pas admin
-            addButton.disabled = true;
-            addButton.classList.add('opacity-50', 'cursor-not-allowed');
-        }
-    } catch (error) {
-        document.getElementById('utilisateursList').innerHTML = `
-            <tr>
-                <td colspan="4" class="text-center py-4 text-red-500">
-                    Erreur de chargement: ${error.message}
-                </td>
-            </tr>
-        `;
-        disableAllDeleteButtons();
-        console.error('Erreur utilisateurs:', error);
-        // Désactiver le bouton Ajouter en cas d'erreur
-        const addButton = document.querySelector('#utilisateursSection button:has(i.fa-plus)');
-        addButton.disabled = true;
-        addButton.classList.add('opacity-50', 'cursor-not-allowed');
-    }
-}
         function resetUtilisateurForm() {
             document.getElementById('utilisateurId').value = '';
             document.getElementById('utilisateurNom').value = '';
@@ -1925,17 +1925,7 @@ async function chargerUtilisateurs() {
                 }
             });
         });
-  function updateUtilisateurAddButtonState() {
-    const utilisateurCount = parseInt(document.getElementById('utilisateurCount').textContent) || 0;
-    const addButton = document.querySelector('#utilisateursSection button:has(i.fa-plus)');
-    if (utilisateurCount === 0) {
-        addButton.disabled = false;
-        addButton.classList.remove('opacity-50', 'cursor-not-allowed');
-    } else {
-        addButton.disabled = true;
-        addButton.classList.add('opacity-50', 'cursor-not-allowed');
-    }
-} 
+   
 function disableAllDeleteButtons() {
     const status = localStorage.getItem('userStatus'); // 'ADMIN' ou 'EMPLO'
     document.querySelectorAll('.btn-delete').forEach(btn => {
