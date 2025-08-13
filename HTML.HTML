@@ -18,10 +18,23 @@
             transform: translateY(-50%);
             cursor: pointer;
         }
+        @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes smoothBlink { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateY(40px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes toastOut {
+            from { opacity: 1; transform: translateY(0); }
+            to { opacity: 0; transform: translateY(40px); }
+        }
+        .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
         .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
         .seller-anim { animation: smoothBlink 1.5s infinite ease-in-out; }
+        .toast-in { animation: toastIn 0.5s both; }
+        .toast-out { animation: toastOut 0.5s both; }
+        .small-email { font-size: 0.75rem; line-height: 1rem; }
         select, input {
             transition: all 0.3s ease;
         }
@@ -33,11 +46,10 @@
             background: #fff;
             color: #333;
         }
-        /* Entête fixe simple */
-        nav#headerNav {
+        nav {
             background-color: #4f46e5; /* Indigo-600 */
             color: white;
-            padding: 0.75rem 1rem;
+            padding: 1rem;
             position: fixed;
             top: 0;
             left: 0;
@@ -45,34 +57,29 @@
             z-index: 1000;
             box-shadow: 0 2px 8px rgb(0 0 0 / 0.1);
         }
-        nav#headerNav a {
-            display: flex;
-            align-items: center;
-            color: white;
-            font-weight: 600;
-            font-size: 1.125rem; /* text-lg */
-            text-decoration: none;
-        }
-        nav#headerNav a:hover {
-            color: #c7d2fe; /* Indigo-200 */
-        }
-        nav#headerNav i {
-            margin-right: 0.5rem;
-            font-size: 1.25rem; /* fa-lg */
-        }
-        /* Pour laisser la place sous l'entête */
         body > .container {
-            padding-top: 4.5rem; /* hauteur nav */
+            padding-top: 5rem; /* Hauteur nav */
         }
     </style>
 </head>
 <body class="bg-gray-100">
-
-    <!-- Entête avec un bouton Home uniquement -->
-    <nav id="headerNav">
-        <a href="index.html" title="Accueil">
-            <i class="fas fa-home"></i> Accueil
-        </a>
+    <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-slide-in">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex flex-col">
+                <h1 class="text-2xl font-bold flex items-center">
+                    <i class="fas fa-fire mr-2 text-amber-400 animate-pulse"></i> FirePoz
+                </h1>
+                <span id="userDisplay" class="small-email hidden"></span>
+            </div>
+            <div class="space-x-4 flex items-center">
+                <a href="index.html" class="hover:text-indigo-200 transition flex items-center">
+                    <i class="fas fa-home mr-1"></i> Accueil
+                </a>
+                <button id="loginLogoutButton" onclick="loginLogout()" class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition flex items-center">
+                    <i class="fas fa-sign-out-alt mr-1"></i>Déconnexion
+                </button>
+            </div>
+        </div>
     </nav>
 
     <div class="container mx-auto px-4 pt-4">
@@ -114,15 +121,9 @@
                         </button>
                     </div>
                 </div>
-                <div class="mb-4">
+                <div>
                     <span class="text-sm font-medium text-gray-700">Vendeur sélectionné: </span>
                     <span id="selectedSellerName" class="text-sm text-indigo-600 seller-anim">-</span>
-                </div>
-                <div class="flex items-center gap-4">
-                    <span id="userDisplay" class="text-sm text-gray-600"></span>
-                    <button id="loginLogoutButton" onclick="loginLogout()" class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition flex items-center">
-                        <i class="fas fa-sign-out-alt mr-1"></i>Déconnexion
-                    </button>
                 </div>
             </div>
         </div>
@@ -164,18 +165,25 @@
             const toast = document.getElementById('toast');
             const toastMessage = document.getElementById('toastMessage');
             const toastIcon = document.getElementById('toastIcon');
+            if (!toast || !toastMessage || !toastIcon) {
+                console.error('Éléments toast introuvables');
+                return;
+            }
             toast.className = isError
-                ? 'fixed bottom-4 right-4 flex items-center bg-red-500 text-white px-6 py-3 rounded-md shadow-lg'
-                : 'fixed bottom-4 right-4 flex items-center bg-green-500 text-white px-6 py-3 rounded-md shadow-lg';
-            toastIcon.className = isError
-                ? 'fas fa-exclamation-circle mr-2'
-                : 'fas fa-check-circle mr-2';
+                ? 'fixed bottom-4 right-4 flex items-center bg-red-500 text-white px-6 py-3 rounded-md shadow-lg toast-in'
+                : 'fixed bottom-4 right-4 flex items-center bg-green-500 text-white px-6 py-3 rounded-md shadow-lg toast-in';
+            toastIcon.className = isError ? 'fas fa-exclamation-circle mr-2' : 'fas fa-check-circle mr-2';
             toastMessage.textContent = message;
             toast.classList.remove('hidden');
-            setTimeout(() => toast.classList.add('hidden'), 3000);
+            setTimeout(() => {
+                toast.classList.remove('toast-in');
+                toast.classList.add('toast-out');
+                setTimeout(() => toast.classList.add('hidden'), 500);
+            }, 3000);
         }
 
         function loginLogout() {
+            console.log('Déconnexion en cours...');
             localStorage.removeItem('userId');
             localStorage.removeItem('userEmail');
             localStorage.removeItem('selectedSeller');
@@ -186,20 +194,24 @@
         }
 
         async function chargerUtilisateurs() {
+            console.log('Chargement des utilisateurs...');
             const userId = localStorage.getItem('userId');
             if (!userId) {
-                showToast('Veuillez vous connecter', true);
+                showToast('Veuillez vous connecter pour voir les utilisateurs', true);
                 return false;
             }
             try {
                 const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
                     headers: { 'X-User-ID': userId }
                 });
+                console.log('Réponse liste_utilisateurs:', response.status, response.statusText);
                 if (!response.ok) {
                     const errorText = await response.text();
+                    console.error('Erreur texte liste_utilisateurs:', errorText);
                     throw new Error(`Erreur ${response.status}: ${errorText}`);
                 }
                 const utilisateurs = await response.json();
+                console.log('Utilisateurs reçus:', utilisateurs);
                 const sellerSelect = document.getElementById('sellerSelect');
                 sellerSelect.innerHTML = '<option value="0">Sélectionner un vendeur</option>';
                 utilisateurs.forEach(utilisateur => {
@@ -210,83 +222,87 @@
                 });
                 return true;
             } catch (error) {
-                showToast(`Erreur chargement utilisateurs: ${error.message}`, true);
+                showToast(`Erreur lors du chargement des utilisateurs: ${error.message}`, true);
                 console.error('Erreur utilisateurs:', error);
                 return false;
             }
         }
 
-   async function validerVendeur() {
-    const numeroUtil = document.getElementById('sellerSelect').value;
-    const password2 = document.getElementById('sellerPassword').value;
-    const userId = localStorage.getItem('userId');
+        async function validerVendeur() {
+            console.log('Validation du vendeur...');
+            const numeroUtil = document.getElementById('sellerSelect').value;
+            const password2 = document.getElementById('sellerPassword').value;
+            const userId = localStorage.getItem('userId');
 
-    if (numeroUtil === '0') {
-        showToast('Veuillez sélectionner un vendeur', true);
-        return;
-    }
-    if (!password2) {
-        showToast('Veuillez entrer le mot de passe', true);
-        return;
-    }
-
-    try {
-        // Récupérer le nom du vendeur à partir de l'option sélectionnée
-        const selectedOption = document.getElementById('sellerSelect').options[document.getElementById('sellerSelect').selectedIndex];
-        const sellerName = selectedOption.text;
-
-        // Préparer les données pour l'endpoint /valider_vendeur
-        const vendeurData = {
-            nom: sellerName,
-            password2: password2
-        };
-
-        const response = await fetch(`${API_BASE_URL}/valider_vendeur`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-User-ID': userId
-            },
-            body: JSON.stringify(vendeurData)
-        });
-
-        if (!response.ok) {
-            let errorText;
-            try {
-                const errorData = await response.json();
-                errorText = errorData.erreur || `Erreur serveur ${response.status}`;
-            } catch {
-                errorText = `Erreur serveur ${response.status}`;
+            if (numeroUtil === '0') {
+                showToast('Veuillez sélectionner un vendeur', true);
+                return;
             }
-            throw new Error(errorText);
+            if (!password2) {
+                showToast('Veuillez entrer le mot de passe', true);
+                return;
+            }
+
+            try {
+                // Récupérer le nom du vendeur à partir de l'option sélectionnée
+                const selectedOption = document.getElementById('sellerSelect').options[document.getElementById('sellerSelect').selectedIndex];
+                const sellerName = selectedOption.text;
+
+                // Préparer les données pour l'endpoint /valider_vendeur
+                const vendeurData = {
+                    nom: sellerName,
+                    password2: password2
+                };
+
+                const response = await fetch(`${API_BASE_URL}/valider_vendeur`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify(vendeurData)
+                });
+
+                if (!response.ok) {
+                    let errorText;
+                    try {
+                        const errorData = await response.json();
+                        errorText = errorData.erreur || `Erreur serveur ${response.status}`;
+                    } catch {
+                        errorText = `Erreur serveur ${response.status}`;
+                    }
+                    throw new Error(errorText);
+                }
+
+                const result = await response.json();
+                const { numero_util } = result.utilisateur;
+
+                // Validation OK - mettre à jour l'UI et stockage local
+                localStorage.setItem('selectedSeller', JSON.stringify({
+                    numero_util: numeroUtil,
+                    nom: sellerName
+                }));
+                localStorage.setItem('sellerPassword', password2);
+
+                document.getElementById('selectedSellerName').textContent = sellerName;
+                document.getElementById('headerSellerName').textContent = sellerName;
+                document.getElementById('sellerPassword').disabled = true;
+                document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
+                document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
+                document.getElementById('sellerContent').classList.add('hidden');
+                document.getElementById('sellerChevron').classList.add('fa-chevron-down');
+                document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
+                showToast(`Vendeur ${sellerName} validé`);
+            } catch (error) {
+                showToast(`Erreur validation vendeur: ${error.message}`, true);
+                console.error('Erreur validation:', error);
+            }
         }
 
-        const result = await response.json();
-        const { numero_util } = result.utilisateur;
-
-        // Validation OK - mettre à jour l'UI et stockage local
-        localStorage.setItem('selectedSeller', JSON.stringify({
-            numero_util: numero_util,
-            nom: sellerName
-        }));
-        localStorage.setItem('sellerPassword', password2);
-
-        document.getElementById('selectedSellerName').textContent = sellerName;
-        document.getElementById('headerSellerName').textContent = sellerName;
-        document.getElementById('sellerPassword').disabled = true;
-        document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
-        document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
-        document.getElementById('sellerContent').classList.add('hidden');
-        document.getElementById('sellerChevron').classList.add('fa-chevron-down');
-        document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
-        showToast(`Vendeur ${sellerName} validé`);
-    } catch (error) {
-        showToast(`Erreur validation vendeur: ${error.message}`, true);
-        console.error('Erreur validation:', error);
-    }
-}
         function changeAndValidateSeller() {
-            document.getElementById('sellerSelect').value = '0';
+            console.log('Changement et validation du vendeur...');
+            const sellerSelect = document.getElementById('sellerSelect');
+            sellerSelect.value = '0';
             document.getElementById('sellerPassword').value = '';
             document.getElementById('sellerPassword').disabled = false;
             document.getElementById('selectedSellerName').textContent = '-';
@@ -301,10 +317,13 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            console.log('Page chargée, vérification utilisateur...');
             const userId = localStorage.getItem('userId');
             const userEmail = localStorage.getItem('userEmail');
             if (userId && userEmail) {
+                console.log('Utilisateur connecté:', userId, userEmail);
                 document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
+                document.getElementById('userDisplay').classList.remove('hidden');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
                 document.getElementById('sellerSelect').disabled = true;
                 chargerUtilisateurs().then((success) => {
@@ -318,6 +337,9 @@
                     if (storedSeller) {
                         try {
                             const { numero_util, nom } = JSON.parse(storedSeller);
+                            if (!numero_util || !nom) {
+                                throw new Error('Données du vendeur invalides dans localStorage');
+                            }
                             const sellerSelect = document.getElementById('sellerSelect');
                             const optionExists = Array.from(sellerSelect.options).some(option => option.value === numero_util);
                             if (optionExists) {
@@ -331,6 +353,7 @@
                                 document.getElementById('sellerChevron').classList.add('fa-chevron-down');
                                 document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
                             } else {
+                                console.warn('Vendeur stocké non trouvé dans les options, réinitialisation...');
                                 localStorage.removeItem('selectedSeller');
                                 localStorage.removeItem('sellerPassword');
                                 document.getElementById('sellerContent').classList.remove('hidden');
@@ -339,12 +362,13 @@
                                 showToast('Vendeur non valide, veuillez sélectionner un vendeur', true);
                             }
                         } catch (error) {
+                            console.error('Erreur lors de la lecture de selectedSeller:', error);
                             localStorage.removeItem('selectedSeller');
                             localStorage.removeItem('sellerPassword');
                             document.getElementById('sellerContent').classList.remove('hidden');
                             document.getElementById('sellerChevron').classList.add('fa-chevron-up');
                             document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
-                            showToast('Erreur chargement vendeur', true);
+                            showToast('Erreur chargement vendeur, veuillez sélectionner un vendeur', true);
                         }
                     } else {
                         document.getElementById('sellerContent').classList.remove('hidden');
@@ -354,9 +378,18 @@
                     document.getElementById('sellerSelect').disabled = false;
                 });
             } else {
+                console.log('Aucun utilisateur connecté, redirection vers index.html');
                 document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
                 window.location.href = 'index.html';
             }
+
+            fetch(`${API_BASE_URL}/`)
+                .then(response => response.text())
+                .then(text => console.log('Statut API:', text))
+                .catch(err => {
+                    console.error('API non disponible:', err);
+                    showToast('Erreur de connexion à l\'API', true);
+                });
         });
     </script>
 </body>
