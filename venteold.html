@@ -556,55 +556,73 @@
             }
         }
 
-        async function validerVendeur() {
-            const numeroUtil = document.getElementById('sellerSelect').value;
-            const password2 = document.getElementById('sellerPassword').value;
-            const userId = localStorage.getItem('userId');
-            if (numeroUtil === '0') {
-                showToast('Veuillez sélectionner un vendeur', true);
-                return;
-            }
-            if (!password2) {
-                showToast('Veuillez entrer le mot de passe', true);
-                return;
-            }
+         async function validerVendeur() {
+    console.log('Validation du vendeur...');
+    const numeroUtil = document.getElementById('sellerSelect').value;
+    const password2 = document.getElementById('sellerPassword').value;
+    const userId = localStorage.getItem('userId');
+
+    if (numeroUtil === '0') {
+        showToast('Veuillez sélectionner un vendeur', true);
+        return;
+    }
+    if (!password2) {
+        showToast('Veuillez entrer le mot de passe', true);
+        return;
+    }
+
+    try {
+        const selectedOption = document.getElementById('sellerSelect').options[document.getElementById('sellerSelect').selectedIndex];
+        const sellerName = selectedOption.text;
+
+        const vendeurData = {
+            nom: sellerName,
+            password2: password2
+        };
+
+        const response = await fetch(`${API_BASE_URL}/valider_vendeur`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-User-ID': userId
+            },
+            body: JSON.stringify(vendeurData)
+        });
+
+        if (!response.ok) {
+            let errorText;
             try {
-                const testVenteData = {
-                    numero_table: 0,
-                    date_comande: new Date().toISOString(),
-                    payment_mode: 'espece',
-                    amount_paid: 0,
-                    numero_util: parseInt(numeroUtil),
-                    password2: password2,
-                    lignes: [{ numero_item: 0, quantite: 0, prixt: 0, remarque: 'test', prixbh: 0 }]
-                };
-                const response = await fetch(`${API_BASE_URL}/valider_vente`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify(testVenteData)
-                });
-                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
-                const selectedOption = document.getElementById('sellerSelect').options[document.getElementById('sellerSelect').selectedIndex];
-                const sellerName = selectedOption.text;
-                localStorage.setItem('selectedSeller', JSON.stringify({ numero_util: numeroUtil, nom: sellerName }));
-                localStorage.setItem('sellerPassword', password2);
-                document.getElementById('selectedSellerName').textContent = sellerName;
-                document.getElementById('headerSellerName').textContent = sellerName;
-                document.getElementById('sellerPassword').disabled = true;
-                document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
-                document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
-                document.getElementById('sellerContent').classList.add('hidden');
-                document.getElementById('sellerChevron').classList.add('fa-chevron-down');
-                document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
-                showToast(`Vendeur ${sellerName} validé`);
-            } catch (error) {
-                showToast(`Erreur validation vendeur: ${error.message}`, true);
+                const errorData = await response.json();
+                errorText = errorData.erreur || `Erreur serveur ${response.status}`;
+            } catch {
+                errorText = `Erreur serveur ${response.status}`;
             }
+            throw new Error(errorText);
         }
 
+        const result = await response.json();
+        const { numero_util } = result.utilisateur;
+
+        localStorage.setItem('selectedSeller', JSON.stringify({
+            numero_util: numeroUtil,
+            nom: sellerName
+        }));
+        localStorage.setItem('sellerPassword', password2);
+
+        document.getElementById('selectedSellerName').textContent = sellerName;
+        document.getElementById('headerSellerName').textContent = sellerName;
+        document.getElementById('sellerPassword').disabled = true;
+        document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
+        document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
+        document.getElementById('sellerContent').classList.add('hidden');
+        document.getElementById('sellerChevron').classList.add('fa-chevron-down');
+        document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
+        showToast(`Vendeur ${sellerName} validé`);
+    } catch (error) {
+        showToast(`Erreur validation vendeur: ${error.message}`, true);
+        console.error('Erreur validation:', error);
+    }
+}  
         function changeAndValidateSeller() {
             const sellerSelect = document.getElementById('sellerSelect');
             sellerSelect.value = '0';
