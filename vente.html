@@ -643,7 +643,7 @@
             }
         }
 
-     document.addEventListener('DOMContentLoaded', async () => {
+   document.addEventListener('DOMContentLoaded', async () => {
     console.log('Page chargée, vérification utilisateur...');
     const userId = localStorage.getItem('userId');
     const userEmail = localStorage.getItem('userEmail');
@@ -658,37 +658,52 @@
         await Promise.all([
             chargerUtilisateurs(),
             chargerClients(),
-            loadProductCount() // Ajout ici
+            loadProductCount()
         ]);
 
         const storedSeller = localStorage.getItem('selectedSeller');
         if (storedSeller) {
-            const { numero_util, nom } = JSON.parse(storedSeller);
-            const sellerSelect = document.getElementById('sellerSelect');
-            const optionExists = Array.from(sellerSelect.options).some(option => option.value === numero_util);
-            if (optionExists) {
-                sellerSelect.value = numero_util;
-                document.getElementById('selectedSellerName').textContent = nom;
-                document.getElementById('headerSellerName').textContent = nom;
-                document.getElementById('sellerPassword').disabled = true;
-                document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
-                document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
-                document.getElementById('sellerContent').classList.add('hidden');
-                document.getElementById('sellerChevron').classList.add('fa-chevron-down');
-                document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
-            } else {
+            try {
+                const { numero_util, nom } = JSON.parse(storedSeller);
+                if (!numero_util || !nom) {
+                    throw new Error('Données du vendeur invalides dans localStorage');
+                }
+                const sellerSelect = document.getElementById('sellerSelect');
+                const optionExists = Array.from(sellerSelect.options).some(option => option.value === numero_util);
+                if (optionExists) {
+                    sellerSelect.value = numero_util;
+                    document.getElementById('selectedSellerName').textContent = nom;
+                    document.getElementById('headerSellerName').textContent = nom;
+                    document.getElementById('sellerPassword').disabled = true;
+                    document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
+                    document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
+                    document.getElementById('sellerContent').classList.add('hidden');
+                    document.getElementById('sellerChevron').classList.add('fa-chevron-down');
+                    document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
+                } else {
+                    console.warn('Vendeur stocké non trouvé dans les options, réinitialisation...');
+                    localStorage.removeItem('selectedSeller');
+                    localStorage.removeItem('sellerPassword');
+                    document.getElementById('sellerContent').classList.remove('hidden');
+                    document.getElementById('sellerChevron').classList.add('fa-chevron-up');
+                    document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
+                    showToast('Vendeur non valide, veuillez sélectionner un vendeur', true);
+                }
+            } catch (error) {
+                console.error('Erreur lors de la lecture de selectedSeller:', error);
                 localStorage.removeItem('selectedSeller');
                 localStorage.removeItem('sellerPassword');
                 document.getElementById('sellerContent').classList.remove('hidden');
                 document.getElementById('sellerChevron').classList.add('fa-chevron-up');
                 document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
+                showToast('Erreur chargement vendeur, veuillez sélectionner un vendeur', true);
             }
         } else {
             document.getElementById('sellerContent').classList.remove('hidden');
             document.getElementById('sellerChevron').classList.add('fa-chevron-up');
             document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
         }
-        sellerSelect.disabled = false;
+        document.getElementById('sellerSelect').disabled = false;
 
         // Vérifier si mode édition
         const urlParams = new URLSearchParams(window.location.search);
@@ -708,8 +723,6 @@
         } else {
             pendingButtonsContainer.classList.remove('hidden');
         }
-
-        // Ne pas charger les produits ici, car le compteur est chargé via loadProductCount
     } else {
         console.log('Aucun utilisateur connecté, redirection vers index.html');
         document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
@@ -723,7 +736,7 @@
             console.error('API non disponible:', err);
             showToast('Erreur de connexion à l\'API', true);
         });
-});
+});  
       
   async function loadSaleData(numeroComande) {
     console.log(`Chargement des données de la vente #${numeroComande}...`);
