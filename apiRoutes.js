@@ -21,7 +21,7 @@ export async function listeClients() {
 
 export async function listeFournisseurs() {
   const db = await getDb();
-  const stmt = db.prepare('SELECT numero_fou, nom, "solde ", "reference ", contact, adresse FROM "fournisseur " ORDER BY nom');
+  const stmt = db.prepare('SELECT numero_fou, nom, "solde ", "reference ", "contact ", adresse FROM "fournisseur " ORDER BY nom');
   let fournisseurs = [];
   while (stmt.step()) {
     const row = stmt.getAsObject();
