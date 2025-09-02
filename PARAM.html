@@ -620,25 +620,27 @@
         }
 
         // Tester la connexion à la base de données
-        async function testDbConnection() {
-            if (!checkLoginStatus()) return;
+ async function testDbConnection() {
+    if (!checkLoginStatus()) return;
+    try {
+        const response = await fetchWithHeaders(`${API_BASE_URL}/`, { method: 'GET' });
+        if (response.ok) {
+            const text = await response.text();
             try {
-                const response = await fetchWithHeaders(`${API_BASE_URL}/`, {
-                    method: 'GET'
-                });
-                if (response.ok) {
-                    const text = await response.text();
-                    showToast(text || 'Connexion à la base de données réussie');
-                } else {
-                    const data = await response.json();
-                    showToast(data.erreur || 'Erreur lors du test de connexion', true);
-                }
-            } catch (error) {
-                showToast(`Erreur: ${error.message}`, true);
-                console.error('Erreur lors du test de connexion:', error);
+                const data = JSON.parse(text); // Tente de parser comme JSON
+                showToast(data.message || 'Connexion à la base de données réussie');
+            } catch (e) {
+                showToast(text || 'Connexion réussie, mais réponse non JSON');
             }
+        } else {
+            const text = await response.text(); // Récupère le texte brut
+            showToast(`Erreur: ${text || 'Réponse invalide du serveur'}`, true);
         }
-
+    } catch (error) {
+        showToast(`Erreur de connexion: ${error.message}`, true);
+        console.error('Erreur lors du test de connexion:', error);
+    }
+}  
         // Fonction fetch avec en-têtes personnalisés
         async function fetchWithHeaders(url, options = {}) {
             const userId = localStorage.getItem('userId');
