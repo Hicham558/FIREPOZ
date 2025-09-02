@@ -37,3 +37,14 @@ export async function listeFournisseurs() {
   stmt.free();
   return fournisseurs;
 }
+export async function listeTables() {
+  const db = await getDb();
+  const stmt = db.prepare("SELECT name FROM sqlite_master WHERE type='table'");
+  let tables = [];
+  while (stmt.step()) {
+    const row = stmt.getAsObject();
+    tables.push(row.name);
+  }
+  stmt.free();
+  return tables;
+}
