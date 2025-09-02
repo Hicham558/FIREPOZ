@@ -5,7 +5,7 @@ export async function getDb() {
   const SQL = await initSqlJs({
     locateFile: () => 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.wasm'
   });
-  const response = await fetch('./gestion.db');
+  const response = await fetch('./gestio1n.db');
   if (!response.ok) throw new Error('Impossible de charger gestion.db');
   const arrayBuffer = await response.arrayBuffer();
   db = new SQL.Database(new Uint8Array(arrayBuffer));
