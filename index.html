@@ -10,40 +10,64 @@
             max-width: 800px;
             margin: 0 auto;
             padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
         }
         .form-group {
             margin-bottom: 20px;
+            background-color: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h2 {
+            margin-top: 0;
+            color: #007bff;
         }
         label {
             display: block;
             margin-bottom: 5px;
+            font-weight: bold;
         }
         input {
             padding: 8px;
             width: 100%;
             box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-bottom: 10px;
         }
         button {
             padding: 10px 20px;
             background-color: #007bff;
             color: white;
             border: none;
+            border-radius: 4px;
             cursor: pointer;
+            font-size: 16px;
         }
         button:hover {
             background-color: #0056b3;
         }
         .result {
-            margin-top: 20px;
+            margin-top: 15px;
             padding: 10px;
             border: 1px solid #ccc;
+            border-radius: 4px;
             display: none;
         }
-        .error {
-            color: red;
-        }
         .success {
-            color: green;
+            background-color: #d4edda;
+            color: #155724;
+            border-color: #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-color: #f5c6cb;
         }
         table {
             width: 100%;
@@ -56,12 +80,23 @@
             text-align: left;
         }
         th {
+            background-color: #007bff;
+            color: white;
+        }
+        tr:nth-child(even) {
             background-color: #f2f2f2;
         }
     </style>
 </head>
 <body>
     <h1>Gestion des Clients et Fournisseurs</h1>
+
+    <!-- Test de connexion -->
+    <div class="form-group">
+        <h2>Test de Connexion</h2>
+        <button onclick="testerConnexion()">Tester la connexion</button>
+        <div id="test-result" class="result"></div>
+    </div>
 
     <!-- Liste des clients -->
     <div class="form-group">
@@ -88,7 +123,7 @@
     <div class="form-group">
         <h2>Ajouter un Client</h2>
         <label for="nom">Nom :</label>
-        <input type="text" id="nom" placeholder="Entrez le nom">
+        <input type="text" id="nom" placeholder="Entrez le nom" required>
         <label for="contact">Contact :</label>
         <input type="text" id="contact" placeholder="Entrez le contact">
         <label for="adresse">Adresse :</label>
@@ -101,9 +136,9 @@
     <div class="form-group">
         <h2>Modifier un Client</h2>
         <label for="numero_clt_modif">Numéro Client :</label>
-        <input type="text" id="numero_clt_modif" placeholder="Entrez le numéro du client">
+        <input type="number" id="numero_clt_modif" placeholder="Entrez le numéro du client" required>
         <label for="nom_modif">Nom :</label>
-        <input type="text" id="nom_modif" placeholder="Entrez le nouveau nom">
+        <input type="text" id="nom_modif" placeholder="Entrez le nouveau nom" required>
         <label for="contact_modif">Contact :</label>
         <input type="text" id="contact_modif" placeholder="Entrez le nouveau contact">
         <label for="adresse_modif">Adresse :</label>
@@ -116,7 +151,7 @@
     <div class="form-group">
         <h2>Supprimer un Client</h2>
         <label for="numero_clt_suppr">Numéro Client :</label>
-        <input type="text" id="numero_clt_suppr" placeholder="Entrez le numéro du client">
+        <input type="number" id="numero_clt_suppr" placeholder="Entrez le numéro du client" required>
         <button onclick="supprimerClient()">Supprimer</button>
         <div id="supprimer-result" class="result"></div>
     </div>
@@ -124,12 +159,32 @@
     <script type="module">
         import { fetchApi } from './fetchApi.js';
 
+        console.log("Script chargé, fetchApi disponible :", typeof fetchApi);
+
+        // Fonction pour tester la connexion
+        async function testerConnexion() {
+            const resultDiv = document.getElementById('test-result');
+            try {
+                const response = await fetchApi('/test', { method: 'GET' });
+                const data = await response.json();
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'success';
+                resultDiv.innerHTML = data.message;
+            } catch (error) {
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'error';
+                resultDiv.innerHTML = `Erreur de test : ${error.message}`;
+            }
+        }
+
         // Fonction pour afficher les clients
         async function listerClients() {
             const resultDiv = document.getElementById('clients-result');
             try {
+                console.log("Appel de /liste_clients");
                 const response = await fetchApi('/liste_clients', { method: 'GET' });
                 const clients = await response.json();
+                console.log("Clients reçus :", clients);
                 resultDiv.style.display = 'block';
                 resultDiv.className = 'success';
                 resultDiv.innerHTML = `
@@ -142,16 +197,16 @@
                             <th>Contact</th>
                             <th>Adresse</th>
                         </tr>
-                        ${clients.map(client => `
+                        ${clients.length > 0 ? clients.map(client => `
                             <tr>
                                 <td>${client.numero_clt}</td>
                                 <td>${client.nom}</td>
                                 <td>${client.solde}</td>
                                 <td>${client.reference}</td>
-                                <td>${client.contact}</td>
-                                <td>${client.adresse}</td>
+                                <td>${client.contact || ''}</td>
+                                <td>${client.adresse || ''}</td>
                             </tr>
-                        `).join('')}
+                        `).join('') : '<tr><td colspan="6">Aucun client trouvé</td></tr>'}
                     </table>
                 `;
             } catch (error) {
@@ -165,8 +220,10 @@
         async function listerFournisseurs() {
             const resultDiv = document.getElementById('fournisseurs-result');
             try {
+                console.log("Appel de /liste_fournisseurs");
                 const response = await fetchApi('/liste_fournisseurs', { method: 'GET' });
                 const fournisseurs = await response.json();
+                console.log("Fournisseurs reçus :", fournisseurs);
                 resultDiv.style.display = 'block';
                 resultDiv.className = 'success';
                 resultDiv.innerHTML = `
@@ -179,16 +236,16 @@
                             <th>Contact</th>
                             <th>Adresse</th>
                         </tr>
-                        ${fournisseurs.map(fournisseur => `
+                        ${fournisseurs.length > 0 ? fournisseurs.map(fournisseur => `
                             <tr>
                                 <td>${fournisseur.numero_fou}</td>
                                 <td>${fournisseur.nom}</td>
                                 <td>${fournisseur.solde}</td>
                                 <td>${fournisseur.reference}</td>
-                                <td>${fournisseur.contact}</td>
-                                <td>${fournisseur.adresse}</td>
+                                <td>${fournisseur.contact || ''}</td>
+                                <td>${fournisseur.adresse || ''}</td>
                             </tr>
-                        `).join('')}
+                        `).join('') : '<tr><td colspan="6">Aucun fournisseur trouvé</td></tr>'}
                     </table>
                 `;
             } catch (error) {
@@ -202,13 +259,15 @@
         async function listerTables() {
             const resultDiv = document.getElementById('tables-result');
             try {
+                console.log("Appel de /tables");
                 const response = await fetchApi('/tables', { method: 'GET' });
                 const tables = await response.json();
+                console.log("Tables reçues :", tables);
                 resultDiv.style.display = 'block';
                 resultDiv.className = 'success';
                 resultDiv.innerHTML = `
                     <h3>Tables de la base de données :</h3>
-                    <ul>${tables.map(table => `<li>${table}</li>`).join('')}</ul>
+                    <ul>${tables.length > 0 ? tables.map(table => `<li>${table}</li>`).join('') : '<li>Aucune table trouvée</li>'}</ul>
                 `;
             } catch (error) {
                 resultDiv.style.display = 'block';
@@ -224,12 +283,21 @@
             const contact = document.getElementById('contact').value;
             const adresse = document.getElementById('adresse').value;
 
+            if (!nom) {
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'error';
+                resultDiv.innerHTML = 'Erreur : Le nom est obligatoire';
+                return;
+            }
+
             try {
+                console.log("Appel de /ajouter_client");
                 const response = await fetchApi('/ajouter_client', {
                     method: 'POST',
                     body: JSON.stringify({ nom, contact, adresse })
                 });
                 const data = await response.json();
+                console.log("Réponse ajouter client :", data);
                 resultDiv.style.display = 'block';
                 if (response.ok) {
                     resultDiv.className = 'success';
@@ -253,12 +321,21 @@
             const contact = document.getElementById('contact_modif').value;
             const adresse = document.getElementById('adresse_modif').value;
 
+            if (!numero_clt || !nom) {
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'error';
+                resultDiv.innerHTML = 'Erreur : Le numéro client et le nom sont obligatoires';
+                return;
+            }
+
             try {
+                console.log("Appel de /modifier_client/", numero_clt);
                 const response = await fetchApi(`/modifier_client/${numero_clt}`, {
                     method: 'PUT',
                     body: JSON.stringify({ nom, contact, adresse })
                 });
                 const data = await response.json();
+                console.log("Réponse modifier client :", data);
                 resultDiv.style.display = 'block';
                 if (response.ok) {
                     resultDiv.className = 'success';
@@ -279,11 +356,20 @@
             const resultDiv = document.getElementById('supprimer-result');
             const numero_clt = document.getElementById('numero_clt_suppr').value;
 
+            if (!numero_clt) {
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'error';
+                resultDiv.innerHTML = 'Erreur : Le numéro client est obligatoire';
+                return;
+            }
+
             try {
+                console.log("Appel de /supprimer_client/", numero_clt);
                 const response = await fetchApi(`/supprimer_client/${numero_clt}`, {
                     method: 'DELETE'
                 });
                 const data = await response.json();
+                console.log("Réponse supprimer client :", data);
                 resultDiv.style.display = 'block';
                 if (response.ok) {
                     resultDiv.className = 'success';
