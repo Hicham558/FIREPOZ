@@ -2,190 +2,128 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Liste des Clients et Fournisseurs</title>
+  <title>Gestion Clients SQLite (sql.js)</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
     body { padding: 20px; }
-    .table-container { margin-bottom: 40px; }
     .error { color: red; font-weight: bold; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1 class="my-4">Gestion des Clients et Fournisseurs</h1>
+    <h1 class="my-4">Gestion des Clients (SQLite en JS)</h1>
 
-    <!-- Bouton Debug -->
-    <div class="mb-4">
-      <button id="btnListerTables" class="btn btn-primary">Lister les tables</button>
-      <div id="tablesList" class="mt-3"></div>
-    </div>
-
-    <!-- Formulaires Clients -->
-    <div class="mb-5">
-      <h2>Gestion des Clients</h2>
-
-      <!-- Ajouter -->
-      <form id="formAjouter" class="mb-3">
+    <!-- Formulaire d'ajout -->
+    <div class="card mb-4">
+      <div class="card-body">
         <h5>Ajouter un client</h5>
-        <input type="text" name="nom" placeholder="Nom" class="form-control mb-2" required>
-        <input type="text" name="contact" placeholder="Contact" class="form-control mb-2">
-        <input type="text" name="adresse" placeholder="Adresse" class="form-control mb-2">
-        <button type="submit" class="btn btn-success">➕ Ajouter</button>
-      </form>
-
-      <!-- Modifier -->
-      <form id="formModifier" class="mb-3">
-        <h5>Modifier un client</h5>
-        <input type="number" name="numero_clt" placeholder="Numéro client" class="form-control mb-2" required>
-        <input type="text" name="nom" placeholder="Nom" class="form-control mb-2" required>
-        <input type="text" name="contact" placeholder="Contact" class="form-control mb-2">
-        <input type="text" name="adresse" placeholder="Adresse" class="form-control mb-2">
-        <button type="submit" class="btn btn-warning">✏️ Modifier</button>
-      </form>
-
-      <!-- Supprimer -->
-      <form id="formSupprimer">
-        <h5>Supprimer un client</h5>
-        <input type="number" name="numero_clt" placeholder="Numéro client" class="form-control mb-2" required>
-        <button type="submit" class="btn btn-danger">🗑 Supprimer</button>
-      </form>
+        <form id="addClientForm" class="row g-3">
+          <div class="col-md-4">
+            <input type="text" class="form-control" name="nom" placeholder="Nom" required>
+          </div>
+          <div class="col-md-4">
+            <input type="text" class="form-control" name="contact" placeholder="Contact">
+          </div>
+          <div class="col-md-4">
+            <input type="text" class="form-control" name="adresse" placeholder="Adresse">
+          </div>
+          <div class="col-12">
+            <button type="submit" class="btn btn-success">Ajouter</button>
+          </div>
+        </form>
+      </div>
     </div>
 
-    <!-- Table Clients -->
-    <div class="table-container">
-      <h2>Clients</h2>
-      <div id="clientsError" class="error"></div>
-      <table class="table table-striped" id="clientsTable">
-        <thead>
-          <tr>
-            <th>Numéro</th>
-            <th>Nom</th>
-            <th>Solde</th>
-            <th>Référence</th>
-            <th>Contact</th>
-            <th>Adresse</th>
-          </tr>
-        </thead>
-        <tbody id="clientsBody"></tbody>
-      </table>
-    </div>
-
-    <!-- Table Fournisseurs -->
-    <div class="table-container">
-      <h2>Fournisseurs</h2>
-      <div id="fournisseursError" class="error"></div>
-      <table class="table table-striped" id="fournisseursTable">
-        <thead>
-          <tr>
-            <th>Numéro</th>
-            <th>Nom</th>
-            <th>Solde</th>
-            <th>Référence</th>
-            <th>Contact</th>
-            <th>Adresse</th>
-          </tr>
-        </thead>
-        <tbody id="fournisseursBody"></tbody>
-      </table>
-    </div>
+    <!-- Liste des clients -->
+    <h2>Clients</h2>
+    <div id="clientsError" class="error"></div>
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th>Numéro</th>
+          <th>Nom</th>
+          <th>Solde</th>
+          <th>Référence</th>
+          <th>Contact</th>
+          <th>Adresse</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="clientsBody"></tbody>
+    </table>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-  <script>eruda.init();</script>
   <script type="module">
-    import { fetchApi } from './fetchapi.js';
+    import { listeClients, ajouterClient, modifierClient, supprimerClient } from './apiRoutes.js';
 
-    async function loadClients() {
+    async function chargerClients() {
       try {
-        const response = await fetchApi('/liste_clients');
-        if (!response.ok) throw new Error('Erreur lors du chargement des clients');
-        const clients = await response.json();
-        const clientsBody = document.getElementById('clientsBody');
-        clientsBody.innerHTML = clients.map(client => `
-          <tr>
-            <td>${client.numero_clt || ''}</td>
-            <td>${client.nom || ''}</td>
-            <td>${client.solde || '0,00'}</td>
-            <td>${client.reference || ''}</td>
-            <td>${client.contact || ''}</td>
-            <td>${client.adresse || ''}</td>
-          </tr>
-        `).join('');
-      } catch (error) {
-        document.getElementById('clientsError').textContent = `Erreur: ${error.message}`;
+        const clients = await listeClients();
+        const tbody = document.getElementById("clientsBody");
+        tbody.innerHTML = "";
+
+        if (clients.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="7" class="text-center">Aucun client trouvé</td></tr>`;
+          return;
+        }
+
+        clients.forEach(client => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${client.numero_clt}</td>
+            <td>${client.nom}</td>
+            <td>${client.solde}</td>
+            <td>${client.reference}</td>
+            <td>${client.contact}</td>
+            <td>${client.adresse}</td>
+            <td>
+              <button class="btn btn-sm btn-primary btn-modif" data-id="${client.numero_clt}">✏️</button>
+              <button class="btn btn-sm btn-danger btn-suppr" data-id="${client.numero_clt}">🗑️</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+        // Attacher les actions
+        document.querySelectorAll(".btn-suppr").forEach(btn => {
+          btn.addEventListener("click", async () => {
+            const id = btn.dataset.id;
+            await supprimerClient(id);
+            chargerClients();
+          });
+        });
+
+        document.querySelectorAll(".btn-modif").forEach(btn => {
+          btn.addEventListener("click", async () => {
+            const id = btn.dataset.id;
+            const nouveauNom = prompt("Nouveau nom ?");
+            const nouveauContact = prompt("Nouveau contact ?");
+            const nouvelleAdresse = prompt("Nouvelle adresse ?");
+            if (nouveauNom) {
+              await modifierClient(id, { nom: nouveauNom, contact: nouveauContact, adresse: nouvelleAdresse });
+              chargerClients();
+            }
+          });
+        });
+
+      } catch (err) {
+        document.getElementById("clientsError").textContent = "Erreur: " + err.message;
       }
     }
 
-    async function loadFournisseurs() {
-      try {
-        const response = await fetchApi('/liste_fournisseurs');
-        if (!response.ok) throw new Error('Erreur lors du chargement des fournisseurs');
-        const fournisseurs = await response.json();
-        const fournisseursBody = document.getElementById('fournisseursBody');
-        fournisseursBody.innerHTML = fournisseurs.map(fournisseur => `
-          <tr>
-            <td>${fournisseur.numero_fou || ''}</td>
-            <td>${fournisseur.nom || ''}</td>
-            <td>${fournisseur.solde || '0,00'}</td>
-            <td>${fournisseur.reference || ''}</td>
-            <td>${fournisseur.contact || ''}</td>
-            <td>${fournisseur.adresse || ''}</td>
-          </tr>
-        `).join('');
-      } catch (error) {
-        document.getElementById('fournisseursError').textContent = `Erreur: ${error.message}`;
-      }
-    }
-
-    // Lister les tables
-    async function listerTables() {
-      try {
-        const response = await fetchApi('/tables');
-        if (!response.ok) throw new Error('Erreur lors du chargement des tables');
-        const tables = await response.json();
-        document.getElementById('tablesList').innerHTML =
-          "<strong>Tables trouvées :</strong> " + tables.join(', ');
-      } catch (error) {
-        document.getElementById('tablesList').textContent = `Erreur: ${error.message}`;
-      }
-    }
-
-    // 🔹 Ajout client
-    document.getElementById('formAjouter').addEventListener('submit', async e => {
+    // Formulaire ajout
+    document.getElementById("addClientForm").addEventListener("submit", async e => {
       e.preventDefault();
-      const data = Object.fromEntries(new FormData(e.target).entries());
-      await fetchApi('/ajouter_client', { method: 'POST', body: JSON.stringify(data) });
-      await loadClients();
+      const formData = new FormData(e.target);
+      const data = Object.fromEntries(formData.entries());
+      await ajouterClient(data);
       e.target.reset();
+      chargerClients();
     });
 
-    // 🔹 Modifier client
-    document.getElementById('formModifier').addEventListener('submit', async e => {
-      e.preventDefault();
-      const data = Object.fromEntries(new FormData(e.target).entries());
-      const numero = data.numero_clt;
-      delete data.numero_clt;
-      await fetchApi(`/modifier_client/${numero}`, { method: 'PUT', body: JSON.stringify(data) });
-      await loadClients();
-      e.target.reset();
-    });
-
-    // 🔹 Supprimer client
-    document.getElementById('formSupprimer').addEventListener('submit', async e => {
-      e.preventDefault();
-      const numero = new FormData(e.target).get('numero_clt');
-      await fetchApi(`/supprimer_client/${numero}`, { method: 'DELETE' });
-      await loadClients();
-      e.target.reset();
-    });
-
-    document.getElementById('btnListerTables').addEventListener('click', listerTables);
-
-    // Charger au démarrage
-    loadClients();
-    loadFournisseurs();
+    // Charger dès le début
+    chargerClients();
   </script>
 </body>
 </html>
