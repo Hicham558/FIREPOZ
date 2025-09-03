@@ -11,14 +11,15 @@ function toCommaDecimal(value) {
   return value.toFixed(2).replace('.', ',');
 }
 
-// Calculate EAN-13 check digit
+// Fonction pour calculer le chiffre de contrôle EAN-13
 function calculateEan13CheckDigit(code12) {
   const digits = code12.split('').map(Number);
-  const oddSum = digits.filter((_, i) => i % 2 === 0).reduce((sum, d) => sum + d, 0);
-  const evenSum = digits.filter((_, i) => i % 2 === 1).reduce((sum, d) => sum + d, 0);
-  const total = oddSum * 3 + evenSum;
-  const nextMultipleOf10 = Math.ceil(total / 10) * 10;
-  return nextMultipleOf10 - total;
+  let sum = 0;
+  for (let i = 0; i < 12; i++) {
+    sum += (i % 2 === 0) ? digits[i] : digits[i] * 3;
+  }
+  const mod = sum % 10;
+  return mod === 0 ? 0 : 10 - mod;
 }
 
 async function saveDbToIndexedDB(db) {
