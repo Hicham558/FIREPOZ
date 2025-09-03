@@ -7,7 +7,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Gestion Commerciale</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script type="module" src="/api-call.js"></script>
+<script type="module" src="/db.js"></script>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     @keyframes toastIn {
@@ -113,23 +116,24 @@
       max-height: 1000px;
       opacity: 1;
     }
-    .opacity-50 {
-      opacity: 0.5;
-    }
-    .cursor-not-allowed {
-      cursor: not-allowed;
-    }
+	  .opacity-50 {
+    opacity: 0.5;
+}
+.cursor-not-allowed {
+    cursor: not-allowed;
+}
 
-    /* Cache les actions pour les employés */
-    body.employe-mode .action-buttons {
-      display: none !important;
-    }
-    
-    /* Style pour boutons désactivés */
-    button:disabled {
-      opacity: 0.5 !important;
-      cursor: not-allowed !important;
-    }
+/* Cache les actions pour les employés */
+body.employe-mode .action-buttons {
+    display: none !important;
+}
+	  
+	  /* Style pour boutons désactivés */
+button:disabled {
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+}
+
   </style>
 </head>
 <body class="bg-gray-100">
@@ -155,7 +159,7 @@
   </div>
 
   <!-- Menu de navigation -->
-  <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-slide-in">
+<nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-slide-in">
     <div class="container mx-auto flex justify-between items-center">
         <div class="flex flex-col">
             <h1 class="text-2xl font-bold flex items-center">
@@ -178,7 +182,7 @@
             </button>
         </div>
     </div>
-  </nav>
+</nav>
 
   <!-- Contenu principal -->
   <div class="container mx-auto px-4 py-16 mt-16">
@@ -633,7 +637,7 @@
   </div>
 
   <script>
-    const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'https://hicham03041979.onrender.com';
+
     let caChartInstance = null;
     let stream = null;
     let barcodeDetector = null;
@@ -658,10 +662,10 @@
 
       try {
         const [clientsRes, fournisseursRes, produitsRes, utilisateursRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/liste_clients`, { headers: { 'X-User-ID': userId } }),
-          fetch(`${API_BASE_URL}/liste_fournisseurs`, { headers: { 'X-User-ID': userId } }),
-          fetch(`${API_BASE_URL}/liste_produits`, { headers: { 'X-User-ID': userId } }),
-          fetch(`${API_BASE_URL}/liste_utilisateurs`, { headers: { 'X-User-ID': userId } })
+          apiCall(`/liste_clients`, { headers: { 'X-User-ID': userId } }),
+          apiCall(`/liste_fournisseurs`, { headers: { 'X-User-ID': userId } }),
+          apiCall(`/liste_produits`, { headers: { 'X-User-ID': userId } }),
+          apiCall(`/liste_utilisateurs`, { headers: { 'X-User-ID': userId } })
         ]);
 
         if (clientsRes.ok) {
@@ -690,29 +694,29 @@
     }
 
     // Vérifier si l'utilisateur est connecté au chargement de la page
-    document.addEventListener('DOMContentLoaded', () => {
-      const userId = localStorage.getItem('userId');
-      const userEmail = localStorage.getItem('userEmail');
-      
-      if (userId && userEmail) {
-          document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
-          document.getElementById('userDisplay').classList.remove('hidden');
-          document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-          document.getElementById('loginModal').classList.add('hidden');
-          
-          // Vérifier le statut avant de charger les autres éléments
-          checkSellerStatus().then(() => {
-              chargerKPI();
-              loadAllCounts();
-          });
-      } else {
-          document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-          document.getElementById('loginModal').classList.remove('hidden');
-          toggleActionButtons(true); // Tout désactiver si non connecté
-      }
+  document.addEventListener('DOMContentLoaded', () => {
+    const userId = localStorage.getItem('userId');
+    const userEmail = localStorage.getItem('userEmail');
+    
+    if (userId && userEmail) {
+        document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
+        document.getElementById('userDisplay').classList.remove('hidden');
+        document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+        document.getElementById('loginModal').classList.add('hidden');
+        
+        // Vérifier le statut avant de charger les autres éléments
+        checkSellerStatus().then(() => {
+            chargerKPI();
+            loadAllCounts();
+        });
+    } else {
+        document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+        document.getElementById('loginModal').classList.remove('hidden');
+        toggleActionButtons(true); // Tout désactiver si non connecté
+    }
 
       // Vérification de la connexion API
-      fetch(`${API_BASE_URL}/`)
+      apiCall(`/`)
         .then(response => response.text())
         .then(text => console.log('Statut API:', text))
         .catch(err => {
@@ -739,64 +743,61 @@
         window.scrollTo({ top: 0, behavior: 'smooth' });
       });
     });
-
-    async function checkSellerStatus() {
-      const storedSeller = localStorage.getItem('selectedSeller');
-      const userId = localStorage.getItem('userId');
-      
-      if (!userId) {
-          toggleActionButtons(true); // Désactiver si non connecté
-          return;
-      }
-
-      try {
-          if (storedSeller) {
-              const { numero_util, nom } = JSON.parse(storedSeller);
-              document.getElementById('currentSellerName').textContent = nom || 'Inconnu';
-              
-              const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-                  headers: { 'X-User-ID': userId }
-              });
-              
-              if (!response.ok) throw new Error('Erreur de chargement des utilisateurs');
-              
-              const utilisateurs = await response.json();
-              const seller = utilisateurs.find(u => u.numero == numero_util);
-              
-              if (seller) {
-                  const isEmploye = seller.statut.toLowerCase() === 'emplo';
-                  toggleActionButtons(isEmploye);
-              }
-          } else {
-              document.getElementById('currentSellerName').textContent = 'Inconnu';
-              toggleActionButtons(true); // Désactiver si aucun vendeur sélectionné
-          }
-      } catch (error) {
-          console.error('Erreur vérification statut:', error);
-          showToast('Erreur de vérification du statut du vendeur', true);
-          toggleActionButtons(true); // Désactiver en cas d'erreur
-      }
+async function checkSellerStatus() {
+    const storedSeller = localStorage.getItem('selectedSeller');
+    const userId = localStorage.getItem('userId');
+    
+    if (!userId) {
+        toggleActionButtons(true); // Désactiver si non connecté
+        return;
     }
 
-    function toggleActionButtons(isEmploye) {
-      // Basculer la classe sur le body
-      document.body.classList.toggle('employe-mode', isEmploye);
-      
-      // Désactiver les boutons Ajouter
-      document.querySelectorAll('button:has(i.fa-plus)').forEach(btn => {
-          btn.disabled = isEmploye;
-          btn.classList.toggle('opacity-50', isEmploye);
-          btn.classList.toggle('cursor-not-allowed', isEmploye);
-      });
-      
-      // Solution de secours au cas où
-      const actionButtons = document.querySelectorAll('.btn-edit, .btn-delete');
-      actionButtons.forEach(btn => {
-          btn.style.display = isEmploye ? 'none' : '';
-      });
+    try {
+        if (storedSeller) {
+            const { numero_util, nom } = JSON.parse(storedSeller);
+            document.getElementById('currentSellerName').textContent = nom || 'Inconnu';
+            
+            const response = await apiCall(`/liste_utilisateurs`, {
+                headers: { 'X-User-ID': userId }
+            });
+            
+            if (!response.ok) throw new Error('Erreur de chargement des utilisateurs');
+            
+            const utilisateurs = await response.json();
+            const seller = utilisateurs.find(u => u.numero == numero_util);
+            
+            if (seller) {
+                const isEmploye = seller.statut.toLowerCase() === 'emplo';
+                toggleActionButtons(isEmploye);
+            }
+        } else {
+            document.getElementById('currentSellerName').textContent = 'Inconnu';
+            toggleActionButtons(true); // Désactiver si aucun vendeur sélectionné
+        }
+    } catch (error) {
+        console.error('Erreur vérification statut:', error);
+        showToast('Erreur de vérification du statut du vendeur', true);
+        toggleActionButtons(true); // Désactiver en cas d'erreur
     }
+}
 
-    // Fonction pour gérer l'animation développer/réduire
+function toggleActionButtons(isEmploye) {
+    // Basculer la classe sur le body
+    document.body.classList.toggle('employe-mode', isEmploye);
+    
+    // Désactiver les boutons Ajouter
+    document.querySelectorAll('button:has(i.fa-plus)').forEach(btn => {
+        btn.disabled = isEmploye;
+        btn.classList.toggle('disabled-action', isEmploye);
+    });
+    
+    // Solution de secours au cas où
+    const actionButtons = document.querySelectorAll('.btn-edit, .btn-delete');
+    actionButtons.forEach(btn => {
+        btn.style.display = isEmploye ? 'none' : '';
+    });
+}
+	  // Fonction pour gérer l'animation développer/envelopper
     function toggleSection(sectionId) {
       const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
       const chevron = document.getElementById(`${sectionId.replace('Section', 'Chevron')}`);
@@ -834,7 +835,7 @@
 
       const period = document.getElementById('kpiPeriod').value;
       try {
-        const response = await fetch(`${API_BASE_URL}/dashboard?period=${period}`, {
+        const response = await apiCall(`/dashboard?period=${period}`, {
           headers: {
             'X-User-ID': userId
           }
@@ -1035,7 +1036,7 @@
       }
 
       try {
-        const response = await fetch(`${API_BASE_URL}/liste_clients`, {
+        const response = await apiCall(`/liste_clients`, {
           headers: {
             'X-User-ID': userId
           }
@@ -1061,19 +1062,19 @@
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.solde || '0'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.reference || 'N/A'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.contact || 'N/A'}</td>
-            <td class="px-6ernos
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.adresse || 'N/A'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-              <div class="action-buttons">
-                <button onclick="modifierClient('${client.numero_clt}', '${client.nom}', '${client.contact}', '${client.adresse}')" 
-                        class="btn-edit text-blue-600 hover:text-blue-800 transition mr-2">
-                  <i class="fas fa-edit"></i> Modifier
-                </button>
-                <button onclick="supprimerClient('${client.numero_clt}')" 
-                        class="btn-delete text-red-600 hover:text-red-800 transition">
-                  <i class="fas fa-trash-alt"></i> Supprimer
-                </button>
-              </div>
-            </td>
+    <div class="action-buttons">
+        <button onclick="modifierClient('${client.numero_clt}', '${client.nom}', '${client.contact}', '${client.adresse}')" 
+                class="btn-edit text-blue-600 hover:text-blue-800 transition mr-2">
+            <i class="fas fa-edit"></i> Modifier
+        </button>
+        <button onclick="supprimerClient('${client.numero_clt}')" 
+                class="btn-delete text-red-600 hover:text-red-800 transition">
+            <i class="fas fa-trash-alt"></i> Supprimer
+        </button>
+    </div>
+</td>
           `;
           tbody.appendChild(tr);
         });
@@ -1084,7 +1085,7 @@
               Erreur de chargement: ${error.message}
             </td>
           </tr>
-        `;
+        `;disableAllDeleteButtons();
         console.error('Erreur clients:', error);
       }
     }
@@ -1099,28 +1100,11 @@
     }
 
     async function supprimerClient(id) {
-      const userId = localStorage.getItem('userId');
+          // Vérification renforcée du statut
+
+		const userId = localStorage.getItem('userId');
       if (!userId) {
         showToast('Veuillez vous connecter pour supprimer un client', true);
-        return;
-      }
-
-      const storedSeller = localStorage.getItem('selectedSeller');
-      let isAdmin = false;
-      if (storedSeller) {
-        const { numero_util } = JSON.parse(storedSeller);
-        const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-          headers: { 'X-User-ID': userId }
-        });
-        if (response.ok) {
-          const utilisateurs = await response.json();
-          const seller = utilisateurs.find(u => u.numero == numero_util);
-          isAdmin = seller && seller.statut.toLowerCase() === 'admin';
-        }
-      }
-
-      if (!isAdmin) {
-        showToast('Action non autorisée pour les employés', true);
         return;
       }
 
@@ -1129,7 +1113,7 @@
       }
 
       try {
-        const response = await fetch(`${API_BASE_URL}/supprimer_client/${id}`, {
+        const response = await apiCall(`/supprimer_client/${id}`, {
           method: 'DELETE',
           headers: {
             'X-User-ID': userId
@@ -1238,7 +1222,7 @@
       }
 
       try {
-        const response = await fetch(`${API_BASE_URL}/liste_fournisseurs`, {
+        const response = await apiCall(`/liste_fournisseurs`, {
           headers: {
             'X-User-ID': userId
           }
@@ -1266,17 +1250,17 @@
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.contact || 'N/A'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.adresse || 'N/A'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-              <div class="action-buttons">
-                <button onclick="modifierFournisseur('${fournisseur.numero_fou}', '${fournisseur.nom}', '${fournisseur.contact}', '${fournisseur.adresse}')" 
-                        class="btn-edit text-blue-600 hover:text-blue-800 transition mr-2">
-                  <i class="fas fa-edit"></i> Modifier
-                </button>
-                <button onclick="supprimerFournisseur('${fournisseur.numero_fou}')" 
-                        class="btn-delete text-red-600 hover:text-red-800 transition">
-                  <i class="fas fa-trash-alt"></i> Supprimer
-                </button>
-              </div>
-            </td>
+    <div class="action-buttons">
+        <button onclick="modifierFournisseur('${fournisseur.numero_fou}', '${fournisseur.nom}', '${fournisseur.contact}', '${fournisseur.adresse}')" 
+                class="btn-edit text-blue-600 hover:text-blue-800 transition mr-2">
+            <i class="fas fa-edit"></i> Modifier
+        </button>
+        <button onclick="supprimerFournisseur('${fournisseur.numero_fou}')" 
+                class="btn-delete text-red-600 hover:text-red-800 transition">
+            <i class="fas fa-trash-alt"></i> Supprimer
+        </button>
+    </div>
+</td>
           `;
           tbody.appendChild(tr);
         });
@@ -1287,677 +1271,732 @@
               Erreur de chargement: ${error.message}
             </td>
           </tr>
-        `;
+        `;disableAllDeleteButtons();
         console.error('Erreur fournisseurs:', error);
       }
     }
 
- function modifierFournisseur(id, nom, contact, adresse) {
-  document.getElementById('fournisseurId').value = id;
-  document.getElementById('fournisseurNom').value = nom;
-  document.getElementById('fournisseurContact').value = contact;
-  document.getElementById('fournisseurAdresse').value = adresse;
-  document.getElementById('fournisseurFormTitle').textContent = 'Modifier Fournisseur';
-  document.getElementById('fournisseurForm').classList.remove('hidden');
-}
-
-async function supprimerFournisseur(id) {
-  const userId = localStorage.getItem('userId');
-  if (!userId) {
-    showToast('Veuillez vous connecter pour supprimer un fournisseur', true);
-    return;
-  }
-
-  const storedSeller = localStorage.getItem('selectedSeller');
-  let isAdmin = false;
-  if (storedSeller) {
-    const { numero_util } = JSON.parse(storedSeller);
-    const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-      headers: { 'X-User-ID': userId }
-    });
-    if (response.ok) {
-      const utilisateurs = await response.json();
-      const seller = utilisateurs.find(u => u.numero == numero_util);
-      isAdmin = seller && seller.statut.toLowerCase() === 'admin';
+    function modifierFournisseur(id, nom, contact, adresse) {
+      document.getElementById('fournisseurId').value = id;
+      document.getElementById('fournisseurNom').value = nom;
+      document.getElementById('fournisseurContact').value = contact;
+      document.getElementById('fournisseurAdresse').value = adresse;
+      document.getElementById('fournisseurFormTitle').textContent = 'Modifier Fournisseur';
+      document.getElementById('fournisseurForm').classList.remove('hidden');
     }
-  }
 
-  if (!isAdmin) {
-    showToast('Action non autorisée pour les employés', true);
-    return;
-  }
+    async function supprimerFournisseur(id) {
+          // Vérification renforcée du statut
 
-  if (!confirm('Voulez-vous vraiment supprimer ce fournisseur ?')) {
-    return;
-  }
-
-  try {
-    const response = await fetch(`${API_BASE_URL}/supprimer_fournisseur/${id}`, {
-      method: 'DELETE',
-      headers: {
-        'X-User-ID': userId
+		const userId = localStorage.getItem('userId');
+      if (!userId) {
+        showToast('Veuillez vous connecter pour supprimer un fournisseur', true);
+        return;
       }
-    });
 
-    const result = await response.json();
-    if (!response.ok) {
-      throw new Error(result.erreur || 'Erreur lors de la suppression');
-    }
-
-    showToast('Fournisseur supprimé avec succès');
-    chargerFournisseurs();
-    loadAllCounts(); // Mettre à jour le compteur
-  } catch (error) {
-    showToast(error.message, true);
-    console.error('Erreur suppression fournisseur:', error);
-  }
-}
-
-async function saveFournisseur() {
-  const userId = localStorage.getItem('userId');
-  if (!userId) {
-    showToast('Veuillez vous connecter pour sauvegarder un fournisseur', true);
-    return;
-  }
-
-  const id = document.getElementById('fournisseurId').value;
-  const nom = document.getElementById('fournisseurNom').value.trim();
-  const contact = document.getElementById('fournisseurContact').value.trim();
-  const adresse = document.getElementById('fournisseurAdresse').value.trim();
-
-  if (!nom) {
-    showToast('Veuillez remplir le champ Nom', true);
-    return;
-  }
-
-  try {
-    const url = id ? `${API_BASE_URL}/modifier_fournisseur/${id}` : `${API_BASE_URL}/ajouter_fournisseur`;
-    const method = id ? 'PUT' : 'POST';
-    const response = await fetch(url, {
-      method: method,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-User-ID': userId
-      },
-      body: JSON.stringify({
-        nom,
-        contact,
-        adresse
-      })
-    });
-
-    const result = await response.json();
-    if (!response.ok) {
-      throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
-    }
-
-    showToast(id ? 'Fournisseur modifié avec succès' : 'Fournisseur ajouté avec succès');
-    resetFournisseurForm();
-    chargerFournisseurs();
-    loadAllCounts(); // Mettre à jour le compteur
-  } catch (error) {
-    showToast(error.message, true);
-    console.error('Erreur sauvegarde fournisseur:', error);
-  }
-}
-
-function resetFournisseurForm() {
-  document.getElementById('fournisseurId').value = '';
-  document.getElementById('fournisseurNom').value = '';
-  document.getElementById('fournisseurContact').value = '';
-  document.getElementById('fournisseurAdresse').value = '';
-  document.getElementById('fournisseurFormTitle').textContent = 'Nouveau Fournisseur';
-  document.getElementById('fournisseurForm').classList.add('hidden');
-}
-
-function toggleFournisseurForm() {
-  document.getElementById('fournisseurForm').classList.toggle('hidden');
-}
-
-document.getElementById('searchFournisseur').addEventListener('input', function(e) {
-  const searchTerm = e.target.value.toLowerCase();
-  const rows = document.querySelectorAll('#fournisseursList tr');
-
-  rows.forEach(row => {
-    const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-    const reference = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
-    const contact = row.querySelector('td:nth-child(5)')?.textContent.toLowerCase();
-    const adresse = row.querySelector('td:nth-child(6)')?.textContent.toLowerCase();
-    if (nom?.includes(searchTerm) || reference?.includes(searchTerm) || contact?.includes(searchTerm) || adresse?.includes(searchTerm)) {
-      row.style.display = '';
-    } else {
-      row.style.display = 'none';
-    }
-  });
-});
-
-// --- Gestion des produits ---
-async function chargerProduits() {
-  const userId = localStorage.getItem('userId');
-  if (!userId) {
-    showToast('Veuillez vous connecter pour voir les produits', true);
-    document.getElementById('productsList').innerHTML = '<tr><td colspan="8" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
-    return;
-  }
-
-  try {
-    const response = await fetch(`${API_BASE_URL}/liste_produits`, {
-      headers: {
-        'X-User-ID': userId
+      if (!confirm('Voulez-vous vraiment supprimer ce fournisseur ?')) {
+        return;
       }
-    });
-    if (!response.ok) {
-      throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-    }
-    const produits = await response.json();
-    const tbody = document.getElementById('productsList');
 
-    if (produits.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
-      return;
-    }
-
-    tbody.innerHTML = '';
-    produits.forEach(produit => {
-      const tr = document.createElement('tr');
-      tr.className = 'hover:bg-gray-50';
-      tr.innerHTML = `
-        <td class="hidden-id">${produit.numero_pro || 'N/A'}</td>
-        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${produit.designation || 'N/A'}</td>
-        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.code_bar || 'N/A'}</td>
-        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.reference || 'N/A'}</td>
-        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.prix_vente || '0'}</td>
-        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.prix_achat || '0'}</td>
-        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.qte || '0'}</td>
-        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-          <div class="action-buttons">
-            <button onclick="modifierProduit('${produit.numero_pro}', '${produit.designation}', '${produit.code_bar}', '${produit.prix_vente}', '${produit.prix_achat}', '${produit.qte}')" 
-                    class="btn-edit text-blue-600 hover:text-blue-800 transition mr-2">
-              <i class="fas fa-edit"></i> Modifier
-            </button>
-            <button onclick="supprimerProduit('${produit.numero_pro}')" 
-                    class="btn-delete text-red-600 hover:text-red-800 transition">
-              <i class="fas fa-trash-alt"></i> Supprimer
-            </button>
-          </div>
-        </td>
-      `;
-      tbody.appendChild(tr);
-    });
-  } catch (error) {
-    document.getElementById('productsList').innerHTML = `
-      <tr>
-        <td colspan="8" class="text-center py-4 text-red-500">
-          Erreur de chargement: ${error.message}
-        </td>
-      </tr>
-    `;
-    console.error('Erreur produits:', error);
-  }
-}
-
-function modifierProduit(id, designation, code_bar, prix_vente, prix_achat, qte) {
-  document.getElementById('productId').value = id;
-  document.getElementById('productDesignation').value = designation;
-  document.getElementById('productBar').value = code_bar;
-  document.getElementById('productPrix').value = prix_vente;
-  document.getElementById('productPrixba').value = prix_achat;
-  document.getElementById('productQte').value = qte;
-  document.getElementById('productFormTitle').textContent = 'Modifier Produit';
-  document.getElementById('productForm').classList.remove('hidden');
-}
-
-async function supprimerProduit(id) {
-  const userId = localStorage.getItem('userId');
-  if (!userId) {
-    showToast('Veuillez vous connecter pour supprimer un produit', true);
-    return;
-  }
-
-  const storedSeller = localStorage.getItem('selectedSeller');
-  let isAdmin = false;
-  if (storedSeller) {
-    const { numero_util } = JSON.parse(storedSeller);
-    const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-      headers: { 'X-User-ID': userId }
-    });
-    if (response.ok) {
-      const utilisateurs = await response.json();
-      const seller = utilisateurs.find(u => u.numero == numero_util);
-      isAdmin = seller && seller.statut.toLowerCase() === 'admin';
-    }
-  }
-
-  if (!isAdmin) {
-    showToast('Action non autorisée pour les employés', true);
-    return;
-  }
-
-  if (!confirm('Voulez-vous vraiment supprimer ce produit ?')) {
-    return;
-  }
-
-  try {
-    const response = await fetch(`${API_BASE_URL}/supprimer_produit/${id}`, {
-      method: 'DELETE',
-      headers: {
-        'X-User-ID': userId
-      }
-    });
-
-    const result = await response.json();
-    if (!response.ok) {
-      throw new Error(result.erreur || 'Erreur lors de la suppression');
-    }
-
-    showToast('Produit supprimé avec succès');
-    chargerProduits();
-    loadAllCounts(); // Mettre à jour le compteur
-  } catch (error) {
-    showToast(error.message, true);
-    console.error('Erreur suppression produit:', error);
-  }
-}
-
-async function saveProduct() {
-  const userId = localStorage.getItem('userId');
-  if (!userId) {
-    showToast('Veuillez vous connecter pour sauvegarder un produit', true);
-    return;
-  }
-
-  const id = document.getElementById('productId').value;
-  const designation = document.getElementById('productDesignation').value.trim();
-  const code_bar = document.getElementById('productBar').value.trim();
-  const prix_vente = parseFloat(document.getElementById('productPrix').value);
-  const prix_achat = parseFloat(document.getElementById('productPrixba').value) || 0;
-  const qte = parseInt(document.getElementById('productQte').value);
-
-  if (!designation || isNaN(prix_vente) || isNaN(qte)) {
-    showToast('Veuillez remplir tous les champs obligatoires', true);
-    return;
-  }
-
-  try {
-    const url = id ? `${API_BASE_URL}/modifier_produit/${id}` : `${API_BASE_URL}/ajouter_produit`;
-    const method = id ? 'PUT' : 'POST';
-    const response = await fetch(url, {
-      method: method,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-User-ID': userId
-      },
-      body: JSON.stringify({
-        designation,
-        code_bar,
-        prix_vente,
-        prix_achat,
-        qte
-      })
-    });
-
-    const result = await response.json();
-    if (!response.ok) {
-      throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
-    }
-
-    showToast(id ? 'Produit modifié avec succès' : 'Produit ajouté avec succès');
-    resetProductForm();
-    chargerProduits();
-    loadAllCounts(); // Mettre à jour le compteur
-  } catch (error) {
-    showToast(error.message, true);
-    console.error('Erreur sauvegarde produit:', error);
-  }
-}
-
-function resetProductForm() {
-  document.getElementById('productId').value = '';
-  document.getElementById('productDesignation').value = '';
-  document.getElementById('productBar').value = '';
-  document.getElementById('productPrix').value = '';
-  document.getElementById('productPrixba').value = '';
-  document.getElementById('productQte').value = '';
-  document.getElementById('productFormTitle').textContent = 'Nouveau Produit';
-  document.getElementById('productForm').classList.add('hidden');
-  stopScanner();
-}
-
-function toggleProductForm() {
-  document.getElementById('productForm').classList.toggle('hidden');
-}
-
-document.getElementById('searchProduct').addEventListener('input', function(e) {
-  const searchTerm = e.target.value.toLowerCase();
-  const rows = document.querySelectorAll('#productsList tr');
-
-  rows.forEach(row => {
-    const designation = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-    const code_bar = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
-    const reference = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
-    if (designation?.includes(searchTerm) || code_bar?.includes(searchTerm) || reference?.includes(searchTerm)) {
-      row.style.display = '';
-    } else {
-      row.style.display = 'none';
-    }
-  });
-});
-
-// --- Gestion des utilisateurs ---
-async function chargerUtilisateurs() {
-  const userId = localStorage.getItem('userId');
-  if (!userId) {
-    showToast('Veuillez vous connecter pour voir les utilisateurs', true);
-    document.getElementById('utilisateursList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
-    return;
-  }
-
-  try {
-    const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-      headers: {
-        'X-User-ID': userId
-      }
-    });
-    if (!response.ok) {
-      throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-    }
-    const utilisateurs = await response.json();
-    const tbody = document.getElementById('utilisateursList');
-
-    if (utilisateurs.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun utilisateur trouvé</td></tr>';
-      return;
-    }
-
-    tbody.innerHTML = '';
-    utilisateurs.forEach(user => {
-      const tr = document.createElement('tr');
-      tr.className = 'hover:bg-gray-50';
-      tr.innerHTML = `
-        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${user.numero || 'N/A'}</td>
-        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${user.nom || 'N/A'}</td>
-        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${user.statut || 'N/A'}</td>
-        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-          <div class="action-buttons">
-            <button onclick="modifierUtilisateur('${user.numero}', '${user.nom}', '${user.statut}')" 
-                    class="btn-edit text-blue-600 hover:text-blue-800 transition mr-2">
-              <i class="fas fa-edit"></i> Modifier
-            </button>
-            <button onclick="supprimerUtilisateur('${user.numero}')" 
-                    class="btn-delete text-red-600 hover:text-red-800 transition">
-              <i class="fas fa-trash-alt"></i> Supprimer
-            </button>
-          </div>
-        </td>
-      `;
-      tbody.appendChild(tr);
-    });
-  } catch (error) {
-    document.getElementById('utilisateursList').innerHTML = `
-      <tr>
-        <td colspan="4" class="text-center py-4 text-red-500">
-          Erreur de chargement: ${error.message}
-        </td>
-      </tr>
-    `;
-    console.error('Erreur utilisateurs:', error);
-  }
-}
-
-function modifierUtilisateur(id, nom, statut) {
-  document.getElementById('utilisateurId').value = id;
-  document.getElementById('utilisateurNom').value = nom;
-  document.getElementById('utilisateurPassword').value = '';
-  document.getElementById('utilisateurStatut').value = statut;
-  document.getElementById('utilisateurFormTitle').textContent = 'Modifier Utilisateur';
-  document.getElementById('utilisateurForm').classList.remove('hidden');
-}
-
-async function supprimerUtilisateur(id) {
-  const userId = localStorage.getItem('userId');
-  if (!userId) {
-    showToast('Veuillez vous connecter pour supprimer un utilisateur', true);
-    return;
-  }
-
-  const storedSeller = localStorage.getItem('selectedSeller');
-  let isAdmin = false;
-  if (storedSeller) {
-    const { numero_util } = JSON.parse(storedSeller);
-    const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-      headers: { 'X-User-ID': userId }
-    });
-    if (response.ok) {
-      const utilisateurs = await response.json();
-      const seller = utilisateurs.find(u => u.numero == numero_util);
-      isAdmin = seller && seller.statut.toLowerCase() === 'admin';
-    }
-  }
-
-  if (!isAdmin) {
-    showToast('Action non autorisée pour les employés', true);
-    return;
-  }
-
-  if (!confirm('Voulez-vous vraiment supprimer cet utilisateur ?')) {
-    return;
-  }
-
-  try {
-    const response = await fetch(`${API_BASE_URL}/supprimer_utilisateur/${id}`, {
-      method: 'DELETE',
-      headers: {
-        'X-User-ID': userId
-      }
-    });
-
-    const result = await response.json();
-    if (!response.ok) {
-      throw new Error(result.erreur || 'Erreur lors de la suppression');
-    }
-
-    showToast('Utilisateur supprimé avec succès');
-    chargerUtilisateurs();
-    loadAllCounts(); // Mettre à jour le compteur
-  } catch (error) {
-    showToast(error.message, true);
-    console.error('Erreur suppression utilisateur:', error);
-  }
-}
-
-async function saveUtilisateur() {
-  const userId = localStorage.getItem('userId');
-  if (!userId) {
-    showToast('Veuillez vous connecter pour sauvegarder un utilisateur', true);
-    return;
-  }
-
-  const id = document.getElementById('utilisateurId').value;
-  const nom = document.getElementById('utilisateurNom').value.trim();
-  const password = document.getElementById('utilisateurPassword').value.trim();
-  const statut = document.getElementById('utilisateurStatut').value;
-
-  if (!nom || (!id && !password)) {
-    showToast('Veuillez remplir tous les champs obligatoires', true);
-    return;
-  }
-
-  try {
-    const url = id ? `${API_BASE_URL}/modifier_utilisateur/${id}` : `${API_BASE_URL}/ajouter_utilisateur`;
-    const method = id ? 'PUT' : 'POST';
-    const body = { nom, statut };
-    if (password) body.password = password;
-
-    const response = await fetch(url, {
-      method: method,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-User-ID': userId
-      },
-      body: JSON.stringify(body)
-    });
-
-    const result = await response.json();
-    if (!response.ok) {
-      throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
-    }
-
-    showToast(id ? 'Utilisateur modifié avec succès' : 'Utilisateur ajouté avec succès');
-    resetUtilisateurForm();
-    chargerUtilisateurs();
-    loadAllCounts(); // Mettre à jour le compteur
-  } catch (error) {
-    showToast(error.message, true);
-    console.error('Erreur sauvegarde utilisateur:', error);
-  }
-}
-
-function resetUtilisateurForm() {
-  document.getElementById('utilisateurId').value = '';
-  document.getElementById('utilisateurNom').value = '';
-  document.getElementById('utilisateurPassword').value = '';
-  document.getElementById('utilisateurStatut').value = 'admin';
-  document.getElementById('utilisateurFormTitle').textContent = 'Nouvel Utilisateur';
-  document.getElementById('utilisateurForm').classList.add('hidden');
-}
-
-function toggleUtilisateurForm() {
-  document.getElementById('utilisateurForm').classList.toggle('hidden');
-}
-
-document.getElementById('searchUtilisateur').addEventListener('input', function(e) {
-  const searchTerm = e.target.value.toLowerCase();
-  const rows = document.querySelectorAll('#utilisateursList tr');
-
-  rows.forEach(row => {
-    const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
-    const statut = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
-    if (nom?.includes(searchTerm) || statut?.includes(searchTerm)) {
-      row.style.display = '';
-    } else {
-      row.style.display = 'none';
-    }
-  });
-});
-
-// --- Gestion du scanner ---
-async function startScanner() {
-  if (isScanning) return;
-  isScanning = true;
-
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment' }
-    });
-    const video = document.createElement('video');
-    video.srcObject = stream;
-    video.setAttribute('playsinline', true);
-    video.play();
-
-    const scannerPreview = document.getElementById('scannerPreview');
-    scannerPreview.innerHTML = '';
-    scannerPreview.appendChild(video);
-    scannerPreview.style.display = 'block';
-
-    if ('BarcodeDetector' in window) {
-      barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'qr_code'] });
-      const scanInterval = setInterval(async () => {
-        if (!isScanning) {
-          clearInterval(scanInterval);
-          return;
-        }
-        try {
-          const barcodes = await barcodeDetector.detect(video);
-          if (barcodes.length > 0) {
-            document.getElementById('productBar').value = barcodes[0].rawValue;
-            stopScanner();
-            clearInterval(scanInterval);
-            showToast('Code-barres scanné avec succès');
+      try {
+        const response = await apiCall(`/supprimer_fournisseur/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'X-User-ID': userId
           }
-        } catch (error) {
-          console.error('Erreur lors du scan:', error);
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.erreur || 'Erreur lors de la suppression');
         }
-      }, 100);
-    } else {
-      showToast('Le scan de code-barres n\'est pas pris en charge par ce navigateur', true);
-      stopScanner();
+
+        showToast('Fournisseur supprimé avec succès');
+        chargerFournisseurs();
+        loadAllCounts(); // Mettre à jour le compteur
+      } catch (error) {
+        showToast(error.message, true);
+        console.error('Erreur suppression fournisseur:', error);
+      }
     }
-  } catch (error) {
-    showToast('Erreur d\'accès à la caméra', true);
-    console.error('Erreur démarrage scanner:', error);
-    stopScanner();
-  }
+
+    async function saveFournisseur() {
+      const userId = localStorage.getItem('userId');
+      if (!userId) {
+        showToast('Veuillez vous connecter pour sauvegarder un fournisseur', true);
+        return;
+      }
+
+      const id = document.getElementById('fournisseurId').value;
+      const nom = document.getElementById('fournisseurNom').value.trim();
+      const contact = document.getElementById('fournisseurContact').value.trim();
+      const adresse = document.getElementById('fournisseurAdresse').value.trim();
+
+      if (!nom) {
+        showToast('Veuillez remplir le champ Nom', true);
+        return;
+      }
+
+      try {
+        const url = id ? `${API_BASE_URL}/modifier_fournisseur/${id}` : `${API_BASE_URL}/ajouter_fournisseur`;
+        const method = id ? 'PUT' : 'POST';
+        const response = await fetch(url, {
+          method: method,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-ID': userId
+          },
+          body: JSON.stringify({
+            nom,
+            contact,
+            adresse
+          })
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
+        }
+
+        showToast(id ? 'Fournisseur modifié avec succès' : 'Fournisseur ajouté avec succès');
+        resetFournisseurForm();
+        chargerFournisseurs();
+        loadAllCounts(); // Mettre à jour le compteur
+      } catch (error) {
+        showToast(error.message, true);
+        console.error('Erreur sauvegarde fournisseur:', error);
+      }
+    }
+
+    function resetFournisseurForm() {
+      document.getElementById('fournisseurId').value = '';
+      document.getElementById('fournisseurNom').value = '';
+      document.getElementById('fournisseurContact').value = '';
+      document.getElementById('fournisseurAdresse').value = '';
+      document.getElementById('fournisseurFormTitle').textContent = 'Nouveau Fournisseur';
+      document.getElementById('fournisseurForm').classList.add('hidden');
+    }
+
+    function toggleFournisseurForm() {
+      document.getElementById('fournisseurForm').classList.toggle('hidden');
+    }
+
+    document.getElementById('searchFournisseur').addEventListener('input', function(e) {
+      const searchTerm = e.target.value.toLowerCase();
+      const rows = document.querySelectorAll('#fournisseursList tr');
+
+      rows.forEach(row => {
+        const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
+        const reference = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
+        const contact = row.querySelector('td:nth-child(5)')?.textContent.toLowerCase();
+        const adresse = row.querySelector('td:nth-child(6)')?.textContent.toLowerCase();
+        if (nom?.includes(searchTerm) || reference?.includes(searchTerm) || contact?.includes(searchTerm) || adresse?.includes(searchTerm)) {
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+    });
+
+      // --- Gestion des produits ---
+        async function chargerProduits() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir les produits', true);
+                return;
+            }
+
+            try {
+                const response = await apiCall(`/liste_produits`, {
+                    headers: {
+                        'X-User-ID': userId
+                    }
+                });
+                if (!response.ok) {
+                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                }
+                const produits = await response.json();
+                const tbody = document.getElementById('productsList');
+                const countElement = document.getElementById('productCount');
+
+                if (produits.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
+                    countElement.textContent = '0';
+                    countElement.classList.remove('hidden');
+                    return;
+                }
+
+                tbody.innerHTML = '';
+                produits.forEach(produit => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-gray-50';
+                    tr.innerHTML = `
+                        <td class="hidden-id">${produit.NUMERO_ITEM || 'N/A'}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.REF || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || '0.00').toFixed(2)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+    <div class="action-buttons">
+        <button onclick="modifierProduit('${produit.NUMERO_ITEM}', '${produit.BAR}', '${produit.DESIGNATION}', '${produit.PRIX}', '${produit.PRIXBA}', '${produit.QTE}')" 
+                class="btn-edit text-blue-600 hover:text-blue-800 transition mr-2">
+            <i class="fas fa-edit"></i> Modifier
+        </button>
+        <button onclick="supprimerProduit('${produit.NUMERO_ITEM}')" 
+                class="btn-delete text-red-600 hover:text-red-800 transition">
+            <i class="fas fa-trash-alt"></i> Supprimer
+        </button>
+    </div>
+</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                countElement.textContent = produits.length;
+                countElement.classList.remove('hidden');
+            } catch (error) {
+                document.getElementById('productsList').innerHTML = `
+                    <tr>
+                        <td colspan="8" class="text-center py-4 text-red-500">
+                            Erreur de chargement: ${error.message}
+                        </td>
+                    </tr
+                `;disableAllDeleteButtons();
+                console.error('Erreur produits:', error);
+            }
+        }
+
+        function modifierProduit(numero_item, bar, designation, prix, prixba, qte) {
+    document.getElementById('productId').value = numero_item;
+    document.getElementById('productBar').value = bar || ''; // S'assurer que bar peut être vide
+    document.getElementById('productDesignation').value = designation;
+    document.getElementById('productPrix').value = parseFloat(prix).toFixed(2);
+    document.getElementById('productPrixba').value = prixba ? parseFloat(prixba).toFixed(2) : '';
+    document.getElementById('productQte').value = qte;
+    document.getElementById('productFormTitle').textContent = 'Modifier Produit';
+    document.getElementById('productForm').classList.remove('hidden');
+}
+
+        async function supprimerProduit(id) {
+
+			const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour supprimer un produit', true);
+                return;
+            }
+
+            if (!confirm('Voulez-vous vraiment supprimer ce produit ?')) {
+                return;
+            }
+
+            try {
+                const response = await apiCall(`/supprimer_item/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-User-ID': userId
+                    }
+                });
+
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.erreur || 'Erreur lors de la suppression');
+                }
+
+                showToast('Produit supprimé avec succès');
+                chargerProduits();
+            } catch (error) {
+                showToast(error.message, true);
+                console.error('Erreur suppression produit:', error);
+            }
+        }
+
+      async function saveProduct() {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour sauvegarder un produit', true);
+        return;
+    }
+
+    const id = document.getElementById('productId').value;
+    const bar = document.getElementById('productBar').value.trim(); // Peut être vide
+    const designation = document.getElementById('productDesignation').value.trim();
+    const prix = document.getElementById('productPrix').value;
+    const prixba = document.getElementById('productPrixba').value;
+    const qte = document.getElementById('productQte').value;
+
+    // Vérifier les champs obligatoires (exclure bar)
+    if (!designation || prix === '' || qte === '') {
+        showToast('Veuillez remplir tous les champs obligatoires (Désignation, Prix, Quantité)', true);
+        return;
+    }
+
+    const prixValue = parseFloat(prix);
+    const prixbaValue = prixba ? parseFloat(prixba) : 0;
+    const qteValue = parseInt(qte);
+
+    if (isNaN(prixValue) || isNaN(qteValue) || prixValue < 0 || qteValue < 0) {
+        showToast('Le prix et la quantité doivent être des nombres valides et positifs', true);
+        return;
+    }
+
+    try {
+        const url = id ? `${API_BASE_URL}/modifier_item/${id}` : `${API_BASE_URL}/ajouter_item`;
+        const method = id ? 'PUT' : 'POST';
+        
+        // Construire le payload (inclure bar seulement s'il est non vide)
+        const payload = {
+            designation: designation,
+            prix: prixValue,
+            prixba: prixbaValue,
+            qte: qteValue
+        };
+        
+        if (bar) {
+            payload.bar = bar; // Inclure bar seulement s'il est fourni
+        }
+
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                'X-User-ID': userId
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
+        }
+
+        // Afficher le code-barres généré si bar était vide
+        if (!bar && result.bar) {
+            showToast(`Produit ${id ? 'modifié' : 'ajouté'} avec succès. Code-barres généré : ${result.bar}`);
+        } else {
+            showToast(id ? 'Produit modifié avec succès' : 'Produit ajouté avec succès');
+        }
+
+        resetProductForm();
+        chargerProduits();
+    } catch (error) {
+        showToast(error.message, true);
+        console.error('Erreur sauvegarde produit:', error);
+    }
+}
+        function resetProductForm() {
+            document.getElementById('productId').value = '';
+            document.getElementById('productBar').value = '';
+            document.getElementById('productDesignation').value = '';
+            document.getElementById('productPrix').value = '';
+            document.getElementById('productPrixba').value = '';
+            document.getElementById('productQte').value = '';
+            document.getElementById('productFormTitle').textContent = 'Nouveau Produit';
+            document.getElementById('productForm').classList.add('hidden');
+            stopScanner();
+        }
+
+        function toggleProductForm() {
+            document.getElementById('productForm').classList.toggle('hidden');
+        }
+
+        document.getElementById('searchProduct').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('#productsList tr');
+
+            rows.forEach(row => {
+                const designation = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
+                const bar = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
+                const reference = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
+                if (designation?.includes(searchTerm) || bar?.includes(searchTerm) || reference?.includes(searchTerm)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+
+        // --- Gestion du scanner ---
+       async function startScanner() {
+    if (isScanning) return;
+
+    try {
+        // Vérifier si BarcodeDetector est supporté
+        if (!('BarcodeDetector' in window)) {
+            showToast('Le détecteur de code-barres n\'est pas supporté par ce navigateur. Utilisez Chrome ou Edge.', true);
+            return;
+        }
+
+        // Initialiser le flux vidéo
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment' }
+        });
+
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.autoplay = true;
+        video.playsInline = true;
+        video.style.width = '100%';
+        video.style.height = '100%';
+
+        const scannerPreview = document.getElementById('scannerPreview');
+        scannerPreview.innerHTML = '';
+        scannerPreview.appendChild(video);
+        scannerPreview.style.display = 'block';
+
+        // Attendre que la vidéo soit prête
+        await new Promise((resolve) => {
+            video.onloadedmetadata = () => {
+                video.play().then(resolve).catch(err => {
+                    showToast('Erreur de lecture vidéo : ' + err.message, true);
+                    stopScanner();
+                });
+            };
+        });
+
+        // Initialiser BarcodeDetector
+        barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
+        isScanning = true;
+        scanBarcode(video);
+    } catch (error) {
+        showToast('Erreur d\'accès à la caméra : ' + error.message, true);
+        console.error('Erreur scanner:', error);
+        stopScanner();
+    }
+}
+
+function scanBarcode(video) {
+    if (!isScanning || !video.srcObject) {
+        stopScanner();
+        return;
+    }
+
+    try {
+        barcodeDetector.detect(video)
+            .then(barcodes => {
+                if (barcodes.length > 0) {
+                    const barcode = barcodes[0].rawValue;
+                    document.getElementById('productBar').value = barcode;
+                    showToast('Code-barres détecté : ' + barcode);
+                    stopScanner();
+                } else {
+                    requestAnimationFrame(() => scanBarcode(video));
+                }
+            })
+            .catch(error => {
+                showToast('Erreur de détection : ' + error.message, true);
+                console.error('Erreur détection:', error);
+                stopScanner();
+            });
+    } catch (error) {
+        showToast('Erreur lors de la détection du code-barres : ' + error.message, true);
+        console.error('Erreur détection synchrone:', error);
+        stopScanner();
+    }
 }
 
 function stopScanner() {
-  if (stream) {
-    stream.getTracks().forEach(track => track.stop());
-    stream = null;
-  }
-  isScanning = false;
-  document.getElementById('scannerPreview').style.display = 'none';
-  document.getElementById('scannerPreview').innerHTML = '';
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+    }
+    const scannerPreview = document.getElementById('scannerPreview');
+    scannerPreview.innerHTML = '';
+    scannerPreview.style.display = 'none';
+    isScanning = false;
+    barcodeDetector = null;
 }
 
-// --- Gestion du mode hors ligne ---
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js')
-      .then(registration => {
-        console.log('Service Worker enregistré:', registration);
-      })
-      .catch(error => {
-        console.error('Erreur enregistrement Service Worker:', error);
-      });
-  });
-}
+        // --- Gestion des utilisateurs ---
+    async function chargerUtilisateurs() {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour voir les utilisateurs', true);
+        document.getElementById('utilisateursList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+        return;
+    }
 
-// Vérifier la connectivité réseau
-window.addEventListener('online', () => {
-  showToast('Connexion rétablie');
-  if (localStorage.getItem('userId')) {
-    chargerKPI();
-    loadAllCounts();
-    if (clientsLoaded) chargerClients();
-    if (fournisseursLoaded) chargerFournisseurs();
-    if (produitsLoaded) chargerProduits();
-    if (utilisateursLoaded) chargerUtilisateurs();
-  }
-});
-
-window.addEventListener('offline', () => {
-  showToast('Mode hors ligne activé', true);
-});
-
-// Initialiser l'état des boutons en fonction du statut
-function disableAllDeleteButtons() {
-  const storedSeller = localStorage.getItem('selectedSeller');
-  let isAdmin = false;
-  if (storedSeller) {
-    const { numero_util } = JSON.parse(storedSeller);
-    fetch(`${API_BASE_URL}/liste_utilisateurs`, {
-      headers: { 'X-User-ID': localStorage.getItem('userId') }
-    })
-      .then(response => response.json())
-      .then(utilisateurs => {
-        const seller = utilisateurs.find(u => u.numero == numero_util);
-        isAdmin = seller && seller.statut.toLowerCase() === 'admin';
-        document.querySelectorAll('.btn-delete').forEach(button => {
-          button.disabled = !isAdmin;
-          button.classList.toggle('opacity-50', !isAdmin);
-          button.classList.toggle('cursor-not-allowed', !isAdmin);
+    try {
+        const response = await apiCall(`/liste_utilisateurs`, {
+            headers: {
+                'X-User-ID': userId
+            }
         });
-      })
-      .catch(error => {
-        console.error('Erreur vérification statut:', error);
-      });
-  } else {
-    document.querySelectorAll('.btn-delete').forEach(button => {
-      button.disabled = true;
-      button.classList.add('opacity-50', 'cursor-not-allowed');
-    });
-  }
+        if (!response.ok) {
+            throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+        }
+        const utilisateurs = await response.json();
+        const tbody = document.getElementById('utilisateursList');
+        const countElement = document.getElementById('utilisateurCount');
+        const addButton = document.querySelector('#utilisateursSection button:has(i.fa-plus)');
+
+        // Débogage
+        console.log('Utilisateurs récupérés:', utilisateurs);
+        console.log('Nombre d\'utilisateurs:', utilisateurs.length);
+        console.log('userId:', userId);
+        console.log('selectedSeller:', localStorage.getItem('selectedSeller'));
+        console.log('Bouton Ajouter:', addButton);
+
+        // Vérifier si l'utilisateur connecté est un admin
+        let isAdmin = false;
+        const storedSeller = localStorage.getItem('selectedSeller');
+        if (storedSeller) {
+            const { numero_util } = JSON.parse(storedSeller);
+            console.log('numero_util:', numero_util);
+            const currentUser = utilisateurs.find(u => u.numero == numero_util);
+            console.log('Utilisateur courant:', currentUser);
+            isAdmin = currentUser && currentUser.statut.toLowerCase() === 'admin';
+            console.log('isAdmin:', isAdmin);
+        } else {
+            console.log('Aucun selectedSeller, utilisateur inconnu');
+        }
+
+        // Activer le bouton si utilisateurs.length === 0 OU isAdmin === true
+        if (utilisateurs.length === 0 || isAdmin) {
+            if (utilisateurs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun utilisateur trouvé</td></tr>';
+                console.log('Aucun utilisateur, activation du bouton Ajouter');
+            } else {
+                tbody.innerHTML = '';
+                utilisateurs.forEach(utilisateur => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-gray-50';
+                    tr.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.numero || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${utilisateur.nom || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.statut || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <div class="action-buttons">
+                                <button onclick="modifierUtilisateur('${utilisateur.numero}', '${utilisateur.nom}', '${utilisateur.statut}')" 
+                                        class="btn-edit text-blue-600 hover:text-blue-800 transition mr-2">
+                                    <i class="fas fa-edit"></i> Modifier
+                                </button>
+                                <button onclick="supprimerUtilisateur('${utilisateur.numero}')" 
+                                        class="btn-delete text-red-600 hover:text-red-800 transition">
+                                    <i class="fas fa-trash-alt"></i> Supprimer
+                                </button>
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+            countElement.textContent = utilisateurs.length;
+            countElement.classList.remove('hidden');
+            // Activer le bouton Ajouter
+            if (addButton) {
+                addButton.disabled = false;
+                addButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                console.log('Bouton Ajouter activé');
+            } else {
+                console.error('Bouton Ajouter non trouvé');
+            }
+        } else {
+            tbody.innerHTML = '';
+            utilisateurs.forEach(utilisateur => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50';
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.numero || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${utilisateur.nom || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.statut || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div class="action-buttons">
+                            <button onclick="modifierUtilisateur('${utilisateur.numero}', '${utilisateur.nom}', '${utilisateur.statut}')" 
+                                    class="btn-edit text-blue-600 hover:text-blue-800 transition mr-2">
+                                <i class="fas fa-edit"></i> Modifier
+                            </button>
+                            <button onclick="supprimerUtilisateur('${utilisateur.numero}')" 
+                                    class="btn-delete text-red-600 hover:text-red-800 transition">
+                                <i class="fas fa-trash-alt"></i> Supprimer
+                            </button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            countElement.textContent = utilisateurs.length;
+            countElement.classList.remove('hidden');
+            // Désactiver le bouton Ajouter
+            if (addButton) {
+                addButton.disabled = true;
+                addButton.classList.add('opacity-50', 'cursor-not-allowed');
+                console.log('Bouton Ajouter désactivé');
+            } else {
+                console.error('Bouton Ajouter non trouvé');
+            }
+        }
+    } catch (error) {
+        document.getElementById('utilisateursList').innerHTML = `
+            <tr>
+                <td colspan="4" class="text-center py-4 text-red-500">
+                    Erreur de chargement: ${error.message}
+                </td>
+            </tr>
+        `;
+        disableAllDeleteButtons();
+        console.error('Erreur utilisateurs:', error);
+        // Désactiver le bouton Ajouter en cas d'erreur
+        const addButton = document.querySelector('#utilisateursSection button:has(i.fa-plus)');
+        if (addButton) {
+            addButton.disabled = true;
+            addButton.classList.add('opacity-50', 'cursor-not-allowed');
+            console.log('Bouton Ajouter désactivé (erreur)');
+        } else {
+            console.error('Bouton Ajouter non trouvé (erreur)');
+        }
+    }
 }
-</script>
+        function modifierUtilisateur(numero, nom, statut) {
+            document.getElementById('utilisateurId').value = numero;
+            document.getElementById('utilisateurNom').value = nom;
+            document.getElementById('utilisateurStatut').value = statut.toLowerCase();
+            document.getElementById('utilisateurPassword').value = ''; // Clear password field
+            document.getElementById('utilisateurFormTitle').textContent = 'Modifier Utilisateur';
+            document.getElementById('utilisateurForm').classList.remove('hidden');
+            // Make password field optional for modification
+            document.getElementById('utilisateurPassword').removeAttribute('required');
+        }
+
+        async function supprimerUtilisateur(numero) {
+              // Vérification renforcée du statut
+
+			const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour supprimer un utilisateur', true);
+                return;
+            }
+
+            if (!confirm('Voulez-vous vraiment supprimer cet utilisateur ?')) {
+                return;
+            }
+
+            try {
+                const response = await apiCall(`/supprimer_utilisateur/${numero}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-User-ID': userId
+                    }
+                });
+
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.erreur || 'Erreur lors de la suppression');
+                }
+
+                showToast('Utilisateur supprimé avec succès');
+                chargerUtilisateurs();
+            } catch (error) {
+                showToast(error.message, true);
+                console.error('Erreur suppression utilisateur:', error);
+            }
+        }
+        async function saveUtilisateur() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour sauvegarder un utilisateur', true);
+                return;
+            }
+
+            const id = document.getElementById('utilisateurId').value;
+            const nom = document.getElementById('utilisateurNom').value.trim();
+            const password = document.getElementById('utilisateurPassword').value.trim();
+            const statut = document.getElementById('utilisateurStatut').value;
+
+            if (!nom || (!id && !password)) {
+                showToast('Veuillez remplir tous les champs obligatoires', true);
+                return;
+            }
+
+            try {
+                const url = id ? `${API_BASE_URL}/modifier_utilisateur/${id}` : `${API_BASE_URL}/ajouter_utilisateur`;
+                const method = id ? 'PUT' : 'POST';
+                const payload = {
+                    user_id: userId, // Include userId in payload to associate with the authenticated user
+                    nom,
+                    statue: statut // Backend expects 'statue' instead of 'statut'
+                };
+
+                // Only include password if provided (for add or if updating password)
+                if (password) {
+                    payload.password2 = password; // Backend expects 'password2'
+                }
+
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
+                }
+
+                showToast(id ? 'Utilisateur modifié avec succès' : 'Utilisateur ajouté avec succès');
+                resetUtilisateurForm();
+                chargerUtilisateurs();
+            } catch (error) {
+                showToast(error.message, true);
+                console.error('Erreur sauvegarde utilisateur:', error);
+            }
+        }
+
+        function resetUtilisateurForm() {
+            document.getElementById('utilisateurId').value = '';
+            document.getElementById('utilisateurNom').value = '';
+            document.getElementById('utilisateurPassword').value = '';
+            document.getElementById('utilisateurStatut').value = 'admin';
+            document.getElementById('utilisateurFormTitle').textContent = 'Nouvel Utilisateur';
+            document.getElementById('utilisateurForm').classList.add('hidden');
+            // Restore password field as required for adding new users
+            document.getElementById('utilisateurPassword').setAttribute('required', '');
+        }
+
+        function toggleUtilisateurForm() {
+            document.getElementById('utilisateurForm').classList.toggle('hidden');
+            // Ensure password is required when opening form for new user
+            if (!document.getElementById('utilisateurId').value) {
+                document.getElementById('utilisateurPassword').setAttribute('required', '');
+            }
+        }
+
+        document.getElementById('searchUtilisateur').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('#utilisateursList tr');
+
+            rows.forEach(row => {
+                const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
+                const statut = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
+                if (nom?.includes(searchTerm) || statut?.includes(searchTerm)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+   
+function disableAllDeleteButtons() {
+    const status = localStorage.getItem('userStatus'); // 'ADMIN' ou 'EMPLO'
+    document.querySelectorAll('.btn-delete').forEach(btn => {
+        btn.dataset.status = status; // Marque le statut
+        if (status === 'EMPLO') {
+            btn.classList.add('disabled');
+            btn.onclick = (e) => {
+                e.preventDefault();
+                showToast("Action non autorisée pour les employés", true);
+            };
+        }
+    });
+}
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js');
+}
+ </script>
 </body>
 </html>
+       
