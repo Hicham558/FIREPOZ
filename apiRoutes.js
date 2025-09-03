@@ -1,258 +1,230 @@
 import { getDb } from './db.js';
 
-// Sauvegarder la base dans IndexedDB
 async function saveDbToIndexedDB(db) {
+  console.log("Sauvegarde de la base dans IndexedDB...");
   try {
-    console.log("Sauvegarde dans IndexedDB...");
     const dbBinary = db.export();
-    const request = indexedDB.open('GestionDB', 1);
-    request.onupgradeneeded = event => {
-      event.target.result.createObjectStore('databases', { keyPath: 'name' });
+    const request = indexedDB.open('gestionDB', 1);
+
+    request.onupgradeneeded = () => {
+      console.log("Création de la base IndexedDB");
+      request.result.createObjectStore('databases');
     };
-    return new Promise((resolve, reject) => {
-      request.onsuccess = event => {
-        const idb = event.target.result;
+
+    await new Promise((resolve, reject) => {
+      request.onsuccess = () => {
+        const idb = request.result;
         const transaction = idb.transaction(['databases'], 'readwrite');
         const store = transaction.objectStore('databases');
-        store.put({ name: 'gestion.db', data: dbBinary });
-        transaction.oncomplete = () => {
-          console.log("Sauvegarde IndexedDB réussie");
+        const putRequest = store.put(dbBinary, 'gestion.db');
+        putRequest.onsuccess = () => {
+          console.log("Base sauvegardée dans IndexedDB");
           resolve();
         };
-        transaction.onerror = () => reject(new Error('Erreur IndexedDB'));
+        putRequest.onerror = () => reject(putRequest.error);
       };
-      request.onerror = () => reject(new Error('Erreur ouverture IndexedDB'));
+      request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error("Erreur saveDbToIndexedDB :", error);
+    console.error("Erreur lors de la sauvegarde dans IndexedDB :", error);
     throw error;
   }
 }
 
-// ---------------------- LISTES ----------------------
-export async function listeClients() {
-  const db = await getDb();
-  const stmt = db.prepare(
-    'SELECT numero_clt, nom, solde, reference, contact, adresse FROM client ORDER BY nom'
-  );
-  let clients = [];
-  while (stmt.step()) {
-    const row = stmt.getAsObject();
-    clients.push({
-      numero_clt: row.numero_clt,
-      nom: row.nom || "",
-      solde: row.solde || "0,00",
-      reference: row.reference || "",
-      contact: row.contact || "",
-      adresse: row.adresse || ""
-    });
+export async function listeTables() {
+  try {
+    console.log("Exécution de listeTables...");
+    const db = await getDb();
+    const stmt = db.prepare("SELECT name FROM sqlite_master WHERE type='table'");
+    const tables = [];
+    while (stmt.step()) tables.push(stmt.getAsObject().name);
+    stmt.free();
+    console.log("Tables retournées :", tables);
+    return tables;
+  } catch (error) {
+    console.error("Erreur listeTables :", error);
+    return [];
   }
-  stmt.free();
-  console.log("Clients retournés :", clients);
-  return clients;
+}
+
+export async function listeClients() {
+  try {
+    console.log("Exécution de listeClients...");
+    const db = await getDb();
+    // Vérifier les colonnes de la table
+    const stmtInfo = db.prepare("PRAGMA table_info(client)");
+    const columns = [];
+    while (stmtInfo.step()) {
+      columns.push(stmtInfo.getAsObject().name);
+    }
+    stmtInfo.free();
+    console.log("Colonnes de la table client :", columns);
+
+    const stmt = db.prepare('SELECT numero_clt, nom, solde, reference, contact, adresse FROM client');
+    const clients = [];
+    while (stmt.step()) {
+      const row = stmt.get();
+      console.log("Client brut récupéré (stmt.get) :", row);
+      // Tester getAsObject comme alternative
+      const rowObj = stmt.getAsObject();
+      console.log("Client brut récupéré (stmt.getAsObject) :", rowObj);
+      clients.push({
+        numero_clt: row[0] !== null ? row[0] : '',
+        nom: row[1] !== null ? row[1] : '',
+        solde: row[2] !== null ? row[2] : '0,00',
+        reference: row[3] !== null ? row[3] : '',
+        contact: row[4] !== null ? row[4] : '',
+        adresse: row[5] !== null ? row[5] : ''
+      });
+    }
+    stmt.free();
+    console.log("Clients formatés retournés :", clients);
+    return clients;
+  } catch (error) {
+    console.error("Erreur listeClients :", error);
+    return [];
+  }
 }
 
 export async function listeFournisseurs() {
-  const db = await getDb();
-  const stmt = db.prepare(
-    'SELECT numero_fou, nom, solde, reference, contact, adresse FROM fournisseur ORDER BY nom'
-  );
-  let fournisseurs = [];
-  while (stmt.step()) {
-    const row = stmt.getAsObject();
-    fournisseurs.push({
-      numero_fou: row.numero_fou,
-      nom: row.nom || "",
-      solde: row.solde || "0,00",
-      reference: row.reference || "",
-      contact: row.contact || "",
-      adresse: row.adresse || ""
-    });
+  try {
+    console.log("Exécution de listeFournisseurs...");
+    const db = await getDb();
+    // Vérifier les colonnes de la table
+    const stmtInfo = db.prepare("PRAGMA table_info(fournisseur)");
+    const columns = [];
+    while (stmtInfo.step()) {
+      columns.push(stmtInfo.getAsObject().name);
+    }
+    stmtInfo.free();
+    console.log("Colonnes de la table fournisseur :", columns);
+
+    const stmt = db.prepare('SELECT numero_fou, nom, solde, reference, contact, adresse FROM fournisseur');
+    const fournisseurs = [];
+    while (stmt.step()) {
+      const row = stmt.get();
+      console.log("Fournisseur brut récupéré (stmt.get) :", row);
+      // Tester getAsObject comme alternative
+      const rowObj = stmt.getAsObject();
+      console.log("Fournisseur brut récupéré (stmt.getAsObject) :", rowObj);
+      fournisseurs.push({
+        numero_fou: row[0] !== null ? row[0] : '',
+        nom: row[1] !== null ? row[1] : '',
+        solde: row[2] !== null ? row[2] : '0,00',
+        reference: row[3] !== null ? row[3] : '',
+        contact: row[4] !== null ? row[4] : '',
+        adresse: row[5] !== null ? row[5] : ''
+      });
+    }
+    stmt.free();
+    console.log("Fournisseurs formatés retournés :", fournisseurs);
+    return fournisseurs;
+  } catch (error) {
+    console.error("Erreur listeFournisseurs :", error);
+    return [];
   }
-  stmt.free();
-  console.log("Fournisseurs retournés :", fournisseurs);
-  return fournisseurs;
 }
 
-export async function listeTables() {
-  const db = await getDb();
-  const stmt = db.prepare("SELECT name FROM sqlite_master WHERE type='table'");
-  let tables = [];
-  while (stmt.step()) {
-    const row = stmt.getAsObject();
-    tables.push(row.name);
-  }
-  stmt.free();
-  console.log("Tables retournées :", tables);
-  return tables;
-}
-
-// ---------------------- CRUD CLIENT ----------------------
 export async function ajouterClient(data) {
-  const db = await getDb();
-  const { nom, contact, adresse } = data;
-
-  if (!nom) {
-    console.log("Erreur : Le champ nom est obligatoire");
-    return { erreur: "Le champ nom est obligatoire" };
+  try {
+    console.log("Exécution de ajouterClient avec data :", data);
+    const db = await getDb();
+    const reference = `C${Date.now()}`;
+    const stmt = db.prepare('INSERT INTO client (nom, contact, adresse, reference) VALUES (?, ?, ?, ?)');
+    stmt.run([data.nom, data.contact || null, data.adresse || null, reference]);
+    stmt.free();
+    const id = db.exec('SELECT last_insert_rowid() AS id')[0].values[0][0];
+    await saveDbToIndexedDB(db);
+    console.log("Client ajouté : ID =", id, "Référence =", reference);
+    return { statut: 'Client ajouté', id, reference };
+  } catch (error) {
+    console.error("Erreur ajouterClient :", error);
+    return { erreur: error.message };
   }
+}
 
-  const countStmt = db.prepare("SELECT COUNT(*) AS total FROM client");
-  countStmt.step();
-  const { total } = countStmt.getAsObject();
-  countStmt.free();
-
-  const reference = `C${total + 1}`;
-  const solde = "0,00";
-
-  db.run(
-    "INSERT INTO client (nom, solde, reference, contact, adresse) VALUES (?, ?, ?, ?, ?)",
-    [nom, solde, reference, contact, adresse]
-  );
-
-  const idStmt = db.prepare("SELECT last_insert_rowid() AS id");
-  idStmt.step();
-  const { id } = idStmt.getAsObject();
-  idStmt.free();
-
-  await saveDbToIndexedDB(db); // Sauvegarder après ajout
-
-  console.log("Client ajouté : ID =", id, ", Référence =", reference);
-  return { statut: "Client ajouté", id, reference }; // id est numero_clt
+export async function ajouterFournisseur(data) {
+  try {
+    console.log("Exécution de ajouterFournisseur avec data :", data);
+    const db = await getDb();
+    const reference = `F${Date.now()}`;
+    const stmt = db.prepare('INSERT INTO fournisseur (nom, contact, adresse, reference) VALUES (?, ?, ?, ?)');
+    stmt.run([data.nom, data.contact || null, data.adresse || null, reference]);
+    stmt.free();
+    const id = db.exec('SELECT last_insert_rowid() AS id')[0].values[0][0];
+    await saveDbToIndexedDB(db);
+    console.log("Fournisseur ajouté : ID =", id, "Référence =", reference);
+    return { statut: 'Fournisseur ajouté', id, reference };
+  } catch (error) {
+    console.error("Erreur ajouterFournisseur :", error);
+    return { erreur: error.message };
+  }
 }
 
 export async function modifierClient(numero_clt, data) {
-  const db = await getDb();
-  const { nom, contact, adresse } = data;
-
-  if (!nom) {
-    console.log("Erreur : Le champ nom est obligatoire");
-    return { erreur: "Le champ nom est obligatoire" };
+  try {
+    console.log("Exécution de modifierClient :", numero_clt, data);
+    const db = await getDb();
+    const stmt = db.prepare('UPDATE client SET nom = ?, contact = ?, adresse = ? WHERE numero_clt = ?');
+    stmt.run([data.nom, data.contact || null, data.adresse || null, numero_clt]);
+    const changes = db.getRowsModified();
+    stmt.free();
+    await saveDbToIndexedDB(db);
+    console.log("Client modifié : changements =", changes);
+    return { statut: changes > 0 ? 'Client modifié' : 'Aucun client modifié' };
+  } catch (error) {
+    console.error("Erreur modifierClient :", error);
+    return { erreur: error.message };
   }
-
-  db.run(
-    "UPDATE client SET nom = ?, contact = ?, adresse = ? WHERE numero_clt = ?",
-    [nom, contact, adresse, numero_clt]
-  );
-
-  const stmt = db.prepare("SELECT changes() AS modif");
-  stmt.step();
-  const { modif } = stmt.getAsObject();
-  stmt.free();
-
-  if (modif === 0) {
-    console.log("Erreur : Client non trouvé, numero_clt =", numero_clt);
-    return { erreur: "Client non trouvé" };
-  }
-
-  await saveDbToIndexedDB(db); // Sauvegarder après modification
-
-  console.log("Client modifié : numero_clt =", numero_clt);
-  return { statut: "Client modifié" };
-}
-
-export async function supprimerClient(numero_clt) {
-  const db = await getDb();
-
-  db.run("DELETE FROM client WHERE numero_clt = ?", [numero_clt]);
-
-  const stmt = db.prepare("SELECT changes() AS suppr");
-  stmt.step();
-  const { suppr } = stmt.getAsObject();
-  stmt.free();
-
-  if (suppr === 0) {
-    console.log("Erreur : Client non trouvé, numero_clt =", numero_clt);
-    return { erreur: "Client non trouvé" };
-  }
-
-  await saveDbToIndexedDB(db); // Sauvegarder après suppression
-
-  console.log("Client supprimé : numero_clt =", numero_clt);
-  return { statut: "Client supprimé" };
-}
-
-// ---------------------- CRUD FOURNISSEUR ----------------------
-export async function ajouterFournisseur(data) {
-  const db = await getDb();
-  const { nom, contact, adresse } = data;
-
-  if (!nom) {
-    console.log("Erreur : Le champ nom est obligatoire");
-    return { erreur: "Le champ nom est obligatoire" };
-  }
-
-  const countStmt = db.prepare("SELECT COUNT(*) AS total FROM fournisseur");
-  countStmt.step();
-  const { total } = countStmt.getAsObject();
-  countStmt.free();
-
-  const reference = `F${total + 1}`;
-  const solde = "0,00";
-
-  db.run(
-    "INSERT INTO fournisseur (nom, solde, reference, contact, adresse) VALUES (?, ?, ?, ?, ?)",
-    [nom, solde, reference, contact, adresse]
-  );
-
-  const idStmt = db.prepare("SELECT last_insert_rowid() AS id");
-  idStmt.step();
-  const { id } = idStmt.getAsObject();
-  idStmt.free();
-
-  await saveDbToIndexedDB(db); // Sauvegarder après ajout
-
-  console.log("Fournisseur ajouté : ID =", id, ", Référence =", reference);
-  return { statut: "Fournisseur ajouté", id, reference }; // id est numero_fou
 }
 
 export async function modifierFournisseur(numero_fou, data) {
-  const db = await getDb();
-  const { nom, contact, adresse } = data;
-
-  if (!nom) {
-    console.log("Erreur : Le champ nom est obligatoire");
-    return { erreur: "Le champ nom est obligatoire" };
+  try {
+    console.log("Exécution de modifierFournisseur :", numero_fou, data);
+    const db = await getDb();
+    const stmt = db.prepare('UPDATE fournisseur SET nom = ?, contact = ?, adresse = ? WHERE numero_fou = ?');
+    stmt.run([data.nom, data.contact || null, data.adresse || null, numero_fou]);
+    const changes = db.getRowsModified();
+    stmt.free();
+    await saveDbToIndexedDB(db);
+    console.log("Fournisseur modifié : changements =", changes);
+    return { statut: changes > 0 ? 'Fournisseur modifié' : 'Aucun fournisseur modifié' };
+  } catch (error) {
+    console.error("Erreur modifierFournisseur :", error);
+    return { erreur: error.message };
   }
+}
 
-  db.run(
-    "UPDATE fournisseur SET nom = ?, contact = ?, adresse = ? WHERE numero_fou = ?",
-    [nom, contact, adresse, numero_fou]
-  );
-
-  const stmt = db.prepare("SELECT changes() AS modif");
-  stmt.step();
-  const { modif } = stmt.getAsObject();
-  stmt.free();
-
-  if (modif === 0) {
-    console.log("Erreur : Fournisseur non trouvé, numero_fou =", numero_fou);
-    return { erreur: "Fournisseur non trouvé" };
+export async function supprimerClient(numero_clt) {
+  try {
+    console.log("Exécution de supprimerClient :", numero_clt);
+    const db = await getDb();
+    const stmt = db.prepare('DELETE FROM client WHERE numero_clt = ?');
+    stmt.run([numero_clt]);
+    const changes = db.getRowsModified();
+    stmt.free();
+    await saveDbToIndexedDB(db);
+    console.log("Client supprimé : changements =", changes);
+    return { statut: changes > 0 ? 'Client supprimé' : 'Aucun client supprimé' };
+  } catch (error) {
+    console.error("Erreur supprimerClient :", error);
+    return { erreur: error.message };
   }
-
-  await saveDbToIndexedDB(db); // Sauvegarder après modification
-
-  console.log("Fournisseur modifié : numero_fou =", numero_fou);
-  return { statut: "Fournisseur modifié" };
 }
 
 export async function supprimerFournisseur(numero_fou) {
-  const db = await getDb();
-
-  db.run("DELETE FROM fournisseur WHERE numero_fou = ?", [numero_fou]);
-
-  const stmt = db.prepare("SELECT changes() AS suppr");
-  stmt.step();
-  const { suppr } = stmt.getAsObject();
-  stmt.free();
-
-  if (suppr === 0) {
-    console.log("Erreur : Fournisseur non trouvé, numero_fou =", numero_fou);
-    return { erreur: "Fournisseur non trouvé" };
+  try {
+    console.log("Exécution de supprimerFournisseur :", numero_fou);
+    const db = await getDb();
+    const stmt = db.prepare('DELETE FROM fournisseur WHERE numero_fou = ?');
+    stmt.run([numero_fou]);
+    const changes = db.getRowsModified();
+    stmt.free();
+    await saveDbToIndexedDB(db);
+    console.log("Fournisseur supprimé : changements =", changes);
+    return { statut: changes > 0 ? 'Fournisseur supprimé' : 'Aucun fournisseur supprimé' };
+  } catch (error) {
+    console.error("Erreur supprimerFournisseur :", error);
+    return { erreur: error.message };
   }
-
-  await saveDbToIndexedDB(db); // Sauvegarder après suppression
-
-  console.log("Fournisseur supprimé : numero_fou =", numero_fou);
-  return { statut: "Fournisseur supprimé" };
 }
