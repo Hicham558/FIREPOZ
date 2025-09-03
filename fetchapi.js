@@ -7,7 +7,11 @@ import {
   supprimerClient,
   ajouterFournisseur,
   modifierFournisseur,
-  supprimerFournisseur
+  supprimerFournisseur,
+  listeUtilisateurs,
+  ajouterUtilisateur,
+  modifierUtilisateur,
+  supprimerUtilisateur
 } from './apiRoutes.js';
 
 export async function fetchApi(url, options = {}) {
@@ -24,6 +28,13 @@ export async function fetchApi(url, options = {}) {
   }
 
   // ---------------------- LECTURE ----------------------
+  if (url === '/tables' && method === 'GET') {
+    console.log("Appel de listeTables");
+    const tables = await listeTables();
+    console.log("Résultat listeTables:", tables);
+    return { ok: true, json: async () => tables };
+  }
+
   if (url === '/liste_clients' && method === 'GET') {
     console.log("Appel de listeClients");
     const clients = await listeClients();
@@ -38,11 +49,11 @@ export async function fetchApi(url, options = {}) {
     return { ok: true, json: async () => fournisseurs };
   }
 
-  if (url === '/tables' && method === 'GET') {
-    console.log("Appel de listeTables");
-    const tables = await listeTables();
-    console.log("Résultat listeTables:", tables);
-    return { ok: true, json: async () => tables };
+  if (url === '/liste_utilisateurs' && method === 'GET') {
+    console.log("Appel de listeUtilisateurs");
+    const utilisateurs = await listeUtilisateurs();
+    console.log("Résultat listeUtilisateurs:", utilisateurs);
+    return { ok: !utilisateurs.erreur, json: async () => utilisateurs };
   }
 
   // ---------------------- AJOUT ----------------------
@@ -59,6 +70,14 @@ export async function fetchApi(url, options = {}) {
     console.log("Appel de ajouterFournisseur avec data:", data);
     const res = await ajouterFournisseur(data);
     console.log("Résultat ajouterFournisseur:", res);
+    return { ok: !res.erreur, json: async () => res };
+  }
+
+  if (url === '/ajouter_utilisateur' && method === 'POST') {
+    const data = JSON.parse(options.body || "{}");
+    console.log("Appel de ajouterUtilisateur avec data:", data);
+    const res = await ajouterUtilisateur(data);
+    console.log("Résultat ajouterUtilisateur:", res);
     return { ok: !res.erreur, json: async () => res };
   }
 
@@ -81,6 +100,15 @@ export async function fetchApi(url, options = {}) {
     return { ok: !res.erreur, json: async () => res };
   }
 
+  if (url.startsWith('/modifier_utilisateur/') && method === 'PUT') {
+    const numero_util = url.split('/').pop();
+    const data = JSON.parse(options.body || "{}");
+    console.log("Appel de modifierUtilisateur avec numero_util:", numero_util, "data:", data);
+    const res = await modifierUtilisateur(numero_util, data);
+    console.log("Résultat modifierUtilisateur:", res);
+    return { ok: !res.erreur, json: async () => res };
+  }
+
   // ---------------------- SUPPRESSION ----------------------
   if (url.startsWith('/supprimer_client/') && method === 'DELETE') {
     const numero_clt = url.split('/').pop();
@@ -95,6 +123,14 @@ export async function fetchApi(url, options = {}) {
     console.log("Appel de supprimerFournisseur avec numero_fou:", numero_fou);
     const res = await supprimerFournisseur(numero_fou);
     console.log("Résultat supprimerFournisseur:", res);
+    return { ok: !res.erreur, json: async () => res };
+  }
+
+  if (url.startsWith('/supprimer_utilisateur/') && method === 'DELETE') {
+    const numero_util = url.split('/').pop();
+    console.log("Appel de supprimerUtilisateur avec numero_util:", numero_util);
+    const res = await supprimerUtilisateur(numero_util);
+    console.log("Résultat supprimerUtilisateur:", res);
     return { ok: !res.erreur, json: async () => res };
   }
 
