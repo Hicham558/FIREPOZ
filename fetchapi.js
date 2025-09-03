@@ -181,6 +181,6 @@ export async function fetchApi(url, options = {}) {
   }
 
   // ---------------------- FALLBACK ----------------------
-  console.warn("Requête non interceptée, tentative d'envoi au serveur:", url);
-  throw new Error(`Requête non prise en charge : ${method} ${url}`);
+  console.warn("Requête non interceptée:", url);
+  return { ok: false, status: 404, json: async () => ({ erreur: `Requête non prise en charge : ${method} ${url}` }) };
 }
