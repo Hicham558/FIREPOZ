@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Liste des Clients et Fournisseurs</title>
+  <title>Liste des Clients, Fournisseurs et Utilisateurs</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
     body {
@@ -59,7 +59,7 @@
 </head>
 <body>
   <div class="container">
-    <h1 class="my-4 text-center">Gestion des Clients et Fournisseurs</h1>
+    <h1 class="my-4 text-center">Gestion des Clients, Fournisseurs et Utilisateurs</h1>
 
     <!-- Boutons Debug et Sauvegarde -->
     <div class="form-container">
@@ -178,6 +178,67 @@
       </form>
     </div>
 
+    <!-- Formulaires Utilisateurs -->
+    <div class="form-container">
+      <h2>Gestion des Utilisateurs</h2>
+
+      <!-- Ajouter -->
+      <form id="formAjouterUtilisateur" class="mb-3">
+        <h5>Ajouter un utilisateur</h5>
+        <div class="mb-2">
+          <input type="text" name="nom" placeholder="Nom" class="form-control" required>
+        </div>
+        <div class="mb-2">
+          <input type="password" name="password2" placeholder="Mot de passe" class="form-control" required>
+        </div>
+        <div class="mb-2">
+          <select name="statue" class="form-control" required>
+            <option value="" disabled selected>Sélectionner un statut</option>
+            <option value="admin">Admin</option>
+            <option value="emplo">Employé</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-success">➕ Ajouter</button>
+        <div id="ajouterUtilisateurResult" class="success"></div>
+        <div id="ajouterUtilisateurError" class="error"></div>
+      </form>
+
+      <!-- Modifier -->
+      <form id="formModifierUtilisateur" class="mb-3">
+        <h5>Modifier un utilisateur</h5>
+        <div class="mb-2">
+          <input type="number" name="numero_util" placeholder="Numéro utilisateur" class="form-control" required>
+        </div>
+        <div class="mb-2">
+          <input type="text" name="nom" placeholder="Nom" class="form-control" required>
+        </div>
+        <div class="mb-2">
+          <input type="password" name="password2" placeholder="Mot de passe (facultatif)" class="form-control">
+        </div>
+        <div class="mb-2">
+          <select name="statue" class="form-control" required>
+            <option value="" disabled selected>Sélectionner un statut</option>
+            <option value="admin">Admin</option>
+            <option value="emplo">Employé</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-warning">✏️ Modifier</button>
+        <div id="modifierUtilisateurResult" class="success"></div>
+        <div id="modifierUtilisateurError" class="error"></div>
+      </form>
+
+      <!-- Supprimer -->
+      <form id="formSupprimerUtilisateur">
+        <h5>Supprimer un utilisateur</h5>
+        <div class="mb-2">
+          <input type="number" name="numero_util" placeholder="Numéro utilisateur" class="form-control" required>
+        </div>
+        <button type="submit" class="btn btn-danger">🗑 Supprimer</button>
+        <div id="supprimerUtilisateurResult" class="success"></div>
+        <div id="supprimerUtilisateurError" class="error"></div>
+      </form>
+    </div>
+
     <!-- Table Clients -->
     <div class="table-container">
       <h2>Clients</h2>
@@ -215,6 +276,22 @@
         <tbody id="fournisseursBody"></tbody>
       </table>
     </div>
+
+    <!-- Table Utilisateurs -->
+    <div class="table-container">
+      <h2>Utilisateurs</h2>
+      <div id="utilisateursError" class="error"></div>
+      <table class="table table-striped table-bordered" id="utilisateursTable">
+        <thead>
+          <tr>
+            <th>Numéro</th>
+            <th>Nom</th>
+            <th>Statut</th>
+          </tr>
+        </thead>
+        <tbody id="utilisateursBody"></tbody>
+      </table>
+    </div>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.min.js"></script>
@@ -222,7 +299,7 @@
   <script>eruda.init();</script>
   <script type="module">
     console.log("Chargement des modules...");
-    import { fetchApi } from './fetchapi.js'; // Corrigé pour fetchapi.js
+    import { fetchApi } from './fetchapi.js';
     import { getDb } from './db.js';
 
     // Formatage du solde (1234.56 → 1 234,56)
@@ -290,6 +367,32 @@
         fournisseursError.textContent = `Erreur : ${error.message}`;
         fournisseursError.style.display = 'block';
         fournisseursBody.innerHTML = '<tr><td colspan="6" class="text-center">Erreur de chargement</td></tr>';
+      }
+    }
+
+    // Charger les utilisateurs
+    async function loadUtilisateurs() {
+      const utilisateursError = document.getElementById('utilisateursError');
+      const utilisateursBody = document.getElementById('utilisateursBody');
+      try {
+        console.log("Chargement des utilisateurs...");
+        const response = await fetchApi('/liste_utilisateurs');
+        if (!response.ok) throw new Error('Erreur lors du chargement des utilisateurs');
+        const utilisateurs = await response.json();
+        console.log("Utilisateurs reçus :", utilisateurs);
+        utilisateursBody.innerHTML = utilisateurs.length > 0 ? utilisateurs.map(utilisateur => `
+          <tr>
+            <td>${utilisateur.numero || '-'}</td>
+            <td>${utilisateur.nom || '-'}</td>
+            <td>${utilisateur.statut || '-'}</td>
+          </tr>
+        `).join('') : '<tr><td colspan="3" class="text-center">Aucun utilisateur trouvé</td></tr>';
+        utilisateursError.style.display = 'none';
+      } catch (error) {
+        console.error("Erreur loadUtilisateurs :", error);
+        utilisateursError.textContent = `Erreur : ${error.message}`;
+        utilisateursError.style.display = 'block';
+        utilisateursBody.innerHTML = '<tr><td colspan="3" class="text-center">Erreur de chargement</td></tr>';
       }
     }
 
@@ -524,6 +627,101 @@
       }
     });
 
+    // Ajouter un utilisateur
+    document.getElementById('formAjouterUtilisateur').addEventListener('submit', async e => {
+      e.preventDefault();
+      const ajouterResult = document.getElementById('ajouterUtilisateurResult');
+      const ajouterError = document.getElementById('ajouterUtilisateurError');
+      const data = Object.fromEntries(new FormData(e.target).entries());
+      if (!data.nom.trim() || !data.password2 || !data.statue) {
+        ajouterError.textContent = 'Erreur : Le nom, le mot de passe et le statut sont obligatoires';
+        ajouterError.style.display = 'block';
+        ajouterResult.style.display = 'none';
+        return;
+      }
+      try {
+        console.log("Ajout utilisateur :", data);
+        const response = await fetchApi('/ajouter_utilisateur', { method: 'POST', body: JSON.stringify(data) });
+        const result = await response.json();
+        console.log("Réponse ajout utilisateur :", result);
+        if (!response.ok) throw new Error(result.erreur || 'Erreur lors de l\'ajout');
+        ajouterResult.textContent = `${result.statut} (ID: ${result.id})`;
+        ajouterResult.style.display = 'block';
+        ajouterError.style.display = 'none';
+        await loadUtilisateurs();
+        e.target.reset();
+      } catch (error) {
+        console.error("Erreur ajouterUtilisateur :", error);
+        ajouterError.textContent = `Erreur : ${error.message}`;
+        ajouterError.style.display = 'block';
+        ajouterResult.style.display = 'none';
+      }
+    });
+
+    // Modifier un utilisateur
+    document.getElementById('formModifierUtilisateur').addEventListener('submit', async e => {
+      e.preventDefault();
+      const modifierResult = document.getElementById('modifierUtilisateurResult');
+      const modifierError = document.getElementById('modifierUtilisateurError');
+      const data = Object.fromEntries(new FormData(e.target).entries());
+      const numero = data.numero_util;
+      if (!numero || !data.nom.trim() || !data.statue) {
+        modifierError.textContent = 'Erreur : Le numéro utilisateur, le nom et le statut sont obligatoires';
+        modifierError.style.display = 'block';
+        modifierResult.style.display = 'none';
+        return;
+      }
+      delete data.numero_util;
+      try {
+        console.log("Modification utilisateur :", numero, data);
+        const response = await fetchApi(`/modifier_utilisateur/${numero}`, { method: 'PUT', body: JSON.stringify(data) });
+        const result = await response.json();
+        console.log("Réponse modification utilisateur :", result);
+        if (!response.ok) throw new Error(result.erreur || 'Erreur lors de la modification');
+        modifierResult.textContent = result.statut;
+        modifierResult.style.display = 'block';
+        modifierError.style.display = 'none';
+        await loadUtilisateurs();
+        e.target.reset();
+      } catch (error) {
+        console.error("Erreur modifierUtilisateur :", error);
+        modifierError.textContent = `Erreur : ${error.message}`;
+        modifierError.style.display = 'block';
+        modifierResult.style.display = 'none';
+      }
+    });
+
+    // Supprimer un utilisateur
+    document.getElementById('formSupprimerUtilisateur').addEventListener('submit', async e => {
+      e.preventDefault();
+      const supprimerResult = document.getElementById('supprimerUtilisateurResult');
+      const supprimerError = document.getElementById('supprimerUtilisateurError');
+      const numero = new FormData(e.target).get('numero_util');
+      if (!numero) {
+        supprimerError.textContent = 'Erreur : Le numéro utilisateur est obligatoire';
+        supprimerError.style.display = 'block';
+        supprimerResult.style.display = 'none';
+        return;
+      }
+      try {
+        console.log("Suppression utilisateur :", numero);
+        const response = await fetchApi(`/supprimer_utilisateur/${numero}`, { method: 'DELETE' });
+        const result = await response.json();
+        console.log("Réponse suppression utilisateur :", result);
+        if (!response.ok) throw new Error(result.erreur || 'Erreur lors de la suppression');
+        supprimerResult.textContent = result.statut;
+        supprimerResult.style.display = 'block';
+        supprimerError.style.display = 'none';
+        await loadUtilisateurs();
+        e.target.reset();
+      } catch (error) {
+        console.error("Erreur supprimerUtilisateur :", error);
+        supprimerError.textContent = `Erreur : ${error.message}`;
+        supprimerError.style.display = 'block';
+        supprimerResult.style.display = 'none';
+      }
+    });
+
     // Sauvegarder la base
     document.getElementById('btnSauvegarder').addEventListener('click', async () => {
       try {
@@ -555,6 +753,7 @@
     console.log("Initialisation de l'application...");
     loadClients();
     loadFournisseurs();
+    loadUtilisateurs();
   </script>
 </body>
 </html>
