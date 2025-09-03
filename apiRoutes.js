@@ -680,3 +680,129 @@ export async function supprimerItem(numero_item) {
     return { erreur: error.message, status: 500 };
   }
 }
+
+export async function dashboard(period = 'day') {
+  try {
+    console.log("Exécution de dashboard avec period:", period);
+    const db = await getDb();
+
+    // Set date range based on period
+    const now = new Date();
+    let date_start, date_end;
+    if (period === 'week') {
+      date_end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      date_start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0);
+    } else {
+      date_start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      date_end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    }
+
+    // Format dates for SQLite
+    const formatDate = (date) => {
+      return date.toISOString().replace('T', ' ').replace('Z', '').slice(0, 19);
+    };
+    const date_start_str = formatDate(date_start);
+    const date_end_str = formatDate(date_end);
+
+    // KPI query
+    const query_kpi = `
+      SELECT 
+        COALESCE(SUM(CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.')) AS total_ca),
+        COALESCE(SUM(
+          CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS NUMERIC) - 
+          (a.quantite * CAST(REPLACE(COALESCE(NULLIF(i.prixba, ''), '0'), ',', '.') AS NUMERIC))
+        ) AS total_profit,
+        COUNT(DISTINCT c.numero_comande) AS sales_count
+      FROM comande c
+      JOIN attache a ON c.numero_comande = a.numero_comande
+      JOIN item i ON a.numero_item = i.numero_item
+      WHERE c.date_comande >= ? AND c.date_comande <= ?
+    `;
+    const stmt_kpi = db.prepare(query_kpi);
+    stmt_kpi.bind([date_start_str, date_end_str]);
+    const kpi_data = stmt_kpi.getAsObject() || { total_ca: 0, total_profit: 0, sales_count: 0 };
+    stmt_kpi.free();
+
+    // Low stock query
+    const query_low_stock = `SELECT COUNT(*) AS low_stock FROM item WHERE qte < 10`;
+    const stmt_low_stock = db.prepare(query_low_stock);
+    const low_stock_data = stmt_low_stock.getAsObject();
+    const low_stock_count = low_stock_data.low_stock || 0;
+    stmt_low_stock.free();
+
+    // Top client query
+    const query_top_client = `
+      SELECT 
+        cl.nom,
+        COALESCE(SUM(CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS NUMERIC)), 0) AS client_ca
+      FROM comande c
+      JOIN attache a ON c.numero_comande = a.numero_comande
+      LEFT JOIN client cl ON c.numero_table = cl.numero_clt
+      WHERE c.date_comande >= ? AND c.date_comande <= ?
+      GROUP BY cl.nom
+      ORDER BY client_ca DESC
+      LIMIT 1
+    `;
+    const stmt_top_client = db.prepare(query_top_client);
+    stmt_top_client.bind([date_start_str, date_end_str]);
+    const top_client = stmt_top_client.getAsObject() || { nom: 'N/A', client_ca: 0 };
+    stmt_top_client.free();
+
+    // Chart data query
+    const query_chart = `
+      SELECT 
+        DATE(c.date_comande) AS sale_date,
+        COALESCE(SUM(CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS NUMERIC)), 0) AS daily_ca
+      FROM comande c
+      JOIN attache a ON c.numero_comande = a.numero_comande
+      WHERE c.date_comande >= ? AND c.date_comande <= ?
+      GROUP BY DATE(c.date_comande)
+      ORDER BY sale_date
+    `;
+    const stmt_chart = db.prepare(query_chart);
+    stmt_chart.bind([date_start_str, date_end_str]);
+    const chart_data = [];
+    while (stmt_chart.step()) {
+      chart_data.push(stmt_chart.getAsObject());
+    }
+    stmt_chart.free();
+
+    // Generate chart labels and values
+    const chart_labels = [];
+    const chart_values = [];
+    let current_date = new Date(date_start);
+    while (current_date <= date_end) {
+      const date_str = current_date.toISOString().slice(0, 10); // YYYY-MM-DD
+      chart_labels.push(date_str);
+      const daily_ca = chart_data.find(row => row.sale_date === date_str)?.daily_ca || 0;
+      chart_values.push(toDotDecimal(daily_ca.toString()));
+      current_date.setDate(current_date.getDate() + 1);
+    }
+
+    // Format response
+    const response = {
+      statut: "Dashboard data retrieved",
+      data: {
+        total_ca: toDotDecimal(kpi_data.total_ca.toString()),
+        total_profit: toDotDecimal(kpi_data.total_profit.toString()),
+        sales_count: parseInt(kpi_data.sales_count) || 0,
+        low_stock_items: parseInt(low_stock_count) || 0,
+        top_client: {
+          name: top_client.nom || 'N/A',
+          ca: toDotDecimal(top_client.client_ca.toString())
+        },
+        chart_data: {
+          labels: chart_labels,
+          values: chart_values
+        }
+      },
+      status: 200
+    };
+
+    console.log("Résultat dashboard:", response);
+    return response;
+  } catch (error) {
+    console.error("Erreur dashboard:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
