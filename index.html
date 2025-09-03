@@ -1,1135 +1,1286 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1976d2">  
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Gestion des Clients, Fournisseurs, Utilisateurs et Produits</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Gestion Commerciale</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script type="module" src="/db.js"></script>
+  <script type="module" src="/api-call.js"></script>
   <style>
-    body {
-      padding: 20px;
-      background-color: #f5f5f5;
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(40px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes toastOut {
+      from { opacity: 1; transform: translateY(0); }
+      to { opacity: 0; transform: translateY(40px); }
+    }
+    @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes countPulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+    @keyframes kpiPop { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+    @keyframes clientPulse { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
+    @keyframes drawerOpen {
+      from { max-height: 0; opacity: 0; }
+      to { max-height: 1000px; opacity: 1; }
+    }
+    @keyframes drawerClose {
+      from { max-height: 1000px; opacity: 1; }
+      to { max-height: 0; opacity: 0; }
+    }
+    .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
+    .animate-pulse { animation: pulse 2s infinite ease-in-out; }
+    .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
+    .animate-kpi-pop { animation: kpiPop 0.5s ease-out forwards; }
+    .top-client-updated { animation: clientPulse 0.6s ease-in-out; }
+    .toast-in { animation: toastIn 0.5s both; }
+    .toast-out { animation: toastOut 0.5s both; }
+    .drawer-open { animation: drawerOpen 0.3s ease-out forwards; }
+    .drawer-close { animation: drawerClose 0.3s ease-out forwards; }
+    #clientsSection { animation-delay: 0.2s; }
+    #fournisseursSection { animation-delay: 0.4s; }
+    #productsSection { animation-delay: 0.6s; }
+    #utilisateursSection { animation-delay: 0.8s; }
+    footer { animation-delay: 1.2s; }
+    #scannerPreview { width: 100%; max-width: 300px; height: 200px; border: 2px solid #e5e7eb; margin-bottom: 1rem; display: none; background: #000; }
+    .user-anim { animation: pulse 1.5s infinite ease-in-out; }
+    .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
+    .small-email { font-size: 0.75rem; line-height: 1rem; }
+    .kpi-card { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+    .kpi-card:hover { transform: scale(1.03); box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1); }
+    .kpi-section { transition: opacity 0.5s ease; }
+    .kpi-updated { animation: pulse 0.5s ease-in-out; }
+    .dynamic-icon { transition: color 0.3s ease; }
+    .chart-container { animation-delay: 1s; }
+    #kpiSection {
+      border-bottom: 2px solid #e5e7eb;
+      transition: all 0.3s ease;
+    }
+    #kpiSection:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    .kpi-card {
+      border-left: 4px solid #4F46E5;
+      transition: all 0.3s ease;
+    }
+    .kpi-card:hover {
+      transform: translateY(-2px);
+    }
+    .fixed-buttons {
+      position: sticky;
+      top: 64px;
+      z-index: 9;
+      background: #f3f4f6;
+      padding: 1rem 0;
+      margin-bottom: 2rem;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
     .table-container {
-      margin-bottom: 40px;
-      background-color: white;
-      padding: 15px;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      max-height: 350px;
+      overflow-y: auto;
+      position: relative;
     }
-    .form-container {
-      background-color: white;
-      padding: 15px;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      margin-bottom: 40px;
+    .table-container table {
+      width: 100%;
     }
-    .error {
-      color: #721c24;
-      background-color: #f8d7da;
-      padding: 10px;
-      border-radius: 4px;
-      margin-bottom: 10px;
+    .table-container thead {
+      position: sticky;
+      top: 0;
+      background: #f9fafb;
+      z-index: 1;
+    }
+    .hidden-id {
       display: none;
     }
-    .success {
-      color: #155724;
-      background-color: #d4edda;
-      padding: 10px;
-      border-radius: 4px;
-      margin-bottom: 10px;
-      display: none;
+    .action-button {
+      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
     }
-    .table {
-      font-size: 14px;
+    .section-content {
+      max-height: 0;
+      opacity: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
     }
-    th, td {
-      vertical-align: middle;
+    .section-content.open {
+      max-height: 1000px;
+      opacity: 1;
     }
-    .section-divider {
-      border-top: 2px solid #dee2e6;
-      margin: 40px 0;
+    .opacity-50 {
+      opacity: 0.5;
     }
-    @media (max-width: 576px) {
-      .table {
-        font-size: 12px;
-      }
-      .btn {
-        font-size: 14px;
-        padding: 8px;
-      }
+    .cursor-not-allowed {
+      cursor: not-allowed;
+    }
+    /* Cache les actions pour les employés */
+    body.employe-mode .action-buttons {
+      display: none !important;
+    }
+    /* Style pour boutons désactivés */
+    button:disabled {
+      opacity: 0.5 !important;
+      cursor: not-allowed !important;
     }
   </style>
 </head>
-<body>
-  <div class="container">
-    <h1 class="my-4 text-center">Gestion des Clients, Fournisseurs, Utilisateurs et Produits</h1>
-
-    <!-- Boutons Debug et Sauvegarde -->
-    <div class="form-container">
-      <div class="d-flex justify-content-between mb-3">
-        <button id="btnTest" class="btn btn-info">Tester la connexion</button>
-        <button id="btnListerTables" class="btn btn-primary">Lister les tables</button>
-        <button id="btnSauvegarder" class="btn btn-secondary">💾 Sauvegarder gestion.db</button>
+<body class="bg-gray-100">
+  <!-- Formulaire de connexion -->
+  <div id="loginModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-20 hidden">
+    <form id="loginForm" class="bg-white rounded-lg p-6 w-full max-w-md">
+      <h2 class="text-xl font-semibold mb-4">Connexion</h2>
+      <p class="text-sm text-red-500 mb-4">⚠️ Le mot de passe ne doit pas être celui de votre email.</p>
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Adresse Email*</label>
+        <input type="email" id="userEmail" name="username" autocomplete="username" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre email" required>
       </div>
-      <div id="tablesList" class="success"></div>
-      <div id="tablesError" class="error"></div>
-    </div>
-
-    <!-- Clients -->
-    <div id="clients">
-      <div class="form-container">
-        <h2>Gestion des Clients</h2>
-
-        <!-- Ajouter -->
-        <form id="formAjouterClient" class="mb-3">
-          <h5>Ajouter un client</h5>
-          <div class="mb-2">
-            <input type="text" name="nom" placeholder="Nom" class="form-control" required>
-          </div>
-          <div class="mb-2">
-            <input type="text" name="contact" placeholder="Contact (facultatif)" class="form-control">
-          </div>
-          <div class="mb-2">
-            <input type="text" name="adresse" placeholder="Adresse (facultatif)" class="form-control">
-          </div>
-          <button type="submit" class="btn btn-success">➕ Ajouter</button>
-          <div id="ajouterClientResult" class="success"></div>
-          <div id="ajouterClientError" class="error"></div>
-        </form>
-
-        <!-- Modifier -->
-        <form id="formModifierClient" class="mb-3">
-          <h5>Modifier un client</h5>
-          <div class="mb-2">
-            <input type="number" name="numero_clt" placeholder="Numéro client" class="form-control" required>
-          </div>
-          <div class="mb-2">
-            <input type="text" name="nom" placeholder="Nom" class="form-control" required>
-          </div>
-          <div class="mb-2">
-            <input type="text" name="contact" placeholder="Contact (facultatif)" class="form-control">
-          </div>
-          <div class="mb-2">
-            <input type="text" name="adresse" placeholder="Adresse (facultatif)" class="form-control">
-          </div>
-          <button type="submit" class="btn btn-warning">✏️ Modifier</button>
-          <div id="modifierClientResult" class="success"></div>
-          <div id="modifierClientError" class="error"></div>
-        </form>
-
-        <!-- Supprimer -->
-        <form id="formSupprimerClient">
-          <h5>Supprimer un client</h5>
-          <div class="mb-2">
-            <input type="number" name="numero_clt" placeholder="Numéro client" class="form-control" required>
-          </div>
-          <button type="submit" class="btn btn-danger">🗑 Supprimer</button>
-          <div id="supprimerClientResult" class="success"></div>
-          <div id="supprimerClientError" class="error"></div>
-        </form>
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe*</label>
+        <input type="password" id="userPassword" name="password" autocomplete="current-password" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre mot de passe" required>
       </div>
+      <div class="flex justify-end space-x-3">
+        <button type="submit" onclick="loginWithCredentials(event)" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
+          <i class="fas fa-sign-in-alt mr-2"></i>Se connecter
+        </button>
+      </div>
+    </form>
+  </div>
 
-      <!-- Table Clients -->
-      <div class="table-container">
-        <h2>Clients</h2>
-        <div id="clientsError" class="error"></div>
-        <table class="table table-striped table-bordered" id="clientsTable">
-          <thead>
-            <tr>
-              <th>Numéro</th>
-              <th>Nom</th>
-              <th>Solde (€)</th>
-              <th>Référence</th>
-              <th>Contact</th>
-              <th>Adresse</th>
-            </tr>
-          </thead>
-          <tbody id="clientsBody"></tbody>
-        </table>
+  <!-- Menu de navigation -->
+  <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-slide-in">
+    <div class="container mx-auto flex justify-between items-center">
+      <div class="flex flex-col">
+        <h1 class="text-2xl font-bold flex items-center">
+          <i class="fas fa-fire mr-2 text-amber-400 animate-pulse"></i> FirePoz
+        </h1>
+        <span id="userDisplay" class="small-email user-anim hidden"></span>
+        <span id="sellerDisplay" class="text-xs text-indigo-200 seller-anim">Vendeur: <span id="currentSellerName">Inconnu</span></span>
+      </div>
+      <div class="space-x-4 flex items-center">
+        <button onclick="window.location.href='HTML.HTML'" class="bg-indigo-700 text-white px-3 py-1 rounded-md hover:bg-indigo-800 transition flex items-center">
+          <i class="fas fa-user-edit mr-1"></i>
+        </button>
+        <a href="page1.html" class="hover:text-indigo-200 transition flex items-center">
+          <i class="fas fa-barcode mr-1"></i> Scanner
+        </a>
+        <button id="loginLogoutButton" onclick="loginLogout()" class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition flex items-center">
+          <i class="fas fa-sign-out-alt mr-1"></i>
+        </button>
       </div>
     </div>
+  </nav>
 
-    <hr class="section-divider">
+  <!-- Contenu principal -->
+  <div class="container mx-auto px-4 py-16 mt-16">
+    <header class="mb-8">
+      <h1 class="text-3xl font-bold text-indigo-700">KHsphers software</h1>
+      <p class="text-gray-600 flex items-center">
+        <i class="fas fa-database mr-2 text-indigo-500"></i> Fueled by PostgreSQL
+      </p>
+    </header>
 
-    <!-- Fournisseurs -->
-    <div id="fournisseurs">
-      <div class="form-container">
-        <h2>Gestion des Fournisseurs</h2>
-
-        <!-- Ajouter -->
-        <form id="formAjouterFournisseur" class="mb-3">
-          <h5>Ajouter un fournisseur</h5>
-          <div class="mb-2">
-            <input type="text" name="nom" placeholder="Nom" class="form-control" required>
-          </div>
-          <div class="mb-2">
-            <input type="text" name="contact" placeholder="Contact (facultatif)" class="form-control">
-          </div>
-          <div class="mb-2">
-            <input type="text" name="adresse" placeholder="Adresse (facultatif)" class="form-control">
-          </div>
-          <button type="submit" class="btn btn-success">➕ Ajouter</button>
-          <div id="ajouterFournisseurResult" class="success"></div>
-          <div id="ajouterFournisseurError" class="error"></div>
-        </form>
-
-        <!-- Modifier -->
-        <form id="formModifierFournisseur" class="mb-3">
-          <h5>Modifier un fournisseur</h5>
-          <div class="mb-2">
-            <input type="number" name="numero_fou" placeholder="Numéro fournisseur" class="form-control" required>
-          </div>
-          <div class="mb-2">
-            <input type="text" name="nom" placeholder="Nom" class="form-control" required>
-          </div>
-          <div class="mb-2">
-            <input type="text" name="contact" placeholder="Contact (facultatif)" class="form-control">
-          </div>
-          <div class="mb-2">
-            <input type="text" name="adresse" placeholder="Adresse (facultatif)" class="form-control">
-          </div>
-          <button type="submit" class="btn btn-warning">✏️ Modifier</button>
-          <div id="modifierFournisseurResult" class="success"></div>
-          <div id="modifierFournisseurError" class="error"></div>
-        </form>
-
-        <!-- Supprimer -->
-        <form id="formSupprimerFournisseur">
-          <h5>Supprimer un fournisseur</h5>
-          <div class="mb-2">
-            <input type="number" name="numero_fou" placeholder="Numéro fournisseur" class="form-control" required>
-          </div>
-          <button type="submit" class="btn btn-danger">🗑 Supprimer</button>
-          <div id="supprimerFournisseurResult" class="success"></div>
-          <div id="supprimerFournisseurError" class="error"></div>
-        </form>
-      </div>
-
-      <!-- Table Fournisseurs -->
-      <div class="table-container">
-        <h2>Fournisseurs</h2>
-        <div id="fournisseursError" class="error"></div>
-        <table class="table table-striped table-bordered" id="fournisseursTable">
-          <thead>
-            <tr>
-              <th>Numéro</th>
-              <th>Nom</th>
-              <th>Solde (€)</th>
-              <th>Référence</th>
-              <th>Contact</th>
-              <th>Adresse</th>
-            </tr>
-          </thead>
-          <tbody id="fournisseursBody"></tbody>
-        </table>
-      </div>
+    <!-- Boutons Vente et Achat fixés -->
+    <div class="fixed-buttons flex">
+      <a href="vente.html" class="w-1/2 bg-green-600 text-white py-6 flex items-center justify-center hover:bg-green-700 transition-all duration-300 transform hover:scale-105 animate-pulse">
+        <i class="fas fa-shopping-cart text-4xl mr-3"></i>
+        <span class="text-2xl font-semibold">Vente</span>
+      </a>
+      <a href="achat.html" class="w-1/2 bg-blue-600 text-white py-6 flex items-center justify-center hover:bg-blue-700 transition-all duration-300 transform hover:scale-105 animate-pulse">
+        <i class="fas fa-box-open text-4xl mr-3"></i>
+        <span class="text-2xl font-semibold">Achat</span>
+      </a>
     </div>
 
-    <hr class="section-divider">
-
-    <!-- Utilisateurs -->
-    <div id="utilisateurs">
-      <div class="form-container">
-        <h2>Gestion des Utilisateurs</h2>
-
-        <!-- Ajouter -->
-        <form id="formAjouterUtilisateur" class="mb-3">
-          <h5>Ajouter un utilisateur</h5>
-          <div class="mb-2">
-            <input type="text" name="nom" placeholder="Nom" class="form-control" required>
-          </div>
-          <div class="mb-2">
-            <input type="password" name="password2" placeholder="Mot de passe" class="form-control" required>
-          </div>
-          <div class="mb-2">
-            <select name="statue" class="form-control" required>
-              <option value="" disabled selected>Sélectionner un statut</option>
-              <option value="admin">Admin</option>
-              <option value="emplo">Employé</option>
-            </select>
-          </div>
-          <button type="submit" class="btn btn-success">➕ Ajouter</button>
-          <div id="ajouterUtilisateurResult" class="success"></div>
-          <div id="ajouterUtilisateurError" class="error"></div>
-        </form>
-
-        <!-- Modifier -->
-        <form id="formModifierUtilisateur" class="mb-3">
-          <h5>Modifier un utilisateur</h5>
-          <div class="mb-2">
-            <input type="number" name="numero_util" placeholder="Numéro utilisateur" class="form-control" required>
-          </div>
-          <div class="mb-2">
-            <input type="text" name="nom" placeholder="Nom" class="form-control" required>
-          </div>
-          <div class="mb-2">
-            <input type="password" name="password2" placeholder="Mot de passe (facultatif)" class="form-control">
-          </div>
-          <div class="mb-2">
-            <select name="statue" class="form-control" required>
-              <option value="" disabled selected>Sélectionner un statut</option>
-              <option value="admin">Admin</option>
-              <option value="emplo">Employé</option>
-            </select>
-          </div>
-          <button type="submit" class="btn btn-warning">✏️ Modifier</button>
-          <div id="modifierUtilisateurResult" class="success"></div>
-          <div id="modifierUtilisateurError" class="error"></div>
-        </form>
-
-        <!-- Supprimer -->
-        <form id="formSupprimerUtilisateur">
-          <h5>Supprimer un utilisateur</h5>
-          <div class="mb-2">
-            <input type="number" name="numero_util" placeholder="Numéro utilisateur" class="form-control" required>
-          </div>
-          <button type="submit" class="btn btn-danger">🗑 Supprimer</button>
-          <div id="supprimerUtilisateurResult" class="success"></div>
-          <div id="supprimerUtilisateurError" class="error"></div>
-        </form>
+    <!-- Section KPI améliorée -->
+    <div id="kpiSection" class="w-full bg-gradient-to-r from-indigo-100 to-white shadow-lg rounded-lg p-4 mb-8 z-10 animate-fade-in">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+          <i class="fas fa-chart-line mr-2 text-indigo-500 animate-pulse"></i> Tableau de Bord
+        </h2>
+        <select id="kpiPeriod" class="border p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm">
+          <option value="day">Aujourd'hui</option>
+          <option value="week">Cette Semaine</option>
+        </select>
       </div>
-
-      <!-- Table Utilisateurs -->
-      <div class="table-container">
-        <h2>Utilisateurs</h2>
-        <div id="utilisateursError" class="error"></div>
-        <table class="table table-striped table-bordered" id="utilisateursTable">
-          <thead>
-            <tr>
-              <th>Numéro</th>
-              <th>Nom</th>
-              <th>Statut</th>
-            </tr>
-          </thead>
-          <tbody id="utilisateursBody"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <hr class="section-divider">
-
-    <!-- Produits -->
-    <div id="produits">
-      <div class="form-container">
-        <h2>Gestion des Produits</h2>
-
-        <!-- Ajouter -->
-        <form id="formAjouterItem" class="mb-3">
-          <h5>Ajouter un produit</h5>
-          <div class="mb-2">
-            <input type="text" name="designation" placeholder="Désignation" class="form-control" required>
-          </div>
-          <div class="mb-2">
-            <input type="text" name="bar" placeholder="Code-barres (facultatif)" class="form-control">
-          </div>
-          <div class="mb-2">
-            <input type="number" name="qte" placeholder="Quantité" class="form-control" required min="0">
-          </div>
-          <div class="mb-2">
-            <input type="text" name="prix" placeholder="Prix (ex: 10,00)" class="form-control" required pattern="\d+,\d{2}">
-          </div>
-          <div class="mb-2">
-            <input type="text" name="prixba" placeholder="Prix de base (facultatif, ex: 8,00)" class="form-control" pattern="\d+,\d{2}|^$">
-          </div>
-          <div class="mb-2">
-            <input type="text" name="ref" placeholder="Référence (facultatif)" class="form-control">
-          </div>
-          <button type="submit" class="btn btn-success">➕ Ajouter</button>
-          <div id="ajouterItemResult" class="success"></div>
-          <div id="ajouterItemError" class="error"></div>
-        </form>
-
-        <!-- Modifier -->
-        <form id="formModifierItem" class="mb-3">
-          <h5>Modifier un produit</h5>
-          <div class="mb-2">
-            <input type="number" name="numero_item" placeholder="Numéro produit" class="form-control" required>
-          </div>
-          <div class="mb-2">
-            <input type="text" name="designation" placeholder="Désignation" class="form-control" required>
-          </div>
-          <div class="mb-2">
-            <input type="text" name="bar" placeholder="Code-barres (facultatif)" class="form-control">
-          </div>
-          <div class="mb-2">
-            <input type="number" name="qte" placeholder="Quantité" class="form-control" required min="0">
-          </div>
-          <div class="mb-2">
-            <input type="text" name="prix" placeholder="Prix (ex: 10,00)" class="form-control" required pattern="\d+,\d{2}">
-          </div>
-          <div class="mb-2">
-            <input type="text" name="prixba" placeholder="Prix de base (facultatif, ex: 8,00)" class="form-control" pattern="\d+,\d{2}|^$">
-          </div>
-          <div class="mb-2">
-            <input type="text" name="ref" placeholder="Référence (facultatif)" class="form-control">
-          </div>
-          <button type="submit" class="btn btn-warning">✏️ Modifier</button>
-          <div id="modifierItemResult" class="success"></div>
-          <div id="modifierItemError" class="error"></div>
-        </form>
-
-        <!-- Supprimer -->
-        <form id="formSupprimerItem">
-          <h5>Supprimer un produit</h5>
-          <div class="mb-2">
-            <input type="number" name="numero_item" placeholder="Numéro produit" class="form-control" required>
-          </div>
-          <button type="submit" class="btn btn-danger">🗑 Supprimer</button>
-          <div id="supprimerItemResult" class="success"></div>
-          <div id="supprimerItemError" class="error"></div>
-        </form>
-      </div>
-
-      <!-- Table Produits -->
-      <div class="table-container">
-        <h2>Produits</h2>
-        <div id="produitsError" class="error"></div>
-        <table class="table table-striped table-bordered" id="produitsTable">
-          <thead>
-            <tr>
-              <th>Numéro</th>
-              <th>Désignation</th>
-              <th>Code-barres</th>
-              <th>Quantité</th>
-              <th>Prix (€)</th>
-              <th>Prix de base (€)</th>
-              <th>Référence</th>
-            </tr>
-          </thead>
-          <tbody id="produitsBody"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <hr class="section-divider">
-
-    <!-- Dashboard -->
-    <div id="dashboard">
-      <div class="form-container">
-        <h2 class="text-xl font-semibold mb-4">Dashboard</h2>
-        <div class="mb-4">
-          <label for="dashboardPeriod" class="mr-2">Période :</label>
-          <select id="dashboardPeriod" onchange="loadDashboard()" class="form-control">
-            <option value="day">Jour</option>
-            <option value="week">Semaine</option>
-          </select>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24">
+          <h3 class="text-xs font-medium text-gray-600 flex items-center">
+            <i id="caIcon" class="fas fa-money-bill-wave mr-1 text-green-500 dynamic-icon"></i> Chiffre d'Affaires
+          </h3>
+          <p id="totalCA" class="text-lg font-bold text-indigo-600">0.00 DA</p>
         </div>
-        <div id="dashboardError" class="error mb-4"></div>
-        <div id="dashboardKpis" class="grid grid-cols-2 gap-4 mb-4">
-          <div class="bg-gray-200 p-4 rounded">
-            <h3 class="font-semibold">CA Total</h3>
-            <p id="totalCa">0,00</p>
-          </div>
-          <div class="bg-gray-200 p-4 rounded">
-            <h3 class="font-semibold">Profit Total</h3>
-            <p id="totalProfit">0,00</p>
-          </div>
-          <div class="bg-gray-200 p-4 rounded">
-            <h3 class="font-semibold">Nombre de Ventes</h3>
-            <p id="salesCount">0</p>
-          </div>
-          <div class="bg-gray-200 p-4 rounded">
-            <h3 class="font-semibold">Articles en Stock Bas</h3>
-            <p id="lowStockItems">0</p>
-          </div>
-          <div class="bg-gray-200 p-4 rounded">
-            <h3 class="font-semibold">Top Client</h3>
-            <p id="topClient">N/A (0,00)</p>
+        <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24">
+          <h3 class="text-xs font-medium text-gray-600 flex items-center">
+            <i id="profitIcon" class="fas fa-chart-pie mr-1 text-blue-500 dynamic-icon"></i> Bénéfice Total
+          </h3>
+          <p id="totalProfit" class="text-lg font-bold text-indigo-600">0.00 DA</p>
+        </div>
+        <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24">
+          <h3 class="text-xs font-medium text-gray-600 flex items-center">
+            <i id="salesIcon" class="fas fa-shopping-cart mr-1 text-yellow-500 dynamic-icon"></i> Ventes
+          </h3>
+          <p id="salesCount" class="text-lg font-bold text-indigo-600">0</p>
+        </div>
+        <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24">
+          <h3 class="text-xs font-medium text-gray-600 flex items-center">
+            <i id="stockIcon" class="fas fa-exclamation-triangle mr-1 text-red-500 dynamic-icon"></i> Ruptures
+          </h3>
+          <p id="lowStockItems" class="text-lg font-bold text-indigo-600">0</p>
+        </div>
+        <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24 col-span-2 sm:col-span-1 lg:col-span-2">
+          <h3 class="text-xs font-medium text-gray-600 flex items-center">
+            <i id="clientIcon" class="fas fa-user-check mr-1 text-purple-500 dynamic-icon"></i> Top Client
+          </h3>
+          <p id="topClient" class="text-sm font-bold text-indigo-600 overflow-hidden text-ellipsis whitespace-nowrap" title="N/A">N/A</p>
+          <p id="topClientCA" class="text-xs text-gray-500">0.00 DA</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Graphique en dessous -->
+    <div class="w-full bg-white p-4 rounded-lg shadow-md animate-fade-in chart-container mt-4">
+      <h3 class="text-lg font-medium text-gray-700 mb-4 flex items-center">
+        <i class="fas fa-chart-area mr-2 text-indigo-500"></i> Évolution du Chiffre d'Affaires
+      </h3>
+      <canvas id="caChart" height="100"></canvas>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+      <!-- Gestion Clients -->
+      <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="clientsSection">
+        <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('clientsSection')">
+          <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+            <i class="fas fa-users mr-2 text-indigo-500"></i> Gestion Clients
+            <span id="clientCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim">0</span>
+          </h2>
+          <button class="text-gray-600 hover:text-gray-800 transition">
+            <i class="fas fa-chevron-down" id="clientsChevron"></i>
+          </button>
+        </div>
+        <div class="section-content" id="clientsContent">
+          <div class="p-6">
+            <div class="mb-4">
+              <div class="relative">
+                <input type="text" id="searchClient" placeholder="Rechercher des clients..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+              </div>
+              <div class="flex justify-end mt-2">
+                <button onclick="toggleClientForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-plus mr-2"></i>Ajouter
+                </button>
+              </div>
+            </div>
+
+            <div id="clientForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
+              <h3 class="font-medium mb-3" id="clientFormTitle">Nouveau Client</h3>
+              <input type="hidden" id="clientId">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
+                  <input type="text" id="clientNom" class="w-full px-3 py-2 border rounded-md" required>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Contact</label>
+                  <input type="text" id="clientContact" class="w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
+                  <input type="text" id="clientAdresse" class="w-full px-3 py-2 border rounded-md">
+                </div>
+              </div>
+              <div class="flex justify-end space-x-3 mt-4">
+                <button onclick="resetClientForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-times mr-2"></i>Annuler
+                </button>
+                <button onclick="saveClient()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-save mr-2"></i>Enregistrer
+                </button>
+              </div>
+            </div>
+
+            <div class="table-container">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="hidden-id">ID</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="clientsList" class="bg-white divide-y divide-gray-200">
+                  <tr>
+                    <td colspan="7" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
-        <canvas id="salesChart" class="w-full h-64"></canvas>
+      </div>
+
+      <!-- Gestion Fournisseurs -->
+      <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="fournisseursSection">
+        <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('fournisseursSection')">
+          <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+            <i class="fas fa-truck mr-2 text-indigo-500"></i> Gestion Fournisseurs
+            <span id="fournisseurCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim">0</span>
+          </h2>
+          <button class="text-gray-600 hover:text-gray-800 transition">
+            <i class="fas fa-chevron-down" id="fournisseursChevron"></i>
+          </button>
+        </div>
+        <div class="section-content" id="fournisseursContent">
+          <div class="p-6">
+            <div class="mb-4">
+              <div class="relative">
+                <input type="text" id="searchFournisseur" placeholder="Rechercher des fournisseurs..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+              </div>
+              <div class="flex justify-end mt-2">
+                <button onclick="toggleFournisseurForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-plus mr-2"></i>Ajouter
+                </button>
+              </div>
+            </div>
+
+            <div id="fournisseurForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
+              <h3 class="font-medium mb-3" id="fournisseurFormTitle">Nouveau Fournisseur</h3>
+              <input type="hidden" id="fournisseurId">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
+                  <input type="text" id="fournisseurNom" class="w-full px-3 py-2 border rounded-md" required>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Contact</label>
+                  <input type="text" id="fournisseurContact" class="w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
+                  <input type="text" id="fournisseurAdresse" class="w-full px-3 py-2 border rounded-md">
+                </div>
+              </div>
+              <div class="flex justify-end space-x-3 mt-4">
+                <button onclick="resetFournisseurForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-times mr-2"></i>Annuler
+                </button>
+                <button onclick="saveFournisseur()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-save mr-2"></i>Enregistrer
+                </button>
+              </div>
+            </div>
+
+            <div class="table-container">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="hidden-id">ID</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="fournisseursList" class="bg-white divide-y divide-gray-200">
+                  <tr>
+                    <td colspan="7" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gestion Produits -->
+      <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="productsSection">
+        <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('productsSection')">
+          <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+            <i class="fas fa-box mr-2 text-indigo-500"></i> Gestion Produits
+            <span id="productCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim">0</span>
+          </h2>
+          <button class="text-gray-600 hover:text-gray-800 transition">
+            <i class="fas fa-chevron-down" id="productsChevron"></i>
+          </button>
+        </div>
+        <div class="section-content" id="productsContent">
+          <div class="p-6">
+            <div class="mb-4">
+              <div class="relative">
+                <input type="text" id="searchProduct" placeholder="Rechercher des produits..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+              </div>
+              <div class="flex justify-end mt-2">
+                <button onclick="toggleProductForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-plus mr-2"></i>Ajouter
+                </button>
+              </div>
+            </div>
+
+            <div id="productForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
+              <h3 class="font-medium mb-3" id="productFormTitle">Nouveau Produit</h3>
+              <input type="hidden" id="productId">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Désignation*</label>
+                  <input type="text" id="productDesignation" class="w-full px-3 py-2 border rounded-md" required>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Code Barre</label>
+                  <input type="text" id="productBar" class="w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Référence</label>
+                  <input type="text" id="productRef" class="w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Prix*</label>
+                  <input type="text" id="productPrix" class="w-full px-3 py-2 border rounded-md" required>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Prix Achat</label>
+                  <input type="text" id="productPrixBA" class="w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Quantité*</label>
+                  <input type="number" id="productQte" class="w-full px-3 py-2 border rounded-md" required>
+                </div>
+              </div>
+              <div class="flex justify-end space-x-3 mt-4">
+                <button onclick="resetProductForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-times mr-2"></i>Annuler
+                </button>
+                <button onclick="saveProduct()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-save mr-2"></i>Enregistrer
+                </button>
+              </div>
+            </div>
+
+            <div class="table-container">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="hidden-id">ID</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Désignation</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code Barre</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="productsList" class="bg-white divide-y divide-gray-200">
+                  <tr>
+                    <td colspan="7" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gestion Utilisateurs -->
+      <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="utilisateursSection">
+        <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('utilisateursSection')">
+          <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+            <i class="fas fa-user mr-2 text-indigo-500"></i> Gestion Utilisateurs
+            <span id="utilisateurCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim">0</span>
+          </h2>
+          <button class="text-gray-600 hover:text-gray-800 transition">
+            <i class="fas fa-chevron-down" id="utilisateursChevron"></i>
+          </button>
+        </div>
+        <div class="section-content" id="utilisateursContent">
+          <div class="p-6">
+            <div class="mb-4">
+              <div class="relative">
+                <input type="text" id="searchUtilisateur" placeholder="Rechercher des utilisateurs..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+              </div>
+              <div class="flex justify-end mt-2">
+                <button onclick="toggleUtilisateurForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-plus mr-2"></i>Ajouter
+                </button>
+              </div>
+            </div>
+
+            <div id="utilisateurForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
+              <h3 class="font-medium mb-3" id="utilisateurFormTitle">Nouvel Utilisateur</h3>
+              <input type="hidden" id="utilisateurId">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
+                  <input type="text" id="utilisateurNom" class="w-full px-3 py-2 border rounded-md" required>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe</label>
+                  <input type="password" id="utilisateurPassword" class="w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Statut*</label>
+                  <select id="utilisateurStatut" class="w-full px-3 py-2 border rounded-md" required>
+                    <option value="admin">Admin</option>
+                    <option value="employe">Employé</option>
+                  </select>
+                </div>
+              </div>
+              <div class="flex justify-end space-x-3 mt-4">
+                <button onclick="resetUtilisateurForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-times mr-2"></i>Annuler
+                </button>
+                <button onclick="saveUtilisateur()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-save mr-2"></i>Enregistrer
+                </button>
+              </div>
+            </div>
+
+            <div class="table-container">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="hidden-id">ID</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="utilisateursList" class="bg-white divide-y divide-gray-200">
+                  <tr>
+                    <td colspan="4" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-  <script>eruda.init();</script>
-  <script type="module">
-    console.log("Chargement des modules...");
-    import { fetchApi } from './fetchapi.js';
-    import { getDb } from './db.js';
-    import { 
-      listeTables, 
-      listeClients, 
-      listeFournisseurs, 
-      listeUtilisateurs, 
-      listeProduits, 
-      ajouterClient, 
-      ajouterFournisseur, 
-      ajouterUtilisateur, 
-      ajouterItem, 
-      modifierClient, 
-      modifierFournisseur, 
-      modifierUtilisateur, 
-      modifierItem, 
-      supprimerClient, 
-      supprimerFournisseur, 
-      supprimerUtilisateur, 
-      supprimerItem, 
-      dashboard 
-    } from './apiRoutes.js';
+  <!-- Script principal -->
+  <script>
+    // Définir API_BASE_URL depuis localStorage
+    const API_BASE_URL = localStorage.getItem('apiBaseUrl') || '';
 
-    // Formatage du solde et prix (1234.56 → 1 234,56)
-    function formatSolde(solde) {
-      try {
-        const num = parseFloat(solde.replace(',', '.'));
-        return isNaN(num) ? '0,00' : num.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-      } catch {
-        return solde || '0,00';
-      }
+    // Import apiCall
+    import { apiCall } from '/api-call.js';
+
+    // Gestion du mode employé
+    function setEmployeMode(isEmploye) {
+      document.body.classList.toggle('employe-mode', isEmploye);
+      const actionButtons = document.querySelectorAll('.action-buttons button');
+      actionButtons.forEach(button => {
+        button.disabled = isEmploye;
+      });
     }
 
-    // Charger les clients
-    async function loadClients() {
-      const clientsError = document.getElementById('clientsError');
-      const clientsBody = document.getElementById('clientsBody');
+    // Connexion
+    async function loginWithCredentials(event) {
+      event.preventDefault();
+      const email = document.getElementById('userEmail').value;
+      const password = document.getElementById('userPassword').value;
       try {
-        console.log("Chargement des clients...");
-        const response = await fetchApi('/liste_clients');
-        if (!response.ok) throw new Error('Erreur lors du chargement des clients');
-        const clients = await response.json();
-        console.log("Clients reçus :", clients);
-        clientsBody.innerHTML = clients.length > 0 ? clients.map(client => `
-          <tr>
-            <td>${client.numero_clt || '-'}</td>
-            <td>${client.nom || '-'}</td>
-            <td>${formatSolde(client.solde)}</td>
-            <td>${client.reference || '-'}</td>
-            <td>${client.contact || '-'}</td>
-            <td>${client.adresse || '-'}</td>
-          </tr>
-        `).join('') : '<tr><td colspan="6" class="text-center">Aucun client trouvé</td></tr>';
-        clientsError.style.display = 'none';
-      } catch (error) {
-        console.error("Erreur loadClients :", error);
-        clientsError.textContent = `Erreur : ${error.message}`;
-        clientsError.style.display = 'block';
-        clientsBody.innerHTML = '<tr><td colspan="6" class="text-center">Erreur de chargement</td></tr>';
-      }
-    }
-
-    // Charger les fournisseurs
-    async function loadFournisseurs() {
-      const fournisseursError = document.getElementById('fournisseursError');
-      const fournisseursBody = document.getElementById('fournisseursBody');
-      try {
-        console.log("Chargement des fournisseurs...");
-        const response = await fetchApi('/liste_fournisseurs');
-        if (!response.ok) throw new Error('Erreur lors du chargement des fournisseurs');
-        const fournisseurs = await response.json();
-        console.log("Fournisseurs reçus :", fournisseurs);
-        fournisseursBody.innerHTML = fournisseurs.length > 0 ? fournisseurs.map(fournisseur => `
-          <tr>
-            <td>${fournisseur.numero_fou || '-'}</td>
-            <td>${fournisseur.nom || '-'}</td>
-            <td>${formatSolde(fournisseur.solde)}</td>
-            <td>${fournisseur.reference || '-'}</td>
-            <td>${fournisseur.contact || '-'}</td>
-            <td>${fournisseur.adresse || '-'}</td>
-          </tr>
-        `).join('') : '<tr><td colspan="6" class="text-center">Aucun fournisseur trouvé</td></tr>';
-        fournisseursError.style.display = 'none';
-      } catch (error) {
-        console.error("Erreur loadFournisseurs :", error);
-        fournisseursError.textContent = `Erreur : ${error.message}`;
-        fournisseursError.style.display = 'block';
-        fournisseursBody.innerHTML = '<tr><td colspan="6" class="text-center">Erreur de chargement</td></tr>';
-      }
-    }
-
-    // Charger les utilisateurs
-    async function loadUtilisateurs() {
-      const utilisateursError = document.getElementById('utilisateursError');
-      const utilisateursBody = document.getElementById('utilisateursBody');
-      try {
-        console.log("Chargement des utilisateurs...");
-        const response = await fetchApi('/liste_utilisateurs');
-        if (!response.ok) throw new Error('Erreur lors du chargement des utilisateurs');
-        const utilisateurs = await response.json();
-        console.log("Utilisateurs reçus :", utilisateurs);
-        utilisateursBody.innerHTML = utilisateurs.length > 0 ? utilisateurs.map(utilisateur => `
-          <tr>
-            <td>${utilisateur.numero || '-'}</td>
-            <td>${utilisateur.nom || '-'}</td>
-            <td>${utilisateur.statut || '-'}</td>
-          </tr>
-        `).join('') : '<tr><td colspan="3" class="text-center">Aucun utilisateur trouvé</td></tr>';
-        utilisateursError.style.display = 'none';
-      } catch (error) {
-        console.error("Erreur loadUtilisateurs :", error);
-        utilisateursError.textContent = `Erreur : ${error.message}`;
-        utilisateursError.style.display = 'block';
-        utilisateursBody.innerHTML = '<tr><td colspan="3" class="text-center">Erreur de chargement</td></tr>';
-      }
-    }
-
-    // Charger les produits
-    async function loadProduits() {
-      const produitsError = document.getElementById('produitsError');
-      const produitsBody = document.getElementById('produitsBody');
-      try {
-        console.log("Chargement des produits...");
-        const response = await fetchApi('/liste_produits');
-        if (!response.ok) throw new Error('Erreur lors du chargement des produits');
-        const produits = await response.json();
-        console.log("Produits reçus :", produits);
-        produitsBody.innerHTML = produits.length > 0 ? produits.map(produit => `
-          <tr>
-            <td>${produit.numero_item || '-'}</td>
-            <td>${produit.designation || '-'}</td>
-            <td>${produit.bar || '-'}</td>
-            <td>${produit.qte || 0}</td>
-            <td>${formatSolde(produit.prix)}</td>
-            <td>${formatSolde(produit.prixba)}</td>
-            <td>${produit.ref || '-'}</td>
-          </tr>
-        `).join('') : '<tr><td colspan="7" class="text-center">Aucun produit trouvé</td></tr>';
-        produitsError.style.display = 'none';
-      } catch (error) {
-        console.error("Erreur loadProduits :", error);
-        produitsError.textContent = `Erreur : ${error.message}`;
-        produitsError.style.display = 'block';
-        produitsBody.innerHTML = '<tr><td colspan="7" class="text-center">Erreur de chargement</td></tr>';
-      }
-    }
-
-    // Charger le dashboard
-    let salesChart = null;
-    async function loadDashboard() {
-      const dashboardError = document.getElementById('dashboardError');
-      try {
-        const period = document.getElementById('dashboardPeriod').value;
-        console.log("Chargement du dashboard avec period:", period);
-        const response = await fetchApi(`/dashboard?period=${period}`);
-        const result = await response.json();
-        if (result.erreur) throw new Error(result.erreur);
-        console.log("Données dashboard reçues:", result);
-
-        document.getElementById('totalCa').textContent = formatSolde(result.data.total_ca.toString());
-        document.getElementById('totalProfit').textContent = formatSolde(result.data.total_profit.toString());
-        document.getElementById('salesCount').textContent = result.data.sales_count;
-        document.getElementById('lowStockItems').textContent = result.data.low_stock_items;
-        document.getElementById('topClient').textContent = `${result.data.top_client.name} (${formatSolde(result.data.top_client.ca.toString())})`;
-
-        const ctx = document.getElementById('salesChart').getContext('2d');
-        if (salesChart) salesChart.destroy();
-        salesChart = new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels: result.data.chart_data.labels,
-            datasets: [{
-              label: 'CA Quotidien',
-              data: result.data.chart_data.values,
-              borderColor: '#007bff',
-              backgroundColor: 'rgba(0, 123, 255, 0.1)',
-              fill: true
-            }]
-          },
-          options: {
-            responsive: true,
-            scales: {
-              y: { beginAtZero: true }
-            }
-          }
+        const response = await apiCall('/liste_utilisateurs', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
         });
-
-        dashboardError.style.display = 'none';
-      } catch (error) {
-        console.error("Erreur loadDashboard:", error);
-        dashboardError.textContent = `Erreur : ${error.message}`;
-        dashboardError.style.display = 'block';
-      }
-    }
-
-    // Lister les tables
-    async function listerTables() {
-      const tablesList = document.getElementById('tablesList');
-      const tablesError = document.getElementById('tablesError');
-      try {
-        console.log("Chargement des tables...");
-        const response = await fetchApi('/tables');
-        if (!response.ok) throw new Error('Erreur lors du chargement des tables');
-        const tables = await response.json();
-        console.log("Tables reçues :", tables);
-        tablesList.innerHTML = `<strong>Tables trouvées :</strong> ${tables.length > 0 ? tables.join(', ') : 'Aucune table'}`;
-        tablesList.style.display = 'block';
-        tablesError.style.display = 'none';
-      } catch (error) {
-        console.error("Erreur listerTables :", error);
-        tablesError.textContent = `Erreur : ${error.message}`;
-        tablesError.style.display = 'block';
-        tablesList.style.display = 'none';
-      }
-    }
-
-    // Test de connexion
-    document.getElementById('btnTest').addEventListener('click', async () => {
-      const tablesList = document.getElementById('tablesList');
-      const tablesError = document.getElementById('tablesError');
-      try {
-        console.log("Test de connexion...");
-        const response = await fetchApi('/test');
         const data = await response.json();
-        console.log("Résultat test :", data);
-        tablesList.textContent = data.message;
-        tablesList.style.display = 'block';
-        tablesError.style.display = 'none';
+        if (response.ok && data.utilisateurs) {
+          const user = data.utilisateurs.find(u => u.nom === email && u.password2 === password);
+          if (user) {
+            localStorage.setItem('userId', user.numero_util);
+            localStorage.setItem('userStatut', user.statue);
+            document.getElementById('userDisplay').textContent = email;
+            document.getElementById('userDisplay').classList.remove('hidden');
+            document.getElementById('loginModal').classList.add('hidden');
+            document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i> Déconnexion';
+            setEmployeMode(user.statue === 'employe');
+            loadDashboard();
+            loadClients();
+            loadFournisseurs();
+            loadProduits();
+            loadUtilisateurs();
+          } else {
+            alert('Email ou mot de passe incorrect.');
+          }
+        } else {
+          console.error('Erreur lors de la connexion:', data.erreur);
+        }
       } catch (error) {
-        console.error("Erreur test :", error);
-        tablesError.textContent = `Erreur : ${error.message}`;
-        tablesError.style.display = 'block';
-        tablesList.style.display = 'none';
+        console.error('Erreur réseau:', error);
       }
-    });
+    }
 
-    // Ajouter un client
-    document.getElementById('formAjouterClient').addEventListener('submit', async e => {
-      e.preventDefault();
-      const ajouterResult = document.getElementById('ajouterClientResult');
-      const ajouterError = document.getElementById('ajouterClientError');
-      const data = Object.fromEntries(new FormData(e.target).entries());
-      if (!data.nom.trim()) {
-        ajouterError.textContent = 'Erreur : Le nom est obligatoire';
-        ajouterError.style.display = 'block';
-        ajouterResult.style.display = 'none';
+    // Déconnexion
+    function loginLogout() {
+      if (localStorage.getItem('userId')) {
+        localStorage.removeItem('userId');
+        localStorage.removeItem('userStatut');
+        document.getElementById('userDisplay').classList.add('hidden');
+        document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i> Connexion';
+        document.getElementById('loginModal').classList.remove('hidden');
+        setEmployeMode(false);
+      } else {
+        document.getElementById('loginModal').classList.remove('hidden');
+      }
+    }
+
+    // Charger le tableau de bord
+    async function loadDashboard(period = 'day') {
+      try {
+        const response = await apiCall(`/dashboard?period=${period}`, {
+          method: 'GET',
+          headers: { 'X-User-ID': localStorage.getItem('userId') }
+        });
+        const data = await response.json();
+        if (response.ok) {
+          document.getElementById('totalCA').textContent = `${(data.totalCA || 0).toFixed(2)} DA`;
+          document.getElementById('totalProfit').textContent = `${(data.totalProfit || 0).toFixed(2)} DA`;
+          document.getElementById('salesCount').textContent = data.salesCount || 0;
+          document.getElementById('lowStockItems').textContent = data.lowStockItems || 0;
+          document.getElementById('topClient').textContent = data.topClient?.nom || 'N/A';
+          document.getElementById('topClient').title = data.topClient?.nom || 'N/A';
+          document.getElementById('topClientCA').textContent = `${(data.topClient?.ca || 0).toFixed(2)} DA`;
+          updateChart(data.caData || []);
+        } else {
+          console.error('Erreur dashboard:', data.erreur);
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement du dashboard:', error);
+      }
+    }
+
+    // Mettre à jour le graphique
+    function updateChart(caData) {
+      const ctx = document.getElementById('caChart').getContext('2d');
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: caData.map(d => d.date),
+          datasets: [{
+            label: 'Chiffre d\'Affaires (DA)',
+            data: caData.map(d => d.montant),
+            borderColor: '#4F46E5',
+            backgroundColor: 'rgba(79, 70, 229, 0.2)',
+            fill: true
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: { beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    // Gestion des sections
+    function toggleSection(sectionId) {
+      const content = document.getElementById(`${sectionId}Content`);
+      const chevron = document.getElementById(`${sectionId}Chevron`);
+      content.classList.toggle('open');
+      chevron.classList.toggle('fa-chevron-down');
+      chevron.classList.toggle('fa-chevron-up');
+    }
+
+    // Clients
+    function toggleClientForm() {
+      const form = document.getElementById('clientForm');
+      form.classList.toggle('hidden');
+      resetClientForm();
+    }
+
+    function resetClientForm() {
+      document.getElementById('clientForm').classList.add('hidden');
+      document.getElementById('clientId').value = '';
+      document.getElementById('clientNom').value = '';
+      document.getElementById('clientContact').value = '';
+      document.getElementById('clientAdresse').value = '';
+      document.getElementById('clientFormTitle').textContent = 'Nouveau Client';
+    }
+
+    async function loadClients() {
+      try {
+        const response = await apiCall('/liste_clients', {
+          method: 'GET',
+          headers: { 'X-User-ID': localStorage.getItem('userId') }
+        });
+        const data = await response.json();
+        if (response.ok) {
+          const clientsList = document.getElementById('clientsList');
+          clientsList.innerHTML = '';
+          data.clients.forEach(client => {
+            clientsList.innerHTML += `
+              <tr>
+                <td class="hidden-id">${client.numero_clt}</td>
+                <td class="px-6 py-4">${client.nom}</td>
+                <td class="px-6 py-4">${(client.solde || 0).toFixed(2)}</td>
+                <td class="px-6 py-4">${client.reference || ''}</td>
+                <td class="px-6 py-4">${client.contact || ''}</td>
+                <td class="px-6 py-4">${client.adresse || ''}</td>
+                <td class="px-6 py-4 action-buttons">
+                  <button onclick="editClient(${client.numero_clt})" class="text-indigo-600 hover:text-indigo-800"><i class="fas fa-edit"></i></button>
+                  <button onclick="deleteClient(${client.numero_clt})" class="text-red-600 hover:text-red-800"><i class="fas fa-trash"></i></button>
+                </td>
+              </tr>
+            `;
+          });
+          document.getElementById('clientCount').textContent = data.clients.length;
+        } else {
+          console.error('Erreur clients:', data.erreur);
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement des clients:', error);
+      }
+    }
+
+    async function saveClient() {
+      const id = document.getElementById('clientId').value;
+      const client = {
+        nom: document.getElementById('clientNom').value,
+        contact: document.getElementById('clientContact').value,
+        adresse: document.getElementById('clientAdresse').value
+      };
+      if (!client.nom) {
+        alert('Le nom est requis.');
         return;
       }
       try {
-        console.log("Ajout client :", data);
-        const response = await fetchApi('/ajouter_client', { method: 'POST', body: JSON.stringify(data) });
-        const result = await response.json();
-        console.log("Réponse ajout client :", result);
-        if (!response.ok) throw new Error(result.erreur || 'Erreur lors de l\'ajout');
-        ajouterResult.textContent = `${result.statut} (ID: ${result.id}, Référence: ${result.reference})`;
-        ajouterResult.style.display = 'block';
-        ajouterError.style.display = 'none';
-        await loadClients();
-        e.target.reset();
+        const endpoint = id ? `/modifier_client/${id}` : '/ajouter_client';
+        const method = id ? 'PUT' : 'POST';
+        const response = await apiCall(endpoint, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-ID': localStorage.getItem('userId')
+          },
+          body: JSON.stringify(client)
+        });
+        const data = await response.json();
+        if (response.ok) {
+          resetClientForm();
+          loadClients();
+          loadDashboard(document.getElementById('kpiPeriod').value);
+        } else {
+          console.error('Erreur sauvegarde client:', data.erreur);
+        }
       } catch (error) {
-        console.error("Erreur ajouterClient :", error);
-        ajouterError.textContent = `Erreur : ${error.message}`;
-        ajouterError.style.display = 'block';
-        ajouterResult.style.display = 'none';
+        console.error('Erreur lors de la sauvegarde du client:', error);
       }
-    });
+    }
 
-    // Modifier un client
-    document.getElementById('formModifierClient').addEventListener('submit', async e => {
-      e.preventDefault();
-      const modifierResult = document.getElementById('modifierClientResult');
-      const modifierError = document.getElementById('modifierClientError');
-      const data = Object.fromEntries(new FormData(e.target).entries());
-      const numero = data.numero_clt;
-      if (!numero || !data.nom.trim()) {
-        modifierError.textContent = 'Erreur : Le numéro client et le nom sont obligatoires';
-        modifierError.style.display = 'block';
-        modifierResult.style.display = 'none';
-        return;
-      }
-      delete data.numero_clt;
+    async function editClient(id) {
       try {
-        console.log("Modification client :", numero, data);
-        const response = await fetchApi(`/modifier_client/${numero}`, { method: 'PUT', body: JSON.stringify(data) });
-        const result = await response.json();
-        console.log("Réponse modification client :", result);
-        if (!response.ok) throw new Error(result.erreur || 'Erreur lors de la modification');
-        modifierResult.textContent = result.statut;
-        modifierResult.style.display = 'block';
-        modifierError.style.display = 'none';
-        await loadClients();
-        e.target.reset();
+        const response = await apiCall('/liste_clients', {
+          method: 'GET',
+          headers: { 'X-User-ID': localStorage.getItem('userId') }
+        });
+        const data = await response.json();
+        if (response.ok) {
+          const client = data.clients.find(c => c.numero_clt === id);
+          if (client) {
+            document.getElementById('clientId').value = client.numero_clt;
+            document.getElementById('clientNom').value = client.nom;
+            document.getElementById('clientContact').value = client.contact || '';
+            document.getElementById('clientAdresse').value = client.adresse || '';
+            document.getElementById('clientFormTitle').textContent = 'Modifier Client';
+            document.getElementById('clientForm').classList.remove('hidden');
+          }
+        } else {
+          console.error('Erreur chargement client:', data.erreur);
+        }
       } catch (error) {
-        console.error("Erreur modifierClient :", error);
-        modifierError.textContent = `Erreur : ${error.message}`;
-        modifierError.style.display = 'block';
-        modifierResult.style.display = 'none';
+        console.error('Erreur lors du chargement du client:', error);
       }
-    });
+    }
 
-    // Supprimer un client
-    document.getElementById('formSupprimerClient').addEventListener('submit', async e => {
-      e.preventDefault();
-      const supprimerResult = document.getElementById('supprimerClientResult');
-      const supprimerError = document.getElementById('supprimerClientError');
-      const numero = new FormData(e.target).get('numero_clt');
-      if (!numero) {
-        supprimerError.textContent = 'Erreur : Le numéro client est obligatoire';
-        supprimerError.style.display = 'block';
-        supprimerResult.style.display = 'none';
-        return;
-      }
+    async function deleteClient(id) {
+      if (!confirm('Voulez-vous vraiment supprimer ce client ?')) return;
       try {
-        console.log("Suppression client :", numero);
-        const response = await fetchApi(`/supprimer_client/${numero}`, { method: 'DELETE' });
-        const result = await response.json();
-        console.log("Réponse suppression client :", result);
-        if (!response.ok) throw new Error(result.erreur || 'Erreur lors de la suppression');
-        supprimerResult.textContent = result.statut;
-        supprimerResult.style.display = 'block';
-        supprimerError.style.display = 'none';
-        await loadClients();
-        e.target.reset();
+        const response = await apiCall(`/supprimer_client/${id}`, {
+          method: 'DELETE',
+          headers: { 'X-User-ID': localStorage.getItem('userId') }
+        });
+        const data = await response.json();
+        if (response.ok) {
+          loadClients();
+          loadDashboard(document.getElementById('kpiPeriod').value);
+        } else {
+          console.error('Erreur suppression client:', data.erreur);
+        }
       } catch (error) {
-        console.error("Erreur supprimerClient :", error);
-        supprimerError.textContent = `Erreur : ${error.message}`;
-        supprimerError.style.display = 'block';
-        supprimerResult.style.display = 'none';
+        console.error('Erreur lors de la suppression du client:', error);
       }
-    });
+    }
 
-    // Ajouter un fournisseur
-    document.getElementById('formAjouterFournisseur').addEventListener('submit', async e => {
-      e.preventDefault();
-      const ajouterResult = document.getElementById('ajouterFournisseurResult');
-      const ajouterError = document.getElementById('ajouterFournisseurError');
-      const data = Object.fromEntries(new FormData(e.target).entries());
-      if (!data.nom.trim()) {
-        ajouterError.textContent = 'Erreur : Le nom est obligatoire';
-        ajouterError.style.display = 'block';
-        ajouterResult.style.display = 'none';
-        return;
-      }
+    // Fournisseurs
+    function toggleFournisseurForm() {
+      const form = document.getElementById('fournisseurForm');
+      form.classList.toggle('hidden');
+      resetFournisseurForm();
+    }
+
+    function resetFournisseurForm() {
+      document.getElementById('fournisseurForm').classList.add('hidden');
+      document.getElementById('fournisseurId').value = '';
+      document.getElementById('fournisseurNom').value = '';
+      document.getElementById('fournisseurContact').value = '';
+      document.getElementById('fournisseurAdresse').value = '';
+      document.getElementById('fournisseurFormTitle').textContent = 'Nouveau Fournisseur';
+    }
+
+    async function loadFournisseurs() {
       try {
-        console.log("Ajout fournisseur :", data);
-        const response = await fetchApi('/ajouter_fournisseur', { method: 'POST', body: JSON.stringify(data) });
-        const result = await response.json();
-        console.log("Réponse ajout fournisseur :", result);
-        if (!response.ok) throw new Error(result.erreur || 'Erreur lors de l\'ajout');
-        ajouterResult.textContent = `${result.statut} (ID: ${result.id}, Référence: ${result.reference})`;
-        ajouterResult.style.display = 'block';
-        ajouterError.style.display = 'none';
-        await loadFournisseurs();
-        e.target.reset();
+        const response = await apiCall('/liste_fournisseurs', {
+          method: 'GET',
+          headers: { 'X-User-ID': localStorage.getItem('userId') }
+        });
+        const data = await response.json();
+        if (response.ok) {
+          const fournisseursList = document.getElementById('fournisseursList');
+          fournisseursList.innerHTML = '';
+          data.fournisseurs.forEach(fournisseur => {
+            fournisseursList.innerHTML += `
+              <tr>
+                <td class="hidden-id">${fournisseur.numero_fou}</td>
+                <td class="px-6 py-4">${fournisseur.nom}</td>
+                <td class="px-6 py-4">${(fournisseur.solde || 0).toFixed(2)}</td>
+                <td class="px-6 py-4">${fournisseur.reference || ''}</td>
+                <td class="px-6 py-4">${fournisseur.contact || ''}</td>
+                <td class="px-6 py-4">${fournisseur.adresse || ''}</td>
+                <td class="px-6 py-4 action-buttons">
+                  <button onclick="editFournisseur(${fournisseur.numero_fou})" class="text-indigo-600 hover:text-indigo-800"><i class="fas fa-edit"></i></button>
+                  <button onclick="deleteFournisseur(${fournisseur.numero_fou})" class="text-red-600 hover:text-red-800"><i class="fas fa-trash"></i></button>
+                </td>
+              </tr>
+            `;
+          });
+          document.getElementById('fournisseurCount').textContent = data.fournisseurs.length;
+        } else {
+          console.error('Erreur fournisseurs:', data.erreur);
+        }
       } catch (error) {
-        console.error("Erreur ajouterFournisseur :", error);
-        ajouterError.textContent = `Erreur : ${error.message}`;
-        ajouterError.style.display = 'block';
-        ajouterResult.style.display = 'none';
+        console.error('Erreur lors du chargement des fournisseurs:', error);
       }
-    });
+    }
 
-    // Modifier un fournisseur
-    document.getElementById('formModifierFournisseur').addEventListener('submit', async e => {
-      e.preventDefault();
-      const modifierResult = document.getElementById('modifierFournisseurResult');
-      const modifierError = document.getElementById('modifierFournisseurError');
-      const data = Object.fromEntries(new FormData(e.target).entries());
-      const numero = data.numero_fou;
-      if (!numero || !data.nom.trim()) {
-        modifierError.textContent = 'Erreur : Le numéro fournisseur et le nom sont obligatoires';
-        modifierError.style.display = 'block';
-        modifierResult.style.display = 'none';
-        return;
-      }
-      delete data.numero_fou;
-      try {
-        console.log("Modification fournisseur :", numero, data);
-        const response = await fetchApi(`/modifier_fournisseur/${numero}`, { method: 'PUT', body: JSON.stringify(data) });
-        const result = await response.json();
-        console.log("Réponse modification fournisseur :", result);
-        if (!response.ok) throw new Error(result.erreur || 'Erreur lors de la modification');
-        modifierResult.textContent = result.statut;
-        modifierResult.style.display = 'block';
-        modifierError.style.display = 'none';
-        await loadFournisseurs();
-        e.target.reset();
-      } catch (error) {
-        console.error("Erreur modifierFournisseur :", error);
-        modifierError.textContent = `Erreur : ${error.message}`;
-        modifierError.style.display = 'block';
-        modifierResult.style.display = 'none';
-      }
-    });
-
-    // Supprimer un fournisseur
-    document.getElementById('formSupprimerFournisseur').addEventListener('submit', async e => {
-      e.preventDefault();
-      const supprimerResult = document.getElementById('supprimerFournisseurResult');
-      const supprimerError = document.getElementById('supprimerFournisseurError');
-      const numero = new FormData(e.target).get('numero_fou');
-      if (!numero) {
-        supprimerError.textContent = 'Erreur : Le numéro fournisseur est obligatoire';
-        supprimerError.style.display = 'block';
-        supprimerResult.style.display = 'none';
+    async function saveFournisseur() {
+      const id = document.getElementById('fournisseurId').value;
+      const fournisseur = {
+        nom: document.getElementById('fournisseurNom').value,
+        contact: document.getElementById('fournisseurContact').value,
+        adresse: document.getElementById('fournisseurAdresse').value
+      };
+      if (!fournisseur.nom) {
+        alert('Le nom est requis.');
         return;
       }
       try {
-        console.log("Suppression fournisseur :", numero);
-        const response = await fetchApi(`/supprimer_fournisseur/${numero}`, { method: 'DELETE' });
-        const result = await response.json();
-        console.log("Réponse suppression fournisseur :", result);
-        if (!response.ok) throw new Error(result.erreur || 'Erreur lors de la suppression');
-        supprimerResult.textContent = result.statut;
-        supprimerResult.style.display = 'block';
-        supprimerError.style.display = 'none';
-        await loadFournisseurs();
-        e.target.reset();
+        const endpoint = id ? `/modifier_fournisseur/${id}` : '/ajouter_fournisseur';
+        const method = id ? 'PUT' : 'POST';
+        const response = await apiCall(endpoint, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-ID': localStorage.getItem('userId')
+          },
+          body: JSON.stringify(fournisseur)
+        });
+        const data = await response.json();
+        if (response.ok) {
+          resetFournisseurForm();
+          loadFournisseurs();
+        } else {
+          console.error('Erreur sauvegarde fournisseur:', data.erreur);
+        }
       } catch (error) {
-        console.error("Erreur supprimerFournisseur :", error);
-        supprimerError.textContent = `Erreur : ${error.message}`;
-        supprimerError.style.display = 'block';
-        supprimerResult.style.display = 'none';
+        console.error('Erreur lors de la sauvegarde du fournisseur:', error);
       }
-    });
+    }
 
-    // Ajouter un utilisateur
-    document.getElementById('formAjouterUtilisateur').addEventListener('submit', async e => {
-      e.preventDefault();
-      const ajouterResult = document.getElementById('ajouterUtilisateurResult');
-      const ajouterError = document.getElementById('ajouterUtilisateurError');
-      const data = Object.fromEntries(new FormData(e.target).entries());
-      if (!data.nom.trim() || !data.password2 || !data.statue) {
-        ajouterError.textContent = 'Erreur : Le nom, le mot de passe et le statut sont obligatoires';
-        ajouterError.style.display = 'block';
-        ajouterResult.style.display = 'none';
+    async function editFournisseur(id) {
+      try {
+        const response = await apiCall('/liste_fournisseurs', {
+          method: 'GET',
+          headers: { 'X-User-ID': localStorage.getItem('userId') }
+        });
+        const data = await response.json();
+        if (response.ok) {
+          const fournisseur = data.fournisseurs.find(f => f.numero_fou === id);
+          if (fournisseur) {
+            document.getElementById('fournisseurId').value = fournisseur.numero_fou;
+            document.getElementById('fournisseurNom').value = fournisseur.nom;
+            document.getElementById('fournisseurContact').value = fournisseur.contact || '';
+            document.getElementById('fournisseurAdresse').value = fournisseur.adresse || '';
+            document.getElementById('fournisseurFormTitle').textContent = 'Modifier Fournisseur';
+            document.getElementById('fournisseurForm').classList.remove('hidden');
+          }
+        } else {
+          console.error('Erreur chargement fournisseur:', data.erreur);
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement du fournisseur:', error);
+      }
+    }
+
+    async function deleteFournisseur(id) {
+      if (!confirm('Voulez-vous vraiment supprimer ce fournisseur ?')) return;
+      try {
+        const response = await apiCall(`/supprimer_fournisseur/${id}`, {
+          method: 'DELETE',
+          headers: { 'X-User-ID': localStorage.getItem('userId') }
+        });
+        const data = await response.json();
+        if (response.ok) {
+          loadFournisseurs();
+        } else {
+          console.error('Erreur suppression fournisseur:', data.erreur);
+        }
+      } catch (error) {
+        console.error('Erreur lors de la suppression du fournisseur:', error);
+      }
+    }
+
+    // Produits
+    function toggleProductForm() {
+      const form = document.getElementById('productForm');
+      form.classList.toggle('hidden');
+      resetProductForm();
+    }
+
+    function resetProductForm() {
+      document.getElementById('productForm').classList.add('hidden');
+      document.getElementById('productId').value = '';
+      document.getElementById('productDesignation').value = '';
+      document.getElementById('productBar').value = '';
+      document.getElementById('productRef').value = '';
+      document.getElementById('productPrix').value = '';
+      document.getElementById('productPrixBA').value = '';
+      document.getElementById('productQte').value = '';
+      document.getElementById('productFormTitle').textContent = 'Nouveau Produit';
+    }
+
+    async function loadProduits() {
+      try {
+        const response = await apiCall('/liste_produits', {
+          method: 'GET',
+          headers: { 'X-User-ID': localStorage.getItem('userId') }
+        });
+        const data = await response.json();
+        if (response.ok) {
+          const productsList = document.getElementById('productsList');
+          productsList.innerHTML = '';
+          data.produits.forEach(produit => {
+            productsList.innerHTML += `
+              <tr>
+                <td class="hidden-id">${produit.numero_item}</td>
+                <td class="px-6 py-4">${produit.designation}</td>
+                <td class="px-6 py-4">${produit.bar || ''}</td>
+                <td class="px-6 py-4">${produit.ref || ''}</td>
+                <td class="px-6 py-4">${produit.prix}</td>
+                <td class="px-6 py-4">${produit.qte}</td>
+                <td class="px-6 py-4 action-buttons">
+                  <button onclick="editProduit(${produit.numero_item})" class="text-indigo-600 hover:text-indigo-800"><i class="fas fa-edit"></i></button>
+                  <button onclick="deleteProduit(${produit.numero_item})" class="text-red-600 hover:text-red-800"><i class="fas fa-trash"></i></button>
+                </td>
+              </tr>
+            `;
+          });
+          document.getElementById('productCount').textContent = data.produits.length;
+        } else {
+          console.error('Erreur produits:', data.erreur);
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement des produits:', error);
+      }
+    }
+
+    async function saveProduit() {
+      const id = document.getElementById('productId').value;
+      const produit = {
+        designation: document.getElementById('productDesignation').value,
+        bar: document.getElementById('productBar').value,
+        ref: document.getElementById('productRef').value,
+        prix: document.getElementById('productPrix').value,
+        prixba: document.getElementById('productPrixBA').value,
+        qte: parseInt(document.getElementById('productQte').value)
+      };
+      if (!produit.designation || !produit.prix || !produit.qte) {
+        alert('Désignation, prix et quantité sont requis.');
         return;
       }
       try {
-        console.log("Ajout utilisateur :", data);
-        const response = await fetchApi('/ajouter_utilisateur', { method: 'POST', body: JSON.stringify(data) });
-        const result = await response.json();
-        console.log("Réponse ajout utilisateur :", result);
-        if (!response.ok) throw new Error(result.erreur || 'Erreur lors de l\'ajout');
-        ajouterResult.textContent = `${result.statut} (ID: ${result.id})`;
-        ajouterResult.style.display = 'block';
-        ajouterError.style.display = 'none';
-        await loadUtilisateurs();
-        e.target.reset();
+        const endpoint = id ? `/modifier_item/${id}` : '/ajouter_item';
+        const method = id ? 'PUT' : 'POST';
+        const response = await apiCall(endpoint, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-ID': localStorage.getItem('userId')
+          },
+          body: JSON.stringify(produit)
+        });
+        const data = await response.json();
+        if (response.ok) {
+          resetProductForm();
+          loadProduits();
+          loadDashboard(document.getElementById('kpiPeriod').value);
+        } else {
+          console.error('Erreur sauvegarde produit:', data.erreur);
+        }
       } catch (error) {
-        console.error("Erreur ajouterUtilisateur :", error);
-        ajouterError.textContent = `Erreur : ${error.message}`;
-        ajouterError.style.display = 'block';
-        ajouterResult.style.display = 'none';
+        console.error('Erreur lors de la sauvegarde du produit:', error);
       }
-    });
+    }
 
-    // Modifier un utilisateur
-    document.getElementById('formModifierUtilisateur').addEventListener('submit', async e => {
-      e.preventDefault();
-      const modifierResult = document.getElementById('modifierUtilisateurResult');
-      const modifierError = document.getElementById('modifierUtilisateurError');
-      const data = Object.fromEntries(new FormData(e.target).entries());
-      const numero = data.numero_util;
-      if (!numero || !data.nom.trim() || !data.statue) {
-        modifierError.textContent = 'Erreur : Le numéro utilisateur, le nom et le statut sont obligatoires';
-        modifierError.style.display = 'block';
-        modifierResult.style.display = 'none';
-        return;
-      }
-      delete data.numero_util;
+    async function editProduit(id) {
       try {
-        console.log("Modification utilisateur :", numero, data);
-        const response = await fetchApi(`/modifier_utilisateur/${numero}`, { method: 'PUT', body: JSON.stringify(data) });
-        const result = await response.json();
-        console.log("Réponse modification utilisateur :", result);
-        if (!response.ok) throw new Error(result.erreur || 'Erreur lors de la modification');
-        modifierResult.textContent = result.statut;
-        modifierResult.style.display = 'block';
-        modifierError.style.display = 'none';
-        await loadUtilisateurs();
-        e.target.reset();
+        const response = await apiCall('/liste_produits', {
+          method: 'GET',
+          headers: { 'X-User-ID': localStorage.getItem('userId') }
+        });
+        const data = await response.json();
+        if (response.ok) {
+          const produit = data.produits.find(p => p.numero_item === id);
+          if (produit) {
+            document.getElementById('productId').value = produit.numero_item;
+            document.getElementById('productDesignation').value = produit.designation;
+            document.getElementById('productBar').value = produit.bar || '';
+            document.getElementById('productRef').value = produit.ref || '';
+            document.getElementById('productPrix').value = produit.prix;
+            document.getElementById('productPrixBA').value = produit.prixba || '';
+            document.getElementById('productQte').value = produit.qte;
+            document.getElementById('productFormTitle').textContent = 'Modifier Produit';
+            document.getElementById('productForm').classList.remove('hidden');
+          }
+        } else {
+          console.error('Erreur chargement produit:', data.erreur);
+        }
       } catch (error) {
-        console.error("Erreur modifierUtilisateur :", error);
-        modifierError.textContent = `Erreur : ${error.message}`;
-        modifierError.style.display = 'block';
-        modifierResult.style.display = 'none';
+        console.error('Erreur lors du chargement du produit:', error);
       }
-    });
+    }
 
-    // Supprimer un utilisateur
-    document.getElementById('formSupprimerUtilisateur').addEventListener('submit', async e => {
-      e.preventDefault();
-      const supprimerResult = document.getElementById('supprimerUtilisateurResult');
-      const supprimerError = document.getElementById('supprimerUtilisateurError');
-      const numero = new FormData(e.target).get('numero_util');
-      if (!numero) {
-        supprimerError.textContent = 'Erreur : Le numéro utilisateur est obligatoire';
-        supprimerError.style.display = 'block';
-        supprimerResult.style.display = 'none';
-        return;
-      }
+    async function deleteProduit(id) {
+      if (!confirm('Voulez-vous vraiment supprimer ce produit ?')) return;
       try {
-        console.log("Suppression utilisateur :", numero);
-        const response = await fetchApi(`/supprimer_utilisateur/${numero}`, { method: 'DELETE' });
-        const result = await response.json();
-        console.log("Réponse suppression utilisateur :", result);
-        if (!response.ok) throw new Error(result.erreur || 'Erreur lors de la suppression');
-        supprimerResult.textContent = result.statut;
-        supprimerResult.style.display = 'block';
-        supprimerError.style.display = 'none';
-        await loadUtilisateurs();
-        e.target.reset();
+        const response = await apiCall(`/supprimer_item/${id}`, {
+          method: 'DELETE',
+          headers: { 'X-User-ID': localStorage.getItem('userId') }
+        });
+        const data = await response.json();
+        if (response.ok) {
+          loadProduits();
+          loadDashboard(document.getElementById('kpiPeriod').value);
+        } else {
+          console.error('Erreur suppression produit:', data.erreur);
+        }
       } catch (error) {
-        console.error("Erreur supprimerUtilisateur :", error);
-        supprimerError.textContent = `Erreur : ${error.message}`;
-        supprimerError.style.display = 'block';
-        supprimerResult.style.display = 'none';
+        console.error('Erreur lors de la suppression du produit:', error);
       }
-    });
+    }
 
-    // Ajouter un produit
-    document.getElementById('formAjouterItem').addEventListener('submit', async e => {
-      e.preventDefault();
-      const ajouterResult = document.getElementById('ajouterItemResult');
-      const ajouterError = document.getElementById('ajouterItemError');
-      const data = Object.fromEntries(new FormData(e.target).entries());
-      if (!data.designation.trim() || !data.qte || !data.prix || !/^\d+,\d{2}$/.test(data.prix)) {
-        ajouterError.textContent = 'Erreur : La désignation, la quantité et un prix valide (ex: 10,00) sont obligatoires';
-        ajouterError.style.display = 'block';
-        ajouterResult.style.display = 'none';
-        return;
-      }
-      if (data.prixba && !/^\d+,\d{2}$/.test(data.prixba)) {
-        ajouterError.textContent = 'Erreur : Le prix de base doit être valide (ex: 8,00) ou vide';
-        ajouterError.style.display = 'block';
-        ajouterResult.style.display = 'none';
-        return;
-      }
+    // Utilisateurs
+    function toggleUtilisateurForm() {
+      const form = document.getElementById('utilisateurForm');
+      form.classList.toggle('hidden');
+      resetUtilisateurForm();
+    }
+
+    function resetUtilisateurForm() {
+      document.getElementById('utilisateurForm').classList.add('hidden');
+      document.getElementById('utilisateurId').value = '';
+      document.getElementById('utilisateurNom').value = '';
+      document.getElementById('utilisateurPassword').value = '';
+      document.getElementById('utilisateurStatut').value = 'admin';
+      document.getElementById('utilisateurFormTitle').textContent = 'Nouvel Utilisateur';
+    }
+
+    async function loadUtilisateurs() {
       try {
-        console.log("Ajout produit :", data);
-        const response = await fetchApi('/ajouter_item', { method: 'POST', body: JSON.stringify(data) });
-        const result = await response.json();
-        console.log("Réponse ajout produit :", result);
-        if (!response.ok) throw new Error(result.erreur || 'Erreur lors de l\'ajout');
-        ajouterResult.textContent = `${result.statut} (ID: ${result.id}, Code-barres: ${result.bar})`;
-        ajouterResult.style.display = 'block';
-        ajouterError.style.display = 'none';
-        await loadProduits();
-        e.target.reset();
+        const response = await apiCall('/liste_utilisateurs', {
+          method: 'GET',
+          headers: { 'X-User-ID': localStorage.getItem('userId') }
+        });
+        const data = await response.json();
+        if (response.ok) {
+          const utilisateursList = document.getElementById('utilisateursList');
+          utilisateursList.innerHTML = '';
+          data.utilisateurs.forEach(utilisateur => {
+            utilisateursList.innerHTML += `
+              <tr>
+                <td class="hidden-id">${utilisateur.numero_util}</td>
+                <td class="px-6 py-4">${utilisateur.nom}</td>
+                <td class="px-6 py-4">${utilisateur.statue}</td>
+                <td class="px-6 py-4 action-buttons">
+                  <button onclick="editUtilisateur(${utilisateur.numero_util})" class="text-indigo-600 hover:text-indigo-800"><i class="fas fa-edit"></i></button>
+                  <button onclick="deleteUtilisateur(${utilisateur.numero_util})" class="text-red-600 hover:text-red-800"><i class="fas fa-trash"></i></button>
+                </td>
+              </tr>
+            `;
+          });
+          document.getElementById('utilisateurCount').textContent = data.utilisateurs.length;
+        } else {
+          console.error('Erreur utilisateurs:', data.erreur);
+        }
       } catch (error) {
-        console.error("Erreur ajouterItem :", error);
-        ajouterError.textContent = `Erreur : ${error.message}`;
-        ajouterError.style.display = 'block';
-        ajouterResult.style.display = 'none';
+        console.error('Erreur lors du chargement des utilisateurs:', error);
       }
-    });
+    }
 
-    // Modifier un produit
-    document.getElementById('formModifierItem').addEventListener('submit', async e => {
-      e.preventDefault();
-      const modifierResult = document.getElementById('modifierItemResult');
-      const modifierError = document.getElementById('modifierItemError');
-      const data = Object.fromEntries(new FormData(e.target).entries());
-      const numero = data.numero_item;
-      if (!numero || !data.designation.trim() || !data.qte || !data.prix || !/^\d+,\d{2}$/.test(data.prix)) {
-        modifierError.textContent = 'Erreur : Le numéro produit, la désignation, la quantité et un prix valide (ex: 10,00) sont obligatoires';
-        modifierError.style.display = 'block';
-        modifierResult.style.display = 'none';
-        return;
-      }
-      if (data.prixba && !/^\d+,\d{2}$/.test(data.prixba)) {
-        modifierError.textContent = 'Erreur : Le prix de base doit être valide (ex: 8,00) ou vide';
-        modifierError.style.display = 'block';
-        modifierResult.style.display = 'none';
-        return;
-      }
-      delete data.numero_item;
-      try {
-        console.log("Modification produit :", numero, data);
-        const response = await fetchApi(`/modifier_item/${numero}`, { method: 'PUT', body: JSON.stringify(data) });
-        const result = await response.json();
-        console.log("Réponse modification produit :", result);
-        if (!response.ok) throw new Error(result.erreur || 'Erreur lors de la modification');
-        modifierResult.textContent = result.statut;
-        modifierResult.style.display = 'block';
-        modifierError.style.display = 'none';
-        await loadProduits();
-        e.target.reset();
-      } catch (error) {
-        console.error("Erreur modifierItem :", error);
-        modifierError.textContent = `Erreur : ${error.message}`;
-        modifierError.style.display = 'block';
-        modifierResult.style.display = 'none';
-      }
-    });
-
-    // Supprimer un produit
-    document.getElementById('formSupprimerItem').addEventListener('submit', async e => {
-      e.preventDefault();
-      const supprimerResult = document.getElementById('supprimerItemResult');
-      const supprimerError = document.getElementById('supprimerItemError');
-      const numero = new FormData(e.target).get('numero_item');
-      if (!numero) {
-        supprimerError.textContent = 'Erreur : Le numéro produit est obligatoire';
-        supprimerError.style.display = 'block';
-        supprimerResult.style.display = 'none';
+    async function saveUtilisateur() {
+      const id = document.getElementById('utilisateurId').value;
+      const utilisateur = {
+        nom: document.getElementById('utilisateurNom').value,
+        password2: document.getElementById('utilisateurPassword').value,
+        statue: document.getElementById('utilisateurStatut').value
+      };
+      if (!utilisateur.nom || !utilisateur.statue) {
+        alert('Nom et statut sont requis.');
         return;
       }
       try {
-        console.log("Suppression produit :", numero);
-        const response = await fetchApi(`/supprimer_item/${numero}`, { method: 'DELETE' });
-        const result = await response.json();
-        console.log("Réponse suppression produit :", result);
-        if (!response.ok) throw new Error(result.erreur || 'Erreur lors de la suppression');
-        supprimerResult.textContent = result.statut;
-        supprimerResult.style.display = 'block';
-        supprimerError.style.display = 'none';
-        await loadProduits();
-        e.target.reset();
+        const endpoint = id ? `/modifier_utilisateur/${id}` : '/ajouter_utilisateur';
+        const method = id ? 'PUT' : 'POST';
+        const response = await apiCall(endpoint, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-ID': localStorage.getItem('userId')
+          },
+          body: JSON.stringify(utilisateur)
+        });
+        const data = await response.json();
+        if (response.ok) {
+          resetUtilisateurForm();
+          loadUtilisateurs();
+        } else {
+          console.error('Erreur sauvegarde utilisateur:', data.erreur);
+        }
       } catch (error) {
-        console.error("Erreur supprimerItem :", error);
-        supprimerError.textContent = `Erreur : ${error.message}`;
-        supprimerError.style.display = 'block';
-        supprimerResult.style.display = 'none';
+        console.error('Erreur lors de la sauvegarde de l\'utilisateur:', error);
       }
-    });
+    }
 
-    // Sauvegarder la base
-    document.getElementById('btnSauvegarder').addEventListener('click', async () => {
+    async function editUtilisateur(id) {
       try {
-        console.log("Sauvegarde de la base...");
-        const db = await getDb();
-        const dbBinary = db.export();
-        const blob = new Blob([dbBinary], { type: 'application/octet-stream' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'gestion.db';
-        a.click();
-        URL.revokeObjectURL(url);
-        document.getElementById('tablesList').textContent = 'Base sauvegardée avec succès';
-        document.getElementById('tablesList').style.display = 'block';
-        document.getElementById('tablesError').style.display = 'none';
+        const response = await apiCall('/liste_utilisateurs', {
+          method: 'GET',
+          headers: { 'X-User-ID': localStorage.getItem('userId') }
+        });
+        const data = await response.json();
+        if (response.ok) {
+          const utilisateur = data.utilisateurs.find(u => u.numero_util === id);
+          if (utilisateur) {
+            document.getElementById('utilisateurId').value = utilisateur.numero_util;
+            document.getElementById('utilisateurNom').value = utilisateur.nom;
+            document.getElementById('utilisateurPassword').value = '';
+            document.getElementById('utilisateurStatut').value = utilisateur.statue;
+            document.getElementById('utilisateurFormTitle').textContent = 'Modifier Utilisateur';
+            document.getElementById('utilisateurForm').classList.remove('hidden');
+          }
+        } else {
+          console.error('Erreur chargement utilisateur:', data.erreur);
+        }
       } catch (error) {
-        console.error("Erreur sauvegarde :", error);
-        document.getElementById('tablesError').textContent = `Erreur lors de la sauvegarde : ${error.message}`;
-        document.getElementById('tablesError').style.display = 'block';
-        document.getElementById('tablesList').style.display = 'none';
+        console.error('Erreur lors du chargement de l\'utilisateur:', error);
       }
-    });
+    }
 
-    // Lister les tables
-    document.getElementById('btnListerTables').addEventListener('click', listerTables);
-
-    // Gérer les paramètres URL
-    window.addEventListener('load', () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const nom = urlParams.get('nom');
-      const contact = urlParams.get('contact');
-      const adresse = urlParams.get('adresse');
-      if (nom || contact || adresse) {
-        const form = document.getElementById('formAjouterClient');
-        form.querySelector('input[name="nom"]').value = nom || '';
-        form.querySelector('input[name="contact"]').value = contact || '';
-        form.querySelector('input[name="adresse"]').value = adresse || '';
+    async function deleteUtilisateur(id) {
+      if (!confirm('Voulez-vous vraiment supprimer cet utilisateur ?')) return;
+      try {
+        const response = await apiCall(`/supprimer_utilisateur/${id}`, {
+          method: 'DELETE',
+          headers: { 'X-User-ID': localStorage.getItem('userId') }
+        });
+        const data = await response.json();
+        if (response.ok) {
+          loadUtilisateurs();
+        } else {
+          console.error('Erreur suppression utilisateur:', data.erreur);
+        }
+      } catch (error) {
+        console.error('Erreur lors de la suppression de l\'utilisateur:', error);
       }
+    }
+
+    // Recherche
+    function searchClients() {
+      const searchValue = document.getElementById('searchClient').value.toLowerCase();
+      const rows = document.querySelectorAll('#clientsList tr');
+      rows.forEach(row => {
+        const nom = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+        row.style.display = nom.includes(searchValue) ? '' : 'none';
+      });
+    }
+
+    function searchFournisseurs() {
+      const searchValue = document.getElementById('searchFournisseur').value.toLowerCase();
+      const rows = document.querySelectorAll('#fournisseursList tr');
+      rows.forEach(row => {
+        const nom = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+        row.style.display = nom.includes(searchValue) ? '' : 'none';
+      });
+    }
+
+    function searchProduits() {
+      const searchValue = document.getElementById('searchProduct').value.toLowerCase();
+      const rows = document.querySelectorAll('#productsList tr');
+      rows.forEach(row => {
+        const designation = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+        row.style.display = designation.includes(searchValue) ? '' : 'none';
+      });
+    }
+
+    function searchUtilisateurs() {
+      const searchValue = document.getElementById('searchUtilisateur').value.toLowerCase();
+      const rows = document.querySelectorAll('#utilisateursList tr');
+      rows.forEach(row => {
+        const nom = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+        row.style.display = nom.includes(searchValue) ? '' : 'none';
+      });
+    }
+
+    // Écouteurs d'événements
+    document.getElementById('searchClient').addEventListener('input', searchClients);
+    document.getElementById('searchFournisseur').addEventListener('input', searchFournisseurs);
+    document.getElementById('searchProduct').addEventListener('input', searchProduits);
+    document.getElementById('searchUtilisateur').addEventListener('input', searchUtilisateurs);
+    document.getElementById('kpiPeriod').addEventListener('change', () => {
+      loadDashboard(document.getElementById('kpiPeriod').value);
     });
 
     // Initialisation
-    console.log("Initialisation de l'application...");
-    Promise.all([
-      loadClients(),
-      loadFournisseurs(),
-      loadUtilisateurs(),
-      loadProduits(),
-      loadDashboard()
-    ]).catch(error => {
-      console.error("Erreur lors de l'initialisation :", error);
-      document.getElementById('tablesError').textContent = `Erreur d'initialisation : ${error.message}`;
-      document.getElementById('tablesError').style.display = 'block';
+    document.addEventListener('DOMContentLoaded', () => {
+      if (localStorage.getItem('userId')) {
+        document.getElementById('userDisplay').textContent = localStorage.getItem('userEmail') || 'Utilisateur';
+        document.getElementById('userDisplay').classList.remove('hidden');
+        document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i> Déconnexion';
+        setEmployeMode(localStorage.getItem('userStatut') === 'employe');
+        loadDashboard();
+        loadClients();
+        loadFournisseurs();
+        loadProduits();
+        loadUtilisateurs();
+      } else {
+        document.getElementById('loginModal').classList.remove('hidden');
+      }
     });
   </script>
 </body>
