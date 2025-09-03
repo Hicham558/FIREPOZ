@@ -9,7 +9,7 @@ export async function getDb() {
 
   // Use global initSqlJs from sql-wasm.min.js (loaded in index.html)
   if (!window.initSqlJs) {
-    throw new Error("initSqlJs is not available. Ensure sql-wasm.min.js is loaded.");
+    throw new Error("initSqlJs is not available. Ensure sql-wasm.min.js is loaded in index.html.");
   }
 
   const SQL = await window.initSqlJs({
