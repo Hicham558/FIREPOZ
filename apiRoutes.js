@@ -331,8 +331,9 @@ export async function ajouterItem(data) {
   try {
     console.log("Exécution de ajouterItem avec data :", data);
     const db = await getDb();
-    const { designation, bar, prix, qte, prixba } = data;
+    const { designation, bar, prix, qte, prixba, ref } = data;
 
+    // Validate required fields
     if (!designation || prix == null || qte == null) {
       console.error("Erreur : Champs obligatoires manquants (designation, prix, qte)");
       return { erreur: "Champs obligatoires manquants (designation, prix, qte)", status: 400 };
@@ -340,94 +341,92 @@ export async function ajouterItem(data) {
 
     const prixFloat = toDotDecimal(prix);
     const qteInt = parseInt(qte) || 0;
-    const prixbaStr = prixba != null ? toCommaDecimal(toDotDecimal(prixba)) : '0,00';
+    const prixbaStr = prixba != null ? toCommaDecimal(toDotDecimal(prixba)) : null;
 
     if (prixFloat < 0 || qteInt < 0) {
       console.error("Erreur : Le prix et la quantité doivent être positifs");
       return { erreur: "Le prix et la quantité doivent être positifs", status: 400 };
     }
 
-    // Check barcode uniqueness
-    if (bar) {
-      const stmtBar = db.prepare('SELECT 1 FROM item WHERE bar = ?');
-      stmtBar.step([bar]);
-      const exists = stmtBar.get();
-      stmtBar.free();
-      if (exists) {
-        console.error("Erreur : Ce code-barres existe déjà");
-        return { erreur: "Ce code-barres existe déjà", status: 409 };
-      }
-      // Note: Skipping codebar table check as it’s not in the schema
-    }
+    // Start a transaction
+    db.run('BEGIN TRANSACTION');
 
-    // Find next available number for ref and bar
-    const stmtItems = db.prepare('SELECT ref, bar FROM item ORDER BY ref');
-    const items = [];
-    while (stmtItems.step()) {
-      items.push(stmtItems.getAsObject());
-    }
-    stmtItems.free();
-
-    const usedNumbers = items.map(item => {
-      const refNum = item.ref && item.ref.startsWith('P') && item.ref.slice(1).match(/^\d+$/) ? parseInt(item.ref.slice(1)) : 0;
-      const barNum = item.bar && item.bar.startsWith('1') && item.bar.length === 13 && item.bar.slice(1, 12).match(/^\d+$/) ? parseInt(item.bar.slice(1, 12)) : 0;
-      return Math.max(refNum, barNum);
-    });
-    let nextNumber = 1;
-    const sortedNumbers = [...new Set(usedNumbers)].sort((a, b) => a - b);
-    for (const num of sortedNumbers) {
-      if (num === nextNumber) {
-        nextNumber++;
-      } else if (num > nextNumber) {
-        break;
-      }
-    }
-    const ref = `P${nextNumber}`;
-
-    let finalBar = bar || 'TEMP_BAR';
-    const stmtInsert = db.prepare(`
-      INSERT INTO item (
-        designation, bar, prix, qte, prixba, ref, gere, prixb, tva, disponible, tvav, prixvh, qtea
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    stmtInsert.run([
-      designation, finalBar, toCommaDecimal(prixFloat), qteInt, prixbaStr, ref,
-      true, prixbaStr, 0, true, '0', toCommaDecimal(prixFloat), 0
-    ]);
-    stmtInsert.free();
-
-    const idStmt = db.prepare("SELECT last_insert_rowid() AS id");
-    idStmt.step();
-    const { id } = idStmt.getAsObject();
-    idStmt.free();
-
-    if (!bar) {
-      const code12 = `1${nextNumber.toString().padStart(11, '0')}`;
-      const checkDigit = calculateEan13CheckDigit(code12);
-      finalBar = `${code12}${checkDigit}`;
-
-      const stmtCheckBar = db.prepare('SELECT 1 FROM item WHERE bar = ? AND numero_item != ?');
-      stmtCheckBar.step([finalBar, id]);
-      const barExists = stmtCheckBar.get();
-      stmtCheckBar.free();
-      if (barExists) {
-        console.error("Erreur : Le code EAN-13 généré existe déjà");
-        return { erreur: "Le code EAN-13 généré existe déjà", status: 409 };
+    try {
+      // Check barcode uniqueness if provided
+      if (bar) {
+        const stmtBar = db.prepare('SELECT 1 FROM item WHERE bar = ?');
+        stmtBar.step([bar]);
+        const exists = stmtBar.get();
+        stmtBar.free();
+        if (exists) {
+          console.error("Erreur : Ce code-barres existe déjà");
+          db.run('ROLLBACK');
+          return { erreur: "Ce code-barres existe déjà", status: 409 };
+        }
       }
 
-      const stmtUpdate = db.prepare('UPDATE item SET bar = ? WHERE numero_item = ?');
-      stmtUpdate.run([finalBar, id]);
-      stmtUpdate.free();
-    }
+      // Generate unique ref
+      const stmtRefs = db.prepare('SELECT ref FROM item WHERE ref LIKE "P%"');
+      const refs = [];
+      while (stmtRefs.step()) {
+        const { ref } = stmtRefs.getAsObject();
+        if (ref && ref.match(/^P\d+$/)) {
+          refs.push(parseInt(ref.slice(1)));
+        }
+      }
+      stmtRefs.free();
+      const nextNumber = refs.length > 0 ? Math.max(...refs) + 1 : 1;
+      const generatedRef = `P${nextNumber}`;
 
-    await saveDbToIndexedDB(db);
-    console.log("Produit ajouté : ID =", id, ", Référence =", ref, ", Code-barres =", finalBar);
-    return { statut: "Item ajouté", id, ref, bar: finalBar, status: 201 };
+      // Generate unique barcode if not provided
+      let finalBar = bar || null;
+      if (!bar) {
+        const code12 = `1${nextNumber.toString().padStart(11, '0')}`;
+        const checkDigit = calculateEan13CheckDigit(code12);
+        finalBar = `${code12}${checkDigit}`;
+        
+        // Verify generated barcode uniqueness
+        const stmtCheckBar = db.prepare('SELECT 1 FROM item WHERE bar = ?');
+        stmtCheckBar.step([finalBar]);
+        const barExists = stmtCheckBar.get();
+        stmtCheckBar.free();
+        if (barExists) {
+          console.error("Erreur : Le code EAN-13 généré existe déjà");
+          db.run('ROLLBACK');
+          return { erreur: "Le code EAN-13 généré existe déjà", status: 409 };
+        }
+      }
+
+      // Insert item
+      const stmtInsert = db.prepare(`
+        INSERT INTO item (designation, bar, prix, qte, prixba, ref)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `);
+      stmtInsert.run([designation, finalBar, toCommaDecimal(prixFloat), qteInt, prixbaStr, generatedRef]);
+      stmtInsert.free();
+
+      // Get inserted ID
+      const idStmt = db.prepare('SELECT last_insert_rowid() AS id');
+      idStmt.step();
+      const { id } = idStmt.getAsObject();
+      idStmt.free();
+
+      // Commit transaction
+      db.run('COMMIT');
+
+      await saveDbToIndexedDB(db);
+      console.log("Produit ajouté : ID =", id, ", Référence =", generatedRef, ", Code-barres =", finalBar || 'aucun');
+      return { statut: "Item ajouté", id, ref: generatedRef, bar: finalBar || 'aucun', status: 201 };
+    } catch (error) {
+      db.run('ROLLBACK');
+      throw error;
+    }
   } catch (error) {
     console.error("Erreur ajouterItem :", error);
     return { erreur: error.message, status: 500 };
   }
 }
+
 
 export async function modifierClient(numero_clt, data) {
   try {
