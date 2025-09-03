@@ -11,15 +11,14 @@ function toCommaDecimal(value) {
   return value.toFixed(2).replace('.', ',');
 }
 
-// Fonction pour calculer le chiffre de contrôle EAN-13
+// Calculate EAN-13 check digit
 function calculateEan13CheckDigit(code12) {
   const digits = code12.split('').map(Number);
-  let sum = 0;
-  for (let i = 0; i < 12; i++) {
-    sum += (i % 2 === 0) ? digits[i] : digits[i] * 3;
-  }
-  const mod = sum % 10;
-  return mod === 0 ? 0 : 10 - mod;
+  const oddSum = digits.filter((_, i) => i % 2 === 0).reduce((sum, d) => sum + d, 0);
+  const evenSum = digits.filter((_, i) => i % 2 === 1).reduce((sum, d) => sum + d, 0);
+  const total = oddSum * 3 + evenSum;
+  const nextMultipleOf10 = Math.ceil(total / 10) * 10;
+  return nextMultipleOf10 - total;
 }
 
 async function saveDbToIndexedDB(db) {
@@ -329,8 +328,6 @@ export async function ajouterUtilisateur(data) {
 }
 
 
-
-
 export async function ajouterItem(data) {
   try {
     console.log("Exécution de ajouterItem avec data :", data);
@@ -356,10 +353,10 @@ export async function ajouterItem(data) {
     db.run('BEGIN TRANSACTION');
 
     try {
-      // Clean up problematic entries
-      const stmtClean = db.prepare('DELETE FROM item WHERE bar = ? OR bar IS NULL OR bar = ?');
-      stmtClean.run(['TEMP_BAR', '']);
-      stmtClean.free();
+      // Clean up any residual TEMP_BAR entries
+      const stmtCleanTemp = db.prepare('DELETE FROM item WHERE bar = ?');
+      stmtCleanTemp.run(['TEMP_BAR']);
+      stmtCleanTemp.free();
 
       // Check barcode uniqueness if provided
       if (bar) {
@@ -390,24 +387,14 @@ export async function ajouterItem(data) {
       // Generate unique barcode if not provided
       let finalBar = bar || null;
       if (!bar) {
-        // Get all existing barcodes starting with '20' to find the next number
-        const stmtBars = db.prepare('SELECT bar FROM item WHERE bar LIKE "20%"');
-        const bars = [];
-        while (stmtBars.step()) {
-          const { bar } = stmtBars.getAsObject();
-          if (bar && bar.match(/^20\d{11}$/)) {
-            bars.push(parseInt(bar.slice(2, 12)));
-          }
-        }
-        stmtBars.free();
-        let nextBarNumber = bars.length > 0 ? Math.max(...bars) + 1 : 1;
-
-        // Generate and verify unique barcode
+        // Use a different prefix to avoid conflicts with existing barcodes
+        let nextBarNumber = nextRefNumber;
         let barExists = true;
         while (barExists) {
-          const code12 = `20${nextBarNumber.toString().padStart(10, '0')}`;
+          const code12 = `2${nextBarNumber.toString().padStart(11, '0')}`;
           const checkDigit = calculateEan13CheckDigit(code12);
           finalBar = `${code12}${checkDigit}`;
+          
           const stmtCheckBar = db.prepare('SELECT 1 FROM item WHERE bar = ?');
           stmtCheckBar.step([finalBar]);
           barExists = !!stmtCheckBar.get();
