@@ -1,5 +1,26 @@
 import { getDb } from './db.js';
 
+// Utility functions for decimal conversion
+function toDotDecimal(value) {
+  if (!value || typeof value !== 'string') return 0.0;
+  return parseFloat(value.replace(',', '.').replace(/[^0-9.]/g, '')) || 0.0;
+}
+
+function toCommaDecimal(value) {
+  if (value == null || isNaN(value)) return '0,00';
+  return value.toFixed(2).replace('.', ',');
+}
+
+// Calculate EAN-13 check digit
+function calculateEan13CheckDigit(code12) {
+  const digits = code12.split('').map(Number);
+  const oddSum = digits.filter((_, i) => i % 2 === 0).reduce((sum, d) => sum + d, 0);
+  const evenSum = digits.filter((_, i) => i % 2 === 1).reduce((sum, d) => sum + d, 0);
+  const total = oddSum * 3 + evenSum;
+  const nextMultipleOf10 = Math.ceil(total / 10) * 10;
+  return nextMultipleOf10 - total;
+}
+
 async function saveDbToIndexedDB(db) {
   console.log("Sauvegarde de la base dans IndexedDB...");
   try {
@@ -149,6 +170,49 @@ export async function listeUtilisateurs() {
   }
 }
 
+export async function listeProduits() {
+  try {
+    console.log("Exécution de listeProduits...");
+    const db = await getDb();
+    const stmtInfo = db.prepare("PRAGMA table_info(item)");
+    const columns = [];
+    while (stmtInfo.step()) {
+      columns.push(stmtInfo.getAsObject().name);
+    }
+    stmtInfo.free();
+    console.log("Colonnes de la table item :", columns);
+
+    const stmt = db.prepare('SELECT numero_item, bar, designation, qte, prix, prixba, ref FROM item ORDER BY designation');
+    const produits = [];
+    while (stmt.step()) {
+      const row = stmt.get();
+      console.log("Produit brut récupéré :", row);
+      const prixFloat = toDotDecimal(row[4]);
+      const prixbaFloat = toDotDecimal(row[5]);
+      produits.push({
+        numero_item: row[0] !== null ? row[0] : '',
+        bar: row[1] !== null ? row[1] : '',
+        designation: row[2] !== null ? row[2] : '',
+        qte: row[3] !== null ? parseInt(row[3]) : 0,
+        prix: row[4] !== null ? row[4] : '0,00',
+        prixba: row[5] !== null ? row[5] : '0,00',
+        ref: row[6] !== null ? row[6] : '',
+        prix_num: prixFloat,
+        prixba_num: prixbaFloat,
+        prix_fmt: toCommaDecimal(prixFloat),
+        prixba_fmt: toCommaDecimal(prixbaFloat),
+        qte_fmt: `${parseInt(row[3]) || 0}`
+      });
+    }
+    stmt.free();
+    console.log("Produits formatés retournés :", produits);
+    return produits;
+  } catch (error) {
+    console.error("Erreur listeProduits :", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
 export async function ajouterClient(data) {
   try {
     console.log("Exécution de ajouterClient avec data :", data);
@@ -263,6 +327,108 @@ export async function ajouterUtilisateur(data) {
   }
 }
 
+export async function ajouterItem(data) {
+  try {
+    console.log("Exécution de ajouterItem avec data :", data);
+    const db = await getDb();
+    const { designation, bar, prix, qte, prixba } = data;
+
+    if (!designation || prix == null || qte == null) {
+      console.error("Erreur : Champs obligatoires manquants (designation, prix, qte)");
+      return { erreur: "Champs obligatoires manquants (designation, prix, qte)", status: 400 };
+    }
+
+    const prixFloat = toDotDecimal(prix);
+    const qteInt = parseInt(qte) || 0;
+    const prixbaStr = prixba != null ? toCommaDecimal(toDotDecimal(prixba)) : '0,00';
+
+    if (prixFloat < 0 || qteInt < 0) {
+      console.error("Erreur : Le prix et la quantité doivent être positifs");
+      return { erreur: "Le prix et la quantité doivent être positifs", status: 400 };
+    }
+
+    // Check barcode uniqueness
+    if (bar) {
+      const stmtBar = db.prepare('SELECT 1 FROM item WHERE bar = ?');
+      stmtBar.step([bar]);
+      const exists = stmtBar.get();
+      stmtBar.free();
+      if (exists) {
+        console.error("Erreur : Ce code-barres existe déjà");
+        return { erreur: "Ce code-barres existe déjà", status: 409 };
+      }
+      // Note: Skipping codebar table check as it’s not in the schema
+    }
+
+    // Find next available number for ref and bar
+    const stmtItems = db.prepare('SELECT ref, bar FROM item ORDER BY ref');
+    const items = [];
+    while (stmtItems.step()) {
+      items.push(stmtItems.getAsObject());
+    }
+    stmtItems.free();
+
+    const usedNumbers = items.map(item => {
+      const refNum = item.ref && item.ref.startsWith('P') && item.ref.slice(1).match(/^\d+$/) ? parseInt(item.ref.slice(1)) : 0;
+      const barNum = item.bar && item.bar.startsWith('1') && item.bar.length === 13 && item.bar.slice(1, 12).match(/^\d+$/) ? parseInt(item.bar.slice(1, 12)) : 0;
+      return Math.max(refNum, barNum);
+    });
+    let nextNumber = 1;
+    const sortedNumbers = [...new Set(usedNumbers)].sort((a, b) => a - b);
+    for (const num of sortedNumbers) {
+      if (num === nextNumber) {
+        nextNumber++;
+      } else if (num > nextNumber) {
+        break;
+      }
+    }
+    const ref = `P${nextNumber}`;
+
+    let finalBar = bar || 'TEMP_BAR';
+    const stmtInsert = db.prepare(`
+      INSERT INTO item (
+        designation, bar, prix, qte, prixba, ref, gere, prixb, tva, disponible, tvav, prixvh, qtea
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    stmtInsert.run([
+      designation, finalBar, toCommaDecimal(prixFloat), qteInt, prixbaStr, ref,
+      true, prixbaStr, 0, true, '0', toCommaDecimal(prixFloat), 0
+    ]);
+    stmtInsert.free();
+
+    const idStmt = db.prepare("SELECT last_insert_rowid() AS id");
+    idStmt.step();
+    const { id } = idStmt.getAsObject();
+    idStmt.free();
+
+    if (!bar) {
+      const code12 = `1${nextNumber.toString().padStart(11, '0')}`;
+      const checkDigit = calculateEan13CheckDigit(code12);
+      finalBar = `${code12}${checkDigit}`;
+
+      const stmtCheckBar = db.prepare('SELECT 1 FROM item WHERE bar = ? AND numero_item != ?');
+      stmtCheckBar.step([finalBar, id]);
+      const barExists = stmtCheckBar.get();
+      stmtCheckBar.free();
+      if (barExists) {
+        console.error("Erreur : Le code EAN-13 généré existe déjà");
+        return { erreur: "Le code EAN-13 généré existe déjà", status: 409 };
+      }
+
+      const stmtUpdate = db.prepare('UPDATE item SET bar = ? WHERE numero_item = ?');
+      stmtUpdate.run([finalBar, id]);
+      stmtUpdate.free();
+    }
+
+    await saveDbToIndexedDB(db);
+    console.log("Produit ajouté : ID =", id, ", Référence =", ref, ", Code-barres =", finalBar);
+    return { statut: "Item ajouté", id, ref, bar: finalBar, status: 201 };
+  } catch (error) {
+    console.error("Erreur ajouterItem :", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
 export async function modifierClient(numero_clt, data) {
   try {
     console.log("Exécution de modifierClient :", numero_clt, data);
@@ -362,6 +528,67 @@ export async function modifierUtilisateur(numero_util, data) {
   }
 }
 
+export async function modifierItem(numero_item, data) {
+  try {
+    console.log("Exécution de modifierItem :", numero_item, data);
+    const db = await getDb();
+    const { designation, bar, prix, qte, prixba } = data;
+
+    if (!designation || !bar || prix == null || qte == null) {
+      console.error("Erreur : Champs obligatoires manquants (designation, bar, prix, qte)");
+      return { erreur: "Champs obligatoires manquants (designation, bar, prix, qte)", status: 400 };
+    }
+
+    const prixFloat = toDotDecimal(prix);
+    const qteFloat = parseFloat(qte) || 0;
+    const prixbaStr = prixba != null ? toCommaDecimal(toDotDecimal(prixba)) : '0,00';
+
+    if (prixFloat < 0 || qteFloat < 0) {
+      console.error("Erreur : Le prix et la quantité doivent être positifs");
+      return { erreur: "Le prix et la quantité doivent être positifs", status: 400 };
+    }
+
+    const stmtCheck = db.prepare('SELECT 1 FROM item WHERE numero_item = ?');
+    stmtCheck.step([numero_item]);
+    const exists = stmtCheck.get();
+    stmtCheck.free();
+    if (!exists) {
+      console.error("Erreur : Produit non trouvé");
+      return { erreur: "Produit non trouvé", status: 404 };
+    }
+
+    const stmtBar = db.prepare('SELECT 1 FROM item WHERE bar = ? AND numero_item != ?');
+    stmtBar.step([bar, numero_item]);
+    const barExists = stmtBar.get();
+    stmtBar.free();
+    if (barExists) {
+      console.error("Erreur : Ce code-barres est déjà utilisé par un autre produit");
+      return { erreur: "Ce code-barres est déjà utilisé par un autre produit", status: 409 };
+    }
+
+    const stmt = db.prepare(`
+      UPDATE item SET 
+        designation = ?, bar = ?, prix = ?, qte = ?, prixba = ?, prixb = ?, prixvh = ? 
+      WHERE numero_item = ?
+    `);
+    stmt.run([designation, bar, toCommaDecimal(prixFloat), qteFloat, prixbaStr, prixbaStr, toCommaDecimal(prixFloat), numero_item]);
+    const changes = db.getRowsModified();
+    stmt.free();
+
+    if (changes === 0) {
+      console.error("Erreur : Produit non trouvé");
+      return { erreur: "Produit non trouvé", status: 404 };
+    }
+
+    await saveDbToIndexedDB(db);
+    console.log("Produit modifié : changements =", changes);
+    return { statut: "Produit modifié", numero_item, qte: qteFloat, status: 200 };
+  } catch (error) {
+    console.error("Erreur modifierItem :", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
 export async function supprimerClient(numero_clt) {
   try {
     console.log("Exécution de supprimerClient :", numero_clt);
@@ -427,6 +654,29 @@ export async function supprimerUtilisateur(numero_util) {
     return { statut: "Utilisateur supprimé", status: 200 };
   } catch (error) {
     console.error("Erreur supprimerUtilisateur :", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+export async function supprimerItem(numero_item) {
+  try {
+    console.log("Exécution de supprimerItem :", numero_item);
+    const db = await getDb();
+    const stmt = db.prepare('DELETE FROM item WHERE numero_item = ?');
+    stmt.run([numero_item]);
+    const changes = db.getRowsModified();
+    stmt.free();
+
+    if (changes === 0) {
+      console.error("Erreur : Produit non trouvé");
+      return { erreur: "Produit non trouvé", status: 404 };
+    }
+
+    await saveDbToIndexedDB(db);
+    console.log("Produit supprimé : changements =", changes);
+    return { statut: "Produit supprimé", status: 200 };
+  } catch (error) {
+    console.error("Erreur supprimerItem :", error);
     return { erreur: error.message, status: 500 };
   }
 }
