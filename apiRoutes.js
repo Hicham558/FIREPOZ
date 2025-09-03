@@ -327,7 +327,6 @@ export async function ajouterUtilisateur(data) {
   }
 }
 
-
 export async function ajouterItem(data) {
   try {
     console.log("Exécution de ajouterItem avec data :", data);
@@ -353,11 +352,6 @@ export async function ajouterItem(data) {
     db.run('BEGIN TRANSACTION');
 
     try {
-      // Clean up any residual TEMP_BAR entries
-      const stmtCleanTemp = db.prepare('DELETE FROM item WHERE bar = ?');
-      stmtCleanTemp.run(['TEMP_BAR']);
-      stmtCleanTemp.free();
-
       // Check barcode uniqueness if provided
       if (bar) {
         const stmtBar = db.prepare('SELECT 1 FROM item WHERE bar = ?');
@@ -381,27 +375,25 @@ export async function ajouterItem(data) {
         }
       }
       stmtRefs.free();
-      const nextRefNumber = refs.length > 0 ? Math.max(...refs) + 1 : 1;
-      const generatedRef = `P${nextRefNumber}`;
+      const nextNumber = refs.length > 0 ? Math.max(...refs) + 1 : 1;
+      const generatedRef = `P${nextNumber}`;
 
       // Generate unique barcode if not provided
       let finalBar = bar || null;
       if (!bar) {
-        // Use a different prefix to avoid conflicts with existing barcodes
-        let nextBarNumber = nextRefNumber;
-        let barExists = true;
-        while (barExists) {
-          const code12 = `2${nextBarNumber.toString().padStart(11, '0')}`;
-          const checkDigit = calculateEan13CheckDigit(code12);
-          finalBar = `${code12}${checkDigit}`;
-          
-          const stmtCheckBar = db.prepare('SELECT 1 FROM item WHERE bar = ?');
-          stmtCheckBar.step([finalBar]);
-          barExists = !!stmtCheckBar.get();
-          stmtCheckBar.free();
-          if (barExists) {
-            nextBarNumber++;
-          }
+        const code12 = `1${nextNumber.toString().padStart(11, '0')}`;
+        const checkDigit = calculateEan13CheckDigit(code12);
+        finalBar = `${code12}${checkDigit}`;
+        
+        // Verify generated barcode uniqueness
+        const stmtCheckBar = db.prepare('SELECT 1 FROM item WHERE bar = ?');
+        stmtCheckBar.step([finalBar]);
+        const barExists = stmtCheckBar.get();
+        stmtCheckBar.free();
+        if (barExists) {
+          console.error("Erreur : Le code EAN-13 généré existe déjà");
+          db.run('ROLLBACK');
+          return { erreur: "Le code EAN-13 généré existe déjà", status: 409 };
         }
       }
 
@@ -434,6 +426,7 @@ export async function ajouterItem(data) {
     return { erreur: error.message, status: 500 };
   }
 }
+
 
 export async function modifierClient(numero_clt, data) {
   try {
