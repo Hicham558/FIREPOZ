@@ -1,5 +1,3 @@
-import initSqlJs from 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.min.js';
-
 let db = null;
 
 export async function getDb() {
@@ -9,16 +7,21 @@ export async function getDb() {
     return db;
   }
 
-  const SQL = await initSqlJs({
+  // Use global initSqlJs from sql-wasm.min.js (loaded in index.html)
+  if (!window.initSqlJs) {
+    throw new Error("initSqlJs is not available. Ensure sql-wasm.min.js is loaded.");
+  }
+
+  const SQL = await window.initSqlJs({
     locateFile: () => 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.wasm'
   });
   console.log("sql.js initialisé");
 
-  // 1. Essayer de charger depuis IndexedDB
+  // 1. Try loading from IndexedDB
   try {
     console.log("Tentative de chargement depuis IndexedDB...");
     const request = indexedDB.open('gestionDB', 1);
-    
+
     request.onupgradeneeded = event => {
       console.log("Création/mise à jour du schéma IndexedDB");
       event.target.result.createObjectStore('databases', { keyPath: 'name' });
@@ -47,7 +50,7 @@ export async function getDb() {
     if (dbBinary) {
       db = new SQL.Database(new Uint8Array(dbBinary));
       console.log("Base de données chargée depuis IndexedDB");
-      // Vérifier les tables
+      // Verify tables
       const tables = db.exec("SELECT name FROM sqlite_master WHERE type='table';");
       console.log("Tables trouvées dans la base IndexedDB :", tables[0]?.values?.map(row => row[0]) || []);
       return db;
@@ -56,7 +59,7 @@ export async function getDb() {
     console.error("Erreur lors du chargement depuis IndexedDB :", error);
   }
 
-  // 2. Fallback : charger depuis gestion.db
+  // 2. Fallback: load from gestion.db
   console.log("Chargement depuis ./gestion.db...");
   const response = await fetch('./gestion.db');
   if (!response.ok) {
@@ -68,7 +71,7 @@ export async function getDb() {
   db = new SQL.Database(new Uint8Array(arrayBuffer));
   console.log("Base de données initialisée depuis gestion.db");
 
-  // Vérifier les tables
+  // Verify tables
   const tables = db.exec("SELECT name FROM sqlite_master WHERE type='table';");
   console.log("Tables trouvées dans la base :", tables[0]?.values?.map(row => row[0]) || []);
 
