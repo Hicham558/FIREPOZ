@@ -24,7 +24,10 @@ export async function getDb() {
 
     request.onupgradeneeded = event => {
       console.log("Création/mise à jour du schéma IndexedDB");
-      event.target.result.createObjectStore('databases', { keyPath: 'name' });
+      const idb = event.target.result;
+      if (!idb.objectStoreNames.contains('databases')) {
+        idb.createObjectStore('databases', { keyPath: 'name' });
+      }
     };
 
     const dbBinary = await new Promise((resolve, reject) => {
@@ -34,11 +37,11 @@ export async function getDb() {
         const store = transaction.objectStore('databases');
         const getRequest = store.get('gestion.db');
         getRequest.onsuccess = () => {
-          if (getRequest.result) {
+          if (getRequest.result && getRequest.result.data instanceof ArrayBuffer) {
             console.log("Base de données trouvée dans IndexedDB, taille :", getRequest.result.data.byteLength, "octets");
             resolve(getRequest.result.data);
           } else {
-            console.log("Aucune base trouvée dans IndexedDB");
+            console.log("Aucune base valide trouvée dans IndexedDB (résultat :", getRequest.result, ")");
             resolve(null);
           }
         };
