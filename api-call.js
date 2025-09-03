@@ -8,3 +8,4 @@ export async function apiCall(url, options = {}) {
   }
   return fetch(API_BASE_URL + url, options);
 }
+window.apiCall = apiCall;
