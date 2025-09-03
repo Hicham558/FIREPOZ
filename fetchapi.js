@@ -15,7 +15,8 @@ import {
   supprimerClient,
   supprimerFournisseur,
   supprimerUtilisateur,
-  supprimerItem
+  supprimerItem,
+  dashboard
 } from './apiRoutes.js';
 
 export async function fetchApi(url, options = {}) {
@@ -65,6 +66,15 @@ export async function fetchApi(url, options = {}) {
     const produits = await listeProduits();
     console.log("Résultat listeProduits:", produits);
     return { ok: !produits.erreur, json: async () => produits };
+  }
+
+  if (url.startsWith('/dashboard') && method === 'GET') {
+    const urlParams = new URLSearchParams(url.split('?')[1] || '');
+    const period = urlParams.get('period') || 'day';
+    console.log("Appel de dashboard avec period:", period);
+    const res = await dashboard(period);
+    console.log("Résultat dashboard:", res);
+    return { ok: !res.erreur, json: async () => res };
   }
 
   // ---------------------- AJOUT ----------------------
