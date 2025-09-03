@@ -2,7 +2,7 @@ import { fetchApi } from './fetchApi.js';
 
 export async function apiCall(url, options = {}) {
   const API_BASE_URL = localStorage.getItem('apiBaseUrl') || '';
-  if (API_BASE_URL === '') {
+  if (API_BASE_URL === 'localhostDB') {
     const finalUrl = url.startsWith('/') ? url : `/${url}`;
     return fetchApi(finalUrl, options);
   }
