@@ -2,16 +2,20 @@ import {
   listeClients, 
   listeFournisseurs, 
   listeTables, 
-  ajouterClient, 
-  modifierClient, 
-  supprimerClient,
-  ajouterFournisseur,
-  modifierFournisseur,
-  supprimerFournisseur,
   listeUtilisateurs,
+  listeProduits,
+  ajouterClient, 
+  ajouterFournisseur,
   ajouterUtilisateur,
+  ajouterItem,
+  modifierClient, 
+  modifierFournisseur,
   modifierUtilisateur,
-  supprimerUtilisateur
+  modifierItem,
+  supprimerClient,
+  supprimerFournisseur,
+  supprimerUtilisateur,
+  supprimerItem
 } from './apiRoutes.js';
 
 export async function fetchApi(url, options = {}) {
@@ -56,6 +60,13 @@ export async function fetchApi(url, options = {}) {
     return { ok: !utilisateurs.erreur, json: async () => utilisateurs };
   }
 
+  if (url === '/liste_produits' && method === 'GET') {
+    console.log("Appel de listeProduits");
+    const produits = await listeProduits();
+    console.log("Résultat listeProduits:", produits);
+    return { ok: !produits.erreur, json: async () => produits };
+  }
+
   // ---------------------- AJOUT ----------------------
   if (url === '/ajouter_client' && method === 'POST') {
     const data = JSON.parse(options.body || "{}");
@@ -78,6 +89,14 @@ export async function fetchApi(url, options = {}) {
     console.log("Appel de ajouterUtilisateur avec data:", data);
     const res = await ajouterUtilisateur(data);
     console.log("Résultat ajouterUtilisateur:", res);
+    return { ok: !res.erreur, json: async () => res };
+  }
+
+  if (url === '/ajouter_item' && method === 'POST') {
+    const data = JSON.parse(options.body || "{}");
+    console.log("Appel de ajouterItem avec data:", data);
+    const res = await ajouterItem(data);
+    console.log("Résultat ajouterItem:", res);
     return { ok: !res.erreur, json: async () => res };
   }
 
@@ -109,6 +128,15 @@ export async function fetchApi(url, options = {}) {
     return { ok: !res.erreur, json: async () => res };
   }
 
+  if (url.startsWith('/modifier_item/') && method === 'PUT') {
+    const numero_item = url.split('/').pop();
+    const data = JSON.parse(options.body || "{}");
+    console.log("Appel de modifierItem avec numero_item:", numero_item, "data:", data);
+    const res = await modifierItem(numero_item, data);
+    console.log("Résultat modifierItem:", res);
+    return { ok: !res.erreur, json: async () => res };
+  }
+
   // ---------------------- SUPPRESSION ----------------------
   if (url.startsWith('/supprimer_client/') && method === 'DELETE') {
     const numero_clt = url.split('/').pop();
@@ -131,6 +159,14 @@ export async function fetchApi(url, options = {}) {
     console.log("Appel de supprimerUtilisateur avec numero_util:", numero_util);
     const res = await supprimerUtilisateur(numero_util);
     console.log("Résultat supprimerUtilisateur:", res);
+    return { ok: !res.erreur, json: async () => res };
+  }
+
+  if (url.startsWith('/supprimer_item/') && method === 'DELETE') {
+    const numero_item = url.split('/').pop();
+    console.log("Appel de supprimerItem avec numero_item:", numero_item);
+    const res = await supprimerItem(numero_item);
+    console.log("Résultat supprimerItem:", res);
     return { ok: !res.erreur, json: async () => res };
   }
 
