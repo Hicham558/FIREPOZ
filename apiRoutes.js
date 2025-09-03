@@ -51,7 +51,6 @@ export async function listeClients() {
   try {
     console.log("Exécution de listeClients...");
     const db = await getDb();
-    // Vérifier les colonnes de la table
     const stmtInfo = db.prepare("PRAGMA table_info(client)");
     const columns = [];
     while (stmtInfo.step()) {
@@ -64,10 +63,7 @@ export async function listeClients() {
     const clients = [];
     while (stmt.step()) {
       const row = stmt.get();
-      console.log("Client brut récupéré (stmt.get) :", row);
-      // Tester getAsObject comme alternative
-      const rowObj = stmt.getAsObject();
-      console.log("Client brut récupéré (stmt.getAsObject) :", rowObj);
+      console.log("Client brut récupéré :", row);
       clients.push({
         numero_clt: row[0] !== null ? row[0] : '',
         nom: row[1] !== null ? row[1] : '',
@@ -90,7 +86,6 @@ export async function listeFournisseurs() {
   try {
     console.log("Exécution de listeFournisseurs...");
     const db = await getDb();
-    // Vérifier les colonnes de la table
     const stmtInfo = db.prepare("PRAGMA table_info(fournisseur)");
     const columns = [];
     while (stmtInfo.step()) {
@@ -103,10 +98,7 @@ export async function listeFournisseurs() {
     const fournisseurs = [];
     while (stmt.step()) {
       const row = stmt.get();
-      console.log("Fournisseur brut récupéré (stmt.get) :", row);
-      // Tester getAsObject comme alternative
-      const rowObj = stmt.getAsObject();
-      console.log("Fournisseur brut récupéré (stmt.getAsObject) :", rowObj);
+      console.log("Fournisseur brut récupéré :", row);
       fournisseurs.push({
         numero_fou: row[0] !== null ? row[0] : '',
         nom: row[1] !== null ? row[1] : '',
@@ -126,77 +118,101 @@ export async function listeFournisseurs() {
 }
 
 export async function ajouterClient(data) {
-  const db = await getDb();
-  const { nom, contact, adresse } = data;
+  try {
+    console.log("Exécution de ajouterClient avec data :", data);
+    const db = await getDb();
+    const { nom, contact, adresse } = data;
 
-  if (!nom) {
-    console.log("Erreur : Le champ nom est obligatoire");
-    return { erreur: "Le champ nom est obligatoire" };
+    if (!nom) {
+      console.error("Erreur : Le champ nom est obligatoire");
+      return { erreur: "Le champ nom est obligatoire" };
+    }
+
+    const countStmt = db.prepare("SELECT COUNT(*) AS total FROM client");
+    countStmt.step();
+    const { total } = countStmt.getAsObject();
+    countStmt.free();
+
+    const reference = `C${total + 1}`;
+    const solde = "0,00";
+
+    const stmt = db.prepare(
+      "INSERT INTO client (nom, solde, reference, contact, adresse) VALUES (?, ?, ?, ?, ?)"
+    );
+    stmt.run([nom, solde, reference, contact || null, adresse || null]);
+    stmt.free();
+
+    const idStmt = db.prepare("SELECT last_insert_rowid() AS id");
+    idStmt.step();
+    const { id } = idStmt.getAsObject();
+    idStmt.free();
+
+    await saveDbToIndexedDB(db);
+    console.log("Client ajouté : ID =", id, ", Référence =", reference);
+    return { statut: "Client ajouté", id, reference };
+  } catch (error) {
+    console.error("Erreur ajouterClient :", error);
+    return { erreur: error.message };
   }
+}
 
-  const countStmt = db.prepare("SELECT COUNT(*) AS total FROM client");
-  countStmt.step();
-  const { total } = countStmt.getAsObject();
-  countStmt.free();
+export async function ajouterFournisseur(data) {
+  try {
+    console.log("Exécution de ajouterFournisseur avec data :", data);
+    const db = await getDb();
+    const { nom, contact, adresse } = data;
 
-  const reference = `C${total + 1}`;
-  const solde = "0,00";
+    if (!nom) {
+      console.error("Erreur : Le champ nom est obligatoire");
+      return { erreur: "Le champ nom est obligatoire" };
+    }
 
-  db.run(
-    "INSERT INTO client (nom, solde, reference, contact, adresse) VALUES (?, ?, ?, ?, ?)",
-    [nom, solde, reference, contact, adresse]
-  );
+    const countStmt = db.prepare("SELECT COUNT(*) AS total FROM fournisseur");
+    countStmt.step();
+    const { total } = countStmt.getAsObject();
+    countStmt.free();
 
-  const idStmt = db.prepare("SELECT last_insert_rowid() AS id");
-  idStmt.step();
-  const { id } = idStmt.getAsObject();
-  idStmt.free();
+    const reference = `F${total + 1}`;
+    const solde = "0,00";
 
-  await saveDbToIndexedDB(db); // Sauvegarder après ajout
+    const stmt = db.prepare(
+      "INSERT INTO fournisseur (nom, solde, reference, contact, adresse) VALUES (?, ?, ?, ?, ?)"
+    );
+    stmt.run([nom, solde, reference, contact || null, adresse || null]);
+    stmt.free();
 
-  console.log("Client ajouté : ID =", id, ", Référence =", reference);
-  return { statut: "Client ajouté", id, reference }; // id est numero_clt
-}export async function ajouterFournisseur(data) {
-  const db = await getDb();
-  const { nom, contact, adresse } = data;
+    const idStmt = db.prepare("SELECT last_insert_rowid() AS id");
+    idStmt.step();
+    const { id } = idStmt.getAsObject();
+    idStmt.free();
 
-  if (!nom) {
-    console.log("Erreur : Le champ nom est obligatoire");
-    return { erreur: "Le champ nom est obligatoire" };
+    await saveDbToIndexedDB(db);
+    console.log("Fournisseur ajouté : ID =", id, ", Référence =", reference);
+    return { statut: "Fournisseur ajouté", id, reference };
+  } catch (error) {
+    console.error("Erreur ajouterFournisseur :", error);
+    return { erreur: error.message };
   }
-
-  const countStmt = db.prepare("SELECT COUNT(*) AS total FROM fournisseur");
-  countStmt.step();
-  const { total } = countStmt.getAsObject();
-  countStmt.free();
-
-  const reference = `F${total + 1}`;
-  const solde = "0,00";
-
-  db.run(
-    "INSERT INTO fournisseur (nom, solde, reference, contact, adresse) VALUES (?, ?, ?, ?, ?)",
-    [nom, solde, reference, contact, adresse]
-  );
-
-  const idStmt = db.prepare("SELECT last_insert_rowid() AS id");
-  idStmt.step();
-  const { id } = idStmt.getAsObject();
-  idStmt.free();
-
-  await saveDbToIndexedDB(db); // Sauvegarder après ajout
-
-  console.log("Fournisseur ajouté : ID =", id, ", Référence =", reference);
-  return { statut: "Fournisseur ajouté", id, reference }; // id est numero_fou
 }
 
 export async function modifierClient(numero_clt, data) {
   try {
     console.log("Exécution de modifierClient :", numero_clt, data);
     const db = await getDb();
-    const stmt = db.prepare('UPDATE client SET nom = ?, contact = ?, adresse = ? WHERE numero_clt = ?');
-    stmt.run([data.nom, data.contact || null, data.adresse || null, numero_clt]);
+    const { nom, contact, adresse } = data;
+
+    if (!nom) {
+      console.error("Erreur : Le champ nom est obligatoire");
+      return { erreur: "Le champ nom est obligatoire" };
+    }
+
+    const stmt = db.prepare(
+      'UPDATE client SET nom = ?, contact = ?, adresse = ? WHERE numero_clt = ?'
+    );
+    stmt.run([nom, contact || null, adresse || null, numero_clt]);
     const changes = db.getRowsModified();
     stmt.free();
+
     await saveDbToIndexedDB(db);
     console.log("Client modifié : changements =", changes);
     return { statut: changes > 0 ? 'Client modifié' : 'Aucun client modifié' };
@@ -210,10 +226,20 @@ export async function modifierFournisseur(numero_fou, data) {
   try {
     console.log("Exécution de modifierFournisseur :", numero_fou, data);
     const db = await getDb();
-    const stmt = db.prepare('UPDATE fournisseur SET nom = ?, contact = ?, adresse = ? WHERE numero_fou = ?');
-    stmt.run([data.nom, data.contact || null, data.adresse || null, numero_fou]);
+    const { nom, contact, adresse } = data;
+
+    if (!nom) {
+      console.error("Erreur : Le champ nom est obligatoire");
+      return { erreur: "Le champ nom est obligatoire" };
+    }
+
+    const stmt = db.prepare(
+      'UPDATE fournisseur SET nom = ?, contact = ?, adresse = ? WHERE numero_fou = ?'
+    );
+    stmt.run([nom, contact || null, adresse || null, numero_fou]);
     const changes = db.getRowsModified();
     stmt.free();
+
     await saveDbToIndexedDB(db);
     console.log("Fournisseur modifié : changements =", changes);
     return { statut: changes > 0 ? 'Fournisseur modifié' : 'Aucun fournisseur modifié' };
@@ -231,6 +257,7 @@ export async function supprimerClient(numero_clt) {
     stmt.run([numero_clt]);
     const changes = db.getRowsModified();
     stmt.free();
+
     await saveDbToIndexedDB(db);
     console.log("Client supprimé : changements =", changes);
     return { statut: changes > 0 ? 'Client supprimé' : 'Aucun client supprimé' };
@@ -248,6 +275,7 @@ export async function supprimerFournisseur(numero_fou) {
     stmt.run([numero_fou]);
     const changes = db.getRowsModified();
     stmt.free();
+
     await saveDbToIndexedDB(db);
     console.log("Fournisseur supprimé : changements =", changes);
     return { statut: changes > 0 ? 'Fournisseur supprimé' : 'Aucun fournisseur supprimé' };
