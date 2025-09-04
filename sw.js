@@ -5,7 +5,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
   // On n’intercepte que les appels vers "localhostDB"
-  if (url.origin.includes("localhostDB")) {
+  if (url.origin.includes("http://localhostdb")) {
     event.respondWith(handleRequest(url, event.request));
   }
 });
