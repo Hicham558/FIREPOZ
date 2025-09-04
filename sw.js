@@ -1,53 +1,135 @@
-const CACHE_NAME = 'firepoz-cache-v3'; // CHANGE le numéro à chaque mise à jour
+// sw.js
+importScripts('./apiRoutes.js');
 
-const urlsToCache = [
-  './index.html',
-  './achat.html',
-  './vente.html',
-  './page1.html',
-  './page2.html',
-'./map.html','./venteold.html',
-  './HISTO.html',
-  './PARAM.html',
-  './HELP.html',
-  './manifest.json',
-  './icon.png'
-];
+self.addEventListener("fetch", (event) => {
+  const url = new URL(event.request.url);
 
-// Installation et mise en cache
-self.addEventListener('install', event => {
-  console.log('[SW] Install');
-  self.skipWaiting(); // Active immédiatement la nouvelle version
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      console.log('[SW] Mise en cache');
-      return cache.addAll(urlsToCache);
-    })
-  );
+  // On n’intercepte que les appels vers "localhostDB"
+  if (url.origin.includes("localhostDB")) {
+    event.respondWith(handleRequest(url, event.request));
+  }
 });
 
-// Activation et suppression des anciens caches
-self.addEventListener('activate', event => {
-  console.log('[SW] Activate');
-  event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.map(name => {
-          if (name !== CACHE_NAME) {
-            console.log('[SW] Suppression ancien cache:', name);
-            return caches.delete(name);
-          }
-        })
-      );
-    }).then(() => self.clients.claim())
-  );
-});
+async function handleRequest(url, request) {
+  const method = request.method.toUpperCase();
+  const path = url.pathname;
+  let res;
 
-// Gestion des fetch
-self.addEventListener('fetch', event => {
-  event.respondWith(
-    caches.match(event.request).then(response => {
-      return response || fetch(event.request);
-    })
-  );
-});
+  try {
+    // ----------- TEST -----------
+    if (path === "/test" && method === "GET") {
+      return jsonResponse({ message: "Connexion réussie !" }, 200);
+    }
+
+    // ----------- LECTURE -----------
+    if (path === "/tables" && method === "GET") {
+      res = await listeTables();
+      return jsonResponse(res, 200);
+    }
+    if (path === "/liste_clients" && method === "GET") {
+      res = await listeClients();
+      return jsonResponse(res, 200);
+    }
+    if (path === "/liste_fournisseurs" && method === "GET") {
+      res = await listeFournisseurs();
+      return jsonResponse(res, 200);
+    }
+    if (path === "/liste_utilisateurs" && method === "GET") {
+      res = await listeUtilisateurs();
+      return jsonResponse(res, res.erreur ? 400 : 200);
+    }
+    if (path === "/liste_produits" && method === "GET") {
+      res = await listeProduits();
+      return jsonResponse(res, res.erreur ? 400 : 200);
+    }
+    if (path.startsWith("/dashboard") && method === "GET") {
+      const period = url.searchParams.get("period") || "day";
+      res = await dashboard(period);
+      return jsonResponse(res, res.erreur ? 400 : 200);
+    }
+
+    // ----------- AJOUT -----------
+    if (path === "/ajouter_client" && method === "POST") {
+      const body = await request.json();
+      res = await ajouterClient(body);
+      return jsonResponse(res, res.erreur ? 400 : 201);
+    }
+    if (path === "/ajouter_fournisseur" && method === "POST") {
+      const body = await request.json();
+      res = await ajouterFournisseur(body);
+      return jsonResponse(res, res.erreur ? 400 : 201);
+    }
+    if (path === "/ajouter_utilisateur" && method === "POST") {
+      const body = await request.json();
+      res = await ajouterUtilisateur(body);
+      return jsonResponse(res, res.erreur ? 400 : 201);
+    }
+    if (path === "/ajouter_item" && method === "POST") {
+      const body = await request.json();
+      res = await ajouterItem(body);
+      return jsonResponse(res, res.erreur ? 400 : 201);
+    }
+
+    // ----------- MODIFICATION -----------
+    if (path.startsWith("/modifier_client/") && method === "PUT") {
+      const id = path.split("/").pop();
+      const body = await request.json();
+      res = await modifierClient(id, body);
+      return jsonResponse(res, res.erreur ? 400 : 200);
+    }
+    if (path.startsWith("/modifier_fournisseur/") && method === "PUT") {
+      const id = path.split("/").pop();
+      const body = await request.json();
+      res = await modifierFournisseur(id, body);
+      return jsonResponse(res, res.erreur ? 400 : 200);
+    }
+    if (path.startsWith("/modifier_utilisateur/") && method === "PUT") {
+      const id = path.split("/").pop();
+      const body = await request.json();
+      res = await modifierUtilisateur(id, body);
+      return jsonResponse(res, res.erreur ? 400 : 200);
+    }
+    if (path.startsWith("/modifier_item/") && method === "PUT") {
+      const id = path.split("/").pop();
+      const body = await request.json();
+      res = await modifierItem(id, body);
+      return jsonResponse(res, res.erreur ? 400 : 200);
+    }
+
+    // ----------- SUPPRESSION -----------
+    if (path.startsWith("/supprimer_client/") && method === "DELETE") {
+      const id = path.split("/").pop();
+      res = await supprimerClient(id);
+      return jsonResponse(res, res.erreur ? 400 : 200);
+    }
+    if (path.startsWith("/supprimer_fournisseur/") && method === "DELETE") {
+      const id = path.split("/").pop();
+      res = await supprimerFournisseur(id);
+      return jsonResponse(res, res.erreur ? 400 : 200);
+    }
+    if (path.startsWith("/supprimer_utilisateur/") && method === "DELETE") {
+      const id = path.split("/").pop();
+      res = await supprimerUtilisateur(id);
+      return jsonResponse(res, res.erreur ? 400 : 200);
+    }
+    if (path.startsWith("/supprimer_item/") && method === "DELETE") {
+      const id = path.split("/").pop();
+      res = await supprimerItem(id);
+      return jsonResponse(res, res.erreur ? 400 : 200);
+    }
+
+    // ----------- DEFAULT -----------
+    return jsonResponse({ erreur: `Non géré : ${method} ${path}` }, 404);
+
+  } catch (err) {
+    return jsonResponse({ erreur: err.message }, 500);
+  }
+}
+
+// Helper pour uniformiser les réponses
+function jsonResponse(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json" }
+  });
+}
