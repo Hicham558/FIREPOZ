@@ -3,14 +3,26 @@ importScripts('https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.min.
 importScripts('./db.js');
 importScripts('./apiRoutes.js');
 
+// Version du Service Worker pour faciliter la gestion des mises à jour
+const SW_VERSION = '1.0.1';
+
 self.addEventListener('install', event => {
-  console.log('Service Worker installé');
+  console.log(`Service Worker v${SW_VERSION} installé`);
   event.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener('activate', event => {
-  console.log('Service Worker activé');
-  event.waitUntil(self.clients.claim());
+  console.log(`Service Worker v${SW_VERSION} activé`);
+  // Nettoyer les anciennes versions du Service Worker
+  event.waitUntil(
+    self.clients.claim().then(() => {
+      // Désenregistrer les autres Service Workers
+      return self.registration.unregister().then(() => {
+        console.log('Anciennes versions du Service Worker désenregistrées');
+        return self.registration.register(self.location);
+      });
+    })
+  );
 });
 
 self.addEventListener('fetch', event => {
