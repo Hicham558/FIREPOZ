@@ -1,108 +1,188 @@
+// sw1.js
+importScripts('https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.min.js');
+importScripts('./db.js');
+importScripts('./apiRoutes.js');
+
 self.addEventListener('install', event => {
-    console.log('Service Worker installé');
-    self.skipWaiting();
+  console.log('Service Worker installé');
+  event.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener('activate', event => {
-    console.log('Service Worker activé');
-    self.clients.claim();
+  console.log('Service Worker activé');
+  event.waitUntil(self.clients.claim());
 });
-
-importScripts('apiRoutes.js');
-
-const routes = {
-    '/test': { method: 'GET', handler: async () => ({ message: "Connexion réussie !" }) },
-    '/tables': { method: 'GET', handler: listeTables },
-    '/liste_clients': { method: 'GET', handler: listeClients },
-    '/liste_fournisseurs': { method: 'GET', handler: listeFournisseurs },
-    '/liste_utilisateurs': { method: 'GET', handler: listeUtilisateurs },
-    '/liste_produits': { method: 'GET', handler: listeProduits },
-    '/dashboard': { 
-        method: 'GET', 
-        handler: async (reqUrl) => {
-            const url = new URL(reqUrl);
-            const period = url.searchParams.get('period') || 'day';
-            return await dashboard(period);
-        }
-    },
-    '/ajouter_client': { method: 'POST', handler: ajouterClient },
-    '/ajouter_fournisseur': { method: 'POST', handler: ajouterFournisseur },
-    '/ajouter_utilisateur': { method: 'POST', handler: ajouterUtilisateur },
-    '/ajouter_item': { method: 'POST', handler: ajouterItem },
-    '/modifier_client/': { method: 'PUT', handler: modifierClient },
-    '/modifier_fournisseur/': { method: 'PUT', handler: modifierFournisseur },
-    '/modifier_utilisateur/': { method: 'PUT', handler: modifierUtilisateur },
-    '/modifier_item/': { method: 'PUT', handler: modifierItem },
-    '/supprimer_client/': { method: 'DELETE', handler: supprimerClient },
-    '/supprimer_fournisseur/': { method: 'DELETE', handler: supprimerFournisseur },
-    '/supprimer_utilisateur/': { method: 'DELETE', handler: supprimerUtilisateur },
-    '/supprimer_item/': { method: 'DELETE', handler: supprimerItem },
-};
 
 self.addEventListener('fetch', event => {
-    const url = event.request.url;
+  const requestUrl = new URL(event.request.url);
+  const isApiRequest = requestUrl.href.startsWith('http://localhostdb/');
 
-    if (url.startsWith('http://localhostdb')) {
-        const path = new URL(url).pathname;
-        const method = event.request.method.toUpperCase();
-        console.log("SW intercepté (localhostdb):", method, path);
-        event.respondWith(handleLocalRequest(path, method, event.request));
-    }
+  if (isApiRequest) {
+    const endpoint = requestUrl.pathname.replace(/^\/(http:\/\/localhostdb\/)?/, '');
+    event.respondWith(handleApiRequest(endpoint, event.request, requestUrl));
+  } else {
+    // Passer les requêtes non-API directement
+    event.respondWith(fetch(event.request));
+  }
 });
 
-async function handleLocalRequest(path, method, request) {
-    // Recherche de la route correspondante
-    let routeKey = Object.keys(routes).find(r => {
-        if (r.endsWith('/')) {
-            // Pour les routes dynamiques (ex: /modifier_client/123)
-            return path.startsWith(r.slice(0, -1)) && routes[r].method === method;
+async function handleApiRequest(endpoint, request, requestUrl) {
+  try {
+    let responseData;
+    let status = 200;
+
+    // Mappez les endpoints aux fonctions de apiRoutes.js
+    switch (endpoint) {
+      case 'liste_clients':
+        responseData = await listeClients();
+        break;
+      case 'liste_fournisseurs':
+        responseData = await listeFournisseurs();
+        break;
+      case 'liste_produits':
+        responseData = await listeProduits();
+        break;
+      case 'liste_utilisateurs':
+        responseData = await listeUtilisateurs();
+        break;
+      case 'dashboard':
+        const period = new URLSearchParams(requestUrl.search).get('period') || 'day';
+        responseData = await dashboard(period);
+        break;
+      case 'ajouter_client':
+        if (request.method === 'POST') {
+          const body = await request.json();
+          responseData = await ajouterClient(body);
+          status = responseData.status || 200;
+        } else {
+          responseData = { erreur: 'Méthode non autorisée', status: 405 };
+          status = 405;
         }
-        // Pour les routes statiques (ex: /liste_clients)
-        return path === r && routes[r].method === method;
-    });
-
-    if (!routeKey) {
-        return new Response(
-            JSON.stringify({ erreur: `Requête non prise en charge : ${method} ${path}` }),
-            { status: 404, headers: { 'Content-Type': 'application/json' } }
-        );
-    }
-
-    const route = routes[routeKey];
-
-    try {
-        let data;
-        if (method === 'GET') {
-            data = await route.handler(request.url);
-        } else if (method === 'POST' || method === 'PUT') {
+        break;
+      case 'ajouter_fournisseur':
+        if (request.method === 'POST') {
+          const body = await request.json();
+          responseData = await ajouterFournisseur(body);
+          status = responseData.status || 200;
+        } else {
+          responseData = { erreur: 'Méthode non autorisée', status: 405 };
+          status = 405;
+        }
+        break;
+      case 'ajouter_item':
+        if (request.method === 'POST') {
+          const body = await request.json();
+          responseData = await ajouterItem(body);
+          status = responseData.status || 200;
+        } else {
+          responseData = { erreur: 'Méthode non autorisée', status: 405 };
+          status = 405;
+        }
+        break;
+      case 'ajouter_utilisateur':
+        if (request.method === 'POST') {
+          const body = await request.json();
+          responseData = await ajouterUtilisateur(body);
+          status = responseData.status || 200;
+        } else {
+          responseData = { erreur: 'Méthode non autorisée', status: 405 };
+          status = 405;
+        }
+        break;
+      default:
+        // Gérer les endpoints avec ID (modifier_*, supprimer_*)
+        if (endpoint.startsWith('modifier_client/')) {
+          if (request.method === 'PUT') {
+            const numero_clt = endpoint.split('/')[1];
             const body = await request.json();
-            if (routeKey.endsWith('/')) {
-                // Extrait l'ID pour les routes dynamiques (ex: /modifier_client/123)
-                const id = path.split('/').pop();
-                if (!id) throw new Error('ID manquant dans l\'URL');
-                data = await route.handler(id, body);
-            } else {
-                data = await route.handler(body);
-            }
-        } else if (method === 'DELETE') {
-            if (routeKey.endsWith('/')) {
-                // Extrait l'ID pour les routes dynamiques (ex: /supprimer_client/123)
-                const id = path.split('/').pop();
-                if (!id) throw new Error('ID manquant dans l\'URL');
-                data = await route.handler(id);
-            } else {
-                data = await route.handler();
-            }
+            responseData = await modifierClient(numero_clt, body);
+            status = responseData.status || 200;
+          } else {
+            responseData = { erreur: 'Méthode non autorisée', status: 405 };
+            status = 405;
+          }
+        } else if (endpoint.startsWith('modifier_fournisseur/')) {
+          if (request.method === 'PUT') {
+            const numero_fou = endpoint.split('/')[1];
+            const body = await request.json();
+            responseData = await modifierFournisseur(numero_fou, body);
+            status = responseData.status || 200;
+          } else {
+            responseData = { erreur: 'Méthode non autorisée', status: 405 };
+            status = 405;
+          }
+        } else if (endpoint.startsWith('modifier_item/')) {
+          if (request.method === 'PUT') {
+            const numero_item = endpoint.split('/')[1];
+            const body = await request.json();
+            responseData = await modifierItem(numero_item, body);
+            status = responseData.status || 200;
+          } else {
+            responseData = { erreur: 'Méthode non autorisée', status: 405 };
+            status = 405;
+          }
+        } else if (endpoint.startsWith('modifier_utilisateur/')) {
+          if (request.method === 'PUT') {
+            const numero_util = endpoint.split('/')[1];
+            const body = await request.json();
+            responseData = await modifierUtilisateur(numero_util, body);
+            status = responseData.status || 200;
+          } else {
+            responseData = { erreur: 'Méthode non autorisée', status: 405 };
+            status = 405;
+          }
+        } else if (endpoint.startsWith('supprimer_client/')) {
+          if (request.method === 'DELETE') {
+            const numero_clt = endpoint.split('/')[1];
+            responseData = await supprimerClient(numero_clt);
+            status = responseData.status || 200;
+          } else {
+            responseData = { erreur: 'Méthode non autorisée', status: 405 };
+            status = 405;
+          }
+        } else if (endpoint.startsWith('supprimer_fournisseur/')) {
+          if (request.method === 'DELETE') {
+            const numero_fou = endpoint.split('/')[1];
+            responseData = await supprimerFournisseur(numero_fou);
+            status = responseData.status || 200;
+          } else {
+            responseData = { erreur: 'Méthode non autorisée', status: 405 };
+            status = 405;
+          }
+        } else if (endpoint.startsWith('supprimer_item/')) {
+          if (request.method === 'DELETE') {
+            const numero_item = endpoint.split('/')[1];
+            responseData = await supprimerItem(numero_item);
+            status = responseData.status || 200;
+          } else {
+            responseData = { erreur: 'Méthode non autorisée', status: 405 };
+            status = 405;
+          }
+        } else if (endpoint.startsWith('supprimer_utilisateur/')) {
+          if (request.method === 'DELETE') {
+            const numero_util = endpoint.split('/')[1];
+            responseData = await supprimerUtilisateur(numero_util);
+            status = responseData.status || 200;
+          } else {
+            responseData = { erreur: 'Méthode non autorisée', status: 405 };
+            status = 405;
+          }
+        } else {
+          responseData = { erreur: 'Endpoint inconnu', status: 404 };
+          status = 404;
         }
-
-        return new Response(
-            JSON.stringify(data),
-            { status: data.erreur ? 400 : 200, headers: { 'Content-Type': 'application/json' } }
-        );
-    } catch (err) {
-        return new Response(
-            JSON.stringify({ erreur: err.message }),
-            { status: 500, headers: { 'Content-Type': 'application/json' } }
-        );
+        break;
     }
+
+    return new Response(JSON.stringify(responseData), {
+      status: status,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error('Erreur dans handleApiRequest:', error);
+    return new Response(JSON.stringify({ erreur: error.message, status: 500 }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
 }
