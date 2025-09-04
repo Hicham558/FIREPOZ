@@ -15,19 +15,28 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
   const requestUrl = new URL(event.request.url);
-  const isApiRequest = requestUrl.href.startsWith('http://localhostdb/');
+  const isApiRequest = requestUrl.href.startsWith('http://localhostdb/') ||
+                       requestUrl.pathname.startsWith('/liste_') ||
+                       requestUrl.pathname.startsWith('/dashboard') ||
+                       requestUrl.pathname.startsWith('/ajouter_') ||
+                       requestUrl.pathname.startsWith('/modifier_') ||
+                       requestUrl.pathname.startsWith('/supprimer_');
+
+  console.log('Requête détectée:', requestUrl.href, 'isApiRequest:', isApiRequest); // Débogage
 
   if (isApiRequest) {
     const endpoint = requestUrl.pathname.replace(/^\/(http:\/\/localhostdb\/)?/, '');
+    console.log('Interception de la requête API:', endpoint, 'Méthode:', event.request.method); // Débogage
     event.respondWith(handleApiRequest(endpoint, event.request, requestUrl));
   } else {
-    // Passer les requêtes non-API directement
+    console.log('Requête non-API, transmise:', requestUrl.href); // Débogage
     event.respondWith(fetch(event.request));
   }
 });
 
 async function handleApiRequest(endpoint, request, requestUrl) {
   try {
+    console.log('Traitement de l\'endpoint:', endpoint); // Débogage
     let responseData;
     let status = 200;
 
@@ -90,7 +99,6 @@ async function handleApiRequest(endpoint, request, requestUrl) {
         }
         break;
       default:
-        // Gérer les endpoints avec ID (modifier_*, supprimer_*)
         if (endpoint.startsWith('modifier_client/')) {
           if (request.method === 'PUT') {
             const numero_clt = endpoint.split('/')[1];
@@ -174,6 +182,7 @@ async function handleApiRequest(endpoint, request, requestUrl) {
         break;
     }
 
+    console.log('Réponse pour', endpoint, ':', responseData); // Débogage
     return new Response(JSON.stringify(responseData), {
       status: status,
       headers: { 'Content-Type': 'application/json' }
