@@ -909,6 +909,28 @@ export async function listeCategories() {
     console.log("Exécution de listeCategories...");
     const db = await getDb();
 
+    // Vérifier si la table categorie existe
+    try {
+      const stmtCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='categorie'");
+      const tableExists = stmtCheck.step();
+      stmtCheck.free();
+      
+      if (!tableExists) {
+        console.log("Table 'categorie' n'existe pas");
+        // Retourner un objet avec data comme tableau vide
+        return { 
+          data: [],
+          status: 200 
+        };
+      }
+    } catch (error) {
+      console.log("Vérification table categorie:", error);
+      return { 
+        data: [],
+        status: 200 
+      };
+    }
+
     const stmt = db.prepare('SELECT numer_categorie, description_c FROM categorie ORDER BY description_c');
     const categories = [];
     while (stmt.step()) {
@@ -921,16 +943,20 @@ export async function listeCategories() {
     stmt.free();
     console.log("Categories retournées :", categories);
     
-    // Retourne un objet avec la propriété data comme attendu par le HTML
+    // S'assurer que categories est toujours un tableau
+    const result = Array.isArray(categories) ? categories : [];
+    
     return { 
-      data: categories,
-      status: 200
+      data: result,
+      status: 200 
     };
   } catch (error) {
     console.error("Erreur listeCategories :", error);
+    // Retourner un tableau vide en cas d'erreur
     return { 
-      erreur: error.message, 
-      status: 500 
+      data: [],
+      status: 500,
+      erreur: error.message 
     };
   }
 }
