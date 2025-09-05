@@ -112,7 +112,7 @@ window.fetch = async function(input, init = {}) {
 document.addEventListener('DOMContentLoaded', () => {
   console.log('✅ Interception des fetch activée pour /api/');
   // Initialisation de la base de données
-  getDb()
+  
     .then(() => console.log('✅ Base de données SQLite initialisée'))
     .catch(err => console.error('❌ Erreur init DB:', err));
 
