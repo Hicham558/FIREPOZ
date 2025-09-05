@@ -11,14 +11,33 @@ function toCommaDecimal(value) {
   return value.toFixed(2).replace('.', ',');
 }
 
-// Calculate EAN-13 check digit
+// Calculate EAN-13 check digit - VERSION CORRIGÉE
 function calculateEan13CheckDigit(code12) {
+  if (code12.length !== 12) {
+    console.error("❌ Code12 doit avoir 12 chiffres, reçu:", code12);
+    return 0;
+  }
+  
+  // Vérifier que ce sont bien des chiffres
+  if (!/^\d+$/.test(code12)) {
+    console.error("❌ Code12 doit contenir uniquement des chiffres, reçu:", code12);
+    return 0;
+  }
+  
   const digits = code12.split('').map(Number);
-  const oddSum = digits.filter((_, i) => i % 2 === 0).reduce((sum, d) => sum + d, 0);
-  const evenSum = digits.filter((_, i) => i % 2 === 1).reduce((sum, d) => sum + d, 0);
-  const total = oddSum * 3 + evenSum;
-  const nextMultipleOf10 = Math.ceil(total / 10) * 10;
-  return nextMultipleOf10 - total;
+  
+  // Calcul correct selon la spécification EAN-13
+  let sum = 0;
+  for (let i = 0; i < 12; i++) {
+    // Les positions impaires (1, 3, 5, etc.) sont multipliées par 3
+    // Les positions paires (2, 4, 6, etc.) sont multipliées par 1
+    const multiplier = (i % 2 === 0) ? 1 : 3;
+    sum += digits[i] * multiplier;
+  }
+  
+  const checkDigit = (10 - (sum % 10)) % 10;
+  console.log("✅ Génération EAN-13:", { code12, sum, checkDigit });
+  return checkDigit;
 }
 
 export async function listeTables() {
