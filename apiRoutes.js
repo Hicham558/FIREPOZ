@@ -163,18 +163,24 @@ export async function listeProduits() {
       const row = stmt.get();
       console.log("Produit brut récupéré :", row);
 
-      // Conversion des valeurs
-      const prixFloat = toDotDecimal(row[4]) || 0.0;
-      const prixbaFloat = toDotDecimal(row[5]) || 0.0;
+      // Conversion des valeurs avec débogage
+      const prixRaw = row[4];
+      const prixbaRaw = row[5];
+      console.log("Valeurs brutes - prix :", prixRaw, "prixba :", prixbaRaw);
+
+      const prixFloat = toDotDecimal(prixRaw);
+      const prixbaFloat = toDotDecimal(prixbaRaw);
       const qteInt = parseInt(row[3]) || 0;
+
+      console.log("Valeurs converties - prixFloat :", prixFloat, "prixbaFloat :", prixbaFloat, "qteInt :", qteInt);
 
       produits.push({
         NUMERO_ITEM: row[0] !== null ? row[0] : '',
         BAR: row[1] !== null ? row[1] : '',
         DESIGNATION: row[2] !== null ? row[2] : '',
         QTE: qteInt,
-        PRIX: row[4] !== null ? row[4] : '0,00',
-        PRIXBA: row[5] !== null ? row[5] : '0,00',
+        PRIX: prixRaw !== null && prixRaw !== '' ? prixRaw : '0,00',
+        PRIXBA: prixbaRaw !== null && prixbaRaw !== '' ? prixbaRaw : '0,00',
         REF: row[6] !== null ? row[6] : '',
         PRIX_NUM: prixFloat,
         PRIXBA_NUM: prixbaFloat,
