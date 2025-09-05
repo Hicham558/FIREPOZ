@@ -838,3 +838,51 @@ export async function dashboard(period = 'day') {
     return { erreur: error.message, status: 500 };
   }
 }
+export async function validerVendeur(data) {
+  try {
+    console.log("Exécution de validerVendeur avec data:", data);
+    const db = await getDb();
+    const { nom, password2 } = data;
+
+    if (!nom || !password2) {
+      console.error("Erreur : Le nom et le mot de passe sont requis");
+      return { erreur: "Le nom et le mot de passe sont requis", status: 400 };
+    }
+
+    // Requête SQLite pour vérifier l'utilisateur
+    const stmt = db.prepare(`
+      SELECT numero_util, nom, statue 
+      FROM utilisateur 
+      WHERE nom = ? AND password2 = ?
+    `);
+    
+    stmt.bind([nom, password2]);
+    
+    let utilisateur = null;
+    if (stmt.step()) {
+      utilisateur = stmt.getAsObject();
+    }
+    stmt.free();
+
+    // Vérifier si l'utilisateur existe
+    if (!utilisateur) {
+      console.error("Échec authentification pour:", nom);
+      return { erreur: "Nom ou mot de passe incorrect", status: 401 };
+    }
+
+    console.log("✅ Vendeur validé:", utilisateur);
+    return {
+      statut: "Vendeur validé",
+      utilisateur: {
+        numero_util: utilisateur.numero_util,
+        nom: utilisateur.nom,
+        statut: utilisateur.statue
+      },
+      status: 200
+    };
+
+  } catch (error) {
+    console.error("❌ Erreur validerVendeur:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
