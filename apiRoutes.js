@@ -902,64 +902,51 @@ export async function validerVendeur(data) {
 /// CATEGORIES FUNCTIONS
 
 
-
-// Liste toutes les catégories
 export async function listeCategories() {
   try {
     console.log("Exécution de listeCategories...");
     const db = await getDb();
 
-    // Vérifier si la table categorie existe
+    // Vérifier si la table existe
     try {
-      const stmtCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='categorie'");
-      const tableExists = stmtCheck.step();
-      stmtCheck.free();
+      const tableCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='categorie'");
+      const tableExists = tableCheck.step();
+      tableCheck.free();
       
       if (!tableExists) {
-        console.log("Table 'categorie' n'existe pas");
-        // Retourner un objet avec data comme tableau vide
-        return { 
-          data: [],
-          status: 200 
-        };
+        console.log("Table 'categorie' n'existe pas - retour tableau vide");
+        return []; // Retourne directement un tableau vide comme Flask
       }
     } catch (error) {
-      console.log("Vérification table categorie:", error);
-      return { 
-        data: [],
-        status: 200 
-      };
+      console.log("Erreur vérification table:", error);
+      return []; // Retourne tableau vide en cas d'erreur
     }
 
-    const stmt = db.prepare('SELECT numer_categorie, description_c FROM categorie ORDER BY description_c');
+    // Exécuter la requête exacte comme Flask
+    const stmt = db.prepare("SELECT numer_categorie, description_c FROM categorie ORDER BY description_c");
     const categories = [];
+    
     while (stmt.step()) {
       const row = stmt.getAsObject();
+      // Retourne exactement les mêmes champs que Flask
       categories.push({
-        numer_categorie: row.numer_categorie !== null ? row.numer_categorie : '',
-        description_c: row.description_c !== null ? row.description_c : ''
+        numer_categorie: row.numer_categorie,
+        description_c: row.description_c
       });
     }
+    
     stmt.free();
-    console.log("Categories retournées :", categories);
     
-    // S'assurer que categories est toujours un tableau
-    const result = Array.isArray(categories) ? categories : [];
+    console.log(`Récupération de ${categories.length} catégories`);
+    return categories; // Retourne directement le ta
     
-    return { 
-      data: result,
-      status: 200 
-    };
   } catch (error) {
     console.error("Erreur listeCategories :", error);
-    // Retourner un tableau vide en cas d'erreur
-    return { 
-      data: [],
-      status: 500,
-      erreur: error.message 
-    };
+    // Lance une erreur comme Flask retourne une erreur 500
+    throw new Error("Erreur lors de la récupération des catégories");
   }
 }
+
 
 // Ajoute une nouvelle catégorie
 export async function ajouterCategorie(data) {
