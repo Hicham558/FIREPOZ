@@ -1224,7 +1224,8 @@ export async function listeProduitsParCategorie(numero_categorie) {
     console.log("Exécution de listeProduitsParCategorie :", numero_categorie);
     const db = await getDb();
 
-    if (numero_categorie === undefined || numero_categorie === null) {
+    // Gérer le cas où numero_categorie est undefined ou null
+    if (numero_categorie === undefined || numero_categorie === null || numero_categorie === '') {
       // Produits sans catégorie
       const stmt = db.prepare('SELECT numero_item, designation FROM item WHERE numero_categorie IS NULL');
       const produits = [];
@@ -1239,6 +1240,9 @@ export async function listeProduitsParCategorie(numero_categorie) {
       console.log("Produits sans catégorie :", produits.length);
       return produits;
     } else {
+      // Convertir en number si c'est une string
+      const catId = typeof numero_categorie === 'string' ? parseInt(numero_categorie) : numero_categorie;
+      
       // Produits par catégorie
       const stmt = db.prepare(`
         SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
@@ -1246,7 +1250,7 @@ export async function listeProduitsParCategorie(numero_categorie) {
         LEFT JOIN item i ON c.numer_categorie = i.numero_categorie
         WHERE c.numer_categorie = ?
       `);
-      stmt.bind([numero_categorie]);
+      stmt.bind([catId]);
 
       const result = [];
       while (stmt.step()) {
