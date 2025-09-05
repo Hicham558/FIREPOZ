@@ -955,7 +955,8 @@ export async function ajouterCategorie(data) {
     const { description_c } = data;
 
     if (!description_c) {
-      throw new Error("Description requise");
+      console.error("Erreur : Description requise");
+      return { erreur: "Description requise", status: 400 };
     }
 
     const stmt = db.prepare('INSERT INTO categorie (description_c) VALUES (?)');
@@ -969,17 +970,13 @@ export async function ajouterCategorie(data) {
 
     saveDbToLocalStorage(db);
     console.log("Catégorie ajoutée : ID =", id);
-    
-    return { 
-      statut: "Catégorie ajoutée", 
-      id
-    };
-    
+    return { statut: "Catégorie ajoutée", id, status: 201 };
   } catch (error) {
     console.error("Erreur ajouterCategorie :", error);
-    throw error;
+    return { erreur: error.message, status: 500 };
   }
 }
+
 
 export async function modifierCategorie(numer_categorie, data) {
   try {
