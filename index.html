@@ -3,72 +3,72 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Test API avec Service Worker</title>
+  <title>Test Service Worker</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    button { padding: 10px 20px; margin: 10px; }
-    #result { margin-top: 20px; white-space: pre-wrap; }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 10px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    #result {
+      margin-top: 20px;
+      white-space: pre-wrap;
+      border: 1px solid #ccc;
+      padding: 10px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
   </style>
 </head>
 <body>
-  <h1>Test des requêtes API</h1>
-  <button onclick="fetchFromRender()">Liste utilisateurs (Render)</button>
-  <button onclick="fetchFromLocalhostdb()">Liste utilisateurs (Localhostdb)</button>
+  <h1>Test du Service Worker</h1>
+  <button onclick="testServiceWorker()">Tester Service Worker (localhostdb)</button>
   <div id="result"></div>
 
   <script>
-    // Définir les URLs de base
-    const RENDER_API_BASE_URL = 'https://hicham03041979.onrender.com';
-    const LOCALHOSTDB_API_BASE_URL = 'http://localhostdb'; // Garder l'URL pour le SW
+    const LOCALHOSTDB_API_BASE_URL = 'http://localhostdb';
 
     // Enregistrement du Service Worker
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw1.js', { scope: '/' })
         .then(reg => {
-          console.log('Service Worker enregistré:', reg.scope);
-          // Forcer l'activation immédiate
+          console.log('Service Worker enregistré avec scope:', reg.scope);
+          // Forcer la mise à jour et l'activation
           reg.update();
+          navigator.serviceWorker.ready.then(() => {
+            console.log('Service Worker est prêt et actif');
+            document.getElementById('result').textContent = 'Service Worker prêt. Cliquez sur le bouton pour tester.';
+          });
         })
-        .catch(err => console.error('Erreur Service Worker:', err));
-    }
-
-    // Fonction pour appeler l'API Render
-    async function fetchFromRender() {
-      const resultDiv = document.getElementById('result');
-      const userId = localStorage.getItem('userId') || 'test-user-id';
-      resultDiv.textContent = 'Chargement depuis Render...';
-      try {
-        const response = await fetch(`${RENDER_API_BASE_URL}/liste_utilisateurs`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-User-ID': userId
-          }
+        .catch(err => {
+          console.error('Erreur lors de l\'enregistrement du Service Worker:', err);
+          document.getElementById('result').textContent = `Erreur Service Worker: ${err.message}`;
         });
-        if (!response.ok) {
-          if (response.status === 401) throw new Error('Authentification requise');
-          if (response.status === 404) throw new Error('Endpoint non trouvé');
-          throw new Error(`Erreur HTTP: ${response.status}`);
-        }
-        const data = await response.json();
-        resultDiv.textContent = `Réponse Render:\n${JSON.stringify(data, null, 2)}`;
-      } catch (error) {
-        console.error('Erreur fetch Render:', error);
-        resultDiv.textContent = `Erreur Render: ${error.message}`;
-      }
+    } else {
+      document.getElementById('result').textContent = 'Service Worker non supporté par ce navigateur.';
     }
 
-    // Fonction pour appeler l'API localhostdb (interceptée par le SW)
-    async function fetchFromLocalhostdb() {
+    // Fonction pour tester le Service Worker
+    async function testServiceWorker() {
       const resultDiv = document.getElementById('result');
-      const userId = localStorage.getItem('userId') || 'test-user-id';
-      resultDiv.textContent = 'Chargement depuis localhostdb...';
+      resultDiv.textContent = 'Test en cours vers http://localhostdb/liste_utilisateurs...';
       try {
         const response = await fetch(`${LOCALHOSTDB_API_BASE_URL}/liste_utilisateurs`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            'X-User-ID': userId
+            'X-User-ID': localStorage.getItem('userId') || 'test-user-id'
           }
         });
         if (!response.ok) {
@@ -77,10 +77,14 @@
           throw new Error(`Erreur HTTP: ${response.status}`);
         }
         const data = await response.json();
-        resultDiv.textContent = `Réponse localhostdb:\n${JSON.stringify(data, null, 2)}`;
+        resultDiv.textContent = `Réponse du Service Worker:\n${JSON.stringify(data, null, 2)}`;
       } catch (error) {
-        console.error('Erreur fetch localhostdb:', error);
-        resultDiv.textContent = `Erreur localhostdb: ${error.message}`;
+        console.error('Erreur lors du test Service Worker:', error);
+        if (error.name === 'TypeError') {
+          resultDiv.textContent = `Erreur: Échec de la connexion (le Service Worker n'a pas intercepté la requête ou a échoué)`;
+        } else {
+          resultDiv.textContent = `Erreur: ${error.message}`;
+        }
       }
     }
   </script>
