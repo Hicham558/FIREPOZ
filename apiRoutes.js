@@ -920,13 +920,20 @@ export async function listeCategories() {
     }
     stmt.free();
     console.log("Categories retournées :", categories);
-    return categories;
+    
+    // Retourne un objet avec la propriété data comme attendu par le HTML
+    return { 
+      data: categories,
+      status: 200
+    };
   } catch (error) {
     console.error("Erreur listeCategories :", error);
-    throw new Error("Erreur lors de la récupération des catégories");
+    return { 
+      erreur: error.message, 
+      status: 500 
+    };
   }
 }
-
 
 // Ajoute une nouvelle catégorie
 export async function ajouterCategorie(data) {
