@@ -3,7 +3,7 @@
 import {  listeClients, listeFournisseurs, listeProduits, listeUtilisateurs, dashboard,
         ajouterClient, ajouterFournisseur, ajouterItem, ajouterUtilisateur,
         modifierClient, modifierFournisseur, modifierItem, modifierUtilisateur,
-        supprimerClient, supprimerFournisseur, supprimerItem, supprimerUtilisateur } from './apiRoutes.js';
+        supprimerClient, supprimerFournisseur, supprimerItem, supprimerUtilisateur,validerVendeur } from './apiRoutes.js';
 
 // Sauvegarde de la fonction fetch originale
 const originalFetch = window.fetch;
@@ -31,7 +31,8 @@ const handlers = {
     'ajouter_client': (body) => ajouterClient(body),
     'ajouter_fournisseur': (body) => ajouterFournisseur(body),
     'ajouter_item': (body) => ajouterItem(body),
-    'ajouter_utilisateur': (body) => ajouterUtilisateur(body)
+    'ajouter_utilisateur': (body) => ajouterUtilisateur(body),
+    'valider_vendeur': (body) => validerVendeur(body) 
   },
   PUT: {
     'modifier_client/(\\w+)': (id, body) => modifierClient(id, body),
