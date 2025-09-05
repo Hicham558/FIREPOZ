@@ -902,55 +902,28 @@ export async function validerVendeur(data) {
 /// CATEGORIES FUNCTIONS
 
 
+
+// Liste toutes les catégories
 export async function listeCategories() {
   try {
     console.log("Exécution de listeCategories...");
     const db = await getDb();
 
-    // Vérifier si la table existe
-    try {
-      const tableCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='categorie'");
-      const tableExists = tableCheck.step();
-      tableCheck.free();
-      
-      if (!tableExists) {
-        console.log("Table 'categorie' n'existe pas");
-        return { data: [], status: 200 }; // ← Retourne objet avec data
-      }
-    } catch (error) {
-      console.log("Erreur vérification table:", error);
-      return { data: [], status: 200 }; // ← Retourne objet avec data
-    }
-
-    // Exécuter la requête
-    const stmt = db.prepare("SELECT numer_categorie, description_c FROM categorie ORDER BY description_c");
+    const stmt = db.prepare('SELECT numer_categorie, description_c FROM categorie ORDER BY description_c');
     const categories = [];
-    
     while (stmt.step()) {
       const row = stmt.getAsObject();
       categories.push({
-        numer_categorie: row.numer_categorie,
-        description_c: row.description_c
+        numer_categorie: row.numer_categorie !== null ? row.numer_categorie : '',
+        description_c: row.description_c !== null ? row.description_c : ''
       });
     }
-    
     stmt.free();
-    
-    console.log(`Récupération de ${categories.length} catégories`);
-    
-    // ← RETOURNE UN OBJET AVEC PROPRIÉTÉ DATA POUR TON HTML
-    return { 
-      data: categories, 
-      status: 200 
-    };
-    
+    console.log("Categories retournées :", categories);
+    return categories;
   } catch (error) {
     console.error("Erreur listeCategories :", error);
-    return { 
-      data: [], 
-      status: 500,
-      erreur: error.message 
-    };
+    throw new Error("Erreur lors de la récupération des catégories");
   }
 }
 
