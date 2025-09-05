@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Test Service Worker</title>
+  <title>Test sans Service Worker</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -34,46 +34,59 @@
   </style>
 </head>
 <body>
-  <h1>Test du Service Worker</h1>
-  <button onclick="testServiceWorker()">Tester sw1.js</button>
-  <div id="result">En attente de l'enregistrement du Service Worker...</div>
+  <h1>Test sans Service Worker</h1>
+  <button onclick="testApi()">Tester http://localhostdb/liste_utilisateurs</button>
+  <div id="result">Cliquez sur le bouton pour tester la requête.</div>
 
   <script>
-    // URL pour la requête interceptée
     const TEST_API_URL = 'http://localhostdb/liste_utilisateurs';
+    const RENDER_API_URL = 'https://hicham03041979.onrender.com/liste_utilisateurs';
 
-    // Enregistrement du Service Worker
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw1.js', { scope: '/' })
-        .then(reg => {
-          console.log('Service Worker enregistré avec scope:', reg.scope);
-          document.getElementById('result').textContent = 'Service Worker enregistré. Cliquez sur "Tester sw1.js" pour vérifier l\'interception.';
-        })
-        .catch(err => {
-          console.error('Erreur lors de l\'enregistrement du Service Worker:', err);
-          document.getElementById('result').textContent = `Erreur: ${err.message}\nVérifiez que sw1.js est accessible à https://hicham558.github.io/sw1.js`;
-        });
-    } else {
-      document.getElementById('result').textContent = 'Service Worker non supporté par ce navigateur.';
-    }
-
-    // Fonction pour tester l'interception
-    async function testServiceWorker() {
+    // Fonction pour simuler l'interception de la requête
+    async function testApi() {
       const resultDiv = document.getElementById('result');
       resultDiv.textContent = 'Test en cours vers http://localhostdb/liste_utilisateurs...';
       try {
-        const response = await fetch(TEST_API_URL, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' }
-        });
-        if (!response.ok) {
-          throw new Error(`Erreur HTTP: ${response.status}`);
+        // Simuler l'interception de http://localhostdb/liste_utilisateurs
+        if (TEST_API_URL === 'http://localhostdb/liste_utilisateurs') {
+          // Option 1 : Réponse simulée (comme un service worker)
+          const mockResponse = [
+            { numero: 1, nom: 'Utilisateur Test 1', statut: 'admin' },
+            { numero: 2, nom: 'Utilisateur Test 2', statut: 'emplo' }
+          ];
+          resultDiv.textContent = `Réponse simulée:\n${JSON.stringify(mockResponse, null, 2)}`;
+          return;
+
+          // Option 2 : Rediriger vers l'API Render (décommentez pour activer)
+          /*
+          const response = await fetch(RENDER_API_URL, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-User-ID': localStorage.getItem('userId') || 'test-user-id'
+            }
+          });
+          if (!response.ok) {
+            throw new Error(`Erreur HTTP: ${response.status}`);
+          }
+          const data = await response.json();
+          resultDiv.textContent = `Réponse de Render:\n${JSON.stringify(data, null, 2)}`;
+          */
+        } else {
+          // Si l'URL n'est pas interceptée, tenter la requête fetch
+          const response = await fetch(TEST_API_URL, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+          });
+          if (!response.ok) {
+            throw new Error(`Erreur HTTP: ${response.status}`);
+          }
+          const data = await response.json();
+          resultDiv.textContent = `Réponse:\n${JSON.stringify(data, null, 2)}`;
         }
-        const data = await response.json();
-        resultDiv.textContent = `Réponse du Service Worker:\n${JSON.stringify(data, null, 2)}`;
       } catch (error) {
         console.error('Erreur lors du test:', error);
-        resultDiv.textContent = `Erreur: ${error.message}\nVérifiez la console et assurez-vous que sw1.js intercepte la requête.`;
+        resultDiv.textContent = `Erreur: ${error.message}\nVérifiez la console pour plus de détails.`;
       }
     }
   </script>
