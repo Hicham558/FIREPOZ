@@ -326,8 +326,18 @@ export async function ajouterItem(data) {
       return { erreur: "Champs obligatoires manquants (designation, prix, qte)", status: 400 };
     }
 
-    const prixFloat = toDotDecimal(prix);
-    const qteInt = parseInt(qte) || 0;
+    // Conversion des valeurs
+    let prixFloat, qteInt;
+    try {
+      prixFloat = toDotDecimal(prix);
+      qteInt = parseInt(qte) || 0;
+      if (isNaN(prixFloat) || isNaN(qteInt)) {
+        return { erreur: "Le prix et la quantité doivent être des nombres valides", status: 400 };
+      }
+    } catch (error) {
+      return { erreur: "Erreur de conversion des données", status: 400 };
+    }
+
     const prixbaStr = prixba != null ? toCommaDecimal(toDotDecimal(prixba)) : "0,00";
 
     if (prixFloat < 0 || qteInt < 0) {
@@ -343,6 +353,8 @@ export async function ajouterItem(data) {
     stmtAllItems.free();
     console.log("Contenu actuel de la table item :", items);
 
+    console.log("Code-barres fourni :", bar);
+
     db.run('BEGIN TRANSACTION');
 
     try {
@@ -357,29 +369,47 @@ export async function ajouterItem(data) {
           return { erreur: "Ce code-barres existe déjà", status: 409 };
         }
         stmtCheckBar.free();
+
+        // Vérifier dans codebar (si la table existe)
+        const stmtCheckCodebar = db.prepare('SELECT 1 FROM codebar WHERE bar2 = ?');
+        stmtCheckCodebar.step([bar]);
+        if (stmtCheckCodebar.get()) {
+          stmtCheckCodebar.free();
+          db.run('ROLLBACK');
+          return { erreur: "Ce code-barres existe déjà comme code-barres lié", status: 409 };
+        }
+        stmtCheckCodebar.free();
       }
 
       // ÉTAPE 2: Trouver le prochain numéro de référence
-      const stmtRefs = db.prepare('SELECT ref FROM item WHERE ref LIKE "P%"');
+      const stmtRefs = db.prepare('SELECT ref, bar FROM item');
       const usedNumbers = [];
       while (stmtRefs.step()) {
         const row = stmtRefs.getAsObject();
-        if (row.ref && row.ref.startsWith('P')) {
-          const num = parseInt(row.ref.substring(1));
-          if (!isNaN(num)) usedNumbers.push(num);
+        let refNum = 0;
+        let barNum = 0;
+        if (row.ref && row.ref.startsWith('P') && row.ref.substring(1).match(/^\d+$/)) {
+          refNum = parseInt(row.ref.substring(1));
         }
+        if (row.bar && row.bar.startsWith('1') && row.bar.length === 13 && row.bar.substring(1, 12).match(/^\d+$/)) {
+          barNum = parseInt(row.bar.substring(1, 12));
+        }
+        usedNumbers.push(Math.max(refNum, barNum));
       }
       stmtRefs.free();
-      console.log("Numéros utilisés :", usedNumbers);
 
       let nextNumber = 1;
       if (usedNumbers.length > 0) {
         usedNumbers.sort((a, b) => a - b);
         for (const num of usedNumbers) {
-          if (num >= nextNumber) nextNumber = num + 1;
+          if (num === nextNumber) {
+            nextNumber += 1;
+          } else if (num > nextNumber) {
+            break;
+          }
         }
       }
-      console.log("Prochain numéro :", nextNumber);
+      console.log("Numéros utilisés :", usedNumbers, "Prochain numéro :", nextNumber);
 
       const generatedRef = `P${nextNumber}`;
       let finalBar = bar;
@@ -393,8 +423,8 @@ export async function ajouterItem(data) {
 
       // ÉTAPE 4: Insertion avec le code TEMPORAIRE
       const stmtInsert = db.prepare(`
-        INSERT INTO item (designation, bar, prix, qte, prixba, ref)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO item (designation, bar, prix, qte, prixba, ref, gere, prixb, tva, disponible, tvav, prixvh, qtea)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       
       stmtInsert.run([
@@ -403,7 +433,14 @@ export async function ajouterItem(data) {
         toCommaDecimal(prixFloat), 
         qteInt, 
         prixbaStr, 
-        generatedRef
+        generatedRef,
+        true, // gere
+        prixbaStr, // prixb
+        0, // tva
+        true, // disponible
+        "0", // tvav
+        toCommaDecimal(prixFloat), // prixvh
+        0 // qtea
       ]);
       stmtInsert.free();
 
@@ -430,12 +467,20 @@ export async function ajouterItem(data) {
         }
         stmtCheckGenerated.free();
 
+        // Vérifier dans codebar (si applicable)
+        const stmtCheckCodebar = db.prepare('SELECT 1 FROM codebar WHERE bar2 = ?');
+        stmtCheckCodebar.step([finalBar]);
+        if (stmtCheckCodebar.get()) {
+          stmtCheckCodebar.free();
+          db.run('ROLLBACK');
+          return { erreur: "Le code-barres généré existe déjà comme code-barres lié", status: 409 };
+        }
+        stmtCheckCodebar.free();
+
         // Mettre à jour avec le vrai code-barres
-        const stmtUpdate-Germain = db.prepare('UPDATE item SET bar = ? WHERE numero_item = ?');
+        const stmtUpdate = db.prepare('UPDATE item SET bar = ? WHERE numero_item = ?');
         stmtUpdate.run([finalBar, id]);
         stmtUpdate.free();
-      } else {
-        finalBar = bar;
       }
 
       db.run('COMMIT');
