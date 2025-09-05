@@ -112,8 +112,6 @@ window.fetch = async function(input, init = {}) {
 // Initialisation au chargement de la page
 document.addEventListener('DOMContentLoaded', () => {
   console.log('✅ Interception des fetch activée pour /api/');
-
-
   // Test automatique
   setTimeout(() => {
     console.log('🧪 Test automatique de l\'intercepteur...');
