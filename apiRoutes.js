@@ -334,11 +334,21 @@ export async function ajouterItem(data) {
       return { erreur: "Le prix et la quantité doivent être positifs", status: 400 };
     }
 
+    // Vérifier le contenu de la table item
+    const stmtAllItems = db.prepare('SELECT * FROM item');
+    const items = [];
+    while (stmtAllItems.step()) {
+      items.push(stmtAllItems.getAsObject());
+    }
+    stmtAllItems.free();
+    console.log("Contenu actuel de la table item :", items);
+
     db.run('BEGIN TRANSACTION');
 
     try {
       // ÉTAPE 1: Vérifier l'unicité du code-barres FOURNI par l'utilisateur
       if (bar) {
+        console.log("Vérification code-barres fourni :", bar);
         const stmtCheckBar = db.prepare('SELECT 1 FROM item WHERE bar = ?');
         stmtCheckBar.step([bar]);
         if (stmtCheckBar.get()) {
@@ -360,6 +370,7 @@ export async function ajouterItem(data) {
         }
       }
       stmtRefs.free();
+      console.log("Numéros utilisés :", usedNumbers);
 
       let nextNumber = 1;
       if (usedNumbers.length > 0) {
@@ -368,6 +379,7 @@ export async function ajouterItem(data) {
           if (num >= nextNumber) nextNumber = num + 1;
         }
       }
+      console.log("Prochain numéro :", nextNumber);
 
       const generatedRef = `P${nextNumber}`;
       let finalBar = bar;
@@ -375,8 +387,9 @@ export async function ajouterItem(data) {
       // ÉTAPE 3: Si aucun code-barres fourni, on génère un code TEMPORAIRE
       let tempBar = finalBar;
       if (!tempBar) {
-        tempBar = `TEMP_${Date.now()}_${nextNumber}`; // Code temporaire unique
+        tempBar = `TEMP_${Date.now()}_${nextNumber}`;
       }
+      console.log("Code temporaire (tempBar) :", tempBar);
 
       // ÉTAPE 4: Insertion avec le code TEMPORAIRE
       const stmtInsert = db.prepare(`
@@ -386,7 +399,7 @@ export async function ajouterItem(data) {
       
       stmtInsert.run([
         designation, 
-        tempBar, // On utilise le code temporaire
+        tempBar, 
         toCommaDecimal(prixFloat), 
         qteInt, 
         prixbaStr, 
@@ -408,8 +421,8 @@ export async function ajouterItem(data) {
         console.log("🔢 Code-barres EAN-13 généré:", finalBar);
 
         // Vérifier que le code généré n'existe pas déjà
-        const stmtCheckGenerated = db.prepare('SELECT 1 FROM item WHERE bar = ? AND numero_item != ?');
-        stmtCheckGenerated.step([finalBar, id]);
+        const stmtCheckGenerated = db.prepare('SELECT 1 FROM item WHERE bar = ? AND numero_item != ? AND bar != ?');
+        stmtCheckGenerated.step([finalBar, id, tempBar]);
         if (stmtCheckGenerated.get()) {
           stmtCheckGenerated.free();
           db.run('ROLLBACK');
@@ -418,11 +431,11 @@ export async function ajouterItem(data) {
         stmtCheckGenerated.free();
 
         // Mettre à jour avec le vrai code-barres
-        const stmtUpdate = db.prepare('UPDATE item SET bar = ? WHERE numero_item = ?');
+        const stmtUpdate-Germain = db.prepare('UPDATE item SET bar = ? WHERE numero_item = ?');
         stmtUpdate.run([finalBar, id]);
         stmtUpdate.free();
       } else {
-        finalBar = bar; // Utiliser le code fourni par l'utilisateur
+        finalBar = bar;
       }
 
       db.run('COMMIT');
