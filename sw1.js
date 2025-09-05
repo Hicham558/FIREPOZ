@@ -15,7 +15,17 @@ const handlers = {
     'liste_fournisseurs': () => listeFournisseurs(),
     'liste_produits': () => listeProduits(),
     'liste_utilisateurs': () => listeUtilisateurs(),
-    'dashboard': (url) => dashboard(new URL(url).searchParams.get('period') || 'day')
+   'dashboard': (url) => {
+  try {
+    // Extrait le paramètre 'period' de l'URL
+    const urlParams = new URL(url, window.location.origin).searchParams;
+    const period = urlParams.get('period') || 'day';
+    return dashboard(period);
+  } catch (error) {
+    console.error('❌ Erreur extraction paramètres dashboard:', error);
+    return dashboard('day'); // Valeur par défaut en cas d'erreur
+  }
+}
   },
   POST: {
     'ajouter_client': (body) => ajouterClient(body),
