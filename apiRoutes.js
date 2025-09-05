@@ -902,32 +902,28 @@ export async function validerVendeur(data) {
 /// CATEGORIES FUNCTIONS
 
 
+
+// Liste toutes les catégories
 export async function listeCategories() {
   try {
     console.log("Exécution de listeCategories...");
     const db = await getDb();
-    if (!db) {
-      throw new Error("Base de données non initialisée");
-    }
 
     const stmt = db.prepare('SELECT numer_categorie, description_c FROM categorie ORDER BY description_c');
     const categories = [];
     while (stmt.step()) {
       const row = stmt.getAsObject();
       categories.push({
-        numer_categorie: row.numer_categorie ?? '', // Utiliser ?? pour gérer null/undefined
-        description_c: row.description_c ?? ''     // Utiliser ?? pour gérer null/undefined
+        numer_categorie: row.numer_categorie !== null ? row.numer_categorie : '',
+        description_c: row.description_c !== null ? row.description_c : ''
       });
     }
     stmt.free();
     console.log("Categories retournées :", categories);
-    if (categories.length === 0) {
-      console.warn("Aucune catégorie trouvée dans la base de données");
-    }
-    return categories; // Toujours retourner un tableau, même vide
+    return categories;
   } catch (error) {
     console.error("Erreur listeCategories :", error);
-    throw new Error(`Erreur lors de la récupération des catégories : ${error.message}`);
+    throw new Error("Erreur lors de la récupération des catégories");
   }
 }
 
