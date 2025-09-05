@@ -40,71 +40,74 @@ const handlers = {
 window.fetch = async function(input, init = {}) {
   const url = typeof input === 'string' ? input : input.url;
   const method = (init.method || 'GET').toUpperCase();
-  const requestUrl = new URL(url, window.location.origin);
-
-  // Vérifier si la requête commence par http://localhostdb/
-  const isApiRequest = requestUrl.href.startsWith('http://localhostdb/');
-
-  console.log('Requête interceptée:', url, 'isApiRequest:', isApiRequest);
-
-  if (isApiRequest) {
-    try {
-      // Extraire l'endpoint après http://localhostdb/
-      const endpoint = requestUrl.pathname.replace(/^\/?(http:\/\/localhostdb\/)?/, '');
+  
+  try {
+    const requestUrl = new URL(url, window.location.origin);
+    const isApiRequest = requestUrl.hostname === 'localhostdb';
+    
+    console.log('🔍 Requête interceptée:', url, 'Hostname:', requestUrl.hostname, 'isApiRequest:', isApiRequest);
+    
+    if (isApiRequest) {
+      // Extraire l'endpoint après le hostname
+      const endpoint = requestUrl.pathname.substring(1); // Enlève le slash initial
       const methodHandlers = handlers[method] || {};
-
+      
+      console.log('🔍 Endpoint:', endpoint, 'Méthode:', method);
+      
       // Recherche du gestionnaire correspondant
       let matchedHandler = null;
       let matchParams = null;
+      
       for (const [pattern, handler] of Object.entries(methodHandlers)) {
         const regex = new RegExp(`^${pattern}$`);
         const match = endpoint.match(regex);
+        
         if (match) {
           matchedHandler = handler;
           matchParams = match.slice(1);
+          console.log('🔍 Handler trouvé:', pattern);
           break;
         }
       }
-
+      
       if (matchedHandler) {
         let responseData;
+        
         if (['POST', 'PUT'].includes(method)) {
           const body = init.body ? JSON.parse(init.body) : {};
           responseData = await matchedHandler(...matchParams, body);
         } else {
-          responseData = await matchedHandler(...matchParams, url);
+          responseData = await matchedHandler(...matchParams);
         }
-        const status = responseData.status || 200;
-        console.log('Réponse locale pour', endpoint, ':', responseData);
+        
+        console.log('✅ Réponse locale:', responseData);
+        
         return new Response(JSON.stringify(responseData), {
-          status,
+          status: responseData.status || 200,
           headers: { 'Content-Type': 'application/json' }
         });
       } else {
-        console.warn('Endpoint inconnu:', endpoint);
+        console.warn('❌ Aucun handler trouvé pour:', endpoint);
         return new Response(JSON.stringify({ erreur: 'Endpoint inconnu', status: 404 }), {
           status: 404,
           headers: { 'Content-Type': 'application/json' }
         });
       }
-    } catch (error) {
-      console.error('Erreur dans la gestion locale:', error);
-      return new Response(JSON.stringify({ erreur: error.message, status: 500 }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
     }
-  } else {
-    console.log('Requête non-API, transmise au réseau:', url);
-    return originalFetch(input, init);
+  } catch (error) {
+    console.error('❌ Erreur dans l\'interception:', error);
+    // En cas d'erreur, on passe à la fetch originale
   }
+  
+  // Pour les requêtes non-API ou en cas d'erreur
+  console.log('🌐 Requête transmise au réseau:', url);
+  return originalFetch.apply(this, arguments);
 };
 
-// Initialisation au chargement de la page
+// Initialisation
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('Interception des fetch activée');
-  // Initialisation de la base de données
+  console.log('✅ Intercepteur fetch activé');
   getDb()
-    .then(() => console.log('Base de données SQLite initialisée'))
-    .catch(err => console.error('Erreur init DB:', err));
+    .then(() => console.log('✅ Base de données initialisée'))
+    .catch(err => console.error('❌ Erreur DB:', err));
 });
