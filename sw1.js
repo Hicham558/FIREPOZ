@@ -1,9 +1,13 @@
 // intercept.js
-
-import {  listeClients, listeFournisseurs, listeProduits, listeUtilisateurs, dashboard,
-        ajouterClient, ajouterFournisseur, ajouterItem, ajouterUtilisateur,
-        modifierClient, modifierFournisseur, modifierItem, modifierUtilisateur,
-        supprimerClient, supprimerFournisseur, supprimerItem, supprimerUtilisateur,validerVendeur } from './apiRoutes.js';
+import { 
+  listeClients, listeFournisseurs, listeProduits, listeUtilisateurs, dashboard,
+  ajouterClient, ajouterFournisseur, ajouterItem, ajouterUtilisateur,
+  modifierClient, modifierFournisseur, modifierItem, modifierUtilisateur,
+  supprimerClient, supprimerFournisseur, supprimerItem, supprimerUtilisateur,
+  validerVendeur,
+  listeCategories, ajouterCategorie, modifierCategorie, supprimerCategorie,
+  assignerCategorie, listeProduitsParCategorie
+} from './apiRoutes.js';
 
 // Sauvegarde de la fonction fetch originale
 const originalFetch = window.fetch;
@@ -15,36 +19,53 @@ const handlers = {
     'liste_fournisseurs': () => listeFournisseurs(),
     'liste_produits': () => listeProduits(),
     'liste_utilisateurs': () => listeUtilisateurs(),
-   'dashboard': (url) => {
-  try {
-    // Extrait le paramètre 'period' de l'URL
-    const urlParams = new URL(url, window.location.origin).searchParams;
-    const period = urlParams.get('period') || 'day';
-    return dashboard(period);
-  } catch (error) {
-    console.error('❌ Erreur extraction paramètres dashboard:', error);
-    return dashboard('day'); // Valeur par défaut en cas d'erreur
-  }
-}
+    'liste_categories': () => listeCategories(),
+    'liste_produits_par_categorie': (url) => {
+      try {
+        const urlObj = new URL(url, window.location.origin);
+        const numero_categorie = urlObj.searchParams.get('numero_categorie');
+        // Convertir en number ou garder undefined
+        const catId = numero_categorie ? parseInt(numero_categorie) : undefined;
+        return listeProduitsParCategorie(catId);
+      } catch (error) {
+        console.error('❌ Erreur URL liste_produits_par_categorie:', error);
+        return listeProduitsParCategorie(undefined);
+      }
+    },
+    'dashboard': (url) => {
+      try {
+        // Extrait le paramètre 'period' de l'URL
+        const urlParams = new URL(url, window.location.origin).searchParams;
+        const period = urlParams.get('period') || 'day';
+        return dashboard(period);
+      } catch (error) {
+        console.error('❌ Erreur extraction paramètres dashboard:', error);
+        return dashboard('day'); // Valeur par défaut en cas d'erreur
+      }
+    }
   },
   POST: {
     'ajouter_client': (body) => ajouterClient(body),
     'ajouter_fournisseur': (body) => ajouterFournisseur(body),
     'ajouter_item': (body) => ajouterItem(body),
     'ajouter_utilisateur': (body) => ajouterUtilisateur(body),
+    'ajouter_categorie': (body) => ajouterCategorie(body),
+    'assigner_categorie': (body) => assignerCategorie(body),
     'valider_vendeur': (body) => validerVendeur(body) 
   },
   PUT: {
     'modifier_client/(\\w+)': (id, body) => modifierClient(id, body),
     'modifier_fournisseur/(\\w+)': (id, body) => modifierFournisseur(id, body),
     'modifier_item/(\\w+)': (id, body) => modifierItem(id, body),
-    'modifier_utilisateur/(\\w+)': (id, body) => modifierUtilisateur(id, body)
+    'modifier_utilisateur/(\\w+)': (id, body) => modifierUtilisateur(id, body),
+    'modifier_categorie/(\\w+)': (id, body) => modifierCategorie(id, body)
   },
   DELETE: {
     'supprimer_client/(\\w+)': (id) => supprimerClient(id),
     'supprimer_fournisseur/(\\w+)': (id) => supprimerFournisseur(id),
     'supprimer_item/(\\w+)': (id) => supprimerItem(id),
-    'supprimer_utilisateur/(\\w+)': (id) => supprimerUtilisateur(id)
+    'supprimer_utilisateur/(\\w+)': (id) => supprimerUtilisateur(id),
+    'supprimer_categorie/(\\w+)': (id) => supprimerCategorie(id)
   }
 };
 
