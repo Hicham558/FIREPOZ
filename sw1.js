@@ -1,5 +1,5 @@
 // intercept.js
-import { getDb, listeClients, listeFournisseurs, listeProduits, listeUtilisateurs, dashboard,
+import {  listeClients, listeFournisseurs, listeProduits, listeUtilisateurs, dashboard,
         ajouterClient, ajouterFournisseur, ajouterItem, ajouterUtilisateur,
         modifierClient, modifierFournisseur, modifierItem, modifierUtilisateur,
         supprimerClient, supprimerFournisseur, supprimerItem, supprimerUtilisateur } from './apiRoutes.js';
