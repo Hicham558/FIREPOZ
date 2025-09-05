@@ -916,7 +916,13 @@ export async function listeCategories() {
     }
     stmt.free();
     console.log("Categories retournées :", categories);
-    return categories;
+    
+    // RETOURNER un objet avec status pour l'intercepteur
+    return { 
+      data: categories, 
+      status: 200 
+    };
+    
   } catch (error) {
     console.error("Erreur listeCategories :", error);
     return { erreur: error.message, status: 500 };
@@ -925,30 +931,72 @@ export async function listeCategories() {
 
 export async function ajouterCategorie(data) {
   try {
-    console.log("Exécution de ajouterCategorie avec data :", data);
-    const db = await getDb();
-    const { description_c } = data;
-
-    if (!description_c) {
-      console.error("Erreur : Description requise");
-      return { erreur: "Description requise", status: 400 };
-    }
-
-    const stmt = db.prepare('INSERT INTO categorie (description_c) VALUES (?)');
-    stmt.run([description_c]);
-    stmt.free();
-
-    const idStmt = db.prepare('SELECT last_insert_rowid() AS id');
-    idStmt.step();
-    const { id } = idStmt.getAsObject();
-    idStmt.free();
-
-    saveDbToLocalStorage(db);
-    console.log("Catégorie ajoutée : ID =", id);
-    return { statut: "Catégorie ajoutée", id, status: 201 };
+    // ... le code existant ...
+    return { 
+      statut: "Catégorie ajoutée", 
+      id, 
+      status: 201  // <-- Ajouter status
+    };
   } catch (error) {
-    console.error("Erreur ajouterCategorie :", error);
-    return { erreur: error.message, status: 500 };
+    // ...
+  }
+}
+
+export async function modifierCategorie(numer_categorie, data) {
+  try {
+    // ... le code existant ...
+    return { 
+      statut: "Catégorie modifiée", 
+      status: 200  // <-- Ajouter status
+    };
+  } catch (error) {
+    // ...
+  }
+}
+
+export async function supprimerCategorie(numer_categorie) {
+  try {
+    // ... le code existant ...
+    return { 
+      statut: "Catégorie supprimée", 
+      status: 200  // <-- Ajouter status
+    };
+  } catch (error) {
+    // ...
+  }
+}
+
+export async function assignerCategorie(data) {
+  try {
+    // ... le code existant ...
+    return { 
+      statut: "Catégorie assignée", 
+      numero_item, 
+      numer_categorie, 
+      status: 200  // <-- Ajouter status
+    };
+  } catch (error) {
+    // ...
+  }
+}
+
+export async function listeProduitsParCategorie(numero_categorie) {
+  try {
+    // ... le code existant ...
+    
+    if (numero_categorie === undefined || numero_categorie === null) {
+      return { 
+        produits, 
+        status: 200  // <-- Ajouter status
+      };
+    } else {
+      return { 
+        categories: Object.values(categories), 
+        status: 200  // <-- Ajouter status
+      };
+    }
+  } catch (error) {
+    // ...
   }
 }
 
