@@ -321,7 +321,20 @@ export async function ajouterItem(data) {
     db.run('BEGIN TRANSACTION');
 
     try {
-      // Generate unique ref FIRST
+      // Check barcode uniqueness if provided
+      if (bar) {
+        const stmtBar = db.prepare('SELECT 1 FROM item WHERE bar = ?');
+        stmtBar.step([bar]);
+        const exists = stmtBar.get();
+        stmtBar.free();
+        if (exists) {
+          console.error("Erreur : Ce code-barres existe déjà");
+          db.run('ROLLBACK');
+          return { erreur: "Ce code-barres existe déjà", status: 409 };
+        }
+      }
+
+      // Generate unique ref
       const stmtRefs = db.prepare('SELECT ref FROM item WHERE ref LIKE "P%"');
       const refs = [];
       while (stmtRefs.step()) {
@@ -336,41 +349,29 @@ export async function ajouterItem(data) {
 
       // Generate unique barcode if not provided
       let finalBar = bar || null;
-      
-      // Only generate barcode if not provided AND not empty string
-      if (!finalBar) {
+      if (!bar) {
         const code12 = `1${nextNumber.toString().padStart(11, '0')}`;
         const checkDigit = calculateEan13CheckDigit(code12);
         finalBar = `${code12}${checkDigit}`;
-      }
-
-      // Check barcode uniqueness ONLY if we have a barcode
-      if (finalBar) {
-        const stmtBar = db.prepare('SELECT 1 FROM item WHERE bar = ?');
-        stmtBar.step([finalBar]);
-        const exists = stmtBar.get();
-        stmtBar.free();
         
-        if (exists) {
-          console.error("Erreur : Ce code-barres existe déjà:", finalBar);
+        // Verify generated barcode uniqueness
+        const stmtCheckBar = db.prepare('SELECT 1 FROM item WHERE bar = ?');
+        stmtCheckBar.step([finalBar]);
+        const barExists = stmtCheckBar.get();
+        stmtCheckBar.free();
+        if (barExists) {
+          console.error("Erreur : Le code EAN-13 généré existe déjà");
           db.run('ROLLBACK');
-          return { erreur: "Ce code-barres existe déjà", status: 409 };
+          return { erreur: "Le code EAN-13 généré existe déjà", status: 409 };
         }
       }
 
-      // Insert item - allow NULL for barcode
+      // Insert item
       const stmtInsert = db.prepare(`
         INSERT INTO item (designation, bar, prix, qte, prixba, ref)
         VALUES (?, ?, ?, ?, ?, ?)
       `);
-      stmtInsert.run([
-        designation, 
-        finalBar, // peut être null
-        toCommaDecimal(prixFloat), 
-        qteInt, 
-        prixbaStr, 
-        generatedRef
-      ]);
+      stmtInsert.run([designation, finalBar, toCommaDecimal(prixFloat), qteInt, prixbaStr, generatedRef]);
       stmtInsert.free();
 
       // Get inserted ID
@@ -382,22 +383,15 @@ export async function ajouterItem(data) {
       // Commit transaction
       db.run('COMMIT');
 
-      saveDbToLocalStorage(db);
-      console.log("✅ Produit ajouté : ID =", id, ", Référence =", generatedRef, ", Code-barres =", finalBar || 'aucun');
-      
-      return { 
-        statut: "Item ajouté", 
-        id, 
-        ref: generatedRef, 
-        bar: finalBar || 'aucun', 
-        status: 201 
-      };
+      saveDbToLocalStorage(db); // Sauvegarde LocalStorage
+      console.log("Produit ajouté : ID =", id, ", Référence =", generatedRef, ", Code-barres =", finalBar || 'aucun');
+      return { statut: "Item ajouté", id, ref: generatedRef, bar: finalBar || 'aucun', status: 201 };
     } catch (error) {
       db.run('ROLLBACK');
       throw error;
     }
   } catch (error) {
-    console.error("❌ Erreur ajouterItem :", error);
+    console.error("Erreur ajouterItem :", error);
     return { erreur: error.message, status: 500 };
   }
 }
