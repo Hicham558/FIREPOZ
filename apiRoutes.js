@@ -703,24 +703,31 @@ export async function dashboard(period = 'day') {
     const date_start_str = formatDate(date_start);
     const date_end_str = formatDate(date_end);
 
-    // KPI query
+    console.log("📅 Date range:", date_start_str, "to", date_end_str);
+
+    // KPI query - CORRIGÉE
     const query_kpi = `
       SELECT 
-        COALESCE(SUM(CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.')) AS total_ca),
+        COALESCE(SUM(CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL)), 0) AS total_ca,
         COALESCE(SUM(
-          CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS NUMERIC) - 
-          (a.quantite * CAST(REPLACE(COALESCE(NULLIF(i.prixba, ''), '0'), ',', '.') AS NUMERIC))
-        ) AS total_profit,
+          CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL) - 
+          (a.quantite * CAST(REPLACE(COALESCE(NULLIF(i.prixba, ''), '0'), ',', '.') AS REAL))
+        ), 0) AS total_profit,
         COUNT(DISTINCT c.numero_comande) AS sales_count
       FROM comande c
       JOIN attache a ON c.numero_comande = a.numero_comande
       JOIN item i ON a.numero_item = i.numero_item
       WHERE c.date_comande >= ? AND c.date_comande <= ?
     `;
+
+    console.log("🔍 KPI Query:", query_kpi);
+    
     const stmt_kpi = db.prepare(query_kpi);
     stmt_kpi.bind([date_start_str, date_end_str]);
     const kpi_data = stmt_kpi.getAsObject() || { total_ca: 0, total_profit: 0, sales_count: 0 };
     stmt_kpi.free();
+
+    console.log("📊 KPI Data:", kpi_data);
 
     // Low stock query
     const query_low_stock = `SELECT COUNT(*) AS low_stock FROM item WHERE qte < 10`;
@@ -733,7 +740,7 @@ export async function dashboard(period = 'day') {
     const query_top_client = `
       SELECT 
         cl.nom,
-        COALESCE(SUM(CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS NUMERIC)), 0) AS client_ca
+        COALESCE(SUM(CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL)), 0) AS client_ca
       FROM comande c
       JOIN attache a ON c.numero_comande = a.numero_comande
       LEFT JOIN client cl ON c.numero_table = cl.numero_clt
@@ -751,7 +758,7 @@ export async function dashboard(period = 'day') {
     const query_chart = `
       SELECT 
         DATE(c.date_comande) AS sale_date,
-        COALESCE(SUM(CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS NUMERIC)), 0) AS daily_ca
+        COALESCE(SUM(CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL)), 0) AS daily_ca
       FROM comande c
       JOIN attache a ON c.numero_comande = a.numero_comande
       WHERE c.date_comande >= ? AND c.date_comande <= ?
@@ -771,7 +778,7 @@ export async function dashboard(period = 'day') {
     const chart_values = [];
     let current_date = new Date(date_start);
     while (current_date <= date_end) {
-      const date_str = current_date.toISOString().slice(0, 10); // YYYY-MM-DD
+      const date_str = current_date.toISOString().slice(0, 10);
       chart_labels.push(date_str);
       const daily_ca = chart_data.find(row => row.sale_date === date_str)?.daily_ca || 0;
       chart_values.push(toDotDecimal(daily_ca.toString()));
@@ -798,10 +805,10 @@ export async function dashboard(period = 'day') {
       status: 200
     };
 
-    console.log("Résultat dashboard:", response);
+    console.log("✅ Résultat dashboard:", response);
     return response;
   } catch (error) {
-    console.error("Erreur dashboard:", error);
+    console.error("❌ Erreur dashboard:", error);
     return { erreur: error.message, status: 500 };
   }
 }
