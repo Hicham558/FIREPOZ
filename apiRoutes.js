@@ -914,21 +914,20 @@ export async function listeCategories() {
       tableCheck.free();
       
       if (!tableExists) {
-        console.log("Table 'categorie' n'existe pas - retour tableau vide");
-        return []; // Retourne directement un tableau vide comme Flask
+        console.log("Table 'categorie' n'existe pas");
+        return { data: [], status: 200 }; // ← Retourne objet avec data
       }
     } catch (error) {
       console.log("Erreur vérification table:", error);
-      return []; // Retourne tableau vide en cas d'erreur
+      return { data: [], status: 200 }; // ← Retourne objet avec data
     }
 
-    // Exécuter la requête exacte comme Flask
+    // Exécuter la requête
     const stmt = db.prepare("SELECT numer_categorie, description_c FROM categorie ORDER BY description_c");
     const categories = [];
     
     while (stmt.step()) {
       const row = stmt.getAsObject();
-      // Retourne exactement les mêmes champs que Flask
       categories.push({
         numer_categorie: row.numer_categorie,
         description_c: row.description_c
@@ -938,12 +937,20 @@ export async function listeCategories() {
     stmt.free();
     
     console.log(`Récupération de ${categories.length} catégories`);
-    return categories; // Retourne directement le ta
+    
+    // ← RETOURNE UN OBJET AVEC PROPRIÉTÉ DATA POUR TON HTML
+    return { 
+      data: categories, 
+      status: 200 
+    };
     
   } catch (error) {
     console.error("Erreur listeCategories :", error);
-    // Lance une erreur comme Flask retourne une erreur 500
-    throw new Error("Erreur lors de la récupération des catégories");
+    return { 
+      data: [], 
+      status: 500,
+      erreur: error.message 
+    };
   }
 }
 
