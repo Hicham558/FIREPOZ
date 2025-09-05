@@ -1218,31 +1218,55 @@ export async function assignerCategorie(data) {
   }
 }
 
-// Liste les produits par catégorie
+// Liste les produits par catégorie ou sans catégorie
 export async function listeProduitsParCategorie(numero_categorie) {
   try {
     console.log("Exécution de listeProduitsParCategorie :", numero_categorie);
     const db = await getDb();
 
-    // Gérer le cas où numero_categorie est undefined ou null
-    if (numero_categorie === undefined || numero_categorie === null || numero_categorie === '') {
+    // Vérifier les colonnes des tables
+    const stmtInfoCategorie = db.prepare("PRAGMA table_info(categorie)");
+    const columnsCategorie = [];
+    while (stmtInfoCategorie.step()) {
+      columnsCategorie.push(stmtInfoCategorie.getAsObject().name);
+    }
+    stmtInfoCategorie.free();
+    console.log("Colonnes de la table categorie :", columnsCategorie);
+
+    const stmtInfoItem = db.prepare("PRAGMA table_info(item)");
+    const columnsItem = [];
+    while (stmtInfoItem.step()) {
+      columnsItem.push(stmtInfoItem.getAsObject().name);
+    }
+    stmtInfoItem.free();
+    console.log("Colonnes de la table item :", columnsItem);
+
+    if (numero_categorie === undefined || numero_categorie === null) {
       // Produits sans catégorie
       const stmt = db.prepare('SELECT numero_item, designation FROM item WHERE numero_categorie IS NULL');
       const produits = [];
       while (stmt.step()) {
         const row = stmt.getAsObject();
+        console.log("Produit sans catégorie brut :", row);
         produits.push({
-          numero_item: row.numero_item !== null ? row.numero_item : '',
-          designation: row.designation !== null ? row.designation : ''
+          NUMERO_ITEM: row.numero_item !== null ? row.numero_item : '',
+          DESIGNATION: row.designation !== null ? row.designation : ''
         });
       }
       stmt.free();
-      console.log("Produits sans catégorie :", produits.length);
-      return produits;
+      console.log("Produits sans catégorie :", produits);
+      return { produits };
     } else {
-      // Convertir en number si c'est une string
-      const catId = typeof numero_categorie === 'string' ? parseInt(numero_categorie) : numero_categorie;
-      
+      // Vérifier si la catégorie existe
+      const stmtCheckCat = db.prepare('SELECT 1 FROM categorie WHERE numer_categorie = ?');
+      stmtCheckCat.step([numero_categorie]);
+      if (!stmtCheckCat.get()) {
+        stmtCheckCat.free();
+        console.error("Erreur : Catégorie non trouvée");
+        return { erreur: "Catégorie non trouvée", status: 404 };
+      }
+      stmtCheckCat.free();
+
       // Produits par catégorie
       const stmt = db.prepare(`
         SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
@@ -1250,25 +1274,36 @@ export async function listeProduitsParCategorie(numero_categorie) {
         LEFT JOIN item i ON c.numer_categorie = i.numero_categorie
         WHERE c.numer_categorie = ?
       `);
-      stmt.bind([catId]);
+      stmt.bind([numero_categorie]);
 
-      const result = [];
+      const categories = {};
       while (stmt.step()) {
         const row = stmt.getAsObject();
-        result.push({
-          numer_categorie: row.numer_categorie !== null ? row.numer_categorie : '',
-          description_c: row.description_c !== null ? row.description_c : '',
-          numero_item: row.numero_item !== null ? row.numero_item : '',
-          designation: row.designation !== null ? row.designation : ''
-        });
+        console.log("Données brutes pour catégorie :", row);
+        const cat_id = row.numer_categorie;
+
+        if (!categories[cat_id]) {
+          categories[cat_id] = {
+            NUMERO_CATEGORIE: cat_id !== null ? cat_id : '',
+            DESCRIPTION_C: row.description_c !== null ? row.description_c : '',
+            PRODUITS: []
+          };
+        }
+
+        if (row.numero_item) {
+          categories[cat_id].PRODUITS.push({
+            NUMERO_ITEM: row.numero_item !== null ? row.numero_item : '',
+            DESIGNATION: row.designation !== null ? row.designation : ''
+          });
+        }
       }
       stmt.free();
 
-      console.log("Produits par catégorie :", result.length);
-      return result;
+      console.log("Catégories avec produits :", Object.values(categories));
+      return { categories: Object.values(categories) };
     }
   } catch (error) {
     console.error("Erreur listeProduitsParCategorie :", error);
-    throw new Error("Erreur lors de la récupération des produits par catégorie");
+    return { erreur: error.message, status: 500 };
   }
 }
