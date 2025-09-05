@@ -705,38 +705,58 @@ export async function dashboard(period = 'day') {
 
     console.log("📅 Date range:", date_start_str, "to", date_end_str);
 
-    // KPI query - CORRIGÉE
-    const query_kpi = `
-      SELECT 
-        COALESCE(SUM(CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL)), 0) AS total_ca,
-        COALESCE(SUM(
-          CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL) - 
-          (a.quantite * CAST(REPLACE(COALESCE(NULLIF(i.prixba, ''), '0'), ',', '.') AS REAL))
-        ), 0) AS total_profit,
-        COUNT(DISTINCT c.numero_comande) AS sales_count
+    // 1. Requête CA total - SIMPLIFIÉE
+    const query_ca = `
+      SELECT COALESCE(SUM(
+        CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL)
+      ), 0) AS total_ca
+      FROM comande c
+      JOIN attache a ON c.numero_comande = a.numero_comande
+      WHERE c.date_comande >= ? AND c.date_comande <= ?
+    `;
+
+    const stmt_ca = db.prepare(query_ca);
+    stmt_ca.bind([date_start_str, date_end_str]);
+    const ca_data = stmt_ca.getAsObject() || { total_ca: 0 };
+    stmt_ca.free();
+
+    // 2. Requête profit total - SIMPLIFIÉE
+    const query_profit = `
+      SELECT COALESCE(SUM(
+        CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL) - 
+        (a.quantite * CAST(REPLACE(COALESCE(NULLIF(i.prixba, ''), '0'), ',', '.') AS REAL))
+      ), 0) AS total_profit
       FROM comande c
       JOIN attache a ON c.numero_comande = a.numero_comande
       JOIN item i ON a.numero_item = i.numero_item
       WHERE c.date_comande >= ? AND c.date_comande <= ?
     `;
 
-    console.log("🔍 KPI Query:", query_kpi);
-    
-    const stmt_kpi = db.prepare(query_kpi);
-    stmt_kpi.bind([date_start_str, date_end_str]);
-    const kpi_data = stmt_kpi.getAsObject() || { total_ca: 0, total_profit: 0, sales_count: 0 };
-    stmt_kpi.free();
+    const stmt_profit = db.prepare(query_profit);
+    stmt_profit.bind([date_start_str, date_end_str]);
+    const profit_data = stmt_profit.getAsObject() || { total_profit: 0 };
+    stmt_profit.free();
 
-    console.log("📊 KPI Data:", kpi_data);
+    // 3. Nombre de ventes
+    const query_sales = `
+      SELECT COUNT(DISTINCT c.numero_comande) AS sales_count
+      FROM comande c
+      WHERE c.date_comande >= ? AND c.date_comande <= ?
+    `;
 
-    // Low stock query
+    const stmt_sales = db.prepare(query_sales);
+    stmt_sales.bind([date_start_str, date_end_str]);
+    const sales_data = stmt_sales.getAsObject() || { sales_count: 0 };
+    stmt_sales.free();
+
+    // 4. Stock faible
     const query_low_stock = `SELECT COUNT(*) AS low_stock FROM item WHERE qte < 10`;
     const stmt_low_stock = db.prepare(query_low_stock);
     const low_stock_data = stmt_low_stock.getAsObject();
     const low_stock_count = low_stock_data.low_stock || 0;
     stmt_low_stock.free();
 
-    // Top client query
+    // 5. Meilleur client
     const query_top_client = `
       SELECT 
         cl.nom,
@@ -754,7 +774,7 @@ export async function dashboard(period = 'day') {
     const top_client = stmt_top_client.getAsObject() || { nom: 'N/A', client_ca: 0 };
     stmt_top_client.free();
 
-    // Chart data query
+    // 6. Données graphique
     const query_chart = `
       SELECT 
         DATE(c.date_comande) AS sale_date,
@@ -789,9 +809,9 @@ export async function dashboard(period = 'day') {
     const response = {
       statut: "Dashboard data retrieved",
       data: {
-        total_ca: toDotDecimal(kpi_data.total_ca.toString()),
-        total_profit: toDotDecimal(kpi_data.total_profit.toString()),
-        sales_count: parseInt(kpi_data.sales_count) || 0,
+        total_ca: toDotDecimal(ca_data.total_ca.toString()),
+        total_profit: toDotDecimal(profit_data.total_profit.toString()),
+        sales_count: parseInt(sales_data.sales_count) || 0,
         low_stock_items: parseInt(low_stock_count) || 0,
         top_client: {
           name: top_client.nom || 'N/A',
