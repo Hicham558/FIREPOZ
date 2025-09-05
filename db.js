@@ -1,5 +1,5 @@
 // db.js
-import { initSqlJs } from 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.min.js';
+import { initSqlJs } from 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.wasm';
 
 let db = null;
 
@@ -8,7 +8,7 @@ export async function getDb() {
 
   try {
     const SQL = await initSqlJs({
-      locateFile: () => 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.wasm'
+      locateFile: () => 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.wasm'
     });
 
     // Vérifier si une version de la base existe dans localStorage
