@@ -337,7 +337,7 @@ export async function ajouterItem(data) {
     db.run('BEGIN TRANSACTION');
 
     try {
-      // Vérifier l'unicité du code-barres si fourni
+      // ÉTAPE 1: Vérifier l'unicité du code-barres FOURNI par l'utilisateur
       if (bar) {
         const stmtCheckBar = db.prepare('SELECT 1 FROM item WHERE bar = ?');
         stmtCheckBar.step([bar]);
@@ -349,7 +349,7 @@ export async function ajouterItem(data) {
         stmtCheckBar.free();
       }
 
-      // Trouver le prochain numéro de référence
+      // ÉTAPE 2: Trouver le prochain numéro de référence
       const stmtRefs = db.prepare('SELECT ref FROM item WHERE ref LIKE "P%"');
       const usedNumbers = [];
       while (stmtRefs.step()) {
@@ -372,25 +372,13 @@ export async function ajouterItem(data) {
       const generatedRef = `P${nextNumber}`;
       let finalBar = bar;
 
-      // Générer le code-barres si non fourni
-      if (!finalBar) {
-        const code12 = `1${nextNumber.toString().padStart(11, '0')}`;
-        const checkDigit = calculateEan13CheckDigit(code12);
-        finalBar = `${code12}${checkDigit}`;
-        console.log("🔢 Code-barres généré:", finalBar);
+      // ÉTAPE 3: Si aucun code-barres fourni, on génère un code TEMPORAIRE
+      let tempBar = finalBar;
+      if (!tempBar) {
+        tempBar = `TEMP_${Date.now()}_${nextNumber}`; // Code temporaire unique
       }
 
-      // Vérifier l'unicité du code-barres final
-      const stmtCheckFinalBar = db.prepare('SELECT 1 FROM item WHERE bar = ?');
-      stmtCheckFinalBar.step([finalBar]);
-      if (stmtCheckFinalBar.get()) {
-        stmtCheckFinalBar.free();
-        db.run('ROLLBACK');
-        return { erreur: "Le code-barres généré existe déjà", status: 409 };
-      }
-      stmtCheckFinalBar.free();
-
-      // Insertion de l'item
+      // ÉTAPE 4: Insertion avec le code TEMPORAIRE
       const stmtInsert = db.prepare(`
         INSERT INTO item (designation, bar, prix, qte, prixba, ref)
         VALUES (?, ?, ?, ?, ?, ?)
@@ -398,7 +386,7 @@ export async function ajouterItem(data) {
       
       stmtInsert.run([
         designation, 
-        finalBar, 
+        tempBar, // On utilise le code temporaire
         toCommaDecimal(prixFloat), 
         qteInt, 
         prixbaStr, 
@@ -412,10 +400,35 @@ export async function ajouterItem(data) {
       const { id } = idStmt.getAsObject();
       idStmt.free();
 
+      // ÉTAPE 5: Si aucun code-barres fourni, générer le EAN-13 et mettre à jour
+      if (!bar) {
+        const code12 = `1${nextNumber.toString().padStart(11, '0')}`;
+        const checkDigit = calculateEan13CheckDigit(code12);
+        finalBar = `${code12}${checkDigit}`;
+        console.log("🔢 Code-barres EAN-13 généré:", finalBar);
+
+        // Vérifier que le code généré n'existe pas déjà
+        const stmtCheckGenerated = db.prepare('SELECT 1 FROM item WHERE bar = ? AND numero_item != ?');
+        stmtCheckGenerated.step([finalBar, id]);
+        if (stmtCheckGenerated.get()) {
+          stmtCheckGenerated.free();
+          db.run('ROLLBACK');
+          return { erreur: "Le code-barres généré existe déjà pour un autre produit", status: 409 };
+        }
+        stmtCheckGenerated.free();
+
+        // Mettre à jour avec le vrai code-barres
+        const stmtUpdate = db.prepare('UPDATE item SET bar = ? WHERE numero_item = ?');
+        stmtUpdate.run([finalBar, id]);
+        stmtUpdate.free();
+      } else {
+        finalBar = bar; // Utiliser le code fourni par l'utilisateur
+      }
+
       db.run('COMMIT');
       saveDbToLocalStorage(db);
       
-      console.log("✅ Produit ajouté avec succès");
+      console.log("✅ Produit ajouté avec succès:", { id, ref: generatedRef, bar: finalBar });
       return { 
         statut: "Item ajouté", 
         id: id, 
@@ -426,6 +439,7 @@ export async function ajouterItem(data) {
 
     } catch (error) {
       db.run('ROLLBACK');
+      console.error("❌ Erreur dans la transaction:", error);
       throw error;
     }
   } catch (error) {
