@@ -134,6 +134,8 @@ export async function listeProduits() {
   try {
     console.log("Exécution de listeProduits...");
     const db = await getDb();
+
+    // Vérifier les colonnes de la table item
     const stmtInfo = db.prepare("PRAGMA table_info(item)");
     const columns = [];
     while (stmtInfo.step()) {
@@ -142,26 +144,31 @@ export async function listeProduits() {
     stmtInfo.free();
     console.log("Colonnes de la table item :", columns);
 
+    // Récupérer les données
     const stmt = db.prepare('SELECT numero_item, bar, designation, qte, prix, prixba, ref FROM item ORDER BY designation');
     const produits = [];
     while (stmt.step()) {
       const row = stmt.get();
       console.log("Produit brut récupéré :", row);
-      const prixFloat = toDotDecimal(row[4]);
-      const prixbaFloat = toDotDecimal(row[5]);
+
+      // Conversion des valeurs
+      const prixFloat = toDotDecimal(row[4]) || 0.0;
+      const prixbaFloat = toDotDecimal(row[5]) || 0.0;
+      const qteInt = parseInt(row[3]) || 0;
+
       produits.push({
-        numero_item: row[0] !== null ? row[0] : '',
-        bar: row[1] !== null ? row[1] : '',
-        designation: row[2] !== null ? row[2] : '',
-        qte: row[3] !== null ? parseInt(row[3]) : 0,
-        prix: row[4] !== null ? row[4] : '0,00',
-        prixba: row[5] !== null ? row[5] : '0,00',
-        ref: row[6] !== null ? row[6] : '',
-        prix_num: prixFloat,
-        prixba_num: prixbaFloat,
-        prix_fmt: toCommaDecimal(prixFloat),
-        prixba_fmt: toCommaDecimal(prixbaFloat),
-        qte_fmt: `${parseInt(row[3]) || 0}`
+        NUMERO_ITEM: row[0] !== null ? row[0] : '',
+        BAR: row[1] !== null ? row[1] : '',
+        DESIGNATION: row[2] !== null ? row[2] : '',
+        QTE: qteInt,
+        PRIX: row[4] !== null ? row[4] : '0,00',
+        PRIXBA: row[5] !== null ? row[5] : '0,00',
+        REF: row[6] !== null ? row[6] : '',
+        PRIX_NUM: prixFloat,
+        PRIXBA_NUM: prixbaFloat,
+        PRIX_FMT: toCommaDecimal(prixFloat),
+        PRIXBA_FMT: toCommaDecimal(prixbaFloat),
+        QTE_FMT: `${qteInt}`
       });
     }
     stmt.free();
