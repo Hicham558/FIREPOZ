@@ -705,7 +705,7 @@ export async function dashboard(period = 'day') {
 
     console.log("📅 Date range:", date_start_str, "to", date_end_str);
 
-    // 1. Requête CA total - SIMPLIFIÉE
+    // 1. Requête CA total
     const query_ca = `
       SELECT COALESCE(SUM(
         CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL)
@@ -718,9 +718,10 @@ export async function dashboard(period = 'day') {
     const stmt_ca = db.prepare(query_ca);
     stmt_ca.bind([date_start_str, date_end_str]);
     const ca_data = stmt_ca.getAsObject() || { total_ca: 0 };
+    console.log("💰 CA data:", ca_data);
     stmt_ca.free();
 
-    // 2. Requête profit total - SIMPLIFIÉE
+    // 2. Requête profit total
     const query_profit = `
       SELECT COALESCE(SUM(
         CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL) - 
@@ -735,6 +736,7 @@ export async function dashboard(period = 'day') {
     const stmt_profit = db.prepare(query_profit);
     stmt_profit.bind([date_start_str, date_end_str]);
     const profit_data = stmt_profit.getAsObject() || { total_profit: 0 };
+    console.log("💵 Profit data:", profit_data);
     stmt_profit.free();
 
     // 3. Nombre de ventes
@@ -747,13 +749,15 @@ export async function dashboard(period = 'day') {
     const stmt_sales = db.prepare(query_sales);
     stmt_sales.bind([date_start_str, date_end_str]);
     const sales_data = stmt_sales.getAsObject() || { sales_count: 0 };
+    console.log("🛒 Sales data:", sales_data);
     stmt_sales.free();
 
     // 4. Stock faible
     const query_low_stock = `SELECT COUNT(*) AS low_stock FROM item WHERE qte < 10`;
     const stmt_low_stock = db.prepare(query_low_stock);
-    const low_stock_data = stmt_low_stock.getAsObject();
+    const low_stock_data = stmt_low_stock.getAsObject() || { low_stock: 0 };
     const low_stock_count = low_stock_data.low_stock || 0;
+    console.log("📦 Low stock:", low_stock_count);
     stmt_low_stock.free();
 
     // 5. Meilleur client
@@ -772,6 +776,7 @@ export async function dashboard(period = 'day') {
     const stmt_top_client = db.prepare(query_top_client);
     stmt_top_client.bind([date_start_str, date_end_str]);
     const top_client = stmt_top_client.getAsObject() || { nom: 'N/A', client_ca: 0 };
+    console.log("👑 Top client:", top_client);
     stmt_top_client.free();
 
     // 6. Données graphique
@@ -792,6 +797,7 @@ export async function dashboard(period = 'day') {
       chart_data.push(stmt_chart.getAsObject());
     }
     stmt_chart.free();
+    console.log("📊 Chart data:", chart_data);
 
     // Generate chart labels and values
     const chart_labels = [];
@@ -805,17 +811,17 @@ export async function dashboard(period = 'day') {
       current_date.setDate(current_date.getDate() + 1);
     }
 
-    // Format response
+    // Format response - AVEC SÉCURISATION
     const response = {
       statut: "Dashboard data retrieved",
       data: {
-        total_ca: toDotDecimal(ca_data.total_ca.toString()),
-        total_profit: toDotDecimal(profit_data.total_profit.toString()),
+        total_ca: toDotDecimal((ca_data.total_ca || 0).toString()),
+        total_profit: toDotDecimal((profit_data.total_profit || 0).toString()),
         sales_count: parseInt(sales_data.sales_count) || 0,
         low_stock_items: parseInt(low_stock_count) || 0,
         top_client: {
           name: top_client.nom || 'N/A',
-          ca: toDotDecimal(top_client.client_ca.toString())
+          ca: toDotDecimal((top_client.client_ca || 0).toString())
         },
         chart_data: {
           labels: chart_labels,
