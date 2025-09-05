@@ -24,23 +24,28 @@ const handlers = {
       try {
         const urlObj = new URL(url, window.location.origin);
         const numero_categorie = urlObj.searchParams.get('numero_categorie');
-        // Convertir en number ou garder undefined
-        const catId = numero_categorie ? parseInt(numero_categorie) : undefined;
+        
+        // Convertir en number ou null si 'null' ou undefined
+        let catId = null;
+        if (numero_categorie && numero_categorie !== 'null' && numero_categorie !== 'undefined') {
+          catId = parseInt(numero_categorie);
+          if (isNaN(catId)) catId = null;
+        }
+        
         return listeProduitsParCategorie(catId);
       } catch (error) {
         console.error('❌ Erreur URL liste_produits_par_categorie:', error);
-        return listeProduitsParCategorie(undefined);
+        return listeProduitsParCategorie(null);
       }
     },
     'dashboard': (url) => {
       try {
-        // Extrait le paramètre 'period' de l'URL
         const urlParams = new URL(url, window.location.origin).searchParams;
         const period = urlParams.get('period') || 'day';
         return dashboard(period);
       } catch (error) {
         console.error('❌ Erreur extraction paramètres dashboard:', error);
-        return dashboard('day'); // Valeur par défaut en cas d'erreur
+        return dashboard('day');
       }
     }
   },
@@ -78,15 +83,11 @@ window.fetch = async function(input, init = {}) {
   // Vérifier si la requête commence par /api/
   const isApiRequest = requestUrl.pathname.startsWith('/api/');
 
-  console.log('🔍 Requête interceptée:', url, 'isApiRequest:', isApiRequest);
-
   if (isApiRequest) {
     try {
       // Extraire l'endpoint après /api/
       const endpoint = requestUrl.pathname.replace('/api/', '');
       const methodHandlers = handlers[method] || {};
-
-      console.log('🔍 Endpoint extrait:', endpoint, 'Méthode:', method);
 
       // Recherche du gestionnaire correspondant
       let matchedHandler = null;
@@ -99,7 +100,6 @@ window.fetch = async function(input, init = {}) {
         if (match) {
           matchedHandler = handler;
           matchParams = match.slice(1);
-          console.log('✅ Handler trouvé pour le pattern:', pattern);
           break;
         }
       }
@@ -115,28 +115,24 @@ window.fetch = async function(input, init = {}) {
         }
         
         const status = responseData.status || 200;
-        console.log('✅ Réponse locale pour', endpoint, ':', responseData);
         
         return new Response(JSON.stringify(responseData), {
           status,
           headers: { 'Content-Type': 'application/json' }
         });
       } else {
-        console.warn('❌ Aucun handler trouvé pour l\'endpoint:', endpoint);
         return new Response(JSON.stringify({ erreur: 'Endpoint inconnu', status: 404 }), {
           status: 404,
           headers: { 'Content-Type': 'application/json' }
         });
       }
     } catch (error) {
-      console.error('❌ Erreur dans la gestion locale:', error);
       return new Response(JSON.stringify({ erreur: error.message, status: 500 }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });
     }
   } else {
-    console.log('🌐 Requête non-API, transmise au réseau:', url);
     return originalFetch(input, init);
   }
 };
@@ -144,12 +140,4 @@ window.fetch = async function(input, init = {}) {
 // Initialisation au chargement de la page
 document.addEventListener('DOMContentLoaded', () => {
   console.log('✅ Interception des fetch activée pour /api/');
-  // Test automatique
-  setTimeout(() => {
-    console.log('🧪 Test automatique de l\'intercepteur...');
-    fetch('/api/liste_clients')
-      .then(response => response.json())
-      .then(data => console.log('✅ Test réussi - Données clients:', data))
-      .catch(error => console.error('❌ Test échoué:', error));
-  }, 1000);
 });
