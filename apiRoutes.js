@@ -899,3 +899,236 @@ export async function validerVendeur(data) {
     return { erreur: error.message, status: 500 };
   }
 }
+// CATEGORIES FUNCTIONS
+
+export async function listeCategories() {
+  try {
+    console.log("Exécution de listeCategories...");
+    const db = await getDb();
+    const stmt = db.prepare('SELECT numer_categorie, description_c FROM categorie ORDER BY description_c');
+    const categories = [];
+    while (stmt.step()) {
+      const row = stmt.getAsObject();
+      categories.push({
+        numer_categorie: row.numer_categorie,
+        description_c: row.description_c
+      });
+    }
+    stmt.free();
+    console.log("Categories retournées :", categories);
+    return categories;
+  } catch (error) {
+    console.error("Erreur listeCategories :", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+export async function ajouterCategorie(data) {
+  try {
+    console.log("Exécution de ajouterCategorie avec data :", data);
+    const db = await getDb();
+    const { description_c } = data;
+
+    if (!description_c) {
+      console.error("Erreur : Description requise");
+      return { erreur: "Description requise", status: 400 };
+    }
+
+    const stmt = db.prepare('INSERT INTO categorie (description_c) VALUES (?)');
+    stmt.run([description_c]);
+    stmt.free();
+
+    const idStmt = db.prepare('SELECT last_insert_rowid() AS id');
+    idStmt.step();
+    const { id } = idStmt.getAsObject();
+    idStmt.free();
+
+    saveDbToLocalStorage(db);
+    console.log("Catégorie ajoutée : ID =", id);
+    return { statut: "Catégorie ajoutée", id, status: 201 };
+  } catch (error) {
+    console.error("Erreur ajouterCategorie :", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+export async function modifierCategorie(numer_categorie, data) {
+  try {
+    console.log("Exécution de modifierCategorie :", numer_categorie, data);
+    const db = await getDb();
+    const { description_c } = data;
+
+    if (!description_c) {
+      console.error("Erreur : Description requise");
+      return { erreur: "Description requise", status: 400 };
+    }
+
+    const stmt = db.prepare('UPDATE categorie SET description_c = ? WHERE numer_categorie = ?');
+    stmt.run([description_c, numer_categorie]);
+    const changes = db.getRowsModified();
+    stmt.free();
+
+    if (changes === 0) {
+      console.error("Erreur : Catégorie non trouvée");
+      return { erreur: "Catégorie non trouvée", status: 404 };
+    }
+
+    saveDbToLocalStorage(db);
+    console.log("Catégorie modifiée : changements =", changes);
+    return { statut: "Catégorie modifiée", status: 200 };
+  } catch (error) {
+    console.error("Erreur modifierCategorie :", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+export async function supprimerCategorie(numer_categorie) {
+  try {
+    console.log("Exécution de supprimerCategorie :", numer_categorie);
+    const db = await getDb();
+
+    // Vérifier si la catégorie est utilisée par des produits
+    const stmtCheck = db.prepare('SELECT 1 FROM item WHERE numero_categorie = ?');
+    stmtCheck.step([numer_categorie]);
+    if (stmtCheck.get()) {
+      stmtCheck.free();
+      console.error("Erreur : Catégorie utilisée par des produits");
+      return { erreur: "Catégorie utilisée par des produits", status: 400 };
+    }
+    stmtCheck.free();
+
+    const stmt = db.prepare('DELETE FROM categorie WHERE numer_categorie = ?');
+    stmt.run([numer_categorie]);
+    const changes = db.getRowsModified();
+    stmt.free();
+
+    if (changes === 0) {
+      console.error("Erreur : Catégorie non trouvée");
+      return { erreur: "Catégorie non trouvée", status: 404 };
+    }
+
+    saveDbToLocalStorage(db);
+    console.log("Catégorie supprimée : changements =", changes);
+    return { statut: "Catégorie supprimée", status: 200 };
+  } catch (error) {
+    console.error("Erreur supprimerCategorie :", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+export async function assignerCategorie(data) {
+  try {
+    console.log("Exécution de assignerCategorie avec data :", data);
+    const db = await getDb();
+    const { numero_item, numer_categorie } = data;
+
+    if (numero_item === undefined || numero_item === null) {
+      console.error("Erreur : Numéro d'article requis");
+      return { erreur: "Numéro d'article requis", status: 400 };
+    }
+
+    // Vérifier si l'article existe
+    const stmtCheckItem = db.prepare('SELECT 1 FROM item WHERE numero_item = ?');
+    stmtCheckItem.step([numero_item]);
+    if (!stmtCheckItem.get()) {
+      stmtCheckItem.free();
+      console.error("Erreur : Article non trouvé");
+      return { erreur: "Article non trouvé", status: 404 };
+    }
+    stmtCheckItem.free();
+
+    // Vérifier si la catégorie existe (si fournie)
+    if (numer_categorie !== null && numer_categorie !== undefined) {
+      const stmtCheckCat = db.prepare('SELECT 1 FROM categorie WHERE numer_categorie = ?');
+      stmtCheckCat.step([numer_categorie]);
+      if (!stmtCheckCat.get()) {
+        stmtCheckCat.free();
+        console.error("Erreur : Catégorie non trouvée");
+        return { erreur: "Catégorie non trouvée", status: 404 };
+      }
+      stmtCheckCat.free();
+    }
+
+    const stmt = db.prepare('UPDATE item SET numero_categorie = ? WHERE numero_item = ?');
+    stmt.run([numer_categorie, numero_item]);
+    const changes = db.getRowsModified();
+    stmt.free();
+
+    if (changes === 0) {
+      console.error("Erreur : Aucun article mis à jour");
+      return { erreur: "Aucun article mis à jour", status: 404 };
+    }
+
+    saveDbToLocalStorage(db);
+    console.log("Catégorie assignée :", { numero_item, numer_categorie });
+    return { 
+      statut: "Catégorie assignée", 
+      numero_item, 
+      numer_categorie, 
+      status: 200 
+    };
+  } catch (error) {
+    console.error("Erreur assignerCategorie :", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+export async function listeProduitsParCategorie(numero_categorie) {
+  try {
+    console.log("Exécution de listeProduitsParCategorie :", numero_categorie);
+    const db = await getDb();
+
+    if (numero_categorie === undefined || numero_categorie === null) {
+      // Produits sans catégorie
+      const stmt = db.prepare('SELECT numero_item, designation FROM item WHERE numero_categorie IS NULL');
+      const produits = [];
+      while (stmt.step()) {
+        const row = stmt.getAsObject();
+        produits.push({
+          numero_item: row.numero_item,
+          designation: row.designation
+        });
+      }
+      stmt.free();
+      console.log("Produits sans catégorie :", produits.length);
+      return { produits };
+    } else {
+      // Produits par catégorie
+      const stmt = db.prepare(`
+        SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
+        FROM categorie c
+        LEFT JOIN item i ON c.numer_categorie = i.numero_categorie
+        WHERE c.numer_categorie = ?
+      `);
+      stmt.bind([numero_categorie]);
+      
+      const categories = {};
+      while (stmt.step()) {
+        const row = stmt.getAsObject();
+        const cat_id = row.numer_categorie;
+        
+        if (!categories[cat_id]) {
+          categories[cat_id] = {
+            numero_categorie: cat_id,
+            description_c: row.description_c,
+            produits: []
+          };
+        }
+        
+        if (row.numero_item) {
+          categories[cat_id].produits.push({
+            numero_item: row.numero_item,
+            designation: row.designation
+          });
+        }
+      }
+      stmt.free();
+      
+      console.log("Catégories avec produits :", Object.keys(categories).length);
+      return { categories: Object.values(categories) };
+    }
+  } catch (error) {
+    console.error("Erreur listeProduitsParCategorie :", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
