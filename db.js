@@ -1,5 +1,5 @@
 // db.js
-import initSqlJs from 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.min.js';
+import { initSqlJs } from 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.min.js';
 
 let db = null;
 
@@ -47,6 +47,37 @@ export async function saveDbToLocalStorage(database) {
     console.log('Base sauvegardée dans localStorage');
   } catch (error) {
     console.error('Erreur lors de la sauvegarde dans localStorage:', error);
+    console.log('La base est trop volumineuse pour localStorage, proposer un téléchargement manuel');
+    downloadDb(database);
+    throw error;
+  }
+}
+
+// Télécharger la base sous forme de fichier
+function downloadDb(database) {
+  const dbBinary = database.export();
+  const blob = new Blob([dbBinary], { type: 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'gestion.db';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  console.log('Base téléchargée sous gestion.db');
+}
+
+// Charger la base depuis un fichier téléversé par l'utilisateur
+export async function loadDbFromFile(file) {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    db = new SQL.Database(new Uint8Array(arrayBuffer));
+    await saveDbToLocalStorage(db);
+    console.log('Base chargée depuis le fichier téléversé');
+    return db;
+  } catch (error) {
+    console.error('Erreur lors du chargement du fichier:', error);
     throw error;
   }
 }
