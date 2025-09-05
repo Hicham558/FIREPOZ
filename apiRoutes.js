@@ -1,17 +1,29 @@
 import { getDb, saveDbToLocalStorage } from './db.js';
 
-// Utility functions for decimal conversion
+// Convertit une chaîne avec virgule (ex. "200,00") en flottant (ex. 200.0)
 function toDotDecimal(value) {
-  if (!value || typeof value !== 'string') return 0.0;
-  return parseFloat(value.replace(',', '.').replace(/[^0-9.]/g, '')) || 0.0;
+  if (value == null || value === '') return 0.0;
+  try {
+    // Remplacer la virgule par un point et convertir en flottant
+    const cleanedValue = String(value).replace(',', '.').replace(/[^\d.-]/g, '');
+    const result = parseFloat(cleanedValue);
+    return isNaN(result) ? 0.0 : result;
+  } catch (error) {
+    console.error("Erreur dans toDotDecimal pour la valeur :", value, error);
+    return 0.0;
+  }
 }
 
+// Convertit un flottant (ex. 200.0) en chaîne avec virgule (ex. "200,00")
 function toCommaDecimal(value) {
-  if (value == null || isNaN(value)) return '0,00';
-  return value.toFixed(2).replace('.', ',');
+  if (value == null || isNaN(value)) return "0,00";
+  try {
+    return value.toFixed(2).replace('.', ',');
+  } catch (error) {
+    console.error("Erreur dans toCommaDecimal pour la valeur :", value, error);
+    return "0,00";
+  }
 }
-
-
 export async function listeTables() {
   try {
     console.log("Exécution de listeTables...");
