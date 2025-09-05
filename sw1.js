@@ -40,20 +40,21 @@ const handlers = {
 window.fetch = async function(input, init = {}) {
   const url = typeof input === 'string' ? input : input.url;
   const method = (init.method || 'GET').toUpperCase();
-  
-  try {
-    const requestUrl = new URL(url, window.location.origin);
-    const isApiRequest = requestUrl.hostname === 'localhostdb';
-    
-    console.log('🔍 Requête interceptée:', url, 'Hostname:', requestUrl.hostname, 'isApiRequest:', isApiRequest);
-    
-    if (isApiRequest) {
-      // Extraire l'endpoint après le hostname
-      const endpoint = requestUrl.pathname.substring(1); // Enlève le slash initial
+  const requestUrl = new URL(url, window.location.origin);
+
+  // Vérifier si la requête commence par /api/
+  const isApiRequest = requestUrl.pathname.startsWith('/api/');
+
+  console.log('🔍 Requête interceptée:', url, 'isApiRequest:', isApiRequest);
+
+  if (isApiRequest) {
+    try {
+      // Extraire l'endpoint après /api/
+      const endpoint = requestUrl.pathname.replace('/api/', '');
       const methodHandlers = handlers[method] || {};
-      
-      console.log('🔍 Endpoint:', endpoint, 'Méthode:', method);
-      
+
+      console.log('🔍 Endpoint extrait:', endpoint, 'Méthode:', method);
+
       // Recherche du gestionnaire correspondant
       let matchedHandler = null;
       let matchParams = null;
@@ -65,11 +66,11 @@ window.fetch = async function(input, init = {}) {
         if (match) {
           matchedHandler = handler;
           matchParams = match.slice(1);
-          console.log('🔍 Handler trouvé:', pattern);
+          console.log('✅ Handler trouvé pour le pattern:', pattern);
           break;
         }
       }
-      
+
       if (matchedHandler) {
         let responseData;
         
@@ -77,37 +78,50 @@ window.fetch = async function(input, init = {}) {
           const body = init.body ? JSON.parse(init.body) : {};
           responseData = await matchedHandler(...matchParams, body);
         } else {
-          responseData = await matchedHandler(...matchParams);
+          responseData = await matchedHandler(...matchParams, url);
         }
         
-        console.log('✅ Réponse locale:', responseData);
+        const status = responseData.status || 200;
+        console.log('✅ Réponse locale pour', endpoint, ':', responseData);
         
         return new Response(JSON.stringify(responseData), {
-          status: responseData.status || 200,
+          status,
           headers: { 'Content-Type': 'application/json' }
         });
       } else {
-        console.warn('❌ Aucun handler trouvé pour:', endpoint);
+        console.warn('❌ Aucun handler trouvé pour l\'endpoint:', endpoint);
         return new Response(JSON.stringify({ erreur: 'Endpoint inconnu', status: 404 }), {
           status: 404,
           headers: { 'Content-Type': 'application/json' }
         });
       }
+    } catch (error) {
+      console.error('❌ Erreur dans la gestion locale:', error);
+      return new Response(JSON.stringify({ erreur: error.message, status: 500 }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
-  } catch (error) {
-    console.error('❌ Erreur dans l\'interception:', error);
-    // En cas d'erreur, on passe à la fetch originale
+  } else {
+    console.log('🌐 Requête non-API, transmise au réseau:', url);
+    return originalFetch(input, init);
   }
-  
-  // Pour les requêtes non-API ou en cas d'erreur
-  console.log('🌐 Requête transmise au réseau:', url);
-  return originalFetch.apply(this, arguments);
 };
 
-// Initialisation
+// Initialisation au chargement de la page
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('✅ Intercepteur fetch activé');
+  console.log('✅ Interception des fetch activée pour /api/');
+  // Initialisation de la base de données
   getDb()
-    .then(() => console.log('✅ Base de données initialisée'))
-    .catch(err => console.error('❌ Erreur DB:', err));
+    .then(() => console.log('✅ Base de données SQLite initialisée'))
+    .catch(err => console.error('❌ Erreur init DB:', err));
+
+  // Test automatique
+  setTimeout(() => {
+    console.log('🧪 Test automatique de l\'intercepteur...');
+    fetch('/api/liste_clients')
+      .then(response => response.json())
+      .then(data => console.log('✅ Test réussi - Données clients:', data))
+      .catch(error => console.error('❌ Test échoué:', error));
+  }, 1000);
 });
