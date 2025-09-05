@@ -1,4 +1,4 @@
-import { getDb } from './db.js';
+import { getDb, saveDbToLocalStorage } from './db.js';
 
 // Utility functions for decimal conversion
 function toDotDecimal(value) {
@@ -19,37 +19,6 @@ function calculateEan13CheckDigit(code12) {
   const total = oddSum * 3 + evenSum;
   const nextMultipleOf10 = Math.ceil(total / 10) * 10;
   return nextMultipleOf10 - total;
-}
-
-async function saveDbToIndexedDB(db) {
-  console.log("Sauvegarde de la base dans IndexedDB...");
-  try {
-    const dbBinary = db.export();
-    const request = indexedDB.open('gestionDB', 1);
-
-    request.onupgradeneeded = () => {
-      console.log("Création de la base IndexedDB");
-      request.result.createObjectStore('databases');
-    };
-
-    await new Promise((resolve, reject) => {
-      request.onsuccess = () => {
-        const idb = request.result;
-        const transaction = idb.transaction(['databases'], 'readwrite');
-        const store = transaction.objectStore('databases');
-        const putRequest = store.put(dbBinary, 'gestion.db');
-        putRequest.onsuccess = () => {
-          console.log("Base sauvegardée dans IndexedDB");
-          resolve();
-        };
-        putRequest.onerror = () => reject(putRequest.error);
-      };
-      request.onerror = () => reject(request.error);
-    });
-  } catch (error) {
-    console.error("Erreur lors de la sauvegarde dans IndexedDB :", error);
-    throw error;
-  }
 }
 
 export async function listeTables() {
@@ -243,7 +212,7 @@ export async function ajouterClient(data) {
     const { id } = idStmt.getAsObject();
     idStmt.free();
 
-    await saveDbToIndexedDB(db);
+    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
     console.log("Client ajouté : ID =", id, ", Référence =", reference);
     return { statut: "Client ajouté", id, reference, status: 201 };
   } catch (error) {
@@ -282,7 +251,7 @@ export async function ajouterFournisseur(data) {
     const { id } = idStmt.getAsObject();
     idStmt.free();
 
-    await saveDbToIndexedDB(db);
+    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
     console.log("Fournisseur ajouté : ID =", id, ", Référence =", reference);
     return { statut: "Fournisseur ajouté", id, reference, status: 201 };
   } catch (error) {
@@ -318,7 +287,7 @@ export async function ajouterUtilisateur(data) {
     const { id } = idStmt.getAsObject();
     idStmt.free();
 
-    await saveDbToIndexedDB(db);
+    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
     console.log("Utilisateur ajouté : ID =", id);
     return { statut: "Utilisateur ajouté", id, status: 201 };
   } catch (error) {
@@ -414,7 +383,7 @@ export async function ajouterItem(data) {
       // Commit transaction
       db.run('COMMIT');
 
-      await saveDbToIndexedDB(db);
+      saveDbToLocalStorage(db); // Sauvegarde LocalStorage
       console.log("Produit ajouté : ID =", id, ", Référence =", generatedRef, ", Code-barres =", finalBar || 'aucun');
       return { statut: "Item ajouté", id, ref: generatedRef, bar: finalBar || 'aucun', status: 201 };
     } catch (error) {
@@ -426,7 +395,6 @@ export async function ajouterItem(data) {
     return { erreur: error.message, status: 500 };
   }
 }
-
 
 export async function modifierClient(numero_clt, data) {
   try {
@@ -446,7 +414,7 @@ export async function modifierClient(numero_clt, data) {
     const changes = db.getRowsModified();
     stmt.free();
 
-    await saveDbToIndexedDB(db);
+    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
     console.log("Client modifié : changements =", changes);
     return { statut: changes > 0 ? 'Client modifié' : 'Aucun client modifié', status: 200 };
   } catch (error) {
@@ -473,7 +441,7 @@ export async function modifierFournisseur(numero_fou, data) {
     const changes = db.getRowsModified();
     stmt.free();
 
-    await saveDbToIndexedDB(db);
+    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
     console.log("Fournisseur modifié : changements =", changes);
     return { statut: changes > 0 ? 'Fournisseur modifié' : 'Aucun fournisseur modifié', status: 200 };
   } catch (error) {
@@ -518,7 +486,7 @@ export async function modifierUtilisateur(numero_util, data) {
       return { erreur: "Utilisateur non trouvé", status: 404 };
     }
 
-    await saveDbToIndexedDB(db);
+    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
     console.log("Utilisateur modifié : changements =", changes);
     return { statut: "Utilisateur modifié", status: 200 };
   } catch (error) {
@@ -579,7 +547,7 @@ export async function modifierItem(numero_item, data) {
       return { erreur: "Produit non trouvé", status: 404 };
     }
 
-    await saveDbToIndexedDB(db);
+    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
     console.log("Produit modifié : changements =", changes);
     return { statut: "Produit modifié", numero_item, qte: qteFloat, status: 200 };
   } catch (error) {
@@ -602,7 +570,7 @@ export async function supprimerClient(numero_clt) {
       return { erreur: "Client non trouvé", status: 404 };
     }
 
-    await saveDbToIndexedDB(db);
+    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
     console.log("Client supprimé : changements =", changes);
     return { statut: "Client supprimé", status: 200 };
   } catch (error) {
@@ -625,7 +593,7 @@ export async function supprimerFournisseur(numero_fou) {
       return { erreur: "Fournisseur non trouvé", status: 404 };
     }
 
-    await saveDbToIndexedDB(db);
+    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
     console.log("Fournisseur supprimé : changements =", changes);
     return { statut: "Fournisseur supprimé", status: 200 };
   } catch (error) {
@@ -648,7 +616,7 @@ export async function supprimerUtilisateur(numero_util) {
       return { erreur: "Utilisateur non trouvé", status: 404 };
     }
 
-    await saveDbToIndexedDB(db);
+    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
     console.log("Utilisateur supprimé : changements =", changes);
     return { statut: "Utilisateur supprimé", status: 200 };
   } catch (error) {
@@ -671,7 +639,7 @@ export async function supprimerItem(numero_item) {
       return { erreur: "Produit non trouvé", status: 404 };
     }
 
-    await saveDbToIndexedDB(db);
+    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
     console.log("Produit supprimé : changements =", changes);
     return { statut: "Produit supprimé", status: 200 };
   } catch (error) {
