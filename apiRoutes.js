@@ -901,10 +901,31 @@ export async function validerVendeur(data) {
 }
 // CATEGORIES FUNCTIONS
 
+// CATEGORIES FUNCTIONS - VERSION COMPLÈTE ET CORRIGÉE
+
 export async function listeCategories() {
   try {
     console.log("Exécution de listeCategories...");
     const db = await getDb();
+    
+    // Vérifier si la table categorie existe
+    try {
+      const stmtCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='categorie'");
+      const tableExists = stmtCheck.step();
+      stmtCheck.free();
+      
+      if (!tableExists) {
+        console.log("Table 'categorie' n'existe pas, création...");
+        db.run(`CREATE TABLE IF NOT EXISTS categorie (
+          numer_categorie INTEGER PRIMARY KEY AUTOINCREMENT,
+          description_c TEXT NOT NULL
+        )`);
+        saveDbToLocalStorage(db);
+      }
+    } catch (error) {
+      console.log("Vérification table categorie:", error);
+    }
+
     const stmt = db.prepare('SELECT numer_categorie, description_c FROM categorie ORDER BY description_c');
     const categories = [];
     while (stmt.step()) {
@@ -917,12 +938,10 @@ export async function listeCategories() {
     stmt.free();
     console.log("Categories retournées :", categories);
     
-    // RETOURNER un objet avec status pour l'intercepteur
     return { 
       data: categories, 
       status: 200 
     };
-    
   } catch (error) {
     console.error("Erreur listeCategories :", error);
     return { erreur: error.message, status: 500 };
@@ -931,72 +950,35 @@ export async function listeCategories() {
 
 export async function ajouterCategorie(data) {
   try {
-    // ... le code existant ...
+    console.log("Exécution de ajouterCategorie avec data :", data);
+    const db = await getDb();
+    const { description_c } = data;
+
+    if (!description_c) {
+      console.error("Erreur : Description requise");
+      return { erreur: "Description requise", status: 400 };
+    }
+
+    const stmt = db.prepare('INSERT INTO categorie (description_c) VALUES (?)');
+    stmt.run([description_c]);
+    stmt.free();
+
+    const idStmt = db.prepare('SELECT last_insert_rowid() AS id');
+    idStmt.step();
+    const { id } = idStmt.getAsObject();
+    idStmt.free();
+
+    saveDbToLocalStorage(db);
+    console.log("Catégorie ajoutée : ID =", id);
+    
     return { 
       statut: "Catégorie ajoutée", 
       id, 
-      status: 201  // <-- Ajouter status
+      status: 201 
     };
   } catch (error) {
-    // ...
-  }
-}
-
-export async function modifierCategorie(numer_categorie, data) {
-  try {
-    // ... le code existant ...
-    return { 
-      statut: "Catégorie modifiée", 
-      status: 200  // <-- Ajouter status
-    };
-  } catch (error) {
-    // ...
-  }
-}
-
-export async function supprimerCategorie(numer_categorie) {
-  try {
-    // ... le code existant ...
-    return { 
-      statut: "Catégorie supprimée", 
-      status: 200  // <-- Ajouter status
-    };
-  } catch (error) {
-    // ...
-  }
-}
-
-export async function assignerCategorie(data) {
-  try {
-    // ... le code existant ...
-    return { 
-      statut: "Catégorie assignée", 
-      numero_item, 
-      numer_categorie, 
-      status: 200  // <-- Ajouter status
-    };
-  } catch (error) {
-    // ...
-  }
-}
-
-export async function listeProduitsParCategorie(numero_categorie) {
-  try {
-    // ... le code existant ...
-    
-    if (numero_categorie === undefined || numero_categorie === null) {
-      return { 
-        produits, 
-        status: 200  // <-- Ajouter status
-      };
-    } else {
-      return { 
-        categories: Object.values(categories), 
-        status: 200  // <-- Ajouter status
-      };
-    }
-  } catch (error) {
-    // ...
+    console.error("Erreur ajouterCategorie :", error);
+    return { erreur: error.message, status: 500 };
   }
 }
 
@@ -1023,7 +1005,11 @@ export async function modifierCategorie(numer_categorie, data) {
 
     saveDbToLocalStorage(db);
     console.log("Catégorie modifiée : changements =", changes);
-    return { statut: "Catégorie modifiée", status: 200 };
+    
+    return { 
+      statut: "Catégorie modifiée", 
+      status: 200 
+    };
   } catch (error) {
     console.error("Erreur modifierCategorie :", error);
     return { erreur: error.message, status: 500 };
@@ -1036,14 +1022,18 @@ export async function supprimerCategorie(numer_categorie) {
     const db = await getDb();
 
     // Vérifier si la catégorie est utilisée par des produits
-    const stmtCheck = db.prepare('SELECT 1 FROM item WHERE numero_categorie = ?');
-    stmtCheck.step([numer_categorie]);
-    if (stmtCheck.get()) {
+    try {
+      const stmtCheck = db.prepare('SELECT 1 FROM item WHERE numero_categorie = ?');
+      stmtCheck.step([numer_categorie]);
+      if (stmtCheck.get()) {
+        stmtCheck.free();
+        console.error("Erreur : Catégorie utilisée par des produits");
+        return { erreur: "Catégorie utilisée par des produits", status: 400 };
+      }
       stmtCheck.free();
-      console.error("Erreur : Catégorie utilisée par des produits");
-      return { erreur: "Catégorie utilisée par des produits", status: 400 };
+    } catch (error) {
+      console.log("Table item ou colonne numero_categorie n'existe pas, poursuite de la suppression");
     }
-    stmtCheck.free();
 
     const stmt = db.prepare('DELETE FROM categorie WHERE numer_categorie = ?');
     stmt.run([numer_categorie]);
@@ -1057,7 +1047,11 @@ export async function supprimerCategorie(numer_categorie) {
 
     saveDbToLocalStorage(db);
     console.log("Catégorie supprimée : changements =", changes);
-    return { statut: "Catégorie supprimée", status: 200 };
+    
+    return { 
+      statut: "Catégorie supprimée", 
+      status: 200 
+    };
   } catch (error) {
     console.error("Erreur supprimerCategorie :", error);
     return { erreur: error.message, status: 500 };
@@ -1097,6 +1091,24 @@ export async function assignerCategorie(data) {
       stmtCheckCat.free();
     }
 
+    // Vérifier si la colonne numero_categorie existe dans item
+    try {
+      const stmtCheckCol = db.prepare("PRAGMA table_info(item)");
+      const columns = [];
+      while (stmtCheckCol.step()) {
+        columns.push(stmtCheckCol.getAsObject().name);
+      }
+      stmtCheckCol.free();
+      
+      if (!columns.includes('numero_categorie')) {
+        console.log("Colonne numero_categorie n'existe pas, création...");
+        db.run('ALTER TABLE item ADD COLUMN numero_categorie INTEGER');
+        saveDbToLocalStorage(db);
+      }
+    } catch (error) {
+      console.log("Vérification colonne numero_categorie:", error);
+    }
+
     const stmt = db.prepare('UPDATE item SET numero_categorie = ? WHERE numero_item = ?');
     stmt.run([numer_categorie, numero_item]);
     const changes = db.getRowsModified();
@@ -1109,6 +1121,7 @@ export async function assignerCategorie(data) {
 
     saveDbToLocalStorage(db);
     console.log("Catégorie assignée :", { numero_item, numer_categorie });
+    
     return { 
       statut: "Catégorie assignée", 
       numero_item, 
@@ -1126,6 +1139,25 @@ export async function listeProduitsParCategorie(numero_categorie) {
     console.log("Exécution de listeProduitsParCategorie :", numero_categorie);
     const db = await getDb();
 
+    // Vérifier si la colonne numero_categorie existe
+    try {
+      const stmtCheckCol = db.prepare("PRAGMA table_info(item)");
+      const columns = [];
+      while (stmtCheckCol.step()) {
+        columns.push(stmtCheckCol.getAsObject().name);
+      }
+      stmtCheckCol.free();
+      
+      if (!columns.includes('numero_categorie')) {
+        return { 
+          produits: [], 
+          status: 200 
+        };
+      }
+    } catch (error) {
+      console.log("Vérification colonne numero_categorie:", error);
+    }
+
     if (numero_categorie === undefined || numero_categorie === null) {
       // Produits sans catégorie
       const stmt = db.prepare('SELECT numero_item, designation FROM item WHERE numero_categorie IS NULL');
@@ -1139,7 +1171,11 @@ export async function listeProduitsParCategorie(numero_categorie) {
       }
       stmt.free();
       console.log("Produits sans catégorie :", produits.length);
-      return { produits };
+      
+      return { 
+        produits, 
+        status: 200 
+      };
     } else {
       // Produits par catégorie
       const stmt = db.prepare(`
@@ -1173,7 +1209,11 @@ export async function listeProduitsParCategorie(numero_categorie) {
       stmt.free();
       
       console.log("Catégories avec produits :", Object.keys(categories).length);
-      return { categories: Object.values(categories) };
+      
+      return { 
+        categories: Object.values(categories), 
+        status: 200 
+      };
     }
   } catch (error) {
     console.error("Erreur listeProduitsParCategorie :", error);
