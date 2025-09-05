@@ -11,34 +11,6 @@ function toCommaDecimal(value) {
   return value.toFixed(2).replace('.', ',');
 }
 
-// Calculate EAN-13 check digit - VERSION CORRIGÉE
-function calculateEan13CheckDigit(code12) {
-  if (code12.length !== 12) {
-    console.error("❌ Code12 doit avoir 12 chiffres, reçu:", code12);
-    return 0;
-  }
-  
-  // Vérifier que ce sont bien des chiffres
-  if (!/^\d+$/.test(code12)) {
-    console.error("❌ Code12 doit contenir uniquement des chiffres, reçu:", code12);
-    return 0;
-  }
-  
-  const digits = code12.split('').map(Number);
-  
-  // Calcul correct selon la spécification EAN-13
-  let sum = 0;
-  for (let i = 0; i < 12; i++) {
-    // Les positions impaires (1, 3, 5, etc.) sont multipliées par 3
-    // Les positions paires (2, 4, 6, etc.) sont multipliées par 1
-    const multiplier = (i % 2 === 0) ? 1 : 3;
-    sum += digits[i] * multiplier;
-  }
-  
-  const checkDigit = (10 - (sum % 10)) % 10;
-  console.log("✅ Génération EAN-13:", { code12, sum, checkDigit });
-  return checkDigit;
-}
 
 export async function listeTables() {
   try {
@@ -353,6 +325,19 @@ export async function ajouterItem(data) {
     stmtAllItems.free();
     console.log("Contenu actuel de la table item :", items);
 
+    // Vérifier la table codebar (si elle existe)
+    let codebars = [];
+    try {
+      const stmtCodebar = db.prepare('SELECT * FROM codebar');
+      while (stmtCodebar.step()) {
+        codebars.push(stmtCodebar.getAsObject());
+      }
+      stmtCodebar.free();
+      console.log("Contenu de la table codebar :", codebars);
+    } catch (error) {
+      console.log("Table codebar non trouvée, ignorée");
+    }
+
     console.log("Code-barres fourni :", bar);
 
     db.run('BEGIN TRANSACTION');
@@ -370,15 +355,19 @@ export async function ajouterItem(data) {
         }
         stmtCheckBar.free();
 
-        // Vérifier dans codebar (si la table existe)
-        const stmtCheckCodebar = db.prepare('SELECT 1 FROM codebar WHERE bar2 = ?');
-        stmtCheckCodebar.step([bar]);
-        if (stmtCheckCodebar.get()) {
+        // Vérifier dans codebar (si applicable)
+        try {
+          const stmtCheckCodebar = db.prepare('SELECT 1 FROM codebar WHERE bar2 = ?');
+          stmtCheckCodebar.step([bar]);
+          if (stmtCheckCodebar.get()) {
+            stmtCheckCodebar.free();
+            db.run('ROLLBACK');
+            return { erreur: "Ce code-barres existe déjà comme code-barres lié", status: 409 };
+          }
           stmtCheckCodebar.free();
-          db.run('ROLLBACK');
-          return { erreur: "Ce code-barres existe déjà comme code-barres lié", status: 409 };
+        } catch (error) {
+          console.log("Table codebar non trouvée, vérification ignorée");
         }
-        stmtCheckCodebar.free();
       }
 
       // ÉTAPE 2: Trouver le prochain numéro de référence
@@ -453,11 +442,34 @@ export async function ajouterItem(data) {
       // ÉTAPE 5: Si aucun code-barres fourni, générer le EAN-13 et mettre à jour
       if (!bar) {
         const code12 = `1${nextNumber.toString().padStart(11, '0')}`;
-        const checkDigit = calculateEan13CheckDigit(code12);
+        console.log("Code12 généré :", code12);
+
+        // Validation de code12
+        if (code12.length !== 12) {
+          console.error("❌ Code12 doit avoir 12 chiffres, reçu:", code12);
+          db.run('ROLLBACK');
+          return { erreur: "Erreur de génération du code EAN-13 : longueur incorrecte", status: 500 };
+        }
+        if (!/^\d+$/.test(code12)) {
+          console.error("❌ Code12 doit contenir uniquement des chiffres, reçu:", code12);
+          db.run('ROLLBACK');
+          return { erreur: "Erreur de génération du code EAN-13 : chiffres invalides", status: 500 };
+        }
+
+        // Calcul du chiffre de contrôle EAN-13
+        const digits = code12.split('').map(Number);
+        let sum = 0;
+        for (let i = 0; i < 12; i++) {
+          const multiplier = (i % 2 === 0) ? 1 : 3;
+          sum += digits[i] * multiplier;
+        }
+        const checkDigit = (10 - (sum % 10)) % 10;
+        console.log("✅ Génération EAN-13:", { code12, sum, checkDigit });
+
         finalBar = `${code12}${checkDigit}`;
         console.log("🔢 Code-barres EAN-13 généré:", finalBar);
 
-        // Vérifier que le code généré n'existe pas déjà
+        // Vérifier que le code généré n'existe pas déjà dans item
         const stmtCheckGenerated = db.prepare('SELECT 1 FROM item WHERE bar = ? AND numero_item != ? AND bar != ?');
         stmtCheckGenerated.step([finalBar, id, tempBar]);
         if (stmtCheckGenerated.get()) {
@@ -468,14 +480,18 @@ export async function ajouterItem(data) {
         stmtCheckGenerated.free();
 
         // Vérifier dans codebar (si applicable)
-        const stmtCheckCodebar = db.prepare('SELECT 1 FROM codebar WHERE bar2 = ?');
-        stmtCheckCodebar.step([finalBar]);
-        if (stmtCheckCodebar.get()) {
+        try {
+          const stmtCheckCodebar = db.prepare('SELECT 1 FROM codebar WHERE bar2 = ?');
+          stmtCheckCodebar.step([finalBar]);
+          if (stmtCheckCodebar.get()) {
+            stmtCheckCodebar.free();
+            db.run('ROLLBACK');
+            return { erreur: "Le code-barres généré existe déjà comme code-barres lié", status: 409 };
+          }
           stmtCheckCodebar.free();
-          db.run('ROLLBACK');
-          return { erreur: "Le code-barres généré existe déjà comme code-barres lié", status: 409 };
+        } catch (error) {
+          console.log("Table codebar non trouvée, vérification ignorée");
         }
-        stmtCheckCodebar.free();
 
         // Mettre à jour avec le vrai code-barres
         const stmtUpdate = db.prepare('UPDATE item SET bar = ? WHERE numero_item = ?');
@@ -505,7 +521,6 @@ export async function ajouterItem(data) {
     return { erreur: error.message, status: 500 };
   }
 }
-
 export async function modifierClient(numero_clt, data) {
   try {
     console.log("Exécution de modifierClient :", numero_clt, data);
