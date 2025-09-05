@@ -8,15 +8,16 @@
     body {
       font-family: Arial, sans-serif;
       margin: 20px;
+      text-align: center;
     }
     button {
       padding: 10px 20px;
-      margin: 10px;
       background-color: #4CAF50;
       color: white;
       border: none;
       border-radius: 4px;
       cursor: pointer;
+      font-size: 16px;
     }
     button:hover {
       background-color: #45a049;
@@ -26,65 +27,53 @@
       white-space: pre-wrap;
       border: 1px solid #ccc;
       padding: 10px;
-      max-height: 400px;
-      overflow-y: auto;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
     }
   </style>
 </head>
 <body>
   <h1>Test du Service Worker</h1>
-  <button onclick="testServiceWorker()">Tester Service Worker (localhostdb)</button>
-  <div id="result"></div>
+  <button onclick="testServiceWorker()">Tester sw1.js</button>
+  <div id="result">En attente de l'enregistrement du Service Worker...</div>
 
   <script>
-    const LOCALHOSTDB_API_BASE_URL = 'http://localhostdb';
+    // URL pour la requête interceptée
+    const TEST_API_URL = 'http://localhostdb/liste_utilisateurs';
 
     // Enregistrement du Service Worker
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw1.js', { scope: '/' })
         .then(reg => {
           console.log('Service Worker enregistré avec scope:', reg.scope);
-          // Forcer la mise à jour et l'activation
-          reg.update();
-          navigator.serviceWorker.ready.then(() => {
-            console.log('Service Worker est prêt et actif');
-            document.getElementById('result').textContent = 'Service Worker prêt. Cliquez sur le bouton pour tester.';
-          });
+          document.getElementById('result').textContent = 'Service Worker enregistré. Cliquez sur "Tester sw1.js" pour vérifier l\'interception.';
         })
         .catch(err => {
           console.error('Erreur lors de l\'enregistrement du Service Worker:', err);
-          document.getElementById('result').textContent = `Erreur Service Worker: ${err.message}`;
+          document.getElementById('result').textContent = `Erreur: ${err.message}\nVérifiez que sw1.js est accessible à https://hicham558.github.io/sw1.js`;
         });
     } else {
       document.getElementById('result').textContent = 'Service Worker non supporté par ce navigateur.';
     }
 
-    // Fonction pour tester le Service Worker
+    // Fonction pour tester l'interception
     async function testServiceWorker() {
       const resultDiv = document.getElementById('result');
       resultDiv.textContent = 'Test en cours vers http://localhostdb/liste_utilisateurs...';
       try {
-        const response = await fetch(`${LOCALHOSTDB_API_BASE_URL}/liste_utilisateurs`, {
+        const response = await fetch(TEST_API_URL, {
           method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-User-ID': localStorage.getItem('userId') || 'test-user-id'
-          }
+          headers: { 'Content-Type': 'application/json' }
         });
         if (!response.ok) {
-          if (response.status === 401) throw new Error('Authentification requise');
-          if (response.status === 404) throw new Error('Endpoint non trouvé');
           throw new Error(`Erreur HTTP: ${response.status}`);
         }
         const data = await response.json();
         resultDiv.textContent = `Réponse du Service Worker:\n${JSON.stringify(data, null, 2)}`;
       } catch (error) {
-        console.error('Erreur lors du test Service Worker:', error);
-        if (error.name === 'TypeError') {
-          resultDiv.textContent = `Erreur: Échec de la connexion (le Service Worker n'a pas intercepté la requête ou a échoué)`;
-        } else {
-          resultDiv.textContent = `Erreur: ${error.message}`;
-        }
+        console.error('Erreur lors du test:', error);
+        resultDiv.textContent = `Erreur: ${error.message}\nVérifiez la console et assurez-vous que sw1.js intercepte la requête.`;
       }
     }
   </script>
