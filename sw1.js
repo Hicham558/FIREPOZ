@@ -1,4 +1,5 @@
 // intercept.js
+
 import {  listeClients, listeFournisseurs, listeProduits, listeUtilisateurs, dashboard,
         ajouterClient, ajouterFournisseur, ajouterItem, ajouterUtilisateur,
         modifierClient, modifierFournisseur, modifierItem, modifierUtilisateur,
@@ -111,10 +112,7 @@ window.fetch = async function(input, init = {}) {
 // Initialisation au chargement de la page
 document.addEventListener('DOMContentLoaded', () => {
   console.log('✅ Interception des fetch activée pour /api/');
-  // Initialisation de la base de données
-  
-    .then(() => console.log('✅ Base de données SQLite initialisée'))
-    .catch(err => console.error('❌ Erreur init DB:', err));
+
 
   // Test automatique
   setTimeout(() => {
