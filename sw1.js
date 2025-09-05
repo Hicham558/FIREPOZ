@@ -1,209 +1,110 @@
-// sw1.js
-importScripts('https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.min.js');
-importScripts('./db.js');
-importScripts('./apiRoutes.js');
+// intercept.js
+import { getDb, listeClients, listeFournisseurs, listeProduits, listeUtilisateurs, dashboard,
+        ajouterClient, ajouterFournisseur, ajouterItem, ajouterUtilisateur,
+        modifierClient, modifierFournisseur, modifierItem, modifierUtilisateur,
+        supprimerClient, supprimerFournisseur, supprimerItem, supprimerUtilisateur } from './apiRoutes.js';
 
-// Version du Service Worker pour faciliter la gestion des mises à jour
-const SW_VERSION = '1.0.1';
+// Sauvegarde de la fonction fetch originale
+const originalFetch = window.fetch;
 
-self.addEventListener('install', event => {
-  console.log(`Service Worker v${SW_VERSION} installé`);
-  event.waitUntil(self.skipWaiting());
-});
+// Gestionnaires pour chaque endpoint et méthode HTTP
+const handlers = {
+  GET: {
+    'liste_clients': () => listeClients(),
+    'liste_fournisseurs': () => listeFournisseurs(),
+    'liste_produits': () => listeProduits(),
+    'liste_utilisateurs': () => listeUtilisateurs(),
+    'dashboard': (url) => dashboard(new URL(url).searchParams.get('period') || 'day')
+  },
+  POST: {
+    'ajouter_client': (body) => ajouterClient(body),
+    'ajouter_fournisseur': (body) => ajouterFournisseur(body),
+    'ajouter_item': (body) => ajouterItem(body),
+    'ajouter_utilisateur': (body) => ajouterUtilisateur(body)
+  },
+  PUT: {
+    'modifier_client/(\\w+)': (id, body) => modifierClient(id, body),
+    'modifier_fournisseur/(\\w+)': (id, body) => modifierFournisseur(id, body),
+    'modifier_item/(\\w+)': (id, body) => modifierItem(id, body),
+    'modifier_utilisateur/(\\w+)': (id, body) => modifierUtilisateur(id, body)
+  },
+  DELETE: {
+    'supprimer_client/(\\w+)': (id) => supprimerClient(id),
+    'supprimer_fournisseur/(\\w+)': (id) => supprimerFournisseur(id),
+    'supprimer_item/(\\w+)': (id) => supprimerItem(id),
+    'supprimer_utilisateur/(\\w+)': (id) => supprimerUtilisateur(id)
+  }
+};
 
-self.addEventListener('activate', event => {
-  console.log(`Service Worker v${SW_VERSION} activé`);
-  // Nettoyer les anciennes versions du Service Worker
-  event.waitUntil(
-    self.clients.claim().then(() => {
-      // Désenregistrer les autres Service Workers
-      return self.registration.unregister().then(() => {
-        console.log('Anciennes versions du Service Worker désenregistrées');
-        return self.registration.register(self.location);
-      });
-    })
-  );
-});
+// Surcharge de la fonction fetch
+window.fetch = async function(input, init = {}) {
+  const url = typeof input === 'string' ? input : input.url;
+  const method = (init.method || 'GET').toUpperCase();
+  const requestUrl = new URL(url, window.location.origin);
 
-self.addEventListener('fetch', event => {
-  const requestUrl = new URL(event.request.url);
-  const isApiRequest = requestUrl.href.startsWith('http://localhostdb/') ||
-                       requestUrl.pathname.startsWith('/liste_') ||
-                       requestUrl.pathname.startsWith('/dashboard') ||
-                       requestUrl.pathname.startsWith('/ajouter_') ||
-                       requestUrl.pathname.startsWith('/modifier_') ||
-                       requestUrl.pathname.startsWith('/supprimer_');
+  // Vérifier si la requête commence par http://localhostdb/
+  const isApiRequest = requestUrl.href.startsWith('http://localhostdb/');
 
-  console.log('Requête détectée:', requestUrl.href, 'isApiRequest:', isApiRequest); // Débogage
+  console.log('Requête interceptée:', url, 'isApiRequest:', isApiRequest);
 
   if (isApiRequest) {
-    const endpoint = requestUrl.pathname.replace(/^\/(http:\/\/localhostdb\/)?/, '');
-    console.log('Interception de la requête API:', endpoint, 'Méthode:', event.request.method); // Débogage
-    event.respondWith(handleApiRequest(endpoint, event.request, requestUrl));
-  } else {
-    console.log('Requête non-API, transmise:', requestUrl.href); // Débogage
-    event.respondWith(fetch(event.request));
-  }
-});
+    try {
+      // Extraire l'endpoint après http://localhostdb/
+      const endpoint = requestUrl.pathname.replace(/^\/?(http:\/\/localhostdb\/)?/, '');
+      const methodHandlers = handlers[method] || {};
 
-async function handleApiRequest(endpoint, request, requestUrl) {
-  try {
-    console.log('Traitement de l\'endpoint:', endpoint); // Débogage
-    let responseData;
-    let status = 200;
+      // Recherche du gestionnaire correspondant
+      let matchedHandler = null;
+      let matchParams = null;
+      for (const [pattern, handler] of Object.entries(methodHandlers)) {
+        const regex = new RegExp(`^${pattern}$`);
+        const match = endpoint.match(regex);
+        if (match) {
+          matchedHandler = handler;
+          matchParams = match.slice(1);
+          break;
+        }
+      }
 
-    // Mappez les endpoints aux fonctions de apiRoutes.js
-    switch (endpoint) {
-      case 'liste_clients':
-        responseData = await listeClients();
-        break;
-      case 'liste_fournisseurs':
-        responseData = await listeFournisseurs();
-        break;
-      case 'liste_produits':
-        responseData = await listeProduits();
-        break;
-      case 'liste_utilisateurs':
-        responseData = await listeUtilisateurs();
-        break;
-      case 'dashboard':
-        const period = new URLSearchParams(requestUrl.search).get('period') || 'day';
-        responseData = await dashboard(period);
-        break;
-      case 'ajouter_client':
-        if (request.method === 'POST') {
-          const body = await request.json();
-          responseData = await ajouterClient(body);
-          status = responseData.status || 200;
+      if (matchedHandler) {
+        let responseData;
+        if (['POST', 'PUT'].includes(method)) {
+          const body = init.body ? JSON.parse(init.body) : {};
+          responseData = await matchedHandler(...matchParams, body);
         } else {
-          responseData = { erreur: 'Méthode non autorisée', status: 405 };
-          status = 405;
+          responseData = await matchedHandler(...matchParams, url);
         }
-        break;
-      case 'ajouter_fournisseur':
-        if (request.method === 'POST') {
-          const body = await request.json();
-          responseData = await ajouterFournisseur(body);
-          status = responseData.status || 200;
-        } else {
-          responseData = { erreur: 'Méthode non autorisée', status: 405 };
-          status = 405;
-        }
-        break;
-      case 'ajouter_item':
-        if (request.method === 'POST') {
-          const body = await request.json();
-          responseData = await ajouterItem(body);
-          status = responseData.status || 200;
-        } else {
-          responseData = { erreur: 'Méthode non autorisée', status: 405 };
-          status = 405;
-        }
-        break;
-      case 'ajouter_utilisateur':
-        if (request.method === 'POST') {
-          const body = await request.json();
-          responseData = await ajouterUtilisateur(body);
-          status = responseData.status || 200;
-        } else {
-          responseData = { erreur: 'Méthode non autorisée', status: 405 };
-          status = 405;
-        }
-        break;
-      default:
-        if (endpoint.startsWith('modifier_client/')) {
-          if (request.method === 'PUT') {
-            const numero_clt = endpoint.split('/')[1];
-            const body = await request.json();
-            responseData = await modifierClient(numero_clt, body);
-            status = responseData.status || 200;
-          } else {
-            responseData = { erreur: 'Méthode non autorisée', status: 405 };
-            status = 405;
-          }
-        } else if (endpoint.startsWith('modifier_fournisseur/')) {
-          if (request.method === 'PUT') {
-            const numero_fou = endpoint.split('/')[1];
-            const body = await request.json();
-            responseData = await modifierFournisseur(numero_fou, body);
-            status = responseData.status || 200;
-          } else {
-            responseData = { erreur: 'Méthode non autorisée', status: 405 };
-            status = 405;
-          }
-        } else if (endpoint.startsWith('modifier_item/')) {
-          if (request.method === 'PUT') {
-            const numero_item = endpoint.split('/')[1];
-            const body = await request.json();
-            responseData = await modifierItem(numero_item, body);
-            status = responseData.status || 200;
-          } else {
-            responseData = { erreur: 'Méthode non autorisée', status: 405 };
-            status = 405;
-          }
-        } else if (endpoint.startsWith('modifier_utilisateur/')) {
-          if (request.method === 'PUT') {
-            const numero_util = endpoint.split('/')[1];
-            const body = await request.json();
-            responseData = await modifierUtilisateur(numero_util, body);
-            status = responseData.status || 200;
-          } else {
-            responseData = { erreur: 'Méthode non autorisée', status: 405 };
-            status = 405;
-          }
-        } else if (endpoint.startsWith('supprimer_client/')) {
-          if (request.method === 'DELETE') {
-            const numero_clt = endpoint.split('/')[1];
-            responseData = await supprimerClient(numero_clt);
-            status = responseData.status || 200;
-          } else {
-            responseData = { erreur: 'Méthode non autorisée', status: 405 };
-            status = 405;
-          }
-        } else if (endpoint.startsWith('supprimer_fournisseur/')) {
-          if (request.method === 'DELETE') {
-            const numero_fou = endpoint.split('/')[1];
-            responseData = await supprimerFournisseur(numero_fou);
-            status = responseData.status || 200;
-          } else {
-            responseData = { erreur: 'Méthode non autorisée', status: 405 };
-            status = 405;
-          }
-        } else if (endpoint.startsWith('supprimer_item/')) {
-          if (request.method === 'DELETE') {
-            const numero_item = endpoint.split('/')[1];
-            responseData = await supprimerItem(numero_item);
-            status = responseData.status || 200;
-          } else {
-            responseData = { erreur: 'Méthode non autorisée', status: 405 };
-            status = 405;
-          }
-        } else if (endpoint.startsWith('supprimer_utilisateur/')) {
-          if (request.method === 'DELETE') {
-            const numero_util = endpoint.split('/')[1];
-            responseData = await supprimerUtilisateur(numero_util);
-            status = responseData.status || 200;
-          } else {
-            responseData = { erreur: 'Méthode non autorisée', status: 405 };
-            status = 405;
-          }
-        } else {
-          responseData = { erreur: 'Endpoint inconnu', status: 404 };
-          status = 404;
-        }
-        break;
+        const status = responseData.status || 200;
+        console.log('Réponse locale pour', endpoint, ':', responseData);
+        return new Response(JSON.stringify(responseData), {
+          status,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } else {
+        console.warn('Endpoint inconnu:', endpoint);
+        return new Response(JSON.stringify({ erreur: 'Endpoint inconnu', status: 404 }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    } catch (error) {
+      console.error('Erreur dans la gestion locale:', error);
+      return new Response(JSON.stringify({ erreur: error.message, status: 500 }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
-
-    console.log('Réponse pour', endpoint, ':', responseData); // Débogage
-    return new Response(JSON.stringify(responseData), {
-      status: status,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  } catch (error) {
-    console.error('Erreur dans handleApiRequest:', error);
-    return new Response(JSON.stringify({ erreur: error.message, status: 500 }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+  } else {
+    console.log('Requête non-API, transmise au réseau:', url);
+    return originalFetch(input, init);
   }
-}
+};
+
+// Initialisation au chargement de la page
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('Interception des fetch activée');
+  // Initialisation de la base de données
+  getDb()
+    .then(() => console.log('Base de données SQLite initialisée'))
+    .catch(err => console.error('Erreur init DB:', err));
+});
