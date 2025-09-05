@@ -909,33 +909,24 @@ export async function listeCategories() {
     console.log("Exécution de listeCategories...");
     const db = await getDb();
 
-    // Vérifier les colonnes de la table categorie
-    const stmtInfo = db.prepare("PRAGMA table_info(categorie)");
-    const columns = [];
-    while (stmtInfo.step()) {
-      columns.push(stmtInfo.getAsObject().name);
-    }
-    stmtInfo.free();
-    console.log("Colonnes de la table categorie :", columns);
-
     const stmt = db.prepare('SELECT numer_categorie, description_c FROM categorie ORDER BY description_c');
     const categories = [];
     while (stmt.step()) {
       const row = stmt.getAsObject();
-      console.log("Catégorie brute récupérée :", row);
       categories.push({
-        NUMER_CATEGORIE: row.numer_categorie !== null ? row.numer_categorie : '',
-        DESCRIPTION_C: row.description_c !== null ? row.description_c : ''
+        numer_categorie: row.numer_categorie !== null ? row.numer_categorie : '',
+        description_c: row.description_c !== null ? row.description_c : ''
       });
     }
     stmt.free();
-    console.log("Catégories formatées retournées :", categories);
+    console.log("Categories retournées :", categories);
     return categories;
   } catch (error) {
     console.error("Erreur listeCategories :", error);
-    return { erreur: error.message, status: 500 };
+    throw new Error("Erreur lors de la récupération des catégories");
   }
 }
+
 
 // Ajoute une nouvelle catégorie
 export async function ajouterCategorie(data) {
@@ -1227,28 +1218,11 @@ export async function assignerCategorie(data) {
   }
 }
 
-// Liste les produits par catégorie ou sans catégorie
+// Liste les produits par catégorie
 export async function listeProduitsParCategorie(numero_categorie) {
   try {
     console.log("Exécution de listeProduitsParCategorie :", numero_categorie);
     const db = await getDb();
-
-    // Vérifier les colonnes des tables
-    const stmtInfoCategorie = db.prepare("PRAGMA table_info(categorie)");
-    const columnsCategorie = [];
-    while (stmtInfoCategorie.step()) {
-      columnsCategorie.push(stmtInfoCategorie.getAsObject().name);
-    }
-    stmtInfoCategorie.free();
-    console.log("Colonnes de la table categorie :", columnsCategorie);
-
-    const stmtInfoItem = db.prepare("PRAGMA table_info(item)");
-    const columnsItem = [];
-    while (stmtInfoItem.step()) {
-      columnsItem.push(stmtInfoItem.getAsObject().name);
-    }
-    stmtInfoItem.free();
-    console.log("Colonnes de la table item :", columnsItem);
 
     if (numero_categorie === undefined || numero_categorie === null) {
       // Produits sans catégorie
@@ -1256,26 +1230,15 @@ export async function listeProduitsParCategorie(numero_categorie) {
       const produits = [];
       while (stmt.step()) {
         const row = stmt.getAsObject();
-        console.log("Produit sans catégorie brut :", row);
         produits.push({
-          NUMERO_ITEM: row.numero_item !== null ? row.numero_item : '',
-          DESIGNATION: row.designation !== null ? row.designation : ''
+          numero_item: row.numero_item !== null ? row.numero_item : '',
+          designation: row.designation !== null ? row.designation : ''
         });
       }
       stmt.free();
-      console.log("Produits sans catégorie :", produits);
-      return { produits };
+      console.log("Produits sans catégorie :", produits.length);
+      return produits;
     } else {
-      // Vérifier si la catégorie existe
-      const stmtCheckCat = db.prepare('SELECT 1 FROM categorie WHERE numer_categorie = ?');
-      stmtCheckCat.step([numero_categorie]);
-      if (!stmtCheckCat.get()) {
-        stmtCheckCat.free();
-        console.error("Erreur : Catégorie non trouvée");
-        return { erreur: "Catégorie non trouvée", status: 404 };
-      }
-      stmtCheckCat.free();
-
       // Produits par catégorie
       const stmt = db.prepare(`
         SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
@@ -1285,34 +1248,23 @@ export async function listeProduitsParCategorie(numero_categorie) {
       `);
       stmt.bind([numero_categorie]);
 
-      const categories = {};
+      const result = [];
       while (stmt.step()) {
         const row = stmt.getAsObject();
-        console.log("Données brutes pour catégorie :", row);
-        const cat_id = row.numer_categorie;
-
-        if (!categories[cat_id]) {
-          categories[cat_id] = {
-            NUMERO_CATEGORIE: cat_id !== null ? cat_id : '',
-            DESCRIPTION_C: row.description_c !== null ? row.description_c : '',
-            PRODUITS: []
-          };
-        }
-
-        if (row.numero_item) {
-          categories[cat_id].PRODUITS.push({
-            NUMERO_ITEM: row.numero_item !== null ? row.numero_item : '',
-            DESIGNATION: row.designation !== null ? row.designation : ''
-          });
-        }
+        result.push({
+          numer_categorie: row.numer_categorie !== null ? row.numer_categorie : '',
+          description_c: row.description_c !== null ? row.description_c : '',
+          numero_item: row.numero_item !== null ? row.numero_item : '',
+          designation: row.designation !== null ? row.designation : ''
+        });
       }
       stmt.free();
 
-      console.log("Catégories avec produits :", Object.values(categories));
-      return { categories: Object.values(categories) };
+      console.log("Produits par catégorie :", result.length);
+      return result;
     }
   } catch (error) {
     console.error("Erreur listeProduitsParCategorie :", error);
-    return { erreur: error.message, status: 500 };
+    throw new Error("Erreur lors de la récupération des produits par catégorie");
   }
 }
