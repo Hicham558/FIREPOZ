@@ -1,435 +1,1998 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion Base de Données - FirePoz</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
-    <script type="module" src="sw1.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        .toast-in { animation: toastIn 0.5s both; }
-        .toast-out { animation: toastOut 0.5s both; }
-        @keyframes toastIn { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes toastOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(40px); } }
-        .table-container { max-height: 400px; overflow-y: auto; }
-    </style>
+ <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+<script type="module" src="sw1.js"></script> 
+ <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1976d2">  
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestion Commerciale</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(40px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes toastOut {
+      from { opacity: 1; transform: translateY(0); }
+      to { opacity: 0; transform: translateY(40px); }
+    }
+    @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes countPulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+    @keyframes kpiPop { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+    @keyframes clientPulse { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
+    @keyframes drawerOpen {
+      from { max-height: 0; opacity: 0; }
+      to { max-height: 1000px; opacity: 1; }
+    }
+    @keyframes drawerClose {
+      from { max-height: 1000px; opacity: 1; }
+      to { max-height: 0; opacity: 0; }
+    }
+    .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
+    .animate-pulse { animation: pulse 2s infinite ease-in-out; }
+    .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
+    .animate-kpi-pop { animation: kpiPop 0.5s ease-out forwards; }
+    .top-client-updated { animation: clientPulse 0.6s ease-in-out; }
+    .toast-in { animation: toastIn 0.5s both; }
+    .toast-out { animation: toastOut 0.5s both; }
+    .drawer-open { animation: drawerOpen 0.3s ease-out forwards; }
+    .drawer-close { animation: drawerClose 0.3s ease-out forwards; }
+    #clientsSection { animation-delay: 0.2s; }
+    #fournisseursSection { animation-delay: 0.4s; }
+    #productsSection { animation-delay: 0.6s; }
+    #utilisateursSection { animation-delay: 0.8s; }
+    footer { animation-delay: 1.2s; }
+    #scannerPreview { width: 100%; max-width: 300px; height: 200px; border: 2px solid #e5e7eb; margin-bottom: 1rem; display: none; background: #000; }
+    .user-anim { animation: pulse 1.5s infinite ease-in-out; }
+    .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
+    .small-email { font-size: 0.75rem; line-height: 1rem; }
+    .kpi-card { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+    .kpi-card:hover { transform: scale(1.03); box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1); }
+    .kpi-section { transition: opacity 0.5s ease; }
+    .kpi-updated { animation: pulse 0.5s ease-in-out; }
+    .dynamic-icon { transition: color 0.3s ease; }
+    .chart-container { animation-delay: 1s; }
+    #kpiSection {
+      border-bottom: 2px solid #e5e7eb;
+      transition: all 0.3s ease;
+    }
+    #kpiSection:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    .kpi-card {
+      border-left: 4px solid #4F46E5;
+      transition: all 0.3s ease;
+    }
+    .kpi-card:hover {
+      transform: translateY(-2px);
+    }
+    .fixed-buttons {
+      position: sticky;
+      top: 64px;
+      z-index: 9;
+      background: #f3f4f6;
+      padding: 1rem 0;
+      margin-bottom: 2rem;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    .table-container {
+      max-height: 350px;
+      overflow-y: auto;
+      position: relative;
+    }
+    .table-container table {
+      width: 100%;
+    }
+    .table-container thead {
+      position: sticky;
+      top: 0;
+      background: #f9fafb;
+      z-index: 1;
+    }
+    .hidden-id {
+      display: none;
+    }
+    .action-button {
+      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+    }
+    .section-content {
+      max-height: 0;
+      opacity: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+    }
+    .section-content.open {
+      max-height: 1000px;
+      opacity: 1;
+    }
+	  .opacity-50 {
+    opacity: 0.5;
+}
+.cursor-not-allowed {
+    cursor: not-allowed;
+}
+
+/* Cache les actions pour les employés */
+body.employe-mode .action-buttons {
+    display: none !important;
+}
+	  
+	  /* Style pour boutons désactivés */
+button:disabled {
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+}
+
+  </style>
 </head>
-<body class="bg-gray-100 min-h-screen">
-    <nav class="bg-indigo-600 text-white p-4 shadow-md">
-        <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-2xl font-bold">
-                <i class="fas fa-database mr-2"></i>Gestion Base de Données
+<body class="bg-gray-100">
+  <!-- Formulaire de connexion -->
+  <div id="loginModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-20 hidden">
+    <form id="loginForm" class="bg-white rounded-lg p-6 w-full max-w-md">
+      <h2 class="text-xl font-semibold mb-4">Connexion</h2>
+      <p class="text-sm text-red-500 mb-4">⚠️ Le mot de passe ne doit pas être celui de votre email.</p>
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Adresse Email*</label>
+        <input type="email" id="userEmail" name="username" autocomplete="username" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre email" required>
+      </div>
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe*</label>
+        <input type="password" id="userPassword" name="password" autocomplete="current-password" class="w-full px-3 py-2 border rounded-md" placeholder="Entrez votre mot de passe" required>
+      </div>
+      <div class="flex justify-end space-x-3">
+        <button type="submit" onclick="loginWithCredentials(event)" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
+          <i class="fas fa-sign-in-alt mr-2"></i>Se connecter
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Menu de navigation -->
+<nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-slide-in">
+    <div class="container mx-auto flex justify-between items-center">
+        <div class="flex flex-col">
+            <h1 class="text-2xl font-bold flex items-center">
+                <i class="fas fa-fire mr-2 text-amber-400 animate-pulse"></i> FirePoz
             </h1>
+            <span id="userDisplay" class="small-email user-anim hidden"></span>
+            <!-- Ajoutez cette ligne pour afficher le vendeur -->
+            <span id="sellerDisplay" class="text-xs text-indigo-200 seller-anim">Vendeur: <span id="currentSellerName">Inconnu</span></span>
         </div>
-    </nav>
-
-    <div class="container mx-auto px-4 py-8">
-        <!-- Section Téléchargement Base de Données -->
-        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
-            <h2 class="text-xl font-semibold mb-4">
-                <i class="fas fa-download mr-2 text-indigo-500"></i>Télécharger la Base de Données
-            </h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <button onclick="downloadDatabase()" class="w-full bg-green-600 text-white px-4 py-3 rounded-md hover:bg-green-700 transition">
-                        <i class="fas fa-file-download mr-2"></i>Télécharger gestion.db
-                    </button>
-                </div>
-                <div>
-                    <button onclick="clearDatabase()" class="w-full bg-red-600 text-white px-4 py-3 rounded-md hover:bg-red-700 transition">
-                        <i class="fas fa-trash mr-2"></i>Réinitialiser la Base
-                    </button>
-                </div>
-            </div>
-            <div class="mt-4 text-sm text-gray-600">
-                <p><i class="fas fa-info-circle mr-2"></i>La base de données est stockée dans le navigateur</p>
-                <p id="dbSize" class="mt-2">Taille: Calcul en cours...</p>
-            </div>
+        <div class="space-x-4 flex items-center">
+            <!-- Ajoutez ce bouton avant le nom -->
+            <button onclick="window.location.href='HTML.HTML'" class="bg-indigo-700 text-white px-3 py-1 rounded-md hover:bg-indigo-800 transition flex items-center">
+                <i class="fas fa-user-edit mr-1"></i>
+            </button>
+            <a href="page1.html" class="hover:text-indigo-200 transition flex items-center">
+                <i class="fas fa-barcode mr-1"></i> Scanner
+            </a>
+            <button id="loginLogoutButton" onclick="loginLogout()" class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition flex items-center">
+                <i class="fas fa-sign-out-alt mr-1"></i>
+            </button>
         </div>
+    </div>
+</nav>
 
-        <!-- Section Catégories -->
-        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
-            <h2 class="text-xl font-semibold mb-4">
-                <i class="fas fa-tags mr-2 text-indigo-500"></i>Gestion des Catégories
-            </h2>
-            
-            <!-- Formulaire Ajout Catégorie -->
-            <div class="mb-6 p-4 bg-gray-50 rounded-lg">
-                <h3 class="font-medium mb-3">Ajouter une Catégorie</h3>
-                <div class="flex gap-4">
-                    <input type="text" id="newCategoryName" placeholder="Nom de la catégorie" 
-                           class="flex-1 px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <button onclick="addCategory()" class="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 transition">
-                        <i class="fas fa-plus mr-2"></i>Ajouter
-                    </button>
-                </div>
-            </div>
+  <!-- Contenu principal -->
+  <div class="container mx-auto px-4 py-16 mt-16">
+    <header class="mb-8">
+      <h1 class="text-3xl font-bold text-indigo-700">KHsphers software</h1>
+      <p class="text-gray-600 flex items-center">
+        <i class="fas fa-database mr-2 text-indigo-500"></i> Fueled by PostgreSQL
+      </p>
+    </header>
 
-            <!-- Liste des Catégories -->
-            <div>
-                <h3 class="font-medium mb-3">Liste des Catégories</h3>
-                <div class="table-container">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nom</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="categoriesList" class="bg-white divide-y divide-gray-200">
-                            <tr>
-                                <td colspan="3" class="text-center py-4 text-gray-500">Chargement...</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+    <!-- Boutons Vente et Achat fixés -->
+    <div class="fixed-buttons flex">
+      <a href="vente.html" class="w-1/2 bg-green-600 text-white py-6 flex items-center justify-center hover:bg-green-700 transition-all duration-300 transform hover:scale-105 animate-pulse">
+        <i class="fas fa-shopping-cart text-4xl mr-3"></i>
+        <span class="text-2xl font-semibold">Vente</span>
+      </a>
+      <a href="achat.html" class="w-1/2 bg-blue-600 text-white py-6 flex items-center justify-center hover:bg-blue-700 transition-all duration-300 transform hover:scale-105 animate-pulse">
+        <i class="fas fa-box-open text-4xl mr-3"></i>
+        <span class="text-2xl font-semibold">Achat</span>
+      </a>
+    </div>
+
+    <!-- Section KPI améliorée -->
+    <div id="kpiSection" class="w-full bg-gradient-to-r from-indigo-100 to-white shadow-lg rounded-lg p-4 mb-8 z-10 animate-fade-in">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+          <i class="fas fa-chart-line mr-2 text-indigo-500 animate-pulse"></i> Tableau de Bord
+        </h2>
+        <select id="kpiPeriod" class="border p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm">
+          <option value="day">Aujourd'hui</option>
+          <option value="week">Cette Semaine</option>
+        </select>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24">
+          <h3 class="text-xs font-medium text-gray-600 flex items-center">
+            <i id="caIcon" class="fas fa-money-bill-wave mr-1 text-green-500 dynamic-icon"></i> Chiffre d'Affaires
+          </h3>
+          <p id="totalCA" class="text-lg font-bold text-indigo-600">0.00 DA</p>
         </div>
+        <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24">
+          <h3 class="text-xs font-medium text-gray-600 flex items-center">
+            <i id="profitIcon" class="fas fa-chart-pie mr-1 text-blue-500 dynamic-icon"></i> Bénéfice Total
+          </h3>
+          <p id="totalProfit" class="text-lg font-bold text-indigo-600">0.00 DA</p>
+        </div>
+        <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24">
+          <h3 class="text-xs font-medium text-gray-600 flex items-center">
+            <i id="salesIcon" class="fas fa-shopping-cart mr-1 text-yellow-500 dynamic-icon"></i> Ventes
+          </h3>
+          <p id="salesCount" class="text-lg font-bold text-indigo-600">0</p>
+        </div>
+        <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24">
+          <h3 class="text-xs font-medium text-gray-600 flex items-center">
+            <i id="stockIcon" class="fas fa-exclamation-triangle mr-1 text-red-500 dynamic-icon"></i> Ruptures
+          </h3>
+          <p id="lowStockItems" class="text-lg font-bold text-indigo-600">0</p>
+        </div>
+        <div class="kpi-card bg-white p-3 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center h-24 col-span-2 sm:col-span-1 lg:col-span-2">
+          <h3 class="text-xs font-medium text-gray-600 flex items-center">
+            <i id="clientIcon" class="fas fa-user-check mr-1 text-purple-500 dynamic-icon"></i> Top Client
+          </h3>
+          <p id="topClient" class="text-sm font-bold text-indigo-600 overflow-hidden text-ellipsis whitespace-nowrap" title="N/A">N/A</p>
+          <p id="topClientCA" class="text-xs text-gray-500">0.00 DA</p>
+        </div>
+      </div>
+    </div>
 
-        <!-- Section Produits -->
-        <div class="bg-white rounded-lg shadow-md p-6">
-            <h2 class="text-xl font-semibold mb-4">
-                <i class="fas fa-boxes mr-2 text-indigo-500"></i>Gestion des Produits
-            </h2>
+    <!-- Graphique en dessous -->
+    <div class="w-full bg-white p-4 rounded-lg shadow-md animate-fade-in chart-container mt-4">
+      <h3 class="text-lg font-medium text-gray-700 mb-4 flex items-center">
+        <i class="fas fa-chart-area mr-2 text-indigo-500"></i> Évolution du Chiffre d'Affaires
+      </h3>
+      <canvas id="caChart" height="100"></canvas>
+    </div>
 
-            <!-- Filtres et Recherche -->
-            <div class="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                    <input type="text" id="searchProduct" placeholder="Rechercher produit..." 
-                           class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                </div>
-                <div>
-                    <select id="categoryFilter" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        <option value="all">Toutes les catégories</option>
-                    </select>
-                </div>
-                <div>
-                    <button onclick="loadProducts()" class="w-full bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
-                        <i class="fas fa-sync mr-2"></i>Actualiser
-                    </button>
-                </div>
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+      <!-- Gestion Clients -->
+      <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="clientsSection">
+        <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('clientsSection')">
+          <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+            <i class="fas fa-users mr-2 text-indigo-500"></i> Gestion Clients
+            <span id="clientCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim">0</span>
+          </h2>
+          <button class="text-gray-600 hover:text-gray-800 transition">
+            <i class="fas fa-chevron-down" id="clientsChevron"></i>
+          </button>
+        </div>
+        <div class="section-content" id="clientsContent">
+          <div class="p-6">
+            <div class="mb-4">
+              <div class="relative">
+                <input type="text" id="searchClient" placeholder="Rechercher des clients..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+              </div>
+              <div class="flex justify-end mt-2">
+                <button onclick="toggleClientForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-plus mr-2"></i>Ajouter
+                </button>
+              </div>
             </div>
 
-            <!-- Liste des Produits -->
+            <div id="clientForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
+              <h3 class="font-medium mb-3" id="clientFormTitle">Nouveau Client</h3>
+              <input type="hidden" id="clientId">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
+                  <input type="text" id="clientNom" class="w-full px-3 py-2 border rounded-md" required>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Contact</label>
+                  <input type="text" id="clientContact" class="w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
+                  <input type="text" id="clientAdresse" class="w-full px-3 py-2 border rounded-md">
+                </div>
+              </div>
+              <div class="flex justify-end space-x-3 mt-4">
+                <button onclick="resetClientForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-times mr-2"></i>Annuler
+                </button>
+                <button onclick="saveClient()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-save mr-2"></i>Enregistrer
+                </button>
+              </div>
+            </div>
+
             <div class="table-container">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Désignation</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Catégorie</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="productsList" class="bg-white divide-y divide-gray-200">
-                        <tr>
-                            <td colspan="6" class="text-center py-4 text-gray-500">Chargement...</td>
-                        </tr>
-                    </tbody>
-                </table>
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="hidden-id">ID</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="clientsList" class="bg-white divide-y divide-gray-200">
+                  <tr>
+                    <td colspan="7" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
+          </div>
         </div>
-    </div>
+      </div>
 
-    <!-- Modal Assignation Catégorie -->
-    <div id="assignCategoryModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-        <div class="bg-white rounded-lg p-6 w-96">
-            <h3 class="text-lg font-semibold mb-4">Assigner une Catégorie</h3>
-            <input type="hidden" id="assignProductId">
-            <select id="assignCategorySelect" class="w-full px-4 py-2 border rounded-md mb-4">
-                <option value="">Sélectionner une catégorie</option>
-            </select>
-            <div class="flex justify-end space-x-2">
-                <button onclick="closeAssignModal()" class="px-4 py-2 text-gray-600 hover:text-gray-800">Annuler</button>
-                <button onclick="confirmAssignCategory()" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Assigner</button>
+      <!-- Gestion Fournisseurs -->
+      <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="fournisseursSection">
+        <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('fournisseursSection')">
+          <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+            <i class="fas fa-truck mr-2 text-indigo-500"></i> Gestion Fournisseurs
+            <span id="fournisseurCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim">0</span>
+          </h2>
+          <button class="text-gray-600 hover:text-gray-800 transition">
+            <i class="fas fa-chevron-down" id="fournisseursChevron"></i>
+          </button>
+        </div>
+        <div class="section-content" id="fournisseursContent">
+          <div class="p-6">
+            <div class="mb-4">
+              <div class="relative">
+                <input type="text" id="searchFournisseur" placeholder="Rechercher des fournisseurs..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+              </div>
+              <div class="flex justify-end mt-2">
+                <button onclick="toggleFournisseurForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-plus mr-2"></i>Ajouter
+                </button>
+              </div>
             </div>
+
+            <div id="fournisseurForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
+              <h3 class="font-medium mb-3" id="fournisseurFormTitle">Nouveau Fournisseur</h3>
+              <input type="hidden" id="fournisseurId">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
+                  <input type="text" id="fournisseurNom" class="w-full px-3 py-2 border rounded-md" required>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Contact</label>
+                  <input type="text" id="fournisseurContact" class="w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
+                  <input type="text" id="fournisseurAdresse" class="w-full px-3 py-2 border rounded-md">
+                </div>
+              </div>
+              <div class="flex justify-end space-x-3 mt-4">
+                <button onclick="resetFournisseurForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-times mr-2"></i>Annuler
+                </button>
+                <button onclick="saveFournisseur()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-save mr-2"></i>Enregistrer
+                </button>
+              </div>
+            </div>
+
+            <div class="table-container">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="hidden-id">ID</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="fournisseursList" class="bg-white divide-y divide-gray-200">
+                  <tr>
+                    <td colspan="7" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
-    </div>
+      </div>
 
-    <!-- Toast Notification -->
-    <div id="toast" class="fixed bottom-4 right-4 hidden">
-        <div class="flex items-center px-6 py-3 rounded-md shadow-lg">
-            <i id="toastIcon" class="mr-2"></i>
-            <span id="toastMessage"></span>
+      <!-- Liste des Produits -->
+      <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="productsSection">
+        <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('productsSection')">
+          <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+            <i class="fas fa-boxes mr-2 text-indigo-500"></i> Liste des Produits
+            <span id="productCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim">0</span>
+          </h2>
+          <button class="text-gray-600 hover:text-gray-800 transition">
+            <i class="fas fa-chevron-down" id="productsChevron"></i>
+          </button>
         </div>
+        <div class="section-content" id="productsContent">
+          <div class="p-6">
+            <div class="mb-4">
+              <div class="relative">
+                <input type="text" id="searchProduct" placeholder="Rechercher des produits..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+              </div>
+              <div class="flex justify-end mt-2">
+                <button onclick="toggleProductForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-plus mr-2"></i>Ajouter
+                </button>
+              </div>
+            </div>
+
+            <div id="productForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
+              <h3 class="font-medium mb-3" id="productFormTitle">Nouveau Produit</h3>
+              <input type="hidden" id="productId">
+              <div id="scannerPreview"></div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Désignation*</label>
+                  <input type="text" id="productDesignation" class="w-full px-3 py-2 border rounded-md" required>
+                </div>
+                <div class="relative">
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Code Barre (facultatif)</label>
+                  <input type="text" id="productBar" class="w-full px-3 py-2 border rounded-md" placeholder="Laisser vide pour générer automatiquement">
+                  <button id="scanButton" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition duration-300" onclick="startScanner()">
+                    <i class="fas fa-camera"></i> Scanner
+                  </button>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Prix Vente*</label>
+                  <input type="number" id="productPrix" step="0.01" class="w-full px-3 py-2 border rounded-md" required>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Prix Achat</label>
+                  <input type="number" id="productPrixba" step="0.01" class="w-full px-3 py-2 border rounded-md" placeholder="Ex: 300.00">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Quantité*</label>
+                  <input type="number" id="productQte" class="w-full px-3 py-2 border rounded-md" required>
+                </div>
+              </div>
+              <div class="flex justify-end space-x-3 mt-4">
+                <button onclick="stopScanner()" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-stop mr-2"></i>Arrêter
+                </button>
+                <button onclick="resetProductForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-times mr-2"></i>Annuler
+                </button>
+                <button onclick="saveProduct()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-save mr-2"></i>Enregistrer
+                </button>
+              </div>
+            </div>
+
+            <div class="table-container">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="hidden-id">ID</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Désignation</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code Barre</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Vente</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Achat</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="productsList" class="bg-white divide-y divide-gray-200">
+                  <tr>
+                    <td colspan="8" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gestion Utilisateurs -->
+      <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="utilisateursSection">
+        <div class="p-6 flex justify-between items-center cursor-pointer" onclick="toggleSection('utilisateursSection')">
+          <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+            <i class="fas fa-user-tie mr-2 text-indigo-500"></i> Gestion Utilisateurs
+            <span id="utilisateurCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim">0</span>
+          </h2>
+          <button class="text-gray-600 hover:text-gray-800 transition">
+            <i class="fas fa-chevron-down" id="utilisateursChevron"></i>
+          </button>
+        </div>
+        <div class="section-content" id="utilisateursContent">
+          <div class="p-6">
+            <div class="mb-4">
+              <div class="relative">
+                <input type="text" id="searchUtilisateur" placeholder="Rechercher des utilisateurs..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+              </div>
+              <div class="flex justify-end mt-2">
+                <button onclick="toggleUtilisateurForm()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-plus mr-2"></i>Ajouter
+                </button>
+              </div>
+            </div>
+
+            <div id="utilisateurForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg">
+              <h3 class="font-medium mb-3" id="utilisateurFormTitle">Nouvel Utilisateur</h3>
+              <input type="hidden" id="utilisateurId">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
+                  <input type="text" id="utilisateurNom" class="w-full px-3 py-2 border rounded-md" required>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe*</label>
+                  <input type="password" id="utilisateurPassword" class="w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Statut*</label>
+                  <select id="utilisateurStatut" class="w-full px-3 py-2 border rounded-md">
+                    <option value="admin">Admin</option>
+                    <option value="emplo">Employé</option>
+                  </select>
+                </div>
+              </div>
+              <div class="flex justify-end space-x-3 mt-4">
+                <button onclick="resetUtilisateurForm()" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-times mr-2"></i>Annuler
+                </button>
+                <button onclick="saveUtilisateur()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105">
+                  <i class="fas fa-save mr-2"></i>Enregistrer
+                </button>
+              </div>
+            </div>
+
+            <div class="table-container">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="utilisateursList" class="bg-white divide-y divide-gray-200">
+                  <tr>
+                    <td colspan="4" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panneau Actions Rapides -->
+      <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="actionsSection">
+        <div class="p-6">
+          <h2 class="text-xl font-semibold text-gray-800 flex items-center mb-4">
+            <i class="fas fa-bolt mr-2 text-indigo-500"></i> Actions Rapides
+          </h2>
+          <div class="grid grid-cols-3 gap-4">
+            <a href="page2.html" class="bg-indigo-600 text-white p-4 rounded-md hover:bg-indigo-700 transition duration-300 transform hover:scale-105 flex items-center justify-center action-button">
+              <i class="fas fa-chart-bar mr-2 text-xl"></i>
+              <span class="font-medium">Journal</span>
+            </a>
+            <a href="HISTO.html" class="bg-blue-600 text-white p-4 rounded-md hover:bg-blue-700 transition duration-300 transform hover:scale-105 flex items-center justify-center action-button">
+              <i class="fas fa-money-check-alt mr-2 text-xl"></i>
+              <span class="font-medium">Versement</span>
+            </a>
+            <a href="venteold.html" class="bg-yellow-600 text-white p-4 rounded-md hover:bg-yellow-700 transition duration-300 transform hover:scale-105 flex items-center justify-center action-button">
+              <i class="fas fa-utensils mr-2 text-xl"></i>
+              <span class="font-medium">Vente Menu</span>
+            </a>
+            <a href="PARAM.html" class="bg-gray-600 text-white p-4 rounded-md hover:bg-gray-700 transition duration-300 transform hover:scale-105 flex items-center justify-center action-button">
+              <i class="fas fa-cog mr-2 text-xl"></i>
+              <span class="font-medium">Réglage</span>
+            </a>
+            <a href="HELP.html" class="bg-green-600 text-white p-4 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105 flex items-center justify-center action-button">
+              <i class="fas fa-question-circle mr-2 text-xl"></i>
+              <span class="font-medium">Aide</span>
+            </a>
+            <a href="MAP.html" class="bg-red-600 text-white p-4 rounded-md hover:bg-red-700 transition duration-300 transform hover:scale-105 flex items-center justify-center action-button">
+              <i class="fas fa-map mr-2 text-xl"></i>
+              <span class="font-medium">Carte</span>
+            </a>
+          </div>
+        </div>
+      </div>
     </div>
+  </div>
 
-    <script>
-        // Fonction pour afficher les notifications
-        function showToast(message, isError = false) {
-            const toast = document.getElementById('toast');
-            const toastMessage = document.getElementById('toastMessage');
-            const toastIcon = document.getElementById('toastIcon');
-            
-            toast.className = isError 
-                ? 'fixed bottom-4 right-4 flex items-center bg-red-500 text-white px-6 py-3 rounded-md shadow-lg toast-in'
-                : 'fixed bottom-4 right-4 flex items-center bg-green-500 text-white px-6 py-3 rounded-md shadow-lg toast-in';
-            
-            toastIcon.className = isError ? 'fas fa-exclamation-circle mr-2' : 'fas fa-check-circle mr-2';
-            toastMessage.textContent = message;
-            toast.classList.remove('hidden');
-            
-            setTimeout(() => {
-                toast.classList.remove('toast-in');
-                toast.classList.add('toast-out');
-                setTimeout(() => toast.classList.add('hidden'), 500);
-            }, 3000);
+  <!-- Footer -->
+  <footer class="bg-gray-700 text-white text-center py-4 mt-8 animate-fade-in">
+    <p>Développé par Khelladi Hicham</p>
+    <p>Tel: <a href="tel:00213540110162" class="underline hover:text-indigo-300 transition duration-300">00213540110162</a></p>
+    <p>Email: <a href="mailto:Hicham.khelladi@gmail.com" class="underline hover:text-indigo-300 transition duration-300">Hicham.khelladi@gmail.com</a></p>
+  </footer>
+
+  <!-- Bouton flottant pour remonter en haut -->
+  <button id="scrollTopButton" class="hidden fixed bottom-4 right-4 bg-indigo-600 text-white p-3 rounded-full shadow-lg hover:bg-indigo-700 transition transform hover:scale-110 animate-fade-in z-30" title="Remonter en haut">
+    <i class="fas fa-arrow-up"></i>
+  </button>
+
+  <div id="toast" class="fixed bottom-4 right-4 hidden">
+    <div class="flex items-center px-6 py-3 rounded-md shadow-lg">
+      <i id="toastIcon" class="mr-2"></i>
+      <span id="toastMessage"></span>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'https://hicham03041979.onrender.com';
+    let caChartInstance = null;
+    let stream = null;
+    let barcodeDetector = null;
+    let isScanning = false;
+
+    // Flags to track whether data has been loaded for each section
+    let clientsLoaded = false;
+    let fournisseursLoaded = false;
+    let produitsLoaded = false;
+    let utilisateursLoaded = false;
+
+    // Générer un user_id basé sur l'email et le mot de passe
+    function generateUniqueUserId(email, password) {
+      const combined = `${email.toLowerCase()}:${password}`;
+      return btoa(combined);
+    }
+
+    // Charger les compteurs au démarrage
+    async function loadAllCounts() {
+      const userId = localStorage.getItem('userId');
+      if (!userId) return;
+
+      try {
+        const [clientsRes, fournisseursRes, produitsRes, utilisateursRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/liste_clients`, { headers: { 'X-User-ID': userId } }),
+          fetch(`${API_BASE_URL}/liste_fournisseurs`, { headers: { 'X-User-ID': userId } }),
+          fetch(`${API_BASE_URL}/liste_produits`, { headers: { 'X-User-ID': userId } }),
+          fetch(`${API_BASE_URL}/liste_utilisateurs`, { headers: { 'X-User-ID': userId } })
+        ]);
+
+        if (clientsRes.ok) {
+          const clients = await clientsRes.json();
+          document.getElementById('clientCount').textContent = clients.length;
+          document.getElementById('clientCount').classList.remove('hidden');
         }
-
-        // Télécharger la base de données
-        async function downloadDatabase() {
-            try {
-                const dbData = localStorage.getItem('gestion_db');
-                if (!dbData) {
-                    showToast('Aucune base de données trouvée', true);
-                    return;
-                }
-
-                // Convertir base64 en blob
-                const binaryString = atob(dbData);
-                const bytes = new Uint8Array(binaryString.length);
-                for (let i = 0; i < binaryString.length; i++) {
-                    bytes[i] = binaryString.charCodeAt(i);
-                }
-                const blob = new Blob([bytes], { type: 'application/octet-stream' });
-
-                // Créer un lien de téléchargement
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'gestion.db';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-
-                showToast('Base de données téléchargée avec succès');
-            } catch (error) {
-                showToast('Erreur lors du téléchargement: ' + error.message, true);
-            }
+        if (fournisseursRes.ok) {
+          const fournisseurs = await fournisseursRes.json();
+          document.getElementById('fournisseurCount').textContent = fournisseurs.length;
+          document.getElementById('fournisseurCount').classList.remove('hidden');
         }
-
-        // Réinitialiser la base de données
-        function clearDatabase() {
-            if (confirm('Êtes-vous sûr de vouloir réinitialiser la base de données ? Toutes les données seront perdues.')) {
-                localStorage.removeItem('gestion_db');
-                showToast('Base de données réinitialisée');
-                setTimeout(() => location.reload(), 1000);
-            }
+        if (produitsRes.ok) {
+          const produits = await produitsRes.json();
+          document.getElementById('productCount').textContent = produits.length;
+          document.getElementById('productCount').classList.remove('hidden');
         }
-
-        // Charger les catégories
-        async function loadCategories() {
-            try {
-                const response = await fetch('/api/liste_categories');
-                const categories = await response.json();
-                
-                const tbody = document.getElementById('categoriesList');
-                const categoryFilter = document.getElementById('categoryFilter');
-                const assignSelect = document.getElementById('assignCategorySelect');
-                
-                // Vider les selects
-                categoryFilter.innerHTML = '<option value="all">Toutes les catégories</option>';
-                assignSelect.innerHTML = '<option value="">Sélectionner une catégorie</option>';
-                
-                if (categories.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="3" class="text-center py-4 text-gray-500">Aucune catégorie</td></tr>';
-                    return;
-                }
-
-                // Remplir le tableau
-                tbody.innerHTML = categories.map(cat => `
-                    <tr>
-                        <td class="px-6 py-4">${cat.numer_categorie}</td>
-                        <td class="px-6 py-4">${cat.description_c}</td>
-                        <td class="px-6 py-4">
-                            <button onclick="deleteCategory(${cat.numer_categorie})" class="text-red-600 hover:text-red-800">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
-                `).join('');
-
-                // Remplir les selects
-                categories.forEach(cat => {
-                    categoryFilter.innerHTML += `<option value="${cat.numer_categorie}">${cat.description_c}</option>`;
-                    assignSelect.innerHTML += `<option value="${cat.numer_categorie}">${cat.description_c}</option>`;
-                });
-
-            } catch (error) {
-                showToast('Erreur chargement catégories: ' + error.message, true);
-            }
+        if (utilisateursRes.ok) {
+          const utilisateurs = await utilisateursRes.json();
+          document.getElementById('utilisateurCount').textContent = utilisateurs.length;
+          document.getElementById('utilisateurCount').classList.remove('hidden');
         }
+      } catch (error) {
+        console.error('Erreur chargement compteurs:', error);
+      }
+    }
 
-        // Ajouter une catégorie
-        async function addCategory() {
-            const nameInput = document.getElementById('newCategoryName');
-            const name = nameInput.value.trim();
-            
-            if (!name) {
-                showToast('Veuillez entrer un nom de catégorie', true);
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/ajouter_categorie', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ description_c: name })
-                });
-
-                if (!response.ok) throw new Error('Erreur lors de l\'ajout');
-                
-                nameInput.value = '';
-                showToast('Catégorie ajoutée avec succès');
-                loadCategories();
-            } catch (error) {
-                showToast('Erreur: ' + error.message, true);
-            }
-        }
-
-        // Supprimer une catégorie
-        async function deleteCategory(id) {
-            if (!confirm('Êtes-vous sûr de vouloir supprimer cette catégorie ?')) return;
-
-            try {
-                const response = await fetch(`/api/supprimer_categorie/${id}`, {
-                    method: 'DELETE'
-                });
-
-                if (!response.ok) throw new Error('Erreur lors de la suppression');
-                
-                showToast('Catégorie supprimée avec succès');
-                loadCategories();
-                loadProducts();
-            } catch (error) {
-                showToast('Erreur: ' + error.message, true);
-            }
-        }
-
-        // Charger les produits
-        async function loadProducts() {
-            try {
-                const searchTerm = document.getElementById('searchProduct').value.toLowerCase();
-                const categoryFilter = document.getElementById('categoryFilter').value;
-                
-                let url = '/api/liste_produits';
-                if (categoryFilter !== 'all') {
-                    url = `/api/liste_produits_par_categorie?numero_categorie=${categoryFilter}`;
-                }
-
-                const response = await fetch(url);
-                let products = await response.json();
-
-                // Si c'est une réponse par catégorie, extraire les produits
-                if (categoryFilter !== 'all' && products.categories) {
-                    products = products.categories.flatMap(cat => cat.produits || []);
-                }
-
-                const tbody = document.getElementById('productsList');
-                
-                if (!products || products.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun produit</td></tr>';
-                    return;
-                }
-
-                // Filtrer par recherche
-                if (searchTerm) {
-                    products = products.filter(p => 
-                        p.designation.toLowerCase().includes(searchTerm)
-                    );
-                }
-
-                tbody.innerHTML = products.map(prod => `
-                    <tr>
-                        <td class="px-6 py-4">${prod.numero_item}</td>
-                        <td class="px-6 py-4">${prod.designation}</td>
-                        <td class="px-6 py-4">${prod.prix || '0.00'} DA</td>
-                        <td class="px-6 py-4">${prod.qte || 0}</td>
-                        <td class="px-6 py-4">${prod.numer_categorie || 'Non assigné'}</td>
-                        <td class="px-6 py-4">
-                            <button onclick="openAssignModal(${prod.numero_item})" class="text-blue-600 hover:text-blue-800 mr-2">
-                                <i class="fas fa-tag"></i>
-                            </button>
-                        </td>
-                    </tr>
-                `).join('');
-
-            } catch (error) {
-                showToast('Erreur chargement produits: ' + error.message, true);
-            }
-        }
-
-        // Ouvrir modal d'assignation
-        function openAssignModal(productId) {
-            document.getElementById('assignProductId').value = productId;
-            document.getElementById('assignCategoryModal').classList.remove('hidden');
-        }
-
-        // Fermer modal
-        function closeAssignModal() {
-            document.getElementById('assignCategoryModal').classList.add('hidden');
-        }
-
-        // Assigner une catégorie
-        async function confirmAssignCategory() {
-            const productId = document.getElementById('assignProductId').value;
-            const categoryId = document.getElementById('assignCategorySelect').value;
-
-            if (!categoryId) {
-                showToast('Veuillez sélectionner une catégorie', true);
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/assigner_categorie', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        numero_item: parseInt(productId),
-                        numer_categorie: categoryId ? parseInt(categoryId) : null
-                    })
-                });
-
-                if (!response.ok) throw new Error('Erreur lors de l\'assignation');
-                
-                closeAssignModal();
-                showToast('Catégorie assignée avec succès');
-                loadProducts();
-            } catch (error) {
-                showToast('Erreur: ' + error.message, true);
-            }
-        }
-
-        // Calculer la taille de la base
-        function updateDBSize() {
-            const dbData = localStorage.getItem('gestion_db');
-            if (dbData) {
-                const sizeMB = (dbData.length / 1024 / 1024).toFixed(2);
-                document.getElementById('dbSize').textContent = `Taille: ${sizeMB} MB`;
-            } else {
-                document.getElementById('dbSize').textContent = 'Taille: 0 MB';
-            }
-        }
-
-        // Initialisation
-        document.addEventListener('DOMContentLoaded', function() {
-            loadCategories();
-            loadProducts();
-            updateDBSize();
-            
-            // Événements
-            document.getElementById('searchProduct').addEventListener('input', loadProducts);
-            document.getElementById('categoryFilter').addEventListener('change', loadProducts);
-            
-            // Actualiser la taille toutes les 30 secondes
-            setInterval(updateDBSize, 30000);
+    // Vérifier si l'utilisateur est connecté au chargement de la page
+  document.addEventListener('DOMContentLoaded', () => {
+    const userId = localStorage.getItem('userId');
+    const userEmail = localStorage.getItem('userEmail');
+    
+    if (userId && userEmail) {
+        document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
+        document.getElementById('userDisplay').classList.remove('hidden');
+        document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+        document.getElementById('loginModal').classList.add('hidden');
+        
+        // Vérifier le statut avant de charger les autres éléments
+        checkSellerStatus().then(() => {
+            chargerKPI();
+            loadAllCounts();
         });
-    </script>
+    } else {
+        document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+        document.getElementById('loginModal').classList.remove('hidden');
+        toggleActionButtons(true); // Tout désactiver si non connecté
+    }
+
+      // Vérification de la connexion API
+      fetch(`${API_BASE_URL}/`)
+        .then(response => response.text())
+        .then(text => console.log('Statut API:', text))
+        .catch(err => {
+          console.error('API non disponible:', err);
+          showToast('Erreur de connexion à l\'API', true);
+        });
+
+      // Écouteur pour le sélecteur de période KPI
+      document.getElementById('kpiPeriod').addEventListener('change', () => {
+        document.getElementById('kpiSection').style.opacity = '0.5';
+        setTimeout(chargerKPI, 300);
+      });
+
+      // Bouton remonter en haut
+      window.addEventListener('scroll', () => {
+        if (window.scrollY > 300) {
+          document.getElementById('scrollTopButton').classList.remove('hidden');
+        } else {
+          document.getElementById('scrollTopButton').classList.add('hidden');
+        }
+      });
+
+      document.getElementById('scrollTopButton').addEventListener('click', () => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    });
+async function checkSellerStatus() {
+    const storedSeller = localStorage.getItem('selectedSeller');
+    const userId = localStorage.getItem('userId');
+    
+    if (!userId) {
+        toggleActionButtons(true); // Désactiver si non connecté
+        return;
+    }
+
+    try {
+        if (storedSeller) {
+            const { numero_util, nom } = JSON.parse(storedSeller);
+            document.getElementById('currentSellerName').textContent = nom || 'Inconnu';
+            
+            const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+                headers: { 'X-User-ID': userId }
+            });
+            
+            if (!response.ok) throw new Error('Erreur de chargement des utilisateurs');
+            
+            const utilisateurs = await response.json();
+            const seller = utilisateurs.find(u => u.numero == numero_util);
+            
+            if (seller) {
+                const isEmploye = seller.statut.toLowerCase() === 'emplo';
+                toggleActionButtons(isEmploye);
+            }
+        } else {
+            document.getElementById('currentSellerName').textContent = 'Inconnu';
+            toggleActionButtons(true); // Désactiver si aucun vendeur sélectionné
+        }
+    } catch (error) {
+        console.error('Erreur vérification statut:', error);
+        showToast('Erreur de vérification du statut du vendeur', true);
+        toggleActionButtons(true); // Désactiver en cas d'erreur
+    }
+}
+
+function toggleActionButtons(isEmploye) {
+    // Basculer la classe sur le body
+    document.body.classList.toggle('employe-mode', isEmploye);
+    
+    // Désactiver les boutons Ajouter
+    document.querySelectorAll('button:has(i.fa-plus)').forEach(btn => {
+        btn.disabled = isEmploye;
+        btn.classList.toggle('disabled-action', isEmploye);
+    });
+    
+    // Solution de secours au cas où
+    const actionButtons = document.querySelectorAll('.btn-edit, .btn-delete');
+    actionButtons.forEach(btn => {
+        btn.style.display = isEmploye ? 'none' : '';
+    });
+}
+	  // Fonction pour gérer l'animation développer/envelopper
+    function toggleSection(sectionId) {
+      const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
+      const chevron = document.getElementById(`${sectionId.replace('Section', 'Chevron')}`);
+      const isOpening = !content.classList.contains('open');
+
+      content.classList.toggle('open');
+      chevron.classList.toggle('fa-chevron-down');
+      chevron.classList.toggle('fa-chevron-up');
+
+      // Charger les données uniquement si la section est ouverte et les données n'ont pas encore été chargées
+      if (isOpening) {
+        if (sectionId === 'clientsSection' && !clientsLoaded) {
+          chargerClients();
+          clientsLoaded = true;
+        } else if (sectionId === 'fournisseursSection' && !fournisseursLoaded) {
+          chargerFournisseurs();
+          fournisseursLoaded = true;
+        } else if (sectionId === 'productsSection' && !produitsLoaded) {
+          chargerProduits();
+          produitsLoaded = true;
+        } else if (sectionId === 'utilisateursSection' && !utilisateursLoaded) {
+          chargerUtilisateurs();
+          utilisateursLoaded = true;
+        }
+      }
+    }
+
+    // Fonction pour charger les KPI
+    async function chargerKPI() {
+      const userId = localStorage.getItem('userId');
+      if (!userId) {
+        showToast('Veuillez vous connecter pour voir les KPI', true);
+        return;
+      }
+
+      const period = document.getElementById('kpiPeriod').value;
+      try {
+        const response = await fetch(`${API_BASE_URL}/dashboard?period=${period}`, {
+          headers: {
+            'X-User-ID': userId
+          }
+        });
+        if (!response.ok) {
+          throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+        }
+        const kpi = await response.json();
+
+        // Mettre à jour les KPI
+        document.getElementById('totalCA').textContent = `${kpi.total_ca.toFixed(2)} DA`;
+        document.getElementById('totalProfit').textContent = `${kpi.total_profit.toFixed(2)} DA`;
+        document.getElementById('salesCount').textContent = kpi.sales_count;
+        document.getElementById('lowStockItems').textContent = kpi.low_stock_items;
+        document.getElementById('topClient').textContent = kpi.top_client.name || 'N/A';
+        document.getElementById('topClient').title = kpi.top_client.name || 'N/A';
+        document.getElementById('topClientCA').textContent = `${kpi.top_client.ca.toFixed(2)} DA`;
+
+        // Animation de mise à jour
+        const kpiCards = document.querySelectorAll('.kpi-card');
+        kpiCards.forEach(card => {
+          card.classList.add('kpi-updated');
+          setTimeout(() => card.classList.remove('kpi-updated'), 500);
+        });
+
+        // Animation spécifique pour Top Client
+        const topClientCard = document.getElementById('topClient').parentElement;
+        topClientCard.classList.add('top-client-updated');
+        setTimeout(() => topClientCard.classList.remove('top-client-updated'), 600);
+
+        // Mettre à jour les icônes dynamiques
+        document.getElementById('caIcon').className = `fas fa-money-bill-wave mr-1 dynamic-icon ${kpi.total_ca > 0 ? 'text-green-500 animate-pulse' : 'text-gray-400'}`;
+        document.getElementById('profitIcon').className = `fas fa-chart-pie mr-1 dynamic-icon ${kpi.total_profit > 0 ? 'text-blue-500 animate-pulse' : 'text-gray-400'}`;
+        document.getElementById('salesIcon').className = `fas fa-shopping-cart mr-1 dynamic-icon ${kpi.sales_count > 0 ? 'text-yellow-500 animate-pulse' : 'text-gray-400'}`;
+        document.getElementById('stockIcon').className = `fas fa-exclamation-triangle mr-1 dynamic-icon ${kpi.low_stock_items > 0 ? 'text-red-500 animate-pulse' : 'text-gray-400'}`;
+        document.getElementById('clientIcon').className = `fas fa-user-check mr-1 dynamic-icon ${kpi.top_client.ca > 0 ? 'text-purple-500 animate-pulse' : 'text-gray-400'}`;
+
+        // Mettre à jour le graphique
+        updateChart(kpi.chart_data.labels, kpi.chart_data.values);
+
+        // Réactiver l'opacité
+        document.getElementById('kpiSection').style.opacity = '1';
+      } catch (error) {
+        showToast(`Erreur de chargement des KPI: ${error.message}`, true);
+        console.error('Erreur KPI:', error);
+        document.getElementById('kpiSection').style.opacity = '1';
+      }
+    }
+
+    // Fonction pour mettre à jour le graphique
+    function updateChart(labels, values) {
+      const ctx = document.getElementById('caChart').getContext('2d');
+      if (caChartInstance) {
+        caChartInstance.destroy();
+      }
+      caChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Chiffre d\'Affaires (DA)',
+            data: values,
+            borderColor: '#4F46E5',
+            backgroundColor: 'rgba(79, 70, 229, 0.2)',
+            fill: true,
+            tension: 0.4
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            x: {
+              title: { display: true, text: 'Date' }
+            },
+            y: {
+              title: { display: true, text: 'CA (DA)' },
+              beginAtZero: true
+            }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: context => `${context.parsed.y.toFixed(2)} DA`
+              }
+            }
+          },
+          animation: {
+            duration: 1000,
+            easing: 'easeOutQuart'
+          }
+        }
+      });
+    }
+
+    // Connexion avec email et mot de passe
+    function loginWithCredentials(event) {
+      event.preventDefault();
+      const email = document.getElementById('userEmail').value.trim();
+      const password = document.getElementById('userPassword').value.trim();
+      if (!email || !password) {
+        showToast('Veuillez entrer un email et un mot de passe valides', true);
+        return;
+      }
+
+      const emailLowerCase = email.toLowerCase();
+      const storedUserId = localStorage.getItem('userId');
+      const storedEmail = localStorage.getItem('userEmail');
+
+      const userId = generateUniqueUserId(emailLowerCase, password);
+
+      if (storedUserId && storedEmail === emailLowerCase && storedUserId === userId) {
+        document.getElementById('userDisplay').textContent = emailLowerCase;
+        document.getElementById('userDisplay').classList.remove('hidden');
+        document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+        document.getElementById('loginModal').classList.add('hidden');
+        chargerKPI();
+        loadAllCounts();
+      } else {
+        localStorage.setItem('userId', userId);
+        localStorage.setItem('userEmail', emailLowerCase);
+        document.getElementById('userDisplay').textContent = emailLowerCase;
+        document.getElementById('userDisplay').classList.remove('hidden');
+        document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+        document.getElementById('loginModal').classList.add('hidden');
+        chargerKPI();
+        loadAllCounts();
+        showToast('Nouveau compte créé avec succès');
+      }
+    }
+
+    // Fonction de déconnexion
+    function loginLogout() {
+      const userId = localStorage.getItem('userId');
+      if (userId) {
+        localStorage.removeItem('userId');
+        localStorage.removeItem('userEmail');
+        localStorage.removeItem('selectedSeller');
+        localStorage.removeItem('sellerPassword');
+        document.getElementById('userDisplay').textContent = '';
+        document.getElementById('userDisplay').classList.add('hidden');
+        document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+        document.getElementById('loginModal').classList.remove('hidden');
+        document.getElementById('clientsList').innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+        document.getElementById('fournisseursList').innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+        document.getElementById('productsList').innerHTML = '<tr><td colspan="8" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+        document.getElementById('utilisateursList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+        document.getElementById('clientCount').textContent = '0';
+        document.getElementById('fournisseurCount').textContent = '0';
+        document.getElementById('productCount').textContent = '0';
+        document.getElementById('utilisateurCount').textContent = '0';
+        document.getElementById('totalCA').textContent = '0.00 DA';
+        document.getElementById('totalProfit').textContent = '0.00 DA';
+        document.getElementById('salesCount').textContent = '0';
+        document.getElementById('lowStockItems').textContent = '0';
+        document.getElementById('topClient').textContent = 'N/A';
+        document.getElementById('topClientCA').textContent = '0.00 DA';
+        if (caChartInstance) {
+          caChartInstance.destroy();
+          caChartInstance = null;
+        }
+        clientsLoaded = false;
+        fournisseursLoaded = false;
+        produitsLoaded = false;
+        utilisateursLoaded = false;
+      }
+    }
+
+    // Fonction pour afficher les notifications
+    function showToast(message, isError = false) {
+      const toast = document.getElementById('toast');
+      const toastMessage = document.getElementById('toastMessage');
+      const toastIcon = document.getElementById('toastIcon');
+      if (!toast || !toastMessage || !toastIcon) {
+        console.error('Éléments toast introuvables');
+        return;
+      }
+      toast.className = isError
+        ? 'fixed bottom-4 right-4 flex items-center bg-red-500 text-white px-6 py-3 rounded-md shadow-lg toast-in'
+        : 'fixed bottom-4 right-4 flex items-center bg-green-500 text-white px-6 py-3 rounded-md shadow-lg toast-in';
+      toastIcon.className = isError ? 'fas fa-exclamation-circle mr-2' : 'fas fa-check-circle mr-2';
+      toastMessage.textContent = message;
+      toast.classList.remove('hidden');
+      setTimeout(() => {
+        toast.classList.remove('toast-in');
+        toast.classList.add('toast-out');
+        setTimeout(() => toast.classList.add('hidden'), 500);
+      }, 3000);
+    }
+
+    // --- Gestion des clients ---
+    async function chargerClients() {
+      const userId = localStorage.getItem('userId');
+      if (!userId) {
+        showToast('Veuillez vous connecter pour voir les clients', true);
+        document.getElementById('clientsList').innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/liste_clients`, {
+          headers: {
+            'X-User-ID': userId
+          }
+        });
+        if (!response.ok) {
+          throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+        }
+        const clients = await response.json();
+        const tbody = document.getElementById('clientsList');
+
+        if (clients.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun client trouvé</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = '';
+        clients.forEach(client => {
+          const tr = document.createElement('tr');
+          tr.className = 'hover:bg-gray-50';
+          tr.innerHTML = `
+            <td class="hidden-id">${client.numero_clt || 'N/A'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${client.nom || 'N/A'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.solde || '0'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.reference || 'N/A'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.contact || 'N/A'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${client.adresse || 'N/A'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+    <div class="action-buttons">
+        <button onclick="modifierClient('${client.numero_clt}', '${client.nom}', '${client.contact}', '${client.adresse}')" 
+                class="btn-edit text-blue-600 hover:text-blue-800 transition mr-2">
+            <i class="fas fa-edit"></i> Modifier
+        </button>
+        <button onclick="supprimerClient('${client.numero_clt}')" 
+                class="btn-delete text-red-600 hover:text-red-800 transition">
+            <i class="fas fa-trash-alt"></i> Supprimer
+        </button>
+    </div>
+</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (error) {
+        document.getElementById('clientsList').innerHTML = `
+          <tr>
+            <td colspan="7" class="text-center py-4 text-red-500">
+              Erreur de chargement: ${error.message}
+            </td>
+          </tr>
+        `;disableAllDeleteButtons();
+        console.error('Erreur clients:', error);
+      }
+    }
+
+    function modifierClient(id, nom, contact, adresse) {
+      document.getElementById('clientId').value = id;
+      document.getElementById('clientNom').value = nom;
+      document.getElementById('clientContact').value = contact;
+      document.getElementById('clientAdresse').value = adresse;
+      document.getElementById('clientFormTitle').textContent = 'Modifier Client';
+      document.getElementById('clientForm').classList.remove('hidden');
+    }
+
+    async function supprimerClient(id) {
+          // Vérification renforcée du statut
+
+		const userId = localStorage.getItem('userId');
+      if (!userId) {
+        showToast('Veuillez vous connecter pour supprimer un client', true);
+        return;
+      }
+
+      if (!confirm('Voulez-vous vraiment supprimer ce client ?')) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/supprimer_client/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'X-User-ID': userId
+          }
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.erreur || 'Erreur lors de la suppression');
+        }
+
+        showToast('Client supprimé avec succès');
+        chargerClients();
+        loadAllCounts(); // Mettre à jour le compteur
+      } catch (error) {
+        showToast(error.message, true);
+        console.error('Erreur suppression client:', error);
+      }
+    }
+
+    async function saveClient() {
+      const userId = localStorage.getItem('userId');
+      if (!userId) {
+        showToast('Veuillez vous connecter pour sauvegarder un client', true);
+        return;
+      }
+
+      const id = document.getElementById('clientId').value;
+      const nom = document.getElementById('clientNom').value.trim();
+      const contact = document.getElementById('clientContact').value.trim();
+      const adresse = document.getElementById('clientAdresse').value.trim();
+
+      if (!nom) {
+        showToast('Veuillez remplir le champ Nom', true);
+        return;
+      }
+
+      try {
+        const url = id ? `${API_BASE_URL}/modifier_client/${id}` : `${API_BASE_URL}/ajouter_client`;
+        const method = id ? 'PUT' : 'POST';
+        const response = await fetch(url, {
+          method: method,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-ID': userId
+          },
+          body: JSON.stringify({
+            nom,
+            contact,
+            adresse
+          })
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
+        }
+
+        showToast(id ? 'Client modifié avec succès' : 'Client ajouté avec succès');
+        resetClientForm();
+        chargerClients();
+        loadAllCounts(); // Mettre à jour le compteur
+      } catch (error) {
+        showToast(error.message, true);
+        console.error('Erreur sauvegarde client:', error);
+      }
+    }
+
+    function resetClientForm() {
+      document.getElementById('clientId').value = '';
+      document.getElementById('clientNom').value = '';
+      document.getElementById('clientContact').value = '';
+      document.getElementById('clientAdresse').value = '';
+      document.getElementById('clientFormTitle').textContent = 'Nouveau Client';
+      document.getElementById('clientForm').classList.add('hidden');
+    }
+
+    function toggleClientForm() {
+      document.getElementById('clientForm').classList.toggle('hidden');
+    }
+
+    document.getElementById('searchClient').addEventListener('input', function(e) {
+      const searchTerm = e.target.value.toLowerCase();
+      const rows = document.querySelectorAll('#clientsList tr');
+
+      rows.forEach(row => {
+        const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
+        const reference = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
+        const contact = row.querySelector('td:nth-child(5)')?.textContent.toLowerCase();
+        const adresse = row.querySelector('td:nth-child(6)')?.textContent.toLowerCase();
+        if (nom?.includes(searchTerm) || reference?.includes(searchTerm) || contact?.includes(searchTerm) || adresse?.includes(searchTerm)) {
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+    });
+
+    // --- Gestion des fournisseurs ---
+    async function chargerFournisseurs() {
+      const userId = localStorage.getItem('userId');
+      if (!userId) {
+        showToast('Veuillez vous connecter pour voir les fournisseurs', true);
+        document.getElementById('fournisseursList').innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/liste_fournisseurs`, {
+          headers: {
+            'X-User-ID': userId
+          }
+        });
+        if (!response.ok) {
+          throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+        }
+        const fournisseurs = await response.json();
+        const tbody = document.getElementById('fournisseursList');
+
+        if (fournisseurs.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Aucun fournisseur trouvé</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = '';
+        fournisseurs.forEach(fournisseur => {
+          const tr = document.createElement('tr');
+          tr.className = 'hover:bg-gray-50';
+          tr.innerHTML = `
+            <td class="hidden-id">${fournisseur.numero_fou || 'N/A'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${fournisseur.nom || 'N/A'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.solde || '0'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.reference || 'N/A'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.contact || 'N/A'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fournisseur.adresse || 'N/A'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+    <div class="action-buttons">
+        <button onclick="modifierFournisseur('${fournisseur.numero_fou}', '${fournisseur.nom}', '${fournisseur.contact}', '${fournisseur.adresse}')" 
+                class="btn-edit text-blue-600 hover:text-blue-800 transition mr-2">
+            <i class="fas fa-edit"></i> Modifier
+        </button>
+        <button onclick="supprimerFournisseur('${fournisseur.numero_fou}')" 
+                class="btn-delete text-red-600 hover:text-red-800 transition">
+            <i class="fas fa-trash-alt"></i> Supprimer
+        </button>
+    </div>
+</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (error) {
+        document.getElementById('fournisseursList').innerHTML = `
+          <tr>
+            <td colspan="7" class="text-center py-4 text-red-500">
+              Erreur de chargement: ${error.message}
+            </td>
+          </tr>
+        `;disableAllDeleteButtons();
+        console.error('Erreur fournisseurs:', error);
+      }
+    }
+
+    function modifierFournisseur(id, nom, contact, adresse) {
+      document.getElementById('fournisseurId').value = id;
+      document.getElementById('fournisseurNom').value = nom;
+      document.getElementById('fournisseurContact').value = contact;
+      document.getElementById('fournisseurAdresse').value = adresse;
+      document.getElementById('fournisseurFormTitle').textContent = 'Modifier Fournisseur';
+      document.getElementById('fournisseurForm').classList.remove('hidden');
+    }
+
+    async function supprimerFournisseur(id) {
+          // Vérification renforcée du statut
+
+		const userId = localStorage.getItem('userId');
+      if (!userId) {
+        showToast('Veuillez vous connecter pour supprimer un fournisseur', true);
+        return;
+      }
+
+      if (!confirm('Voulez-vous vraiment supprimer ce fournisseur ?')) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/supprimer_fournisseur/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'X-User-ID': userId
+          }
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.erreur || 'Erreur lors de la suppression');
+        }
+
+        showToast('Fournisseur supprimé avec succès');
+        chargerFournisseurs();
+        loadAllCounts(); // Mettre à jour le compteur
+      } catch (error) {
+        showToast(error.message, true);
+        console.error('Erreur suppression fournisseur:', error);
+      }
+    }
+
+    async function saveFournisseur() {
+      const userId = localStorage.getItem('userId');
+      if (!userId) {
+        showToast('Veuillez vous connecter pour sauvegarder un fournisseur', true);
+        return;
+      }
+
+      const id = document.getElementById('fournisseurId').value;
+      const nom = document.getElementById('fournisseurNom').value.trim();
+      const contact = document.getElementById('fournisseurContact').value.trim();
+      const adresse = document.getElementById('fournisseurAdresse').value.trim();
+
+      if (!nom) {
+        showToast('Veuillez remplir le champ Nom', true);
+        return;
+      }
+
+      try {
+        const url = id ? `${API_BASE_URL}/modifier_fournisseur/${id}` : `${API_BASE_URL}/ajouter_fournisseur`;
+        const method = id ? 'PUT' : 'POST';
+        const response = await fetch(url, {
+          method: method,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-ID': userId
+          },
+          body: JSON.stringify({
+            nom,
+            contact,
+            adresse
+          })
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
+        }
+
+        showToast(id ? 'Fournisseur modifié avec succès' : 'Fournisseur ajouté avec succès');
+        resetFournisseurForm();
+        chargerFournisseurs();
+        loadAllCounts(); // Mettre à jour le compteur
+      } catch (error) {
+        showToast(error.message, true);
+        console.error('Erreur sauvegarde fournisseur:', error);
+      }
+    }
+
+    function resetFournisseurForm() {
+      document.getElementById('fournisseurId').value = '';
+      document.getElementById('fournisseurNom').value = '';
+      document.getElementById('fournisseurContact').value = '';
+      document.getElementById('fournisseurAdresse').value = '';
+      document.getElementById('fournisseurFormTitle').textContent = 'Nouveau Fournisseur';
+      document.getElementById('fournisseurForm').classList.add('hidden');
+    }
+
+    function toggleFournisseurForm() {
+      document.getElementById('fournisseurForm').classList.toggle('hidden');
+    }
+
+    document.getElementById('searchFournisseur').addEventListener('input', function(e) {
+      const searchTerm = e.target.value.toLowerCase();
+      const rows = document.querySelectorAll('#fournisseursList tr');
+
+      rows.forEach(row => {
+        const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
+        const reference = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
+        const contact = row.querySelector('td:nth-child(5)')?.textContent.toLowerCase();
+        const adresse = row.querySelector('td:nth-child(6)')?.textContent.toLowerCase();
+        if (nom?.includes(searchTerm) || reference?.includes(searchTerm) || contact?.includes(searchTerm) || adresse?.includes(searchTerm)) {
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+    });
+
+      // --- Gestion des produits ---
+        async function chargerProduits() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir les produits', true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
+                    headers: {
+                        'X-User-ID': userId
+                    }
+                });
+                if (!response.ok) {
+                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                }
+                const produits = await response.json();
+                const tbody = document.getElementById('productsList');
+                const countElement = document.getElementById('productCount');
+
+                if (produits.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
+                    countElement.textContent = '0';
+                    countElement.classList.remove('hidden');
+                    return;
+                }
+
+                tbody.innerHTML = '';
+                produits.forEach(produit => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-gray-50';
+                    tr.innerHTML = `
+                        <td class="hidden-id">${produit.NUMERO_ITEM || 'N/A'}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.REF || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIXBA || '0.00').toFixed(2)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.QTE || '0'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+    <div class="action-buttons">
+        <button onclick="modifierProduit('${produit.NUMERO_ITEM}', '${produit.BAR}', '${produit.DESIGNATION}', '${produit.PRIX}', '${produit.PRIXBA}', '${produit.QTE}')" 
+                class="btn-edit text-blue-600 hover:text-blue-800 transition mr-2">
+            <i class="fas fa-edit"></i> Modifier
+        </button>
+        <button onclick="supprimerProduit('${produit.NUMERO_ITEM}')" 
+                class="btn-delete text-red-600 hover:text-red-800 transition">
+            <i class="fas fa-trash-alt"></i> Supprimer
+        </button>
+    </div>
+</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                countElement.textContent = produits.length;
+                countElement.classList.remove('hidden');
+            } catch (error) {
+                document.getElementById('productsList').innerHTML = `
+                    <tr>
+                        <td colspan="8" class="text-center py-4 text-red-500">
+                            Erreur de chargement: ${error.message}
+                        </td>
+                    </tr
+                `;disableAllDeleteButtons();
+                console.error('Erreur produits:', error);
+            }
+        }
+
+        function modifierProduit(numero_item, bar, designation, prix, prixba, qte) {
+    document.getElementById('productId').value = numero_item;
+    document.getElementById('productBar').value = bar || ''; // S'assurer que bar peut être vide
+    document.getElementById('productDesignation').value = designation;
+    document.getElementById('productPrix').value = parseFloat(prix).toFixed(2);
+    document.getElementById('productPrixba').value = prixba ? parseFloat(prixba).toFixed(2) : '';
+    document.getElementById('productQte').value = qte;
+    document.getElementById('productFormTitle').textContent = 'Modifier Produit';
+    document.getElementById('productForm').classList.remove('hidden');
+}
+
+        async function supprimerProduit(id) {
+
+			const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour supprimer un produit', true);
+                return;
+            }
+
+            if (!confirm('Voulez-vous vraiment supprimer ce produit ?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/supprimer_item/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-User-ID': userId
+                    }
+                });
+
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.erreur || 'Erreur lors de la suppression');
+                }
+
+                showToast('Produit supprimé avec succès');
+                chargerProduits();
+            } catch (error) {
+                showToast(error.message, true);
+                console.error('Erreur suppression produit:', error);
+            }
+        }
+
+      async function saveProduct() {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour sauvegarder un produit', true);
+        return;
+    }
+
+    const id = document.getElementById('productId').value;
+    const bar = document.getElementById('productBar').value.trim(); // Peut être vide
+    const designation = document.getElementById('productDesignation').value.trim();
+    const prix = document.getElementById('productPrix').value;
+    const prixba = document.getElementById('productPrixba').value;
+    const qte = document.getElementById('productQte').value;
+
+    // Vérifier les champs obligatoires (exclure bar)
+    if (!designation || prix === '' || qte === '') {
+        showToast('Veuillez remplir tous les champs obligatoires (Désignation, Prix, Quantité)', true);
+        return;
+    }
+
+    const prixValue = parseFloat(prix);
+    const prixbaValue = prixba ? parseFloat(prixba) : 0;
+    const qteValue = parseInt(qte);
+
+    if (isNaN(prixValue) || isNaN(qteValue) || prixValue < 0 || qteValue < 0) {
+        showToast('Le prix et la quantité doivent être des nombres valides et positifs', true);
+        return;
+    }
+
+    try {
+        const url = id ? `${API_BASE_URL}/modifier_item/${id}` : `${API_BASE_URL}/ajouter_item`;
+        const method = id ? 'PUT' : 'POST';
+        
+        // Construire le payload (inclure bar seulement s'il est non vide)
+        const payload = {
+            designation: designation,
+            prix: prixValue,
+            prixba: prixbaValue,
+            qte: qteValue
+        };
+        
+        if (bar) {
+            payload.bar = bar; // Inclure bar seulement s'il est fourni
+        }
+
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                'X-User-ID': userId
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
+        }
+
+        // Afficher le code-barres généré si bar était vide
+        if (!bar && result.bar) {
+            showToast(`Produit ${id ? 'modifié' : 'ajouté'} avec succès. Code-barres généré : ${result.bar}`);
+        } else {
+            showToast(id ? 'Produit modifié avec succès' : 'Produit ajouté avec succès');
+        }
+
+        resetProductForm();
+        chargerProduits();
+    } catch (error) {
+        showToast(error.message, true);
+        console.error('Erreur sauvegarde produit:', error);
+    }
+}
+        function resetProductForm() {
+            document.getElementById('productId').value = '';
+            document.getElementById('productBar').value = '';
+            document.getElementById('productDesignation').value = '';
+            document.getElementById('productPrix').value = '';
+            document.getElementById('productPrixba').value = '';
+            document.getElementById('productQte').value = '';
+            document.getElementById('productFormTitle').textContent = 'Nouveau Produit';
+            document.getElementById('productForm').classList.add('hidden');
+            stopScanner();
+        }
+
+        function toggleProductForm() {
+            document.getElementById('productForm').classList.toggle('hidden');
+        }
+
+        document.getElementById('searchProduct').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('#productsList tr');
+
+            rows.forEach(row => {
+                const designation = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
+                const bar = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
+                const reference = row.querySelector('td:nth-child(4)')?.textContent.toLowerCase();
+                if (designation?.includes(searchTerm) || bar?.includes(searchTerm) || reference?.includes(searchTerm)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+
+        // --- Gestion du scanner ---
+       async function startScanner() {
+    if (isScanning) return;
+
+    try {
+        // Vérifier si BarcodeDetector est supporté
+        if (!('BarcodeDetector' in window)) {
+            showToast('Le détecteur de code-barres n\'est pas supporté par ce navigateur. Utilisez Chrome ou Edge.', true);
+            return;
+        }
+
+        // Initialiser le flux vidéo
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment' }
+        });
+
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.autoplay = true;
+        video.playsInline = true;
+        video.style.width = '100%';
+        video.style.height = '100%';
+
+        const scannerPreview = document.getElementById('scannerPreview');
+        scannerPreview.innerHTML = '';
+        scannerPreview.appendChild(video);
+        scannerPreview.style.display = 'block';
+
+        // Attendre que la vidéo soit prête
+        await new Promise((resolve) => {
+            video.onloadedmetadata = () => {
+                video.play().then(resolve).catch(err => {
+                    showToast('Erreur de lecture vidéo : ' + err.message, true);
+                    stopScanner();
+                });
+            };
+        });
+
+        // Initialiser BarcodeDetector
+        barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
+        isScanning = true;
+        scanBarcode(video);
+    } catch (error) {
+        showToast('Erreur d\'accès à la caméra : ' + error.message, true);
+        console.error('Erreur scanner:', error);
+        stopScanner();
+    }
+}
+
+function scanBarcode(video) {
+    if (!isScanning || !video.srcObject) {
+        stopScanner();
+        return;
+    }
+
+    try {
+        barcodeDetector.detect(video)
+            .then(barcodes => {
+                if (barcodes.length > 0) {
+                    const barcode = barcodes[0].rawValue;
+                    document.getElementById('productBar').value = barcode;
+                    showToast('Code-barres détecté : ' + barcode);
+                    stopScanner();
+                } else {
+                    requestAnimationFrame(() => scanBarcode(video));
+                }
+            })
+            .catch(error => {
+                showToast('Erreur de détection : ' + error.message, true);
+                console.error('Erreur détection:', error);
+                stopScanner();
+            });
+    } catch (error) {
+        showToast('Erreur lors de la détection du code-barres : ' + error.message, true);
+        console.error('Erreur détection synchrone:', error);
+        stopScanner();
+    }
+}
+
+function stopScanner() {
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+    }
+    const scannerPreview = document.getElementById('scannerPreview');
+    scannerPreview.innerHTML = '';
+    scannerPreview.style.display = 'none';
+    isScanning = false;
+    barcodeDetector = null;
+}
+
+        // --- Gestion des utilisateurs ---
+    async function chargerUtilisateurs() {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour voir les utilisateurs', true);
+        document.getElementById('utilisateursList').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Veuillez vous connecter</td></tr>';
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+            headers: {
+                'X-User-ID': userId
+            }
+        });
+        if (!response.ok) {
+            throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+        }
+        const utilisateurs = await response.json();
+        const tbody = document.getElementById('utilisateursList');
+        const countElement = document.getElementById('utilisateurCount');
+        const addButton = document.querySelector('#utilisateursSection button:has(i.fa-plus)');
+
+        // Débogage
+        console.log('Utilisateurs récupérés:', utilisateurs);
+        console.log('Nombre d\'utilisateurs:', utilisateurs.length);
+        console.log('userId:', userId);
+        console.log('selectedSeller:', localStorage.getItem('selectedSeller'));
+        console.log('Bouton Ajouter:', addButton);
+
+        // Vérifier si l'utilisateur connecté est un admin
+        let isAdmin = false;
+        const storedSeller = localStorage.getItem('selectedSeller');
+        if (storedSeller) {
+            const { numero_util } = JSON.parse(storedSeller);
+            console.log('numero_util:', numero_util);
+            const currentUser = utilisateurs.find(u => u.numero == numero_util);
+            console.log('Utilisateur courant:', currentUser);
+            isAdmin = currentUser && currentUser.statut.toLowerCase() === 'admin';
+            console.log('isAdmin:', isAdmin);
+        } else {
+            console.log('Aucun selectedSeller, utilisateur inconnu');
+        }
+
+        // Activer le bouton si utilisateurs.length === 0 OU isAdmin === true
+        if (utilisateurs.length === 0 || isAdmin) {
+            if (utilisateurs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucun utilisateur trouvé</td></tr>';
+                console.log('Aucun utilisateur, activation du bouton Ajouter');
+            } else {
+                tbody.innerHTML = '';
+                utilisateurs.forEach(utilisateur => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-gray-50';
+                    tr.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.numero || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${utilisateur.nom || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.statut || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <div class="action-buttons">
+                                <button onclick="modifierUtilisateur('${utilisateur.numero}', '${utilisateur.nom}', '${utilisateur.statut}')" 
+                                        class="btn-edit text-blue-600 hover:text-blue-800 transition mr-2">
+                                    <i class="fas fa-edit"></i> Modifier
+                                </button>
+                                <button onclick="supprimerUtilisateur('${utilisateur.numero}')" 
+                                        class="btn-delete text-red-600 hover:text-red-800 transition">
+                                    <i class="fas fa-trash-alt"></i> Supprimer
+                                </button>
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+            countElement.textContent = utilisateurs.length;
+            countElement.classList.remove('hidden');
+            // Activer le bouton Ajouter
+            if (addButton) {
+                addButton.disabled = false;
+                addButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                console.log('Bouton Ajouter activé');
+            } else {
+                console.error('Bouton Ajouter non trouvé');
+            }
+        } else {
+            tbody.innerHTML = '';
+            utilisateurs.forEach(utilisateur => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50';
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.numero || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${utilisateur.nom || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${utilisateur.statut || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div class="action-buttons">
+                            <button onclick="modifierUtilisateur('${utilisateur.numero}', '${utilisateur.nom}', '${utilisateur.statut}')" 
+                                    class="btn-edit text-blue-600 hover:text-blue-800 transition mr-2">
+                                <i class="fas fa-edit"></i> Modifier
+                            </button>
+                            <button onclick="supprimerUtilisateur('${utilisateur.numero}')" 
+                                    class="btn-delete text-red-600 hover:text-red-800 transition">
+                                <i class="fas fa-trash-alt"></i> Supprimer
+                            </button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            countElement.textContent = utilisateurs.length;
+            countElement.classList.remove('hidden');
+            // Désactiver le bouton Ajouter
+            if (addButton) {
+                addButton.disabled = true;
+                addButton.classList.add('opacity-50', 'cursor-not-allowed');
+                console.log('Bouton Ajouter désactivé');
+            } else {
+                console.error('Bouton Ajouter non trouvé');
+            }
+        }
+    } catch (error) {
+        document.getElementById('utilisateursList').innerHTML = `
+            <tr>
+                <td colspan="4" class="text-center py-4 text-red-500">
+                    Erreur de chargement: ${error.message}
+                </td>
+            </tr>
+        `;
+        disableAllDeleteButtons();
+        console.error('Erreur utilisateurs:', error);
+        // Désactiver le bouton Ajouter en cas d'erreur
+        const addButton = document.querySelector('#utilisateursSection button:has(i.fa-plus)');
+        if (addButton) {
+            addButton.disabled = true;
+            addButton.classList.add('opacity-50', 'cursor-not-allowed');
+            console.log('Bouton Ajouter désactivé (erreur)');
+        } else {
+            console.error('Bouton Ajouter non trouvé (erreur)');
+        }
+    }
+}
+        function modifierUtilisateur(numero, nom, statut) {
+            document.getElementById('utilisateurId').value = numero;
+            document.getElementById('utilisateurNom').value = nom;
+            document.getElementById('utilisateurStatut').value = statut.toLowerCase();
+            document.getElementById('utilisateurPassword').value = ''; // Clear password field
+            document.getElementById('utilisateurFormTitle').textContent = 'Modifier Utilisateur';
+            document.getElementById('utilisateurForm').classList.remove('hidden');
+            // Make password field optional for modification
+            document.getElementById('utilisateurPassword').removeAttribute('required');
+        }
+
+        async function supprimerUtilisateur(numero) {
+              // Vérification renforcée du statut
+
+			const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour supprimer un utilisateur', true);
+                return;
+            }
+
+            if (!confirm('Voulez-vous vraiment supprimer cet utilisateur ?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/supprimer_utilisateur/${numero}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-User-ID': userId
+                    }
+                });
+
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.erreur || 'Erreur lors de la suppression');
+                }
+
+                showToast('Utilisateur supprimé avec succès');
+                chargerUtilisateurs();
+            } catch (error) {
+                showToast(error.message, true);
+                console.error('Erreur suppression utilisateur:', error);
+            }
+        }
+        async function saveUtilisateur() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour sauvegarder un utilisateur', true);
+                return;
+            }
+
+            const id = document.getElementById('utilisateurId').value;
+            const nom = document.getElementById('utilisateurNom').value.trim();
+            const password = document.getElementById('utilisateurPassword').value.trim();
+            const statut = document.getElementById('utilisateurStatut').value;
+
+            if (!nom || (!id && !password)) {
+                showToast('Veuillez remplir tous les champs obligatoires', true);
+                return;
+            }
+
+            try {
+                const url = id ? `${API_BASE_URL}/modifier_utilisateur/${id}` : `${API_BASE_URL}/ajouter_utilisateur`;
+                const method = id ? 'PUT' : 'POST';
+                const payload = {
+                    user_id: userId, // Include userId in payload to associate with the authenticated user
+                    nom,
+                    statue: statut // Backend expects 'statue' instead of 'statut'
+                };
+
+                // Only include password if provided (for add or if updating password)
+                if (password) {
+                    payload.password2 = password; // Backend expects 'password2'
+                }
+
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.erreur || 'Erreur lors de la sauvegarde');
+                }
+
+                showToast(id ? 'Utilisateur modifié avec succès' : 'Utilisateur ajouté avec succès');
+                resetUtilisateurForm();
+                chargerUtilisateurs();
+            } catch (error) {
+                showToast(error.message, true);
+                console.error('Erreur sauvegarde utilisateur:', error);
+            }
+        }
+
+        function resetUtilisateurForm() {
+            document.getElementById('utilisateurId').value = '';
+            document.getElementById('utilisateurNom').value = '';
+            document.getElementById('utilisateurPassword').value = '';
+            document.getElementById('utilisateurStatut').value = 'admin';
+            document.getElementById('utilisateurFormTitle').textContent = 'Nouvel Utilisateur';
+            document.getElementById('utilisateurForm').classList.add('hidden');
+            // Restore password field as required for adding new users
+            document.getElementById('utilisateurPassword').setAttribute('required', '');
+        }
+
+        function toggleUtilisateurForm() {
+            document.getElementById('utilisateurForm').classList.toggle('hidden');
+            // Ensure password is required when opening form for new user
+            if (!document.getElementById('utilisateurId').value) {
+                document.getElementById('utilisateurPassword').setAttribute('required', '');
+            }
+        }
+
+        document.getElementById('searchUtilisateur').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('#utilisateursList tr');
+
+            rows.forEach(row => {
+                const nom = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
+                const statut = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase();
+                if (nom?.includes(searchTerm) || statut?.includes(searchTerm)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+   
+function disableAllDeleteButtons() {
+    const status = localStorage.getItem('userStatus'); // 'ADMIN' ou 'EMPLO'
+    document.querySelectorAll('.btn-delete').forEach(btn => {
+        btn.dataset.status = status; // Marque le statut
+        if (status === 'EMPLO') {
+            btn.classList.add('disabled');
+            btn.onclick = (e) => {
+                e.preventDefault();
+                showToast("Action non autorisée pour les employés", true);
+            };
+        }
+    });
+}
+
+ </script>
 </body>
 </html>
+       
