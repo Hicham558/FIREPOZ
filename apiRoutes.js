@@ -1243,26 +1243,25 @@ export async function listeProduitsParCategorie(numero_categorie) {
     const db = await getDb();
 
     if (numero_categorie === undefined || numero_categorie === null) {
-      // Produits sans catégorie - CORRIGÉ
+      // Produits sans catégorie - AVEC CLÉS MINUSCULES
       const stmt = db.prepare('SELECT numero_item, designation FROM item WHERE numero_categorie IS NULL');
       const produits = [];
       while (stmt.step()) {
-        const row = stmt.getAsObject(); // <-- UTILISE getAsObject() AU LIEU DE get()
+        const row = stmt.getAsObject();
         console.log('Produit sans catégorie brut:', row);
 
-        const numero_item = row.numero_item !== null && row.numero_item !== undefined ? row.numero_item : '';
-        const designation = row.designation !== null && row.designation !== undefined ? row.designation : '';
-
-        console.log('Valeurs converties - numero_item:', numero_item, 'designation:', designation);
+        // Conversion des clés majuscules en minuscules
+        const numero_item = row.NUMERO_ITEM !== null && row.NUMERO_ITEM !== undefined ? row.NUMERO_ITEM : '';
+        const designation = row.DESIGNATION !== null && row.DESIGNATION !== undefined ? row.DESIGNATION : '';
 
         produits.push({
-          numero_item: numero_item, // <-- Utilise le même nom que dans ton HTML
-          designation: designation
+          numero_item: numero_item, // clé en minuscule
+          designation: designation  // clé en minuscule
         });
       }
       stmt.free();
       console.log('Produits sans catégorie:', produits);
-      return { produits }; // <-- Retourne { produits } comme attendu
+      return { produits };
     } else {
       // Vérifier si la catégorie existe
       const stmtCheckCat = db.prepare('SELECT 1 FROM categorie WHERE numer_categorie = ?');
@@ -1274,7 +1273,7 @@ export async function listeProduitsParCategorie(numero_categorie) {
         return { erreur: 'Catégorie non trouvée', status: 404 };
       }
 
-      // Produits par catégorie - CORRIGÉ
+      // Produits par catégorie - AVEC CLÉS MINUSCULES
       const stmt = db.prepare(`
         SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
         FROM categorie c
@@ -1285,28 +1284,27 @@ export async function listeProduitsParCategorie(numero_categorie) {
 
       const categories = {};
       while (stmt.step()) {
-        const row = stmt.getAsObject(); // <-- UTILISE getAsObject() AU LIEU DE get()
+        const row = stmt.getAsObject();
         console.log('Données brutes pour catégorie:', row);
 
-        const numer_categorie = row.numer_categorie !== null && row.numer_categorie !== undefined ? row.numer_categorie : '';
-        const description_c = row.description_c !== null && row.description_c !== undefined ? row.description_c : '';
-        const numero_item = row.numero_item !== null && row.numero_item !== undefined ? row.numero_item : '';
-        const designation = row.designation !== null && row.designation !== undefined ? row.designation : '';
-
-        console.log('Valeurs converties - numer_categorie:', numer_categorie, 'description_c:', description_c, 'numero_item:', numero_item, 'designation:', designation);
+        // Conversion des clés majuscules en minuscules
+        const numer_categorie = row.NUMER_CATEGORIE !== null && row.NUMER_CATEGORIE !== undefined ? row.NUMER_CATEGORIE : '';
+        const description_c = row.DESCRIPTION_C !== null && row.DESCRIPTION_C !== undefined ? row.DESCRIPTION_C : '';
+        const numero_item = row.NUMERO_ITEM !== null && row.NUMERO_ITEM !== undefined ? row.NUMERO_ITEM : '';
+        const designation = row.DESIGNATION !== null && row.DESIGNATION !== undefined ? row.DESIGNATION : '';
 
         if (!categories[numer_categorie]) {
           categories[numer_categorie] = {
-            numer_categorie: numer_categorie,
-            description_c: description_c,
-            produits: [] // <-- "produits" au lieu de "PRODUITS"
+            numer_categorie: numer_categorie, // clé en minuscule
+            description_c: description_c,     // clé en minuscule
+            produits: []                      // clé en minuscule
           };
         }
 
         if (numero_item) {
           categories[numer_categorie].produits.push({
-            numero_item: numero_item, // <-- Même nom que dans ton HTML
-            designation: designation
+            numero_item: numero_item,    // clé en minuscule
+            designation: designation     // clé en minuscule
           });
         }
       }
