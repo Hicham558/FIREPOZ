@@ -1236,9 +1236,6 @@ export async function assignerCategorie(data) {
   }
 }
 
-// Liste les produits par catégorie ou sans catégorie
-import { getDb } from './db.js';
-
 export async function listeProduitsParCategorie(numero_categorie) {
   try {
     console.log('Exécution de listeProduitsParCategorie:', numero_categorie);
