@@ -904,8 +904,6 @@ export async function validerVendeur(data) {
 
 
 // Liste toutes les catégories
-// apiRoutes.js
-import { getDb } from './db.js';
 
 export async function listeCategories() {
   try {
