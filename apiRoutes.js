@@ -902,9 +902,6 @@ export async function validerVendeur(data) {
 /// CATEGORIES FUNCTIONS
 
 
-
-// Liste toutes les catégories
-
 export async function listeCategories() {
   try {
     console.log('Exécution de listeCategories...');
@@ -919,7 +916,7 @@ export async function listeCategories() {
     stmtInfo.free();
     console.log('Colonnes de la table categorie:', columns);
 
-    // Récupérer les données
+    // Récupérer toutes les données
     const stmt = db.prepare('SELECT numer_categorie, description_c FROM categorie ORDER BY description_c');
     const categories = [];
     while (stmt.step()) {
@@ -937,8 +934,8 @@ export async function listeCategories() {
       console.log('Valeurs converties - numer_categorie:', numer_categorie, 'description_c:', description_c);
 
       categories.push({
-        NUMER_CATEGORIE: numer_categorie,
-        DESCRIPTION_C: description_c
+        numer_categorie: numer_categorie,
+        description_c: description_c
       });
     }
     stmt.free();
