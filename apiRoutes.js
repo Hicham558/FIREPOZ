@@ -1085,9 +1085,6 @@ export async function modifierCategorie(numer_categorie, data) {
   }
 }
 
-// Supprime une catégorie
-import { getDb, listeCategories, saveDbToLocalStorage } from './db.js';
-
 export async function supprimerCategorie(numer_categorie) {
   try {
     console.log('Exécution de supprimerCategorie:', numer_categorie);
