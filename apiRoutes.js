@@ -904,31 +904,53 @@ export async function validerVendeur(data) {
 
 
 // Liste toutes les catégories
+// apiRoutes.js
+import { getDb } from './db.js';
+
 export async function listeCategories() {
   try {
-    console.log("Exécution de listeCategories...");
+    console.log('Exécution de listeCategories...');
     const db = await getDb();
 
+    // Vérifier les colonnes de la table categorie
+    const stmtInfo = db.prepare('PRAGMA table_info(categorie)');
+    const columns = [];
+    while (stmtInfo.step()) {
+      columns.push(stmtInfo.getAsObject().name);
+    }
+    stmtInfo.free();
+    console.log('Colonnes de la table categorie:', columns);
+
+    // Récupérer les données
     const stmt = db.prepare('SELECT numer_categorie, description_c FROM categorie ORDER BY description_c');
     const categories = [];
     while (stmt.step()) {
-      const row = stmt.getAsObject();
+      const row = stmt.get();
+      console.log('Catégorie brute récupérée:', row);
+
+      // Conversion des valeurs avec débogage
+      const numer_categorieRaw = row[0];
+      const description_cRaw = row[1];
+      console.log('Valeurs brutes - numer_categorie:', numer_categorieRaw, 'description_c:', description_cRaw);
+
+      const numer_categorie = numer_categorieRaw !== null && numer_categorieRaw !== undefined ? numer_categorieRaw : '';
+      const description_c = description_cRaw !== null && description_cRaw !== undefined ? description_cRaw : '';
+
+      console.log('Valeurs converties - numer_categorie:', numer_categorie, 'description_c:', description_c);
+
       categories.push({
-        numer_categorie: row.numer_categorie !== null ? row.numer_categorie : '',
-        description_c: row.description_c !== null ? row.description_c : ''
+        NUMER_CATEGORIE: numer_categorie,
+        DESCRIPTION_C: description_c
       });
     }
     stmt.free();
-    console.log("Categories retournées :", categories);
+    console.log('Categories formatées retournées:', categories);
     return categories;
-    
   } catch (error) {
-    console.error("Erreur listeCategories :", error);
-    // Retourne un tableau vide en cas d'erreur
-    return [];
+    console.error('Erreur listeCategories:', error);
+    return { erreur: error.message, status: 500 };
   }
 }
-
 // Ajoute une nouvelle catégorie
 export async function ajouterCategorie(data) {
   try {
