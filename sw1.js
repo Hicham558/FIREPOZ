@@ -6,7 +6,8 @@ import {
   supprimerClient, supprimerFournisseur, supprimerItem, supprimerUtilisateur,
   validerVendeur,
   listeCategories, ajouterCategorie, modifierCategorie, supprimerCategorie,
-  assignerCategorie, listeProduitsParCategorie
+  assignerCategorie, listeProduitsParCategorie,
+  clientSolde // Ajout de l'import
 } from './apiRoutes.js';
 
 // Sauvegarde de la fonction fetch originale
@@ -20,10 +21,12 @@ const handlers = {
     'liste_produits': () => listeProduits(),
     'liste_utilisateurs': () => listeUtilisateurs(),
     'liste_categories': () => listeCategories(),
+    'client_solde': () => clientSolde(), // Ajout du nouvel endpoint
     'liste_produits_par_categorie': (url) => {
       try {
         const urlObj = new URL(url, window.location.origin);
         const numero_categorie = urlObj.searchParams.get('numero_categorie');
+        // Convertir en number ou garder undefined
         const catId = numero_categorie ? parseInt(numero_categorie) : undefined;
         return listeProduitsParCategorie(catId);
       } catch (error) {
@@ -33,12 +36,13 @@ const handlers = {
     },
     'dashboard': (url) => {
       try {
+        // Extrait le paramètre 'period' de l'URL
         const urlParams = new URL(url, window.location.origin).searchParams;
         const period = urlParams.get('period') || 'day';
         return dashboard(period);
       } catch (error) {
         console.error('❌ Erreur extraction paramètres dashboard:', error);
-        return dashboard('day');
+        return dashboard('day'); // Valeur par défaut en cas d'erreur
       }
     }
   },
@@ -67,27 +71,24 @@ const handlers = {
   }
 };
 
-// Surcharge de la fonction fetch
+// Le reste du code reste inchangé
 window.fetch = async function(input, init = {}) {
   const url = typeof input === 'string' ? input : input.url;
   const method = (init.method || 'GET').toUpperCase();
   const requestUrl = new URL(url, window.location.origin);
 
-  // Vérifier si la requête commence par /api/ ou https://hicham03041979.onrender.com/
-  const isApiRequest = requestUrl.pathname.startsWith('/api/') || 
-                       requestUrl.href.startsWith('https://hicham03041979.onrender.com/');
+  // Vérifier si la requête commence par /api/
+  const isApiRequest = requestUrl.pathname.startsWith('/api/');
 
-  console.log('🔍 Requête interceptée:', url, 'Méthode:', method, 'isApiRequest:', isApiRequest);
+  console.log('🔍 Requête interceptée:', url, 'isApiRequest:', isApiRequest);
 
   if (isApiRequest) {
     try {
-      // Extraire l'endpoint
-      const endpoint = requestUrl.pathname.startsWith('/api/') 
-        ? requestUrl.pathname.replace('/api/', '')
-        : requestUrl.pathname.replace(/^\/?(https:\/\/hicham03041979\.onrender\.com\/)?/, '');
+      // Extraire l'endpoint après /api/
+      const endpoint = requestUrl.pathname.replace('/api/', '');
       const methodHandlers = handlers[method] || {};
 
-      console.log('🔍 Endpoint extrait:', endpoint);
+      console.log('🔍 Endpoint extrait:', endpoint, 'Méthode:', method);
 
       // Recherche du gestionnaire correspondant
       let matchedHandler = null;
@@ -115,18 +116,11 @@ window.fetch = async function(input, init = {}) {
           responseData = await matchedHandler(...matchParams, url);
         }
         
-        console.log('✅ Réponse brute pour', endpoint, ':', responseData);
-        if (responseData.erreur) {
-          console.error('❌ Erreur dans la réponse:', responseData.erreur);
-          return new Response(JSON.stringify(responseData), {
-            status: responseData.status || 500,
-            headers: { 'Content-Type': 'application/json' }
-          });
-        }
-        const jsonResponse = JSON.stringify(responseData);
-        console.log('✅ Réponse JSON envoyée:', jsonResponse);
-        return new Response(jsonResponse, {
-          status: 200,
+        const status = responseData.status || 200;
+        console.log('✅ Réponse locale pour', endpoint, ':', responseData);
+        
+        return new Response(JSON.stringify(responseData), {
+          status,
           headers: { 'Content-Type': 'application/json' }
         });
       } else {
@@ -151,7 +145,7 @@ window.fetch = async function(input, init = {}) {
 
 // Initialisation au chargement de la page
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('✅ Interception des fetch activée');
+  console.log('✅ Interception des fetch activée pour /api/');
   // Test automatique
   setTimeout(() => {
     console.log('🧪 Test automatique de l\'intercepteur...');
