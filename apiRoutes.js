@@ -1324,3 +1324,29 @@ export async function listeProduitsParCategorie(numero_categorie) {
     return { erreur: error.message, status: 500 };
   }
 }
+export async function clientSolde() {
+  try {
+    console.log("Exécution de clientSolde...");
+    const db = await getDb();
+    
+    const stmt = db.prepare('SELECT numero_clt, solde FROM client');
+    const soldes = [];
+    
+    while (stmt.step()) {
+      const row = stmt.get();
+      console.log("Solde client brut récupéré:", row);
+      
+      soldes.push({
+        numero_clt: row[0] !== null ? row[0] : '',
+        solde: row[1] !== null ? row[1] : '0,00'
+      });
+    }
+    stmt.free();
+    
+    console.log("Soldes clients formatés retournés:", soldes);
+    return soldes;
+  } catch (error) {
+    console.error("Erreur clientSolde:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
