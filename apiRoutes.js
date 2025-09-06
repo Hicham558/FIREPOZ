@@ -1241,48 +1241,27 @@ export async function listeProduitsParCategorie(numero_categorie) {
     console.log('Exécution de listeProduitsParCategorie:', numero_categorie);
     const db = await getDb();
 
-    // Vérifier les colonnes des tables
-    const stmtInfoCategorie = db.prepare('PRAGMA table_info(categorie)');
-    const columnsCategorie = [];
-    while (stmtInfoCategorie.step()) {
-      columnsCategorie.push(stmtInfoCategorie.getAsObject().name);
-    }
-    stmtInfoCategorie.free();
-    console.log('Colonnes de la table categorie:', columnsCategorie);
-
-    const stmtInfoItem = db.prepare('PRAGMA table_info(item)');
-    const columnsItem = [];
-    while (stmtInfoItem.step()) {
-      columnsItem.push(stmtInfoItem.getAsObject().name);
-    }
-    stmtInfoItem.free();
-    console.log('Colonnes de la table item:', columnsItem);
-
     if (numero_categorie === undefined || numero_categorie === null) {
-      // Produits sans catégorie
+      // Produits sans catégorie - CORRIGÉ
       const stmt = db.prepare('SELECT numero_item, designation FROM item WHERE numero_categorie IS NULL');
       const produits = [];
       while (stmt.step()) {
-        const row = stmt.get();
+        const row = stmt.getAsObject(); // <-- UTILISE getAsObject() AU LIEU DE get()
         console.log('Produit sans catégorie brut:', row);
 
-        const numero_itemRaw = row[0];
-        const designationRaw = row[1];
-        console.log('Valeurs brutes - numero_item:', numero_itemRaw, 'designation:', designationRaw);
-
-        const numero_item = numero_itemRaw !== null && numero_itemRaw !== undefined ? numero_itemRaw : '';
-        const designation = designationRaw !== null && designationRaw !== undefined ? designationRaw : '';
+        const numero_item = row.numero_item !== null && row.numero_item !== undefined ? row.numero_item : '';
+        const designation = row.designation !== null && row.designation !== undefined ? row.designation : '';
 
         console.log('Valeurs converties - numero_item:', numero_item, 'designation:', designation);
 
         produits.push({
-          NUMERO_ITEM: numero_item,
-          DESIGNATION: designation
+          numero_item: numero_item, // <-- Utilise le même nom que dans ton HTML
+          designation: designation
         });
       }
       stmt.free();
       console.log('Produits sans catégorie:', produits);
-      return { produits };
+      return { produits }; // <-- Retourne { produits } comme attendu
     } else {
       // Vérifier si la catégorie existe
       const stmtCheckCat = db.prepare('SELECT 1 FROM categorie WHERE numer_categorie = ?');
@@ -1294,7 +1273,7 @@ export async function listeProduitsParCategorie(numero_categorie) {
         return { erreur: 'Catégorie non trouvée', status: 404 };
       }
 
-      // Produits par catégorie
+      // Produits par catégorie - CORRIGÉ
       const stmt = db.prepare(`
         SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
         FROM categorie c
@@ -1305,35 +1284,28 @@ export async function listeProduitsParCategorie(numero_categorie) {
 
       const categories = {};
       while (stmt.step()) {
-        const row = stmt.get();
+        const row = stmt.getAsObject(); // <-- UTILISE getAsObject() AU LIEU DE get()
         console.log('Données brutes pour catégorie:', row);
 
-        const numer_categorieRaw = row[0];
-        const description_cRaw = row[1];
-        const numero_itemRaw = row[2];
-        const designationRaw = row[3];
-        console.log('Valeurs brutes - numer_categorie:', numer_categorieRaw, 'description_c:', description_cRaw, 'numero_item:', numero_itemRaw, 'designation:', designationRaw);
-
-        const numer_categorie = numer_categorieRaw !== null && numer_categorieRaw !== undefined ? numer_categorieRaw : '';
-        const description_c = description_cRaw !== null && description_cRaw !== undefined ? description_cRaw : '';
-        const numero_item = numero_itemRaw !== null && numero_itemRaw !== undefined ? numero_itemRaw : '';
-        const designation = designationRaw !== null && designationRaw !== undefined ? designationRaw : '';
+        const numer_categorie = row.numer_categorie !== null && row.numer_categorie !== undefined ? row.numer_categorie : '';
+        const description_c = row.description_c !== null && row.description_c !== undefined ? row.description_c : '';
+        const numero_item = row.numero_item !== null && row.numero_item !== undefined ? row.numero_item : '';
+        const designation = row.designation !== null && row.designation !== undefined ? row.designation : '';
 
         console.log('Valeurs converties - numer_categorie:', numer_categorie, 'description_c:', description_c, 'numero_item:', numero_item, 'designation:', designation);
 
-        const cat_id = numer_categorie;
-        if (!categories[cat_id]) {
-          categories[cat_id] = {
-            numer_categorie: cat_id,
+        if (!categories[numer_categorie]) {
+          categories[numer_categorie] = {
+            numer_categorie: numer_categorie,
             description_c: description_c,
-            PRODUITS: []
+            produits: [] // <-- "produits" au lieu de "PRODUITS"
           };
         }
 
         if (numero_item) {
-          categories[cat_id].PRODUITS.push({
-            NUMERO_ITEM: numero_item,
-            DESIGNATION: designation
+          categories[numer_categorie].produits.push({
+            numero_item: numero_item, // <-- Même nom que dans ton HTML
+            designation: designation
           });
         }
       }
