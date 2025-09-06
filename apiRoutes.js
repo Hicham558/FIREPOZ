@@ -1086,41 +1086,46 @@ export async function modifierCategorie(numer_categorie, data) {
 }
 
 // Supprime une catégorie
+import { getDb, listeCategories, saveDbToLocalStorage } from './db.js';
+
 export async function supprimerCategorie(numer_categorie) {
   try {
-    console.log("Exécution de supprimerCategorie :", numer_categorie);
+    console.log('Exécution de supprimerCategorie:', numer_categorie);
     const db = await getDb();
 
     // Vérifier le contenu de la table categorie avant suppression
-    console.log("Vérification du contenu de la table categorie avant suppression...");
+    console.log('Vérification du contenu de la table categorie avant suppression...');
     const categoriesAvant = await listeCategories();
-    console.log("Catégories avant suppression :", categoriesAvant);
+    console.log('Catégories avant suppression:', categoriesAvant);
 
     db.run('BEGIN TRANSACTION');
 
     try {
       // Vérifier si la catégorie existe
       const stmtCheckExist = db.prepare('SELECT 1 FROM categorie WHERE numer_categorie = ?');
-      stmtCheckExist.step([numer_categorie]);
-      if (!stmtCheckExist.get()) {
-        stmtCheckExist.free();
-        db.run('ROLLBACK');
-        console.error("Erreur : Catégorie non trouvée");
-        return { erreur: "Catégorie non trouvée", status: 404 };
-      }
+      stmtCheckExist.bind([numer_categorie]);
+      const exists = stmtCheckExist.step() && stmtCheckExist.get();
       stmtCheckExist.free();
+      if (!exists) {
+        db.run('ROLLBACK');
+        console.error('Erreur: Catégorie non trouvée pour numer_categorie:', numer_categorie);
+        return { erreur: 'Catégorie non trouvée', status: 404 };
+      }
 
       // Vérifier si la catégorie est utilisée par des produits
-      const stmtCheck = db.prepare('SELECT 1 FROM item WHERE numero_categorie = ?');
-      stmtCheck.step([numer_categorie]);
-      if (stmtCheck.get()) {
-        stmtCheck.free();
-        db.run('ROLLBACK');
-        console.error("Erreur : Catégorie utilisée par des produits");
-        return { erreur: "Catégorie utilisée par des produits", status: 400 };
-      }
+      const stmtCheck = db.prepare('SELECT numero_item FROM item WHERE numero_categorie = ?');
+      stmtCheck.bind([numer_categorie]);
+      const hasProducts = stmtCheck.step();
+      const productSample = hasProducts ? stmtCheck.get() : null;
       stmtCheck.free();
+      console.log('Résultat vérification produits - hasProducts:', hasProducts, 'productSample:', productSample);
+      if (hasProducts) {
+        db.run('ROLLBACK');
+        console.error('Erreur: Catégorie utilisée par des produits, exemple:', productSample);
+        return { erreur: 'Catégorie utilisée par des produits', status: 400 };
+      }
 
+      // Supprimer la catégorie
       const stmt = db.prepare('DELETE FROM categorie WHERE numer_categorie = ?');
       stmt.run([numer_categorie]);
       const changes = db.getRowsModified();
@@ -1128,31 +1133,30 @@ export async function supprimerCategorie(numer_categorie) {
 
       if (changes === 0) {
         db.run('ROLLBACK');
-        console.error("Erreur : Catégorie non trouvée");
-        return { erreur: "Catégorie non trouvée", status: 404 };
+        console.error('Erreur: Aucune catégorie supprimée pour numer_categorie:', numer_categorie);
+        return { erreur: 'Catégorie non trouvée', status: 404 };
       }
 
       db.run('COMMIT');
-      saveDbToLocalStorage(db);
+      await saveDbToLocalStorage(db);
 
       // Vérifier après suppression
-      console.log("Vérification du contenu de la table categorie après suppression...");
+      console.log('Vérification du contenu de la table categorie après suppression...');
       const categoriesApres = await listeCategories();
-      console.log("Catégories après suppression :", categoriesApres);
+      console.log('Catégories après suppression:', categoriesApres);
 
-      console.log("Catégorie supprimée : changements =", changes);
-      return { statut: "Catégorie supprimée", status: 200 };
+      console.log('Catégorie supprimée: changements =', changes);
+      return { statut: 'Catégorie supprimée', status: 200 };
     } catch (error) {
       db.run('ROLLBACK');
-      console.error("Erreur dans la transaction :", error);
+      console.error('Erreur dans la transaction:', error);
       throw error;
     }
   } catch (error) {
-    console.error("Erreur supprimerCategorie :", error);
+    console.error('Erreur supprimerCategorie:', error);
     return { erreur: error.message, status: 500 };
   }
 }
-
 // Assigne une catégorie à un produit
 export async function assignerCategorie(data) {
   try {
