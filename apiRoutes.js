@@ -921,12 +921,13 @@ export async function listeCategories() {
     stmt.free();
     console.log("Categories retournées :", categories);
     return categories;
+    
   } catch (error) {
     console.error("Erreur listeCategories :", error);
-    throw new Error("Erreur lors de la récupération des catégories");
+    // Retourne un tableau vide en cas d'erreur
+    return [];
   }
 }
-
 
 // Ajoute une nouvelle catégorie
 export async function ajouterCategorie(data) {
