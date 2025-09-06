@@ -1155,84 +1155,90 @@ export async function supprimerCategorie(numer_categorie) {
   }
 }
 // Assigne une catégorie à un produit
+
 export async function assignerCategorie(data) {
   try {
-    console.log("Exécution de assignerCategorie avec data :", data);
+    console.log('Exécution de assignerCategorie avec data:', data);
     const db = await getDb();
     const { numero_item, numer_categorie } = data;
 
     if (numero_item === undefined || numero_item === null || isNaN(parseInt(numero_item))) {
-      console.error("Erreur : Numéro d'article requis et doit être un entier");
-      return { erreur: "Numéro d'article requis et doit être un entier", status: 400 };
+      console.error('Erreur: Numéro d\'article requis et doit être un entier');
+      return { erreur: 'Numéro d\'article requis et doit être un entier', status: 400 };
     }
 
     // Vérifier le contenu des tables avant modification
-    console.log("Vérification du contenu des tables avant assignation...");
+    console.log('Vérification du contenu des tables avant assignation...');
     const produitsAvant = await listeProduits();
     const categoriesAvant = await listeCategories();
-    console.log("Produits avant assignation :", produitsAvant);
-    console.log("Catégories avant assignation :", categoriesAvant);
+    console.log('Produits avant assignation:', produitsAvant);
+    console.log('Catégories avant assignation:', categoriesAvant);
 
     db.run('BEGIN TRANSACTION');
 
     try {
       // Vérifier si l'article existe
-      const stmtCheckItem = db.prepare('SELECT 1 FROM item WHERE numero_item = ?');
-      stmtCheckItem.step([numero_item]);
-      if (!stmtCheckItem.get()) {
-        stmtCheckItem.free();
-        db.run('ROLLBACK');
-        console.error("Erreur : Article non trouvé");
-        return { erreur: "Article non trouvé", status: 404 };
-      }
+      const stmtCheckItem = db.prepare('SELECT numero_item FROM item WHERE numero_item = ?');
+      stmtCheckItem.bind([numero_item]);
+      const itemExists = stmtCheckItem.step() && stmtCheckItem.get();
       stmtCheckItem.free();
+      console.log('Vérification article - existe:', !!itemExists, 'détails:', itemExists);
+      if (!itemExists) {
+        db.run('ROLLBACK');
+        console.error('Erreur: Article non trouvé pour numero_item:', numero_item);
+        return { erreur: 'Article non trouvé', status: 404 };
+      }
 
       // Vérifier si la catégorie existe (si fournie)
       if (numer_categorie !== null && numer_categorie !== undefined) {
-        const stmtCheckCat = db.prepare('SELECT 1 FROM categorie WHERE numer_categorie = ?');
-        stmtCheckCat.step([numer_categorie]);
-        if (!stmtCheckCat.get()) {
-          stmtCheckCat.free();
-          db.run('ROLLBACK');
-          console.error("Erreur : Catégorie non trouvée");
-          return { erreur: "Catégorie non trouvée", status: 404 };
-        }
+        const stmtCheckCat = db.prepare('SELECT numer_categorie FROM categorie WHERE numer_categorie = ?');
+        stmtCheckCat.bind([numer_categorie]);
+        const catExists = stmtCheckCat.step() && stmtCheckCat.get();
         stmtCheckCat.free();
+        console.log('Vérification catégorie - existe:', !!catExists, 'détails:', catExists);
+        if (!catExists) {
+          db.run('ROLLBACK');
+          console.error('Erreur: Catégorie non trouvée pour numer_categorie:', numer_categorie);
+          return { erreur: 'Catégorie non trouvée', status: 404 };
+        }
       }
 
+      // Mettre à jour la catégorie de l'article
       const stmt = db.prepare('UPDATE item SET numero_categorie = ? WHERE numero_item = ?');
-      stmt.run([numer_categorie, numero_item]);
+      console.log('Exécution UPDATE avec:', { numer_categorie, numero_item });
+      stmt.run([numer_categorie === undefined || numer_categorie === null ? null : numer_categorie, numero_item]);
       const changes = db.getRowsModified();
       stmt.free();
+      console.log('Résultat UPDATE - changements:', changes);
 
       if (changes === 0) {
         db.run('ROLLBACK');
-        console.error("Erreur : Aucun article mis à jour");
-        return { erreur: "Aucun article mis à jour", status: 404 };
+        console.error('Erreur: Aucun article mis à jour pour numero_item:', numero_item);
+        return { erreur: 'Aucun article mis à jour', status: 404 };
       }
 
       db.run('COMMIT');
-      saveDbToLocalStorage(db);
+      await saveDbToLocalStorage(db);
 
       // Vérifier après assignation
-      console.log("Vérification du contenu des tables après assignation...");
+      console.log('Vérification du contenu des tables après assignation...');
       const produitsApres = await listeProduits();
-      console.log("Produits après assignation :", produitsApres);
+      console.log('Produits après assignation:', produitsApres);
 
-      console.log("Catégorie assignée :", { numero_item, numer_categorie });
-      return { 
-        statut: "Catégorie assignée", 
-        NUMERO_ITEM: numero_item, 
-        NUMER_CATEGORIE: numer_categorie, 
-        status: 200 
+      console.log('Catégorie assignée:', { numero_item, numer_categorie });
+      return {
+        statut: 'Catégorie assignée',
+        numero_item: numero_item,
+        numer_categorie: numer_categorie === undefined || numer_categorie === null ? null : numer_categorie,
+        status: 200
       };
     } catch (error) {
       db.run('ROLLBACK');
-      console.error("Erreur dans la transaction :", error);
+      console.error('Erreur dans la transaction:', error);
       throw error;
     }
   } catch (error) {
-    console.error("Erreur assignerCategorie :", error);
+    console.error('Erreur assignerCategorie:', error);
     return { erreur: error.message, status: 500 };
   }
 }
