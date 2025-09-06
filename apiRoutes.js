@@ -1237,53 +1237,65 @@ export async function assignerCategorie(data) {
 }
 
 // Liste les produits par catégorie ou sans catégorie
+import { getDb } from './db.js';
+
 export async function listeProduitsParCategorie(numero_categorie) {
   try {
-    console.log("Exécution de listeProduitsParCategorie :", numero_categorie);
+    console.log('Exécution de listeProduitsParCategorie:', numero_categorie);
     const db = await getDb();
 
     // Vérifier les colonnes des tables
-    const stmtInfoCategorie = db.prepare("PRAGMA table_info(categorie)");
+    const stmtInfoCategorie = db.prepare('PRAGMA table_info(categorie)');
     const columnsCategorie = [];
     while (stmtInfoCategorie.step()) {
       columnsCategorie.push(stmtInfoCategorie.getAsObject().name);
     }
     stmtInfoCategorie.free();
-    console.log("Colonnes de la table categorie :", columnsCategorie);
+    console.log('Colonnes de la table categorie:', columnsCategorie);
 
-    const stmtInfoItem = db.prepare("PRAGMA table_info(item)");
+    const stmtInfoItem = db.prepare('PRAGMA table_info(item)');
     const columnsItem = [];
     while (stmtInfoItem.step()) {
       columnsItem.push(stmtInfoItem.getAsObject().name);
     }
     stmtInfoItem.free();
-    console.log("Colonnes de la table item :", columnsItem);
+    console.log('Colonnes de la table item:', columnsItem);
 
     if (numero_categorie === undefined || numero_categorie === null) {
       // Produits sans catégorie
       const stmt = db.prepare('SELECT numero_item, designation FROM item WHERE numero_categorie IS NULL');
       const produits = [];
       while (stmt.step()) {
-        const row = stmt.getAsObject();
-        console.log("Produit sans catégorie brut :", row);
+        const row = stmt.get();
+        console.log('Produit sans catégorie brut:', row);
+
+        const numero_itemRaw = row[0];
+        const designationRaw = row[1];
+        console.log('Valeurs brutes - numero_item:', numero_itemRaw, 'designation:', designationRaw);
+
+        const numero_item = numero_itemRaw !== null && numero_itemRaw !== undefined ? numero_itemRaw : '';
+        const designation = designationRaw !== null && designationRaw !== undefined ? designationRaw : '';
+
+        console.log('Valeurs converties - numero_item:', numero_item, 'designation:', designation);
+
         produits.push({
-          NUMERO_ITEM: row.numero_item !== null ? row.numero_item : '',
-          DESIGNATION: row.designation !== null ? row.designation : ''
+          NUMERO_ITEM: numero_item,
+          DESIGNATION: designation
         });
       }
       stmt.free();
-      console.log("Produits sans catégorie :", produits);
+      console.log('Produits sans catégorie:', produits);
       return { produits };
     } else {
       // Vérifier si la catégorie existe
       const stmtCheckCat = db.prepare('SELECT 1 FROM categorie WHERE numer_categorie = ?');
-      stmtCheckCat.step([numero_categorie]);
-      if (!stmtCheckCat.get()) {
-        stmtCheckCat.free();
-        console.error("Erreur : Catégorie non trouvée");
-        return { erreur: "Catégorie non trouvée", status: 404 };
-      }
+      stmtCheckCat.bind([numero_categorie]);
+      const exists = stmtCheckCat.step();
       stmtCheckCat.free();
+      if (!exists) {
+        console.error('Erreur: Catégorie non trouvée pour numer_categorie:', numero_categorie);
+        return { erreur: 'Catégorie non trouvée', status: 404 };
+      }
 
       // Produits par catégorie
       const stmt = db.prepare(`
@@ -1296,32 +1308,45 @@ export async function listeProduitsParCategorie(numero_categorie) {
 
       const categories = {};
       while (stmt.step()) {
-        const row = stmt.getAsObject();
-        console.log("Données brutes pour catégorie :", row);
-        const cat_id = row.numer_categorie;
+        const row = stmt.get();
+        console.log('Données brutes pour catégorie:', row);
 
+        const numer_categorieRaw = row[0];
+        const description_cRaw = row[1];
+        const numero_itemRaw = row[2];
+        const designationRaw = row[3];
+        console.log('Valeurs brutes - numer_categorie:', numer_categorieRaw, 'description_c:', description_cRaw, 'numero_item:', numero_itemRaw, 'designation:', designationRaw);
+
+        const numer_categorie = numer_categorieRaw !== null && numer_categorieRaw !== undefined ? numer_categorieRaw : '';
+        const description_c = description_cRaw !== null && description_cRaw !== undefined ? description_cRaw : '';
+        const numero_item = numero_itemRaw !== null && numero_itemRaw !== undefined ? numero_itemRaw : '';
+        const designation = designationRaw !== null && designationRaw !== undefined ? designationRaw : '';
+
+        console.log('Valeurs converties - numer_categorie:', numer_categorie, 'description_c:', description_c, 'numero_item:', numero_item, 'designation:', designation);
+
+        const cat_id = numer_categorie;
         if (!categories[cat_id]) {
           categories[cat_id] = {
-            NUMERO_CATEGORIE: cat_id !== null ? cat_id : '',
-            DESCRIPTION_C: row.description_c !== null ? row.description_c : '',
+            numer_categorie: cat_id,
+            description_c: description_c,
             PRODUITS: []
           };
         }
 
-        if (row.numero_item) {
+        if (numero_item) {
           categories[cat_id].PRODUITS.push({
-            NUMERO_ITEM: row.numero_item !== null ? row.numero_item : '',
-            DESIGNATION: row.designation !== null ? row.designation : ''
+            NUMERO_ITEM: numero_item,
+            DESIGNATION: designation
           });
         }
       }
       stmt.free();
 
-      console.log("Catégories avec produits :", Object.values(categories));
+      console.log('Catégories avec produits:', Object.values(categories));
       return { categories: Object.values(categories) };
     }
   } catch (error) {
-    console.error("Erreur listeProduitsParCategorie :", error);
+    console.error('Erreur listeProduitsParCategorie:', error);
     return { erreur: error.message, status: 500 };
   }
 }
