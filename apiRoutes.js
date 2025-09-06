@@ -920,23 +920,14 @@ export async function listeCategories() {
     }
     stmt.free();
     console.log("Categories retournées :", categories);
-    
-    // RETOURNE UN OBJET AVEC STRUCTURE STANDARD
-    return {
-      statut: "Catégories récupérées",
-      data: categories,  // <-- Les données dans une propriété "data"
-      status: 200
-    };
-    
+    return categories;
   } catch (error) {
     console.error("Erreur listeCategories :", error);
-    // RETOURNE UNE ERREUR AVEC LA MÊME STRUCTURE
-    return { 
-      erreur: error.message, 
-      status: 500 
-    };
+    throw new Error("Erreur lors de la récupération des catégories");
   }
 }
+
+
 // Ajoute une nouvelle catégorie
 export async function ajouterCategorie(data) {
   try {
