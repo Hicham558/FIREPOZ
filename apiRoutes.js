@@ -1361,20 +1361,19 @@ export async function clientSolde() {
 // apiRoutes.js (ajouts aux fonctions existantes)
 
 
-// Valider une vente
 export async function validerVente(data) {
   try {
-    console.log("Exécution de validerVente avec data:", JSON.stringify(data));
+    console.log("Exécution de validerVente avec data:", json.stringify(data));
     const db = await getDb();
     const { lignes, numero_util: raw_numero_util, password2, numero_table = 0, payment_mode = 'espece', amount_paid = '0,00' } = data;
 
     // Validation des données d'entrée avec vérification du type
     const numero_util = parseInt(raw_numero_util, 10);
-    if (isNaN(numero_util)) {
+    if (isnan(numero_util)) {
       console.error("Erreur : numero_util invalide, valeur reçue:", raw_numero_util, "type:", typeof raw_numero_util);
       return { erreur: `numero_util invalide: ${raw_numero_util} (type: ${typeof raw_numero_util})`, status: 400 };
     }
-    if (!lignes || !Array.isArray(lignes) || !numero_util || !password2) {
+    if (!lignes || !array.isArray(lignes) || !numero_util || !password2) {
       console.error("Erreur : Données manquantes ou invalides pour numero_util:", numero_util, { lignes, numero_util, password2, raw_password_type: typeof password2 });
       return { erreur: `Données manquantes ou invalides (lignes, numero_util: ${numero_util}, password2: ${password2})`, status: 400 };
     }
@@ -1389,7 +1388,7 @@ export async function validerVente(data) {
 
     if (!user) {
       console.error(`Erreur : Utilisateur non trouvé pour numero_util: ${numero_util}`);
-      // Vérification spécifique pour l'utilisateur
+      // Vérification spécifique pour numero_util: 2
       if (numero_util === 2) {
         console.error("Détail pour numero_util: 2 - Vérifiez l'existence dans la table 'utilisateur'");
         const countStmt = db.prepare("SELECT COUNT(*) as count FROM utilisateur WHERE numero_util = 2");
@@ -1406,7 +1405,7 @@ export async function validerVente(data) {
       return { erreur: `Utilisateur non trouvé pour numero_util: ${numero_util}`, status: 404 };
     }
     if (user.password2 !== password2) {
-      console.error(`Erreur : Mot de passe incorrect pour numero_util: ${numero_util}, password reçu: ${password2}, password stocké: ${user.password2}`);
+      console.error(`Erreur : Mot de passe incorrect pour numero_util: ${numero_util}, password reçu: ${password2}, password stocké: ${user.password2 || 'null'}`);
       // Vérification spécifique pour numero_util: 2
       if (numero_util === 2) {
         console.error("Détail pour numero_util: 2 - Vérifiez la casse ou les espaces dans password2");
@@ -1414,11 +1413,11 @@ export async function validerVente(data) {
       return { erreur: `Authentification invalide pour numero_util: ${numero_util}`, status: 401 };
     }
 
-    const nature = numero_table === 0 ? "TICKET" : "BON DE L.";
+    const nature = numero_table === 0 ? "ticket" : "bon de l.";
     const now = new Date();
     const date_comande = formatDateForSQLite(now);
 
-    db.run('BEGIN TRANSACTION');
+    db.run('begin transaction');
 
     try {
       // Récupération du compteur
@@ -1430,7 +1429,7 @@ export async function validerVente(data) {
       // Insertion dans comande
       const stmtComande = db.prepare(`
         INSERT INTO comande (numero_table, date_comande, etat_c, nature, connection1, compteur, numero_util)
-        VALUES (?, ?, 'Cloture', ?, -1, ?, ?)
+        VALUES (?, ?, 'cloture', ?, -1, ?, ?)
       `);
       stmtComande.run([numero_table, date_comande, nature, compteur, numero_util]);
       const idStmt = db.prepare("SELECT last_insert_rowid() AS numero_comande");
@@ -1489,7 +1488,7 @@ export async function validerVente(data) {
 
       // Insertion dans encaisse
       const stmtEncaisse = db.prepare(`
-        INSERT INTO encaisse (apaye, reglement, tva, ht, numero_comande, origine, time_enc, soldeR)
+        INSERT INTO encaisse (apaye, reglement, tva, ht, numero_comande, origine, time_enc, solder)
         VALUES (?, ?, '0,00', ?, ?, ?, ?, ?)
       `);
       stmtEncaisse.run([total_vente_str, montant_reglement_str, total_vente_str, numero_comande, nature, date_comande, solde_restant_str]);
@@ -1513,7 +1512,7 @@ export async function validerVente(data) {
         stmtUpdateClient.free();
       }
 
-      db.run('COMMIT');
+      db.run('commit');
       saveDbToLocalStorage(db);
       console.log("Vente validée avec succès : numero_comande =", numero_comande);
 
@@ -1527,7 +1526,7 @@ export async function validerVente(data) {
         status: 200
       };
     } catch (error) {
-      db.run('ROLLBACK');
+      db.run('rollback');
       console.error("Erreur dans la transaction validerVente pour numero_util:", numero_util, error.message);
       return { erreur: `Erreur dans la transaction pour numero_util: ${numero_util} - ${error.message}`, status: 500 };
     }
