@@ -1362,35 +1362,44 @@ export async function clientSolde() {
 
 
 export async function validerVente(data) {
+  let numero_util; // Déclaration explicite pour éviter undefined dans catch
   try {
-    console.log("Exécution de validerVente avec data:", json.stringify(data));
+    console.log("Exécution de validerVente avec data:", JSON.stringify(data));
     const db = await getDb();
-    const { lignes, numero_util: raw_numero_util, password2, numero_table = 0, payment_mode = 'espece', amount_paid = '0,00' } = data;
+    const {
+      lignes,
+      numero_util: raw_numero_util,
+      password2,
+      numero_table = 0,
+      payment_mode = 'espece',
+      amount_paid = '0,00'
+    } = data || {};
 
-    // Validation des données d'entrée avec vérification du type
-    const numero_util = parseInt(raw_numero_util, 10);
-    if (isnan(numero_util)) {
-      console.error("Erreur : numero_util invalide, valeur reçue:", raw_numero_util, "type:", typeof raw_numero_util);
-      return { erreur: `numero_util invalide: ${raw_numero_util} (type: ${typeof raw_numero_util})`, status: 400 };
-    }
-    if (!lignes || !array.isArray(lignes) || !numero_util || !password2) {
-      console.error("Erreur : Données manquantes ou invalides pour numero_util:", numero_util, { lignes, numero_util, password2, raw_password_type: typeof password2 });
-      return { erreur: `Données manquantes ou invalides (lignes, numero_util: ${numero_util}, password2: ${password2})`, status: 400 };
+    // Validation des données d'entrée
+    if (!data || typeof data !== 'object' || !lignes || !Array.isArray(lignes) || !raw_numero_util || !password2) {
+      console.error("Erreur : Données manquantes ou invalides", { data });
+      return { erreur: "Données manquantes ou invalides", status: 400 };
     }
 
-    // Vérification de l'utilisateur (authentification) avec débogage détaillé
+    // Conversion des nombres
+    numero_util = parseInt(raw_numero_util, 10);
+    if (isNaN(numero_util)) {
+      console.error("Erreur : numero_util invalide", { raw_numero_util, type: typeof raw_numero_util });
+      return { erreur: `numero_util invalide: ${raw_numero_util}`, status: 400 };
+    }
+    const amount_paid_float = to_dot_decimal(amount_paid);
+
+    // Vérification de l'utilisateur (authentification)
     const stmtUser = db.prepare("SELECT password2 FROM utilisateur WHERE numero_util = ?");
     stmtUser.bind([numero_util]);
     const user = stmtUser.step() ? stmtUser.getAsObject() : null;
     stmtUser.free();
 
-    console.log("Résultat de la requête utilisateur pour numero_util:", numero_util, { user, received_password: password2, raw_numero_util_type: typeof raw_numero_util, raw_password_type: typeof password2 });
+    console.log("Résultat de la requête utilisateur pour numero_util:", numero_util, { user, received_password: password2 });
 
-    if (!user) {
-      console.error(`Erreur : Utilisateur non trouvé pour numero_util: ${numero_util}`);
-      // Vérification spécifique pour numero_util: 2
+    if (!user || user.password2 !== password2) {
+      console.error("Erreur : Authentification invalide pour numero_util:", numero_util, { received_password: password2, stored_password: user ? user.password2 : 'null' });
       if (numero_util === 2) {
-        console.error("Détail pour numero_util: 2 - Vérifiez l'existence dans la table 'utilisateur'");
         const countStmt = db.prepare("SELECT COUNT(*) as count FROM utilisateur WHERE numero_util = 2");
         countStmt.step();
         const { count } = countStmt.getAsObject();
@@ -1401,14 +1410,6 @@ export async function validerVente(data) {
         const userDetail = detailStmt.getAsObject();
         detailStmt.free();
         console.log("Valeur de password2 pour numero_util: 2 =", userDetail ? userDetail.password2 : "Non défini");
-      }
-      return { erreur: `Utilisateur non trouvé pour numero_util: ${numero_util}`, status: 404 };
-    }
-    if (user.password2 !== password2) {
-      console.error(`Erreur : Mot de passe incorrect pour numero_util: ${numero_util}, password reçu: ${password2}, password stocké: ${user.password2 || 'null'}`);
-      // Vérification spécifique pour numero_util: 2
-      if (numero_util === 2) {
-        console.error("Détail pour numero_util: 2 - Vérifiez la casse ou les espaces dans password2");
       }
       return { erreur: `Authentification invalide pour numero_util: ${numero_util}`, status: 401 };
     }
@@ -1442,20 +1443,19 @@ export async function validerVente(data) {
       // Traitement des lignes et calcul du total
       let total_vente = 0.0;
       for (const ligne of lignes) {
-        if (!ligne.numero_item || !ligne.quantite) {
-          console.error("Erreur : Ligne invalide pour numero_util:", numero_util, ligne);
-          throw new Error(`Ligne de vente invalide (numero_item ou quantite manquant) pour numero_util: ${numero_util}`);
-        }
-        const quantite = toDotDecimal(ligne.quantite || '1');
-        const remarque = toDotDecimal(ligne.remarque || '0,00');
-        const prixt = toDotDecimal(ligne.prixt || '0,00');
+        const quantite = to_dot_decimal(ligne.quantite || '1');
+        const remarque = to_dot_decimal(ligne.remarque || '0,00'); // Prix unitaire
+        const prixt = to_dot_decimal(ligne.prixt || '0,00'); // Total de la ligne
         total_vente += quantite * remarque;
 
-        const prixt_str = toCommaDecimal(prixt);
-        const prixbh_str = toCommaDecimal(toDotDecimal(ligne.prixbh || '0,00'));
-        const remarque_str = typeof ligne.remarque === 'number' ? toCommaDecimal(ligne.remarque) :
-                            (typeof ligne.remarque === 'string' && (ligne.remarque.includes('.') || ligne.remarque.includes(',')) ?
-                             toCommaDecimal(toDotDecimal(ligne.remarque)) : ligne.remarque || '');
+        const prixt_str = to_comma_decimal(prixt);
+        const prixbh_str = to_comma_decimal(to_dot_decimal(ligne.prixbh || '0,00'));
+        let remarque_str = ligne.remarque || '';
+        if (typeof remarque_str === 'number') {
+          remarque_str = to_comma_decimal(remarque_str);
+        } else if (typeof remarque_str === 'string' && (remarque_str.includes('.') || remarque_str.includes(','))) {
+          remarque_str = to_comma_decimal(to_dot_decimal(remarque_str));
+        }
 
         const stmtAttache = db.prepare(`
           INSERT INTO attache (numero_comande, numero_item, quantite, prixt, remarque, prixbh, achatfx, send)
@@ -1464,27 +1464,26 @@ export async function validerVente(data) {
         stmtAttache.run([numero_comande, ligne.numero_item, quantite, prixt_str, remarque_str, prixbh_str, true]);
         stmtAttache.free();
 
-        // Vérification et mise à jour du stock
+        // Mise à jour du stock
         const stmtItem = db.prepare("SELECT qte FROM item WHERE numero_item = ?");
         stmtItem.bind([ligne.numero_item]);
         const item = stmtItem.step() ? stmtItem.getAsObject() : null;
         stmtItem.free();
         if (!item || item.qte < quantite) {
           console.error("Erreur : Stock insuffisant pour numero_item:", ligne.numero_item, "pour numero_util:", numero_util);
-          throw new Error(`Stock insuffisant pour numero_item: ${ligne.numero_item} avec numero_util: ${numero_util}`);
+          throw new Error(`Stock insuffisant pour numero_item: ${ligne.numero_item}`);
         }
         const stmtStock = db.prepare("UPDATE item SET qte = qte - ? WHERE numero_item = ?");
         stmtStock.run([quantite, ligne.numero_item]);
         stmtStock.free();
       }
 
-      const total_vente_str = toCommaDecimal(total_vente);
-      const amount_paid_float = toDotDecimal(amount_paid);
-      const amount_paid_str = toCommaDecimal(amount_paid_float);
+      // Conversion des totaux
+      const total_vente_str = to_comma_decimal(total_vente);
       const montant_reglement = payment_mode === 'espece' ? total_vente : amount_paid_float;
-      const montant_reglement_str = toCommaDecimal(montant_reglement);
+      const montant_reglement_str = to_comma_decimal(montant_reglement);
       const solde_restant = payment_mode === 'a_terme' ? total_vente - amount_paid_float : 0.0;
-      const solde_restant_str = toCommaDecimal(solde_restant);
+      const solde_restant_str = to_comma_decimal(solde_restant);
 
       // Insertion dans encaisse
       const stmtEncaisse = db.prepare(`
@@ -1502,11 +1501,11 @@ export async function validerVente(data) {
         stmtClient.free();
         if (!client) {
           console.error("Erreur : Client non trouvé pour numero_table:", numero_table, "pour numero_util:", numero_util);
-          throw new Error(`Client non trouvé pour numero_table: ${numero_table} avec numero_util: ${numero_util}`);
+          throw new Error(`Client non trouvé pour numero_table: ${numero_table}`);
         }
-        const current_solde = toDotDecimal(client.solde || '0,00');
+        const current_solde = to_dot_decimal(client.solde || '0,00');
         const new_solde = current_solde + solde_restant;
-        const new_solde_str = toCommaDecimal(new_solde);
+        const new_solde_str = to_comma_decimal(new_solde);
         const stmtUpdateClient = db.prepare("UPDATE client SET solde = ? WHERE numero_clt = ?");
         stmtUpdateClient.run([new_solde_str, numero_table]);
         stmtUpdateClient.free();
@@ -1520,7 +1519,7 @@ export async function validerVente(data) {
         success: true,
         numero_comande,
         total_vente: total_vente_str,
-        montant_verse: amount_paid_str,
+        montant_verse: to_comma_decimal(amount_paid_float),
         reglement: montant_reglement_str,
         solde_restant: payment_mode === 'a_terme' ? solde_restant_str : "0,00",
         status: 200
@@ -1531,8 +1530,8 @@ export async function validerVente(data) {
       return { erreur: `Erreur dans la transaction pour numero_util: ${numero_util} - ${error.message}`, status: 500 };
     }
   } catch (error) {
-    console.error("Erreur globale validerVente pour numero_util:", numero_util, error.message);
-    return { erreur: `Erreur globale pour numero_util: ${numero_util} - ${error.message}`, status: 500 };
+    console.error("Erreur globale validerVente pour numero_util:", numero_util || 'inconnu', error.message);
+    return { erreur: `Erreur globale pour numero_util: ${numero_util || 'inconnu'} - ${error.message}`, status: 500 };
   }
 }
 // Modifier une vente
