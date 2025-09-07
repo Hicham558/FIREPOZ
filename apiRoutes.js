@@ -1375,36 +1375,41 @@ export async function validerVente(data) {
       return { erreur: `numero_util invalide: ${raw_numero_util} (type: ${typeof raw_numero_util})`, status: 400 };
     }
     if (!lignes || !Array.isArray(lignes) || !numero_util || !password2) {
-      console.error("Erreur : Données manquantes ou invalides pour numero_util:", numero_util, { lignes, numero_util, password2 });
-      return { erreur: `Données manquantes ou invalides (lignes, numero_util: ${numero_util}, password2)`, status: 400 };
+      console.error("Erreur : Données manquantes ou invalides pour numero_util:", numero_util, { lignes, numero_util, password2, raw_password_type: typeof password2 });
+      return { erreur: `Données manquantes ou invalides (lignes, numero_util: ${numero_util}, password2: ${password2})`, status: 400 };
     }
 
-    // Vérification de l'utilisateur (authentification) avec débogage spécifique
+    // Vérification de l'utilisateur (authentification) avec débogage détaillé
     const stmtUser = db.prepare("SELECT password2 FROM utilisateur WHERE numero_util = ?");
     stmtUser.bind([numero_util]);
     const user = stmtUser.step() ? stmtUser.getAsObject() : null;
     stmtUser.free();
 
-    console.log("Résultat de la requête utilisateur pour numero_util:", numero_util, { user, received_password: password2, raw_numero_util_type: typeof raw_numero_util });
+    console.log("Résultat de la requête utilisateur pour numero_util:", numero_util, { user, received_password: password2, raw_numero_util_type: typeof raw_numero_util, raw_password_type: typeof password2 });
 
     if (!user) {
       console.error(`Erreur : Utilisateur non trouvé pour numero_util: ${numero_util}`);
-      // Vérification spécifique pour numero_util: 1
-      if (numero_util === 1) {
-        console.error("Détail pour numero_util: 1 - Vérifiez si l'utilisateur existe dans la table 'utilisateur'");
-        const countStmt = db.prepare("SELECT COUNT(*) as count FROM utilisateur WHERE numero_util = 1");
+      // Vérification spécifique pour l'utilisateur
+      if (numero_util === 2) {
+        console.error("Détail pour numero_util: 2 - Vérifiez l'existence dans la table 'utilisateur'");
+        const countStmt = db.prepare("SELECT COUNT(*) as count FROM utilisateur WHERE numero_util = 2");
         countStmt.step();
         const { count } = countStmt.getAsObject();
         countStmt.free();
-        console.log("Nombre d'entrées pour numero_util: 1 =", count);
+        console.log("Nombre d'entrées pour numero_util: 2 =", count);
+        const detailStmt = db.prepare("SELECT password2 FROM utilisateur WHERE numero_util = 2");
+        detailStmt.step();
+        const userDetail = detailStmt.getAsObject();
+        detailStmt.free();
+        console.log("Valeur de password2 pour numero_util: 2 =", userDetail ? userDetail.password2 : "Non défini");
       }
       return { erreur: `Utilisateur non trouvé pour numero_util: ${numero_util}`, status: 404 };
     }
     if (user.password2 !== password2) {
       console.error(`Erreur : Mot de passe incorrect pour numero_util: ${numero_util}, password reçu: ${password2}, password stocké: ${user.password2}`);
-      // Vérification spécifique pour numero_util: 1
-      if (numero_util === 1) {
-        console.error("Détail pour numero_util: 1 - Vérifiez la casse ou les espaces dans password2");
+      // Vérification spécifique pour numero_util: 2
+      if (numero_util === 2) {
+        console.error("Détail pour numero_util: 2 - Vérifiez la casse ou les espaces dans password2");
       }
       return { erreur: `Authentification invalide pour numero_util: ${numero_util}`, status: 401 };
     }
