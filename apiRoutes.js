@@ -1383,12 +1383,12 @@ export async function validerVente(data) {
     console.log("Résultat de la requête utilisateur:", { numero_util, user, received_password: password2 });
 
     if (!user) {
-      console.error("Erreur : Utilisateur non trouvé pour numero_util:", numero_util);
-      return { erreur: "Utilisateur non trouvé", status: 404 };
+      console.error(`Erreur : Utilisateur non trouvé pour numero_util: ${numero_util}`);
+      return { erreur: `Utilisateur non trouvé pour numero_util: ${numero_util}`, status: 404 };
     }
     if (user.password2 !== password2) {
-      console.error("Erreur : Mot de passe incorrect pour numero_util:", numero_util);
-      return { erreur: "Authentification invalide", status: 401 };
+      console.error(`Erreur : Mot de passe incorrect pour numero_util: ${numero_util}, password reçu: ${password2}, password stocké: ${user.password2}`);
+      return { erreur: `Authentification invalide pour numero_util: ${numero_util}`, status: 401 };
     }
 
     const nature = numero_table === 0 ? "TICKET" : "BON DE L.";
@@ -1421,8 +1421,8 @@ export async function validerVente(data) {
       let total_vente = 0.0;
       for (const ligne of lignes) {
         if (!ligne.numero_item || !ligne.quantite) {
-          console.error("Erreur : Ligne invalide", ligne);
-          throw new Error("Ligne de vente invalide (numero_item ou quantite manquant)");
+          console.error("Erreur : Ligne invalide pour numero_util:", numero_util, ligne);
+          throw new Error(`Ligne de vente invalide (numero_item ou quantite manquant) pour numero_util: ${numero_util}`);
         }
         const quantite = toDotDecimal(ligne.quantite || '1');
         const remarque = toDotDecimal(ligne.remarque || '0,00');
@@ -1448,8 +1448,8 @@ export async function validerVente(data) {
         const item = stmtItem.step() ? stmtItem.getAsObject() : null;
         stmtItem.free();
         if (!item || item.qte < quantite) {
-          console.error("Erreur : Stock insuffisant pour numero_item:", ligne.numero_item);
-          throw new Error("Stock insuffisant");
+          console.error("Erreur : Stock insuffisant pour numero_item:", ligne.numero_item, "pour numero_util:", numero_util);
+          throw new Error(`Stock insuffisant pour numero_item: ${ligne.numero_item} avec numero_util: ${numero_util}`);
         }
         const stmtStock = db.prepare("UPDATE item SET qte = qte - ? WHERE numero_item = ?");
         stmtStock.run([quantite, ligne.numero_item]);
@@ -1479,8 +1479,8 @@ export async function validerVente(data) {
         const client = stmtClient.step() ? stmtClient.getAsObject() : null;
         stmtClient.free();
         if (!client) {
-          console.error("Erreur : Client non trouvé pour numero_table:", numero_table);
-          throw new Error("Client non trouvé");
+          console.error("Erreur : Client non trouvé pour numero_table:", numero_table, "pour numero_util:", numero_util);
+          throw new Error(`Client non trouvé pour numero_table: ${numero_table} avec numero_util: ${numero_util}`);
         }
         const current_solde = toDotDecimal(client.solde || '0,00');
         const new_solde = current_solde + solde_restant;
@@ -1505,12 +1505,12 @@ export async function validerVente(data) {
       };
     } catch (error) {
       db.run('ROLLBACK');
-      console.error("Erreur dans la transaction validerVente:", error.message);
-      return { erreur: error.message, status: 500 };
+      console.error("Erreur dans la transaction validerVente pour numero_util:", numero_util, error.message);
+      return { erreur: `Erreur dans la transaction pour numero_util: ${numero_util} - ${error.message}`, status: 500 };
     }
   } catch (error) {
-    console.error("Erreur globale validerVente:", error.message);
-    return { erreur: error.message, status: 500 };
+    console.error("Erreur globale validerVente pour numero_util:", numero_util, error.message);
+    return { erreur: `Erreur globale pour numero_util: ${numero_util} - ${error.message}`, status: 500 };
   }
 }
 // Modifier une vente
