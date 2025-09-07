@@ -1366,28 +1366,46 @@ export async function validerVente(data) {
   try {
     console.log("Exécution de validerVente avec data:", JSON.stringify(data));
     const db = await getDb();
-    const { lignes, numero_util, password2, numero_table = 0, payment_mode = 'espece', amount_paid = '0,00' } = data;
+    const { lignes, numero_util: raw_numero_util, password2, numero_table = 0, payment_mode = 'espece', amount_paid = '0,00' } = data;
 
-    // Validation des données d'entrée
+    // Validation des données d'entrée avec vérification du type
+    const numero_util = parseInt(raw_numero_util, 10);
+    if (isNaN(numero_util)) {
+      console.error("Erreur : numero_util invalide, valeur reçue:", raw_numero_util, "type:", typeof raw_numero_util);
+      return { erreur: `numero_util invalide: ${raw_numero_util} (type: ${typeof raw_numero_util})`, status: 400 };
+    }
     if (!lignes || !Array.isArray(lignes) || !numero_util || !password2) {
-      console.error("Erreur : Données manquantes ou invalides", { lignes, numero_util, password2 });
-      return { erreur: "Données manquantes ou invalides (lignes, numero_util, password2)", status: 400 };
+      console.error("Erreur : Données manquantes ou invalides pour numero_util:", numero_util, { lignes, numero_util, password2 });
+      return { erreur: `Données manquantes ou invalides (lignes, numero_util: ${numero_util}, password2)`, status: 400 };
     }
 
-    // Vérification de l'utilisateur (authentification)
+    // Vérification de l'utilisateur (authentification) avec débogage spécifique
     const stmtUser = db.prepare("SELECT password2 FROM utilisateur WHERE numero_util = ?");
     stmtUser.bind([numero_util]);
     const user = stmtUser.step() ? stmtUser.getAsObject() : null;
     stmtUser.free();
 
-    console.log("Résultat de la requête utilisateur:", { numero_util, user, received_password: password2 });
+    console.log("Résultat de la requête utilisateur pour numero_util:", numero_util, { user, received_password: password2, raw_numero_util_type: typeof raw_numero_util });
 
     if (!user) {
       console.error(`Erreur : Utilisateur non trouvé pour numero_util: ${numero_util}`);
+      // Vérification spécifique pour numero_util: 1
+      if (numero_util === 1) {
+        console.error("Détail pour numero_util: 1 - Vérifiez si l'utilisateur existe dans la table 'utilisateur'");
+        const countStmt = db.prepare("SELECT COUNT(*) as count FROM utilisateur WHERE numero_util = 1");
+        countStmt.step();
+        const { count } = countStmt.getAsObject();
+        countStmt.free();
+        console.log("Nombre d'entrées pour numero_util: 1 =", count);
+      }
       return { erreur: `Utilisateur non trouvé pour numero_util: ${numero_util}`, status: 404 };
     }
     if (user.password2 !== password2) {
       console.error(`Erreur : Mot de passe incorrect pour numero_util: ${numero_util}, password reçu: ${password2}, password stocké: ${user.password2}`);
+      // Vérification spécifique pour numero_util: 1
+      if (numero_util === 1) {
+        console.error("Détail pour numero_util: 1 - Vérifiez la casse ou les espaces dans password2");
+      }
       return { erreur: `Authentification invalide pour numero_util: ${numero_util}`, status: 401 };
     }
 
