@@ -1362,109 +1362,156 @@ export async function clientSolde() {
 
 
 // Valider une vente
-async function validerVente() {
-    const userId = localStorage.getItem('userId');
-    if (!userId) {
-        showToast('Veuillez vous connecter pour valider la vente', true);
-        return;
-    }
-    if (tempSaleLines.length === 0) {
-        showToast('Aucune ligne à valider', true);
-        return;
-    }
-    const storedSeller = localStorage.getItem('selectedSeller');
-    if (!storedSeller) {
-        showToast('Veuillez sélectionner et valider un vendeur', true);
-        return;
-    }
-    const { numero_util } = JSON.parse(storedSeller);
-    const password2 = localStorage.getItem('sellerPassword');
-    const paymentMode = document.getElementById('paymentMode').value;
-    const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
-    const numeroTable = parseInt(document.getElementById('saleClientId').value) || 0;
+export async function validerVente(data) {
+  try {
+    console.log("Exécution de validerVente avec data:", JSON.stringify(data));
+    const db = await getDb();
+    const { lignes, numero_util, password2, numero_table = 0, payment_mode = 'espece', amount_paid = '0,00' } = data;
 
-    if (paymentMode === 'a_terme' && numeroTable === 0) {
-        showToast('Veuillez sélectionner un client pour une vente à terme', true);
-        return;
-    }
-    if (paymentMode === 'a_terme' && amountPaid < 0) {
-        showToast('Le montant versé ne peut pas être négatif', true);
-        return;
+    // Validation des données d'entrée
+    if (!lignes || !Array.isArray(lignes) || !numero_util || !password2) {
+      console.error("Erreur : Données manquantes ou invalides", { lignes, numero_util, password2 });
+      return { erreur: "Données manquantes ou invalides (lignes, numero_util, password2)", status: 400 };
     }
 
-    const venteData = {
-        numero_table: numeroTable,
-        date_comande: new Date().toISOString(),
-        payment_mode: paymentMode,
-        amount_paid: amountPaid,
-        numero_util: parseInt(numero_util),
-        password2: password2,
-        lignes: tempSaleLines.map(ligne => ({
-            numero_item: ligne.numero_item,
-            quantite: parseFloat(ligne.quantite),
-            prixt: parseFloat(ligne.prixt),
-            remarque: ligne.remarque,
-            prixbh: ligne.prixbh
-        }))
-    };
+    // Vérification de l'utilisateur (authentification)
+    const stmtUser = db.prepare("SELECT password2 FROM utilisateur WHERE numero_util = ?");
+    stmtUser.bind([numero_util]);
+    const user = stmtUser.step() ? stmtUser.getAsObject() : null;
+    stmtUser.free();
 
-    console.log('Données envoyées pour validation:', JSON.stringify(venteData));
+    console.log("Résultat de la requête utilisateur:", { numero_util, user, received_password: password2 });
+
+    if (!user) {
+      console.error("Erreur : Utilisateur non trouvé pour numero_util:", numero_util);
+      return { erreur: "Utilisateur non trouvé", status: 404 };
+    }
+    if (user.password2 !== password2) {
+      console.error("Erreur : Mot de passe incorrect pour numero_util:", numero_util);
+      return { erreur: "Authentification invalide", status: 401 };
+    }
+
+    const nature = numero_table === 0 ? "TICKET" : "BON DE L.";
+    const now = new Date();
+    const date_comande = formatDateForSQLite(now);
+
+    db.run('BEGIN TRANSACTION');
 
     try {
-        // Vérification préalable avec l'API
-        const authResponse = await fetch(`${API_BASE_URL}/valider_auth`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-User-ID': userId
-            },
-            body: JSON.stringify({ numero_util, password2 })
-        });
-        if (!authResponse.ok) {
-            const errorText = await authResponse.text();
-            throw new Error(`Authentification échouée: ${errorText}`);
+      // Récupération du compteur
+      const stmtCompteur = db.prepare("SELECT COALESCE(MAX(compteur), 0) + 1 AS compteur FROM comande WHERE nature = ?");
+      stmtCompteur.bind([nature]);
+      const { compteur } = stmtCompteur.step() ? stmtCompteur.getAsObject() : { compteur: 1 };
+      stmtCompteur.free();
+
+      // Insertion dans comande
+      const stmtComande = db.prepare(`
+        INSERT INTO comande (numero_table, date_comande, etat_c, nature, connection1, compteur, numero_util)
+        VALUES (?, ?, 'Cloture', ?, -1, ?, ?)
+      `);
+      stmtComande.run([numero_table, date_comande, nature, compteur, numero_util]);
+      const idStmt = db.prepare("SELECT last_insert_rowid() AS numero_comande");
+      idStmt.step();
+      const { numero_comande } = idStmt.getAsObject();
+      idStmt.free();
+      stmtComande.free();
+      console.log("Commande créée avec numero_comande:", numero_comande);
+
+      // Traitement des lignes et calcul du total
+      let total_vente = 0.0;
+      for (const ligne of lignes) {
+        if (!ligne.numero_item || !ligne.quantite) {
+          console.error("Erreur : Ligne invalide", ligne);
+          throw new Error("Ligne de vente invalide (numero_item ou quantite manquant)");
         }
+        const quantite = toDotDecimal(ligne.quantite || '1');
+        const remarque = toDotDecimal(ligne.remarque || '0,00');
+        const prixt = toDotDecimal(ligne.prixt || '0,00');
+        total_vente += quantite * remarque;
 
-        const response = await fetch(`${API_BASE_URL}/valider_vente`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-User-ID': userId
-            },
-            body: JSON.stringify(venteData)
-        });
+        const prixt_str = toCommaDecimal(prixt);
+        const prixbh_str = toCommaDecimal(toDotDecimal(ligne.prixbh || '0,00'));
+        const remarque_str = typeof ligne.remarque === 'number' ? toCommaDecimal(ligne.remarque) :
+                            (typeof ligne.remarque === 'string' && (ligne.remarque.includes('.') || ligne.remarque.includes(',')) ?
+                             toCommaDecimal(toDotDecimal(ligne.remarque)) : ligne.remarque || '');
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(`Erreur ${response.status}: ${errorData.erreur || 'Erreur serveur'}`);
+        const stmtAttache = db.prepare(`
+          INSERT INTO attache (numero_comande, numero_item, quantite, prixt, remarque, prixbh, achatfx, send)
+          VALUES (?, ?, ?, ?, ?, ?, 0, ?)
+        `);
+        stmtAttache.run([numero_comande, ligne.numero_item, quantite, prixt_str, remarque_str, prixbh_str, true]);
+        stmtAttache.free();
+
+        // Vérification et mise à jour du stock
+        const stmtItem = db.prepare("SELECT qte FROM item WHERE numero_item = ?");
+        stmtItem.bind([ligne.numero_item]);
+        const item = stmtItem.step() ? stmtItem.getAsObject() : null;
+        stmtItem.free();
+        if (!item || item.qte < quantite) {
+          console.error("Erreur : Stock insuffisant pour numero_item:", ligne.numero_item);
+          throw new Error("Stock insuffisant");
         }
+        const stmtStock = db.prepare("UPDATE item SET qte = qte - ? WHERE numero_item = ?");
+        stmtStock.run([quantite, ligne.numero_item]);
+        stmtStock.free();
+      }
 
-        const result = await response.json();
-        console.log('Réponse API valider_vente:', result);
+      const total_vente_str = toCommaDecimal(total_vente);
+      const amount_paid_float = toDotDecimal(amount_paid);
+      const amount_paid_str = toCommaDecimal(amount_paid_float);
+      const montant_reglement = payment_mode === 'espece' ? total_vente : amount_paid_float;
+      const montant_reglement_str = toCommaDecimal(montant_reglement);
+      const solde_restant = payment_mode === 'a_terme' ? total_vente - amount_paid_float : 0.0;
+      const solde_restant_str = toCommaDecimal(solde_restant);
 
-        showToast(`Vente #${result.numero_comande} validée avec succès`);
-        tempSaleLines = [];
-        document.getElementById('paymentMode').value = 'espece';
-        document.getElementById('amountPaid').value = '';
-        document.getElementById('saleClientId').value = '0';
-        togglePaymentForm();
-        updateTempSalesTable();
-        await Promise.all([chargerProduits(), chargerClients()]);
+      // Insertion dans encaisse
+      const stmtEncaisse = db.prepare(`
+        INSERT INTO encaisse (apaye, reglement, tva, ht, numero_comande, origine, time_enc, soldeR)
+        VALUES (?, ?, '0,00', ?, ?, ?, ?, ?)
+      `);
+      stmtEncaisse.run([total_vente_str, montant_reglement_str, total_vente_str, numero_comande, nature, date_comande, solde_restant_str]);
+      stmtEncaisse.free();
 
-        // Impression automatique après validation
-        if (result.success) {
-            imprimerVente80mm();
+      // Mise à jour du solde client si à terme
+      if (payment_mode === 'a_terme' && numero_table !== 0) {
+        const stmtClient = db.prepare("SELECT solde FROM client WHERE numero_clt = ?");
+        stmtClient.bind([numero_table]);
+        const client = stmtClient.step() ? stmtClient.getAsObject() : null;
+        stmtClient.free();
+        if (!client) {
+          console.error("Erreur : Client non trouvé pour numero_table:", numero_table);
+          throw new Error("Client non trouvé");
         }
+        const current_solde = toDotDecimal(client.solde || '0,00');
+        const new_solde = current_solde + solde_restant;
+        const new_solde_str = toCommaDecimal(new_solde);
+        const stmtUpdateClient = db.prepare("UPDATE client SET solde = ? WHERE numero_clt = ?");
+        stmtUpdateClient.run([new_solde_str, numero_table]);
+        stmtUpdateClient.free();
+      }
+
+      db.run('COMMIT');
+      saveDbToLocalStorage(db);
+      console.log("Vente validée avec succès : numero_comande =", numero_comande);
+
+      return {
+        success: true,
+        numero_comande,
+        total_vente: total_vente_str,
+        montant_verse: amount_paid_str,
+        reglement: montant_reglement_str,
+        solde_restant: payment_mode === 'a_terme' ? solde_restant_str : "0,00",
+        status: 200
+      };
     } catch (error) {
-        console.error('Erreur lors de la validation:', error);
-        let errorMessage = `Erreur validation vente: ${error.message}`;
-        if (error.message.includes('Authentification')) {
-            errorMessage = 'Erreur d\'authentification: Vérifiez les identifiants du vendeur.';
-            // Réinitialiser le vendeur si l'authentification échoue
-            changeAndValidateSeller();
-        }
-        showToast(errorMessage, true);
+      db.run('ROLLBACK');
+      console.error("Erreur dans la transaction validerVente:", error.message);
+      return { erreur: error.message, status: 500 };
     }
+  } catch (error) {
+    console.error("Erreur globale validerVente:", error.message);
+    return { erreur: error.message, status: 500 };
+  }
 }
 // Modifier une vente
 export async function modifierVente(numero_comande, data) {
