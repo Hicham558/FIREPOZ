@@ -1,13 +1,12 @@
-// intercept.js
+// sw1.js
 import { 
   listeClients, listeFournisseurs, listeProduits, listeUtilisateurs, dashboard,
   ajouterClient, ajouterFournisseur, ajouterItem, ajouterUtilisateur,
   modifierClient, modifierFournisseur, modifierItem, modifierUtilisateur,
   supprimerClient, supprimerFournisseur, supprimerItem, supprimerUtilisateur,
-  validerVendeur,
-  listeCategories, ajouterCategorie, modifierCategorie, supprimerCategorie,
-  assignerCategorie, listeProduitsParCategorie,
-  clientSolde // Ajout de l'import
+  validerVendeur, listeCategories, ajouterCategorie, modifierCategorie, supprimerCategorie,
+  assignerCategorie, listeProduitsParCategorie, clientSolde,
+  validerVente, modifierVente, getVente, ventesJour, annulerVente
 } from './apiRoutes.js';
 
 // Sauvegarde de la fonction fetch originale
@@ -21,12 +20,11 @@ const handlers = {
     'liste_produits': () => listeProduits(),
     'liste_utilisateurs': () => listeUtilisateurs(),
     'liste_categories': () => listeCategories(),
-    'client_solde': () => clientSolde(), // Ajout du nouvel endpoint
+    'client_solde': () => clientSolde(),
     'liste_produits_par_categorie': (url) => {
       try {
         const urlObj = new URL(url, window.location.origin);
         const numero_categorie = urlObj.searchParams.get('numero_categorie');
-        // Convertir en number ou garder undefined
         const catId = numero_categorie ? parseInt(numero_categorie) : undefined;
         return listeProduitsParCategorie(catId);
       } catch (error) {
@@ -36,15 +34,16 @@ const handlers = {
     },
     'dashboard': (url) => {
       try {
-        // Extrait le paramètre 'period' de l'URL
         const urlParams = new URL(url, window.location.origin).searchParams;
         const period = urlParams.get('period') || 'day';
         return dashboard(period);
       } catch (error) {
         console.error('❌ Erreur extraction paramètres dashboard:', error);
-        return dashboard('day'); // Valeur par défaut en cas d'erreur
+        return dashboard('day');
       }
-    }
+    },
+    'vente/(\\d+)': (numero_comande) => getVente(parseInt(numero_comande)),
+    'ventes_jour': (url) => ventesJour(url)
   },
   POST: {
     'ajouter_client': (body) => ajouterClient(body),
@@ -53,14 +52,17 @@ const handlers = {
     'ajouter_utilisateur': (body) => ajouterUtilisateur(body),
     'ajouter_categorie': (body) => ajouterCategorie(body),
     'assigner_categorie': (body) => assignerCategorie(body),
-    'valider_vendeur': (body) => validerVendeur(body) 
+    'valider_vendeur': (body) => validerVendeur(body),
+    'valider_vente': (body) => validerVente(body),
+    'annuler_vente': (body) => annulerVente(body)
   },
   PUT: {
     'modifier_client/(\\w+)': (id, body) => modifierClient(id, body),
     'modifier_fournisseur/(\\w+)': (id, body) => modifierFournisseur(id, body),
     'modifier_item/(\\w+)': (id, body) => modifierItem(id, body),
     'modifier_utilisateur/(\\w+)': (id, body) => modifierUtilisateur(id, body),
-    'modifier_categorie/(\\w+)': (id, body) => modifierCategorie(id, body)
+    'modifier_categorie/(\\w+)': (id, body) => modifierCategorie(id, body),
+    'modifier_vente/(\\d+)': (numero_comande, body) => modifierVente(parseInt(numero_comande), body)
   },
   DELETE: {
     'supprimer_client/(\\w+)': (id) => supprimerClient(id),
@@ -71,33 +73,29 @@ const handlers = {
   }
 };
 
-// Le reste du code reste inchangé
+// Intercepteur fetch
 window.fetch = async function(input, init = {}) {
   const url = typeof input === 'string' ? input : input.url;
   const method = (init.method || 'GET').toUpperCase();
   const requestUrl = new URL(url, window.location.origin);
 
-  // Vérifier si la requête commence par /api/
   const isApiRequest = requestUrl.pathname.startsWith('/api/');
-
   console.log('🔍 Requête interceptée:', url, 'isApiRequest:', isApiRequest);
 
   if (isApiRequest) {
     try {
-      // Extraire l'endpoint après /api/
       const endpoint = requestUrl.pathname.replace('/api/', '');
       const methodHandlers = handlers[method] || {};
 
       console.log('🔍 Endpoint extrait:', endpoint, 'Méthode:', method);
 
-      // Recherche du gestionnaire correspondant
       let matchedHandler = null;
       let matchParams = null;
-      
+
       for (const [pattern, handler] of Object.entries(methodHandlers)) {
         const regex = new RegExp(`^${pattern}$`);
         const match = endpoint.match(regex);
-        
+
         if (match) {
           matchedHandler = handler;
           matchParams = match.slice(1);
@@ -108,17 +106,17 @@ window.fetch = async function(input, init = {}) {
 
       if (matchedHandler) {
         let responseData;
-        
+
         if (['POST', 'PUT'].includes(method)) {
           const body = init.body ? JSON.parse(init.body) : {};
           responseData = await matchedHandler(...matchParams, body);
         } else {
           responseData = await matchedHandler(...matchParams, url);
         }
-        
+
         const status = responseData.status || 200;
         console.log('✅ Réponse locale pour', endpoint, ':', responseData);
-        
+
         return new Response(JSON.stringify(responseData), {
           status,
           headers: { 'Content-Type': 'application/json' }
@@ -146,7 +144,6 @@ window.fetch = async function(input, init = {}) {
 // Initialisation au chargement de la page
 document.addEventListener('DOMContentLoaded', () => {
   console.log('✅ Interception des fetch activée pour /api/');
-  // Test automatique
   setTimeout(() => {
     console.log('🧪 Test automatique de l\'intercepteur...');
     fetch('/api/liste_clients')
