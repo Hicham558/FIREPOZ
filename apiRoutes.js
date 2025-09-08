@@ -1360,6 +1360,7 @@ export async function clientSolde() {
 
 // apiRoutes.js (ajouts aux fonctions existantes)
 
+
 export async function validerVente(data) {
   try {
     console.log("Exécution de validerVente avec data:", data);
@@ -1461,12 +1462,13 @@ export async function validerVente(data) {
 
       // 7. Mise à jour du solde client si vente à terme
       if (payment_mode === 'a_terme' && numero_table !== 0) {
-        const stmtClient = db.prepare("SELECT solde FROM client WHERE numero_clt = ?");
+        // Lecture sécurisée de l'ancien solde en numérique
+        const stmtClient = db.prepare("SELECT COALESCE(CAST(solde AS REAL), 0) AS solde FROM client WHERE numero_clt = ?");
         stmtClient.bind([numero_table]);
         let oldSolde = 0.0;
         if (stmtClient.step()) {
           const client = stmtClient.getAsObject();
-          oldSolde = toDotDecimal(client.solde || '0,00');
+          oldSolde = parseFloat(client.solde) || 0.0;
         }
         stmtClient.free();
 
@@ -1474,8 +1476,9 @@ export async function validerVente(data) {
         const reste = solde_restant_vente;
         const newSolde = oldSolde + reste;
 
+        // Mise à jour
         const stmtUpdateClient = db.prepare("UPDATE client SET solde = ? WHERE numero_clt = ?");
-        stmtUpdateClient.run([toCommaDecimal(newSolde), numero_table]);
+        stmtUpdateClient.run([newSolde.toString(), numero_table]); // garde TEXT mais calcul en numérique
         stmtUpdateClient.free();
 
         console.log(`✅ Solde client cumulé: ${oldSolde} + ${reste} = ${newSolde}`);
@@ -1505,7 +1508,6 @@ export async function validerVente(data) {
     return { erreur: error.message, status: 500 };
   }
 }
-
 export async function modifierVente(numero_comande, data) {
   try {
     console.log("Exécution de modifierVente:", numero_comande, data);
