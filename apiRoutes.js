@@ -1393,14 +1393,13 @@ export async function validerVente(data) {
     db.run('BEGIN TRANSACTION');
 
     try {
-      // 3. Création de la commande (comme Flask)
+      // 3. Création de la commande
       const stmtCompteur = db.prepare("SELECT COALESCE(MAX(compteur), 0) + 1 AS next_compteur FROM comande WHERE nature = ?");
       stmtCompteur.bind([nature]);
       stmtCompteur.step();
       const { next_compteur } = stmtCompteur.getAsObject();
       stmtCompteur.free();
 
-      // Utiliser datetime('now') pour avoir le même format que Flask
       const stmtCommande = db.prepare(`
         INSERT INTO comande (numero_table, date_comande, etat_c, nature, connection1, compteur, numero_util)
         VALUES (?, datetime('now'), 'Cloture', ?, -1, ?, ?)
@@ -1414,79 +1413,55 @@ export async function validerVente(data) {
       const { numero_comande } = idStmt.getAsObject();
       idStmt.free();
 
-      // 4. Traitement des lignes et calcul du total (comme Flask)
+      // 4. Traitement des lignes et calcul du total
       let total_vente = 0.0;
       
       for (const ligne of data.lignes) {
         const quantite = toDotDecimal(ligne.quantite || '1');
-        const remarque = toDotDecimal(ligne.remarque || '0,00'); // Prix unitaire
-        const prixt = toDotDecimal(ligne.prixt || '0,00'); // Total de la ligne
-        total_vente += quantite * remarque; // Calcul avec prix unitaire comme Flask
+        const remarque = toDotDecimal(ligne.remarque || '0,00');
+        const prixt = quantite * remarque;
+        total_vente += prixt;
 
-        // Conversion pour stockage avec virgule (comme Flask)
+        // Conversion pour stockage avec virgule
         const prixt_str = toCommaDecimal(prixt);
         const prixbh_str = toCommaDecimal(toDotDecimal(ligne.prixbh || '0,00'));
-
-        // Gestion de la remarque pour stockage (comme Flask)
-        let remarque_str = ligne.remarque || '';
-        if (typeof remarque_str === 'number') {
-          remarque_str = toCommaDecimal(remarque_str);
-        } else if (typeof remarque_str === 'string' && /[\d,.]/.test(remarque_str)) {
-          try {
-            if (remarque_str.includes('.') || remarque_str.includes(',')) {
-              remarque_str = toCommaDecimal(toDotDecimal(remarque_str));
-            }
-          } catch (e) {
-            // Garder la valeur originale si conversion échoue
-          }
-        }
         
-        // Insérer dans attache (comme Flask)
+        // Insérer dans attache
         const stmtAttache = db.prepare(`
           INSERT INTO attache (numero_comande, numero_item, quantite, prixt, remarque, prixbh, achatfx, send)
           VALUES (?, ?, ?, ?, ?, ?, 0, 1)
         `);
-        stmtAttache.run([
-          numero_comande,
-          ligne.numero_item,
-          quantite,
-          prixt_str, // Stocké avec virgule
-          remarque_str, // Utiliser remarque_str formaté
-          prixbh_str, // Stocké avec virgule
-        ]);
+        stmtAttache.run([numero_comande, ligne.numero_item, quantite, prixt_str, ligne.remarque || '', prixbh_str]);
         stmtAttache.free();
 
-        // Mettre à jour le stock (comme Flask)
+        // Mettre à jour le stock
         const stmtStock = db.prepare("UPDATE item SET qte = qte - ? WHERE numero_item = ?");
         stmtStock.run([quantite, ligne.numero_item]);
         stmtStock.free();
       }
 
-      // 5. Calculs des montants (comme Flask)
+      // 5. Calculs des montants
       const total_vente_str = toCommaDecimal(total_vente);
       const montant_reglement = payment_mode === 'espece' ? total_vente : amount_paid;
       const montant_reglement_str = toCommaDecimal(montant_reglement);
-      const solde_restant = payment_mode === 'a_terme' ? total_vente - amount_paid : 0.0;
+      
+      // SOLDE NÉGATIF : comme vous voulez
+      const solde_restant = payment_mode === 'a_terme' ? -(total_vente - amount_paid) : 0.0;
       const solde_restant_str = toCommaDecimal(solde_restant);
 
-      // 6. Insertion dans encaisse (comme Flask)
+      // 6. Insertion dans encaisse (solde restant NÉGATIF)
       const stmtEncaisse = db.prepare(`
         INSERT INTO encaisse (apaye, reglement, tva, ht, numero_comande, origine, time_enc, soldeR)
         VALUES (?, ?, '0,00', ?, ?, ?, datetime('now'), ?)
       `);
       stmtEncaisse.run([
-        total_vente_str,        // apaye stocké avec virgule
-        montant_reglement_str,  // reglement stocké avec virgule
-        total_vente_str,        // HT = total_vente
-        numero_comande,
-        nature,
-        solde_restant_str       // Solde restant avec virgule
+        total_vente_str, montant_reglement_str, total_vente_str, 
+        numero_comande, nature, solde_restant_str
       ]);
       stmtEncaisse.free();
 
-      // 7. Mise à jour du solde client si à terme (EXACTEMENT COMME FLASK)
+      // 7. Mise à jour du solde client si à terme (SOLDE NÉGATIF)
       if (payment_mode === 'a_terme' && numero_table !== 0) {
-        // Récupérer le solde actuel du client (stocké avec virgule)
         const stmtClientSolde = db.prepare("SELECT solde FROM client WHERE numero_clt = ?");
         stmtClientSolde.bind([numero_table]);
         let client = null;
@@ -1496,16 +1471,17 @@ export async function validerVente(data) {
         stmtClientSolde.free();
 
         if (client) {
-          // Convertir le solde actuel (avec virgule) en numérique, ajouter le solde_restant, et reconvertir en virgule
-          const current_solde_num = toDotDecimal(client.solde || '0,00');
-          const new_solde_num = current_solde_num + solde_restant;
-          const new_solde_str = toCommaDecimal(new_solde_num);
+          const current_solde = toDotDecimal(client.solde || '0,00');
+          
+          // SOLDE NÉGATIF : on AJOUTE la dette NÉGATIVE
+          const new_solde = current_solde + solde_restant; // solde_restant est négatif
+          const new_solde_str = toCommaDecimal(new_solde);
           
           const stmtUpdateClient = db.prepare("UPDATE client SET solde = ? WHERE numero_clt = ?");
           stmtUpdateClient.run([new_solde_str, numero_table]);
           stmtUpdateClient.free();
           
-          console.log(`Solde client mis à jour (exactement comme Flask): ${client.solde} + ${solde_restant} = ${new_solde_str}`);
+          console.log(`Solde client mis à jour: ${current_solde} + ${solde_restant} = ${new_solde}`);
         }
       }
 
@@ -1515,10 +1491,10 @@ export async function validerVente(data) {
       return {
         success: true,
         numero_comande,
-        total_vente: total_vente_str,  // Renvoyé avec virgule
-        montant_verse: amount_paid_str,  // Renvoyé avec virgule
-        reglement: montant_reglement_str,  // Renvoyé avec virgule
-        solde_restant: payment_mode === 'a_terme' ? solde_restant_str : "0,00",
+        total_vente: total_vente_str,
+        montant_verse: amount_paid_str,
+        reglement: montant_reglement_str,
+        solde_restant: payment_mode === 'a_terme' ? toCommaDecimal(Math.abs(solde_restant)) : "0,00",
         status: 200
       };
 
@@ -1543,6 +1519,8 @@ export async function modifierVente(numero_comande, data) {
     if (!lignes || !numero_util || !password2) {
       return { erreur: "Données manquantes", status: 400 };
     }
+
+    const amount_paid_num = toDotDecimal(amount_paid);
 
     // Vérification de l'authentification
     const stmtUser = db.prepare('SELECT password2 FROM utilisateur WHERE numero_util = ?');
@@ -1580,6 +1558,9 @@ export async function modifierVente(numero_comande, data) {
         const prixt = quantite * prix_unitaire;
         total_vente += prixt;
 
+        const prixt_str = toCommaDecimal(prixt);
+        const prixbh_str = toCommaDecimal(toDotDecimal(ligne.prixbh || '0,00'));
+
         const stmtAttache = db.prepare(`
           INSERT INTO attache (numero_comande, numero_item, quantite, prixt, remarque, prixbh, achatfx, send)
           VALUES (?, ?, ?, ?, ?, ?, 0, 1)
@@ -1588,38 +1569,39 @@ export async function modifierVente(numero_comande, data) {
           numero_comande,
           ligne.numero_item,
           quantite,
-          toCommaDecimal(prixt),
+          prixt_str,
           ligne.remarque || '',
-          toCommaDecimal(toDotDecimal(ligne.prixbh || '0,00'))
+          prixbh_str
         ]);
         stmtAttache.free();
 
-        // Mettre à jour le stock
         const stmtUpdateStock = db.prepare('UPDATE item SET qte = qte - ? WHERE numero_item = ?');
         stmtUpdateStock.run([quantite, ligne.numero_item]);
         stmtUpdateStock.free();
       }
 
-      // Mettre à jour l'encaisse avec solde inversé
-      const amount_paid_num = toDotDecimal(amount_paid);
+      // Mettre à jour l'encaisse avec solde NÉGATIF
+      const total_vente_str = toCommaDecimal(total_vente);
       const montant_reglement = payment_mode === 'espece' ? total_vente : amount_paid_num;
+      const montant_reglement_str = toCommaDecimal(montant_reglement);
       
-      // SOLDE INVERSÉ : solde restant négatif
+      // SOLDE NÉGATIF
       const nouveau_solde_restant = payment_mode === 'a_terme' ? -(total_vente - amount_paid_num) : 0;
+      const nouveau_solde_restant_str = toCommaDecimal(nouveau_solde_restant);
 
       const stmtEncaisse = db.prepare(`
         UPDATE encaisse SET apaye = ?, reglement = ?, ht = ?, soldeR = ? WHERE numero_comande = ?
       `);
       stmtEncaisse.run([
-        toCommaDecimal(total_vente),
-        toCommaDecimal(montant_reglement),
-        toCommaDecimal(total_vente),
-        toCommaDecimal(nouveau_solde_restant),
+        total_vente_str,
+        montant_reglement_str,
+        total_vente_str,
+        nouveau_solde_restant_str,
         numero_comande
       ]);
       stmtEncaisse.free();
 
-      // Mettre à jour le solde client si à terme (CUMUL CORRECT)
+      // Mettre à jour le solde client si à terme (SOLDE NÉGATIF)
       if (payment_mode === 'a_terme' && numero_table != 0) {
         // Calculer la différence de solde
         const difference_solde = nouveau_solde_restant - ancienSoldeRestant;
@@ -1627,8 +1609,6 @@ export async function modifierVente(numero_comande, data) {
         const stmtClient = db.prepare('UPDATE client SET solde = solde + ? WHERE numero_clt = ?');
         stmtClient.run([toCommaDecimal(difference_solde), numero_table]);
         stmtClient.free();
-        
-        console.log(`Solde client ajusté: différence = ${difference_solde} (ancien: ${ancienSoldeRestant}, nouveau: ${nouveau_solde_restant})`);
       }
 
       db.run('COMMIT');
@@ -1637,7 +1617,7 @@ export async function modifierVente(numero_comande, data) {
       return {
         statut: "Vente modifiée",
         numero_comande,
-        total_vente: toCommaDecimal(total_vente),
+        total_vente: total_vente_str,
         status: 200
       };
 
@@ -1650,15 +1630,6 @@ export async function modifierVente(numero_comande, data) {
     console.error("Erreur modifierVente:", error);
     return { erreur: error.message, status: 500 };
   }
-}
-
-// Fonction helper pour récupérer l'ancien encaisse
-async function getAncienEncaisse(numero_comande, db) {
-  const stmt = db.prepare('SELECT soldeR FROM encaisse WHERE numero_comande = ?');
-  stmt.bind([numero_comande]);
-  const result = stmt.step() ? stmt.getAsObject() : null;
-  stmt.free();
-  return result;
 }
 export async function annulerVente(data) {
   try {
@@ -1726,7 +1697,7 @@ export async function annulerVente(data) {
   }
 }
 
-// Fonction helper pour restaurer l'ancien état
+// Fonction helper pour restaurer l'ancien état (avec solde négatif)
 async function restaurerAncienneVente(numero_comande, db) {
   // Récupérer les anciennes lignes
   const stmtLignes = db.prepare('SELECT numero_item, quantite FROM attache WHERE numero_comande = ?');
@@ -1762,11 +1733,8 @@ async function restaurerAncienneVente(numero_comande, db) {
     const stmtClient = db.prepare('UPDATE client SET solde = solde - ? WHERE numero_clt = ?');
     stmtClient.run([toCommaDecimal(ancien_solde_restant), commande.numero_table]);
     stmtClient.free();
-    
-    console.log(`Solde client restauré: soustrait ${ancien_solde_restant}`);
   }
 }
-
 export async function getVente(numero_comande) {
   try {
     console.log("Exécution de getVente:", numero_comande);
