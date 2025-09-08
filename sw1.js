@@ -7,7 +7,7 @@ import {
   validerVendeur,
   listeCategories, ajouterCategorie, modifierCategorie, supprimerCategorie,
   assignerCategorie, listeProduitsParCategorie,
-  clientSolde // Ajout de l'import
+  clientSolde,validerVente
 } from './apiRoutes.js';
 
 // Sauvegarde de la fonction fetch originale
@@ -53,7 +53,8 @@ const handlers = {
     'ajouter_utilisateur': (body) => ajouterUtilisateur(body),
     'ajouter_categorie': (body) => ajouterCategorie(body),
     'assigner_categorie': (body) => assignerCategorie(body),
-    'valider_vendeur': (body) => validerVendeur(body) 
+    'valider_vendeur': (body) => validerVendeur(body),
+    'valider_vente': (body) => validerVente(body)
   },
   PUT: {
     'modifier_client/(\\w+)': (id, body) => modifierClient(id, body),
