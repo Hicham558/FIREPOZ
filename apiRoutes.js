@@ -1377,13 +1377,11 @@ export async function validerVente(data) {
     const password2 = data.password2;
     const nature = numero_table === 0 ? "TICKET" : "BON DE L.";
 
-    // 2. Vérification de l'authentification
+    // 2. Vérification utilisateur
     const stmtUser = db.prepare("SELECT numero_util, nom, password2 FROM utilisateur WHERE numero_util = ?");
     stmtUser.bind([numero_util]);
     let user = null;
-    if (stmtUser.step()) {
-      user = stmtUser.getAsObject();
-    }
+    if (stmtUser.step()) user = stmtUser.getAsObject();
     stmtUser.free();
 
     if (!user || user.PASSWORD2 !== password2) {
@@ -1393,7 +1391,7 @@ export async function validerVente(data) {
     db.run('BEGIN TRANSACTION');
 
     try {
-      // 3. Création de la commande
+      // 3. Numéro de commande
       const stmtCompteur = db.prepare("SELECT COALESCE(MAX(compteur), 0) + 1 AS next_compteur FROM comande WHERE nature = ?");
       stmtCompteur.bind([nature]);
       stmtCompteur.step();
@@ -1407,26 +1405,23 @@ export async function validerVente(data) {
       stmtCommande.run([numero_table, nature, next_compteur, numero_util]);
       stmtCommande.free();
 
-      // Récupérer l'ID de la commande
+      // ID de la commande
       const idStmt = db.prepare('SELECT last_insert_rowid() AS numero_comande');
       idStmt.step();
       const { numero_comande } = idStmt.getAsObject();
       idStmt.free();
 
-      // 4. Traitement des lignes et calcul du total
+      // 4. Lignes
       let total_vente = 0.0;
-      
       for (const ligne of data.lignes) {
         const quantite = toDotDecimal(ligne.quantite || '1');
         const remarque = toDotDecimal(ligne.remarque || '0,00');
         const prixt = quantite * remarque;
         total_vente += prixt;
 
-        // Conversion pour stockage avec virgule
         const prixt_str = toCommaDecimal(prixt);
         const prixbh_str = toCommaDecimal(toDotDecimal(ligne.prixbh || '0,00'));
-        
-        // Insérer dans attache
+
         const stmtAttache = db.prepare(`
           INSERT INTO attache (numero_comande, numero_item, quantite, prixt, remarque, prixbh, achatfx, send)
           VALUES (?, ?, ?, ?, ?, ?, 0, 1)
@@ -1434,22 +1429,19 @@ export async function validerVente(data) {
         stmtAttache.run([numero_comande, ligne.numero_item, quantite, prixt_str, ligne.remarque || '', prixbh_str]);
         stmtAttache.free();
 
-        // Mettre à jour le stock
         const stmtStock = db.prepare("UPDATE item SET qte = qte - ? WHERE numero_item = ?");
         stmtStock.run([quantite, ligne.numero_item]);
         stmtStock.free();
       }
 
-      // 5. Calculs des montants
+      // 5. Montants
       const total_vente_str = toCommaDecimal(total_vente);
       const montant_reglement = payment_mode === 'espece' ? total_vente : amount_paid;
       const montant_reglement_str = toCommaDecimal(montant_reglement);
-      
-      // SOLDE RESTANT pour cette vente seulement
       const solde_restant_vente = total_vente - amount_paid;
       const solde_restant_str = toCommaDecimal(solde_restant_vente);
 
-      // 6. Insertion dans encaisse
+      // 6. Encaisse
       const stmtEncaisse = db.prepare(`
         INSERT INTO encaisse (apaye, reglement, tva, ht, numero_comande, origine, time_enc, soldeR)
         VALUES (?, ?, '0,00', ?, ?, ?, datetime('now'), ?)
@@ -1460,32 +1452,23 @@ export async function validerVente(data) {
       ]);
       stmtEncaisse.free();
 
-      // 7. Mise à jour du solde client si à terme (CUMUL DES DETTES)
+      // 7. CUMUL des dettes client en SQL direct
       if (payment_mode === 'a_terme' && numero_table !== 0) {
-        const stmtClientSolde = db.prepare("SELECT solde FROM client WHERE numero_clt = ?");
-        stmtClientSolde.bind([numero_table]);
-        let client = null;
-        if (stmtClientSolde.step()) {
-          client = stmtClientSolde.getAsObject();
-        }
-        stmtClientSolde.free();
+        const nouvelle_dette = -(solde_restant_vente);
 
-        if (client) {
-          const current_solde = toDotDecimal(client.solde || '0,00');
-          
-          // NOUVELLE DETTE de cette vente seulement (négative)
-          const nouvelle_dette = -solde_restant_vente;
-          
-          // CUMULER avec l'ancien solde
-          const new_solde = current_solde + nouvelle_dette;
-          const new_solde_str = toCommaDecimal(new_solde);
-          
-          const stmtUpdateClient = db.prepare("UPDATE client SET solde = ? WHERE numero_clt = ?");
-          stmtUpdateClient.run([new_solde_str, numero_table]);
-          stmtUpdateClient.free();
-          
-          console.log(`✅ Solde client CUMULÉ: ${current_solde} + (${nouvelle_dette}) = ${new_solde}`);
-        }
+        const stmtUpdateClient = db.prepare(`
+          UPDATE client
+          SET solde = (
+            SELECT toCommaDecimal(
+              CAST(REPLACE(solde, ',', '.') AS REAL) + ?
+            )
+          )
+          WHERE numero_clt = ?
+        `);
+        stmtUpdateClient.run([nouvelle_dette, numero_table]);
+        stmtUpdateClient.free();
+
+        console.log(`✅ Dette cumulée directement en SQL: +(${nouvelle_dette})`);
       }
 
       db.run('COMMIT');
@@ -1512,6 +1495,7 @@ export async function validerVente(data) {
     return { erreur: error.message, status: 500 };
   }
 }
+
 export async function modifierVente(numero_comande, data) {
   try {
     console.log("Exécution de modifierVente:", numero_comande, data);
