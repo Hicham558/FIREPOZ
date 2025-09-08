@@ -1361,6 +1361,26 @@ export async function clientSolde() {
 // apiRoutes.js (ajouts aux fonctions existantes)
 
 
+// Définition de la fonction toDotDecimal
+function toDotDecimal(value) {
+  if (value == null || value === '') return 0.0;
+  try {
+    // Remplacer la virgule par un point et convertir en flottant
+    const cleanedValue = String(value).replace(',', '.').replace(/[^\d.-]/g, '');
+    const result = parseFloat(cleanedValue);
+    return isNaN(result) ? 0.0 : result;
+  } catch (error) {
+    console.error("Erreur dans toDotDecimal pour la valeur :", value, error);
+    return 0.0;
+  }
+}
+
+// Définition de toCommaDecimal (assumée, à adapter si différente)
+function toCommaDecimal(value) {
+  if (value == null || isNaN(value)) return '0,00';
+  return value.toFixed(2).toString().replace('.', ',');
+}
+
 export async function validerVente(data) {
   let numero_util; // Déclaration explicite pour éviter undefined dans catch
   try {
@@ -1387,7 +1407,7 @@ export async function validerVente(data) {
       console.error("Erreur : numero_util invalide", { raw_numero_util, type: typeof raw_numero_util });
       return { erreur: `numero_util invalide: ${raw_numero_util}`, status: 400 };
     }
-    const amount_paid_float = to_dot_decimal(amount_paid);
+    const amount_paid_float = toDotDecimal(amount_paid);
 
     // Vérification de l'utilisateur (authentification)
     const stmtUser = db.prepare("SELECT password2 FROM utilisateur WHERE numero_util = ?");
@@ -1443,18 +1463,18 @@ export async function validerVente(data) {
       // Traitement des lignes et calcul du total
       let total_vente = 0.0;
       for (const ligne of lignes) {
-        const quantite = to_dot_decimal(ligne.quantite || '1');
-        const remarque = to_dot_decimal(ligne.remarque || '0,00'); // Prix unitaire
-        const prixt = to_dot_decimal(ligne.prixt || '0,00'); // Total de la ligne
+        const quantite = toDotDecimal(ligne.quantite || '1');
+        const remarque = toDotDecimal(ligne.remarque || '0,00'); // Prix unitaire
+        const prixt = toDotDecimal(ligne.prixt || '0,00'); // Total de la ligne
         total_vente += quantite * remarque;
 
-        const prixt_str = to_comma_decimal(prixt);
-        const prixbh_str = to_comma_decimal(to_dot_decimal(ligne.prixbh || '0,00'));
+        const prixt_str = toCommaDecimal(prixt);
+        const prixbh_str = toCommaDecimal(toDotDecimal(ligne.prixbh || '0,00'));
         let remarque_str = ligne.remarque || '';
         if (typeof remarque_str === 'number') {
-          remarque_str = to_comma_decimal(remarque_str);
+          remarque_str = toCommaDecimal(remarque_str);
         } else if (typeof remarque_str === 'string' && (remarque_str.includes('.') || remarque_str.includes(','))) {
-          remarque_str = to_comma_decimal(to_dot_decimal(remarque_str));
+          remarque_str = toCommaDecimal(toDotDecimal(remarque_str));
         }
 
         const stmtAttache = db.prepare(`
@@ -1479,11 +1499,11 @@ export async function validerVente(data) {
       }
 
       // Conversion des totaux
-      const total_vente_str = to_comma_decimal(total_vente);
+      const total_vente_str = toCommaDecimal(total_vente);
       const montant_reglement = payment_mode === 'espece' ? total_vente : amount_paid_float;
-      const montant_reglement_str = to_comma_decimal(montant_reglement);
+      const montant_reglement_str = toCommaDecimal(montant_reglement);
       const solde_restant = payment_mode === 'a_terme' ? total_vente - amount_paid_float : 0.0;
-      const solde_restant_str = to_comma_decimal(solde_restant);
+      const solde_restant_str = toCommaDecimal(solde_restant);
 
       // Insertion dans encaisse
       const stmtEncaisse = db.prepare(`
@@ -1503,9 +1523,9 @@ export async function validerVente(data) {
           console.error("Erreur : Client non trouvé pour numero_table:", numero_table, "pour numero_util:", numero_util);
           throw new Error(`Client non trouvé pour numero_table: ${numero_table}`);
         }
-        const current_solde = to_dot_decimal(client.solde || '0,00');
+        const current_solde = toDotDecimal(client.solde || '0,00');
         const new_solde = current_solde + solde_restant;
-        const new_solde_str = to_comma_decimal(new_solde);
+        const new_solde_str = toCommaDecimal(new_solde);
         const stmtUpdateClient = db.prepare("UPDATE client SET solde = ? WHERE numero_clt = ?");
         stmtUpdateClient.run([new_solde_str, numero_table]);
         stmtUpdateClient.free();
@@ -1519,7 +1539,7 @@ export async function validerVente(data) {
         success: true,
         numero_comande,
         total_vente: total_vente_str,
-        montant_verse: to_comma_decimal(amount_paid_float),
+        montant_verse: toCommaDecimal(amount_paid_float),
         reglement: montant_reglement_str,
         solde_restant: payment_mode === 'a_terme' ? solde_restant_str : "0,00",
         status: 200
