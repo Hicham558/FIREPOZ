@@ -1366,24 +1366,7 @@ export async function clientSolde() {
 // Valider une vente
 // Dans apiRoutes.js
 
-import { getDb, saveDbToLocalStorage, formatDateForSQLite } from './db'; // Assurez-vous que ces fonctions sont importées
 
-function toDotDecimal(value) {
-  if (value == null || value === '') return 0.0;
-  try {
-    const cleanedValue = String(value).replace(',', '.').replace(/[^\d.-]/g, '');
-    const result = parseFloat(cleanedValue);
-    return isNaN(result) ? 0.0 : result;
-  } catch (error) {
-    console.error("Erreur dans toDotDecimal pour la valeur :", value, error);
-    return 0.0;
-  }
-}
-
-function toCommaDecimal(value) {
-  if (value == null || isNaN(value)) return '0,00';
-  return value.toFixed(2).toString().replace('.', ',');
-}
 
 export async function validerVente(data) {
   let numero_util; // Déclaration explicite pour éviter undefined dans catch
