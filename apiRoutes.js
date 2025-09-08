@@ -829,31 +829,40 @@ export async function dashboard(period = 'day') {
       return isNaN(parsed) ? 0 : parsed;
     };
 
+    // MODIFICATION IMPORTANTE : Retourner directement les données au format attendu par le HTML
+    // Au lieu de { success: true, data: {...}, status: 200 }
+    // On retourne directement l'objet data comme Flask le fait
     return {
-      success: true,
-      data: {
-        total_ca: safeParseFloat(kpiData.total_ca),
-        total_profit: safeParseFloat(kpiData.total_profit),
-        sales_count: safeParseInt(kpiData.sales_count),
-        low_stock_items: safeParseInt(lowStockData.low_stock),
-        top_client: {
-          name: topClient.nom || 'N/A',
-          ca: safeParseFloat(topClient.client_ca)
-        },
-        chart_data: {
-          labels: chartLabels,
-          values: chartValues.map(v => safeParseFloat(v))
-        }
+      total_ca: safeParseFloat(kpiData.total_ca),
+      total_profit: safeParseFloat(kpiData.total_profit),
+      sales_count: safeParseInt(kpiData.sales_count),
+      low_stock_items: safeParseInt(lowStockData.low_stock),
+      top_client: {
+        name: topClient.nom || 'N/A',
+        ca: safeParseFloat(topClient.client_ca)
       },
-      status: 200
+      chart_data: {
+        labels: chartLabels,
+        values: chartValues.map(v => safeParseFloat(v))
+      }
     };
 
   } catch (error) {
     console.error("Erreur getDashboardData:", error);
+    // Retourner un objet vide avec des valeurs par défaut comme Flask le ferait en cas d'erreur
     return { 
-      success: false,
-      erreur: error.message, 
-      status: 500 
+      total_ca: 0,
+      total_profit: 0,
+      sales_count: 0,
+      low_stock_items: 0,
+      top_client: {
+        name: 'N/A',
+        ca: 0
+      },
+      chart_data: {
+        labels: [],
+        values: []
+      }
     };
   }
 }
