@@ -1390,7 +1390,7 @@ export async function validerVente(data) {
     }
     const amount_paid_float = toDotDecimal(amount_paid);
 
-    // Vérification de l'utilisateur (authentification)
+    // Vérification de l'utilisateur (authentification comme Flask)
     const stmtUser = db.prepare("SELECT password2 FROM utilisateur WHERE numero_util = ?");
     stmtUser.bind([numero_util]);
     const user = stmtUser.step() ? stmtUser.getAsObject() : null;
@@ -1400,18 +1400,6 @@ export async function validerVente(data) {
 
     if (!user || user.password2 !== password2) {
       console.error("Erreur : Authentification invalide pour numero_util:", numero_util, { received_password: password2, stored_password: user ? user.password2 : 'null' });
-      if (numero_util === 2) {
-        const countStmt = db.prepare("SELECT COUNT(*) as count FROM utilisateur WHERE numero_util = 2");
-        countStmt.step();
-        const { count } = countStmt.getAsObject();
-        countStmt.free();
-        console.log("Nombre d'entrées pour numero_util: 2 =", count);
-        const detailStmt = db.prepare("SELECT password2 FROM utilisateur WHERE numero_util = 2");
-        detailStmt.step();
-        const userDetail = detailStmt.getAsObject();
-        detailStmt.free();
-        console.log("Valeur de password2 pour numero_util: 2 =", userDetail ? userDetail.password2 : "Non défini");
-      }
       return { erreur: `Authentification invalide pour numero_util: ${numero_util}`, status: 401 };
     }
 
