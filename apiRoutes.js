@@ -1444,8 +1444,8 @@ export async function validerVente(data) {
       const montant_reglement = payment_mode === 'espece' ? total_vente : amount_paid;
       const montant_reglement_str = toCommaDecimal(montant_reglement);
       
-      // SOLDE INVERSÉ : si à terme, le solde restant est NÉGATIF (dette du client)
-      const solde_restant = payment_mode === 'a_terme' ? -(total_vente - amount_paid) : 0.0;
+      // SOLDE RESTANT : positif (comme Flask)
+      const solde_restant = payment_mode === 'a_terme' ? total_vente - amount_paid : 0.0;
       const solde_restant_str = toCommaDecimal(solde_restant);
 
       // 6. Insertion dans encaisse
@@ -1459,8 +1459,9 @@ export async function validerVente(data) {
       ]);
       stmtEncaisse.free();
 
-      // 7. Mise à jour du solde client si à terme (CUMUL DU SOLDE)
+      // 7. Mise à jour du solde client si à terme (EXACTEMENT COMME FLASK)
       if (payment_mode === 'a_terme' && numero_table !== 0) {
+        // Récupérer le solde actuel du client
         const stmtClientSolde = db.prepare("SELECT solde FROM client WHERE numero_clt = ?");
         stmtClientSolde.bind([numero_table]);
         let client = null;
@@ -1471,19 +1472,21 @@ export async function validerVente(data) {
 
         if (client) {
           const current_solde = toDotDecimal(client.solde || '0,00');
-          // CUMUL DU SOLDE : on AJOUTE la nouvelle dette NÉGATIVE à l'ancien solde
-          const new_solde = current_solde + solde_restant; // solde_restant est négatif
+          
+          // LOGIQUE EXACTEMENT COMME FLASK : current_solde + solde_restant
+          // solde_restant est positif (dette à ajouter)
+          const new_solde = current_solde + solde_restant;
           const new_solde_str = toCommaDecimal(new_solde);
           
           const stmtUpdateClient = db.prepare("UPDATE client SET solde = ? WHERE numero_clt = ?");
           stmtUpdateClient.run([new_solde_str, numero_table]);
           stmtUpdateClient.free();
           
-          console.log(`Solde client mis à jour: ${current_solde} + ${solde_restant} = ${new_solde}`);
+          console.log(`Solde client mis à jour (comme Flask): ${current_solde} + ${solde_restant} = ${new_solde}`);
           
-          // Exemples de cumul :
-          // 1ère vente: Total 100, versé 10 → solde_restant = -90 → nouveau solde = 0 - 90 = -90
-          // 2ème vente: Total 200, versé 100 → solde_restant = -100 → nouveau solde = -90 - 100 = -190
+          // Exemples :
+          // 1ère vente: Total 100, versé 10 → solde_restant = 90 → nouveau solde = 0 + 90 = 90
+          // 2ème vente: Total 200, versé 100 → solde_restant = 100 → nouveau solde = 90 + 100 = 190
         }
       }
 
@@ -1496,7 +1499,7 @@ export async function validerVente(data) {
         total_vente: total_vente_str,
         montant_verse: toCommaDecimal(amount_paid),
         reglement: montant_reglement_str,
-        solde_restant: payment_mode === 'a_terme' ? toCommaDecimal(Math.abs(solde_restant)) : "0,00",
+        solde_restant: payment_mode === 'a_terme' ? solde_restant_str : "0,00",
         status: 200
       };
 
