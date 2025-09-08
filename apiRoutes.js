@@ -1888,3 +1888,146 @@ export async function ventesJour(params = {}) {
     return { erreur: error.message, status: 500 };
   }
 }
+import { getDb, saveDbToLocalStorage } from "./db.js";
+import { toDotDecimal, toCommaDecimal } from "./helpers.js";
+
+export async function validerReception(data) {
+  try {
+    console.log("Exécution de validerReception avec data:", data);
+    const db = await getDb();
+
+    // 1. Validation des données
+    if (!data || !data.lignes || !data.numero_four || !data.numero_util || !data.password2) {
+      return { erreur: "Données invalides (fournisseur, utilisateur ou mot de passe manquant)", status: 400 };
+    }
+
+    const numero_four = data.numero_four;
+    const numero_util = data.numero_util;
+    const password2 = data.password2;
+    const lignes = data.lignes;
+    const nature = "Bon de réception";
+
+    // 2. Vérification de l'utilisateur
+    const stmtUser = db.prepare("SELECT numero_util, nom, password2 FROM utilisateur WHERE numero_util = ?");
+    stmtUser.bind([numero_util]);
+    let user = null;
+    if (stmtUser.step()) {
+      user = stmtUser.getAsObject();
+    }
+    stmtUser.free();
+
+    if (!user || user.PASSWORD2 !== password2) {
+      return { erreur: "Authentification invalide", status: 401 };
+    }
+
+    // 3. Vérification du fournisseur
+    const stmtFour = db.prepare("SELECT numero_fou FROM fournisseur WHERE numero_fou = ?");
+    stmtFour.bind([numero_four]);
+    if (!stmtFour.step()) {
+      stmtFour.free();
+      return { erreur: "Fournisseur non trouvé", status: 400 };
+    }
+    stmtFour.free();
+
+    db.run("BEGIN TRANSACTION");
+
+    try {
+      // 4. Création du mouvement
+      const stmtMouv = db.prepare(`
+        INSERT INTO mouvement (date_m, etat_m, numero_four, refdoc, vers, nature, connection1, numero_util, cheque)
+        VALUES (datetime('now'), 'cloture', ?, '', '', ?, 0, ?, '')
+      `);
+      stmtMouv.run([numero_four, nature, numero_util]);
+      stmtMouv.free();
+
+      // Récupérer l'ID du mouvement
+      const idStmt = db.prepare("SELECT last_insert_rowid() AS numero_mouvement");
+      idStmt.step();
+      const { numero_mouvement } = idStmt.getAsObject();
+      idStmt.free();
+
+      // Mettre à jour le refdoc
+      const stmtRefdoc = db.prepare("UPDATE mouvement SET refdoc = ? WHERE numero_mouvement = ?");
+      stmtRefdoc.run([String(numero_mouvement), numero_mouvement]);
+      stmtRefdoc.free();
+
+      let total_cost = 0.0;
+
+      // 5. Traitement des lignes
+      for (const ligne of lignes) {
+        const numero_item = ligne.numero_item;
+        const qtea = toDotDecimal(ligne.qtea || "0");
+        const prixbh = toDotDecimal(ligne.prixbh || "0");
+
+        if (qtea <= 0) throw new Error("La quantité doit être positive");
+
+        // Charger l'article
+        const stmtItem = db.prepare(`
+          SELECT qte, CAST(COALESCE(NULLIF(REPLACE(prixba, ',', '.'), ''), '0') AS FLOAT) AS prixba
+          FROM item WHERE numero_item = ?
+        `);
+        stmtItem.bind([numero_item]);
+        if (!stmtItem.step()) {
+          stmtItem.free();
+          throw new Error(`Article ${numero_item} non trouvé`);
+        }
+        const item = stmtItem.getAsObject();
+        stmtItem.free();
+
+        const current_qte = parseFloat(item.qte || 0);
+        const prixba = parseFloat(item.prixba || 0);
+        const nqte = current_qte + qtea;
+
+        total_cost += qtea * prixbh;
+
+        const prixbh_str = toCommaDecimal(prixbh);
+        const prixba_str = toCommaDecimal(prixba);
+
+        // Insérer dans attache2
+        const stmtAtt = db.prepare(`
+          INSERT INTO attache2 (numero_item, numero_mouvement, qtea, nqte, nprix, pump, send)
+          VALUES (?, ?, ?, ?, ?, ?, 1)
+        `);
+        stmtAtt.run([numero_item, numero_mouvement, qtea, nqte, prixbh_str, prixba_str]);
+        stmtAtt.free();
+
+        // Mise à jour stock + fournisseur de l'article
+        const stmtUpdateItem = db.prepare("UPDATE item SET qte = ?, prixba = ?, numero_fou = ? WHERE numero_item = ?");
+        stmtUpdateItem.run([nqte, prixbh_str, numero_four, numero_item]);
+        stmtUpdateItem.free();
+      }
+
+      // 6. Mise à jour du solde fournisseur (format TEXT cumulé)
+      const stmtSolde = db.prepare(`
+        SELECT CAST(COALESCE(NULLIF(REPLACE(solde, ',', '.'), ''), '0') AS FLOAT) AS solde
+        FROM fournisseur WHERE numero_fou = ?
+      `);
+      stmtSolde.bind([numero_four]);
+      stmtSolde.step();
+      const fournisseur = stmtSolde.getAsObject();
+      stmtSolde.free();
+
+      const current_solde = parseFloat(fournisseur.solde || 0);
+      const new_solde = current_solde - total_cost;
+      const new_solde_str = toCommaDecimal(new_solde);
+
+      const stmtUpdateFour = db.prepare("UPDATE fournisseur SET solde = ? WHERE numero_fou = ?");
+      stmtUpdateFour.run([new_solde_str, numero_four]);
+      stmtUpdateFour.free();
+
+      db.run("COMMIT");
+      saveDbToLocalStorage(db);
+
+      return { success: true, numero_mouvement, new_solde: new_solde_str, status: 200 };
+
+    } catch (err) {
+      db.run("ROLLBACK");
+      console.error("Erreur validerReception transaction:", err);
+      throw err;
+    }
+
+  } catch (error) {
+    console.error("Erreur validerReception:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
