@@ -697,154 +697,71 @@ export async function supprimerItem(numero_item) {
   }
 }
 
-export async function dashboard(period = 'day') {
+async function chargerKPI() {
+  const userId = localStorage.getItem('userId');
+  if (!userId) {
+    showToast('Veuillez vous connecter pour voir les KPI', true);
+    return;
+  }
+  
+  const period = document.getElementById('kpiPeriod').value;
+  
   try {
-    console.log("Exécution de getDashboardData avec period:", period);
-    const db = await getDb();
-
-    // Calcul des dates de début et fin
-    const now = new Date();
-    let date_start, date_end;
-
-    if (period === 'week') {
-      date_end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-      date_start = new Date(now.getTime() - (6 * 24 * 60 * 60 * 1000));
-      date_start.setHours(0, 0, 0, 0);
-    } else {
-      date_start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-      date_end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    }
-
-    const date_start_str = date_start.toISOString();
-    const date_end_str = date_end.toISOString();
-
-    // Fonction pour parser les décimaux avec virgule
-    function parseDecimal(value) {
-      if (value === null || value === undefined || value === '') {
-        return 0.0;
-      }
-      try {
-        return parseFloat(String(value).replace(',', '.'));
-      } catch {
-        return 0.0;
-      }
-    }
-
-    // 1. KPI principaux (CA, profit, nombre de ventes)
-    const queryKpi = `
-      SELECT 
-        COALESCE(SUM(CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL)), 0) AS total_ca,
-        COALESCE(SUM(
-          CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL) - 
-          (a.quantite * CAST(REPLACE(COALESCE(NULLIF(i.prixba, ''), '0'), ',', '.') AS REAL))
-        ), 0) AS total_profit,
-        COUNT(DISTINCT c.numero_comande) AS sales_count
-      FROM comande c
-      JOIN attache a ON c.numero_comande = a.numero_comande
-      JOIN item i ON a.numero_item = i.numero_item
-      WHERE c.date_comande >= ? AND c.date_comande <= ?
-    `;
+    // Appel direct de la fonction JavaScript au lieu de l'API REST
+    const result = await getDashboardData(period);
     
-    const stmtKpi = db.prepare(queryKpi);
-    stmtKpi.bind([date_start_str, date_end_str]);
-    let kpiData = { total_ca: 0, total_profit: 0, sales_count: 0 };
-    if (stmtKpi.step()) {
-      kpiData = stmtKpi.getAsObject();
+    if (!result.success) {
+      throw new Error(result.erreur || 'Erreur inconnue');
     }
-    stmtKpi.free();
-
-    // 2. Articles en rupture de stock
-    const stmtLowStock = db.prepare("SELECT COUNT(*) AS low_stock FROM item WHERE qte < 10");
-    stmtLowStock.step();
-    const lowStockData = stmtLowStock.getAsObject();
-    stmtLowStock.free();
-
-    // 3. Meilleur client
-    const queryTopClient = `
-      SELECT 
-        cl.nom,
-        COALESCE(SUM(CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL)), 0) AS client_ca
-      FROM comande c
-      JOIN attache a ON c.numero_comande = a.numero_comande
-      LEFT JOIN client cl ON c.numero_table = cl.numero_clt
-      WHERE c.date_comande >= ? AND c.date_comande <= ?
-      GROUP BY cl.nom
-      ORDER BY client_ca DESC
-      LIMIT 1
-    `;
     
-    const stmtTopClient = db.prepare(queryTopClient);
-    stmtTopClient.bind([date_start_str, date_end_str]);
-    let topClient = { nom: 'N/A', client_ca: 0 };
-    if (stmtTopClient.step()) {
-      topClient = stmtTopClient.getAsObject();
-    }
-    stmtTopClient.free();
-
-    // 4. Données pour le graphique
-    const queryChart = `
-      SELECT 
-        DATE(c.date_comande) AS sale_date,
-        COALESCE(SUM(CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL)), 0) AS daily_ca
-      FROM comande c
-      JOIN attache a ON c.numero_comande = a.numero_comande
-      WHERE c.date_comande >= ? AND c.date_comande <= ?
-      GROUP BY DATE(c.date_comande)
-      ORDER BY sale_date
-    `;
+    const kpi = result.data;
     
-    const stmtChart = db.prepare(queryChart);
-    stmtChart.bind([date_start_str, date_end_str]);
-    const chartData = [];
-    while (stmtChart.step()) {
-      chartData.push(stmtChart.getAsObject());
-    }
-    stmtChart.free();
-
-    // 5. Préparation des données du graphique
-    const chartLabels = [];
-    const chartValues = [];
-    const currentDate = new Date(date_start);
-    
-    while (currentDate <= date_end) {
-      const dateStr = currentDate.toISOString().split('T')[0]; // Format YYYY-MM-DD
-      chartLabels.push(dateStr);
-      
-      const dailyCa = chartData.find(row => 
-        row.sale_date === dateStr
-      );
-      
-      chartValues.push(dailyCa ? parseDecimal(dailyCa.daily_ca) : 0);
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
-
-    // 6. Retour des données
-    return {
-      success: true,
-      data: {
-        total_ca: parseFloat(kpiData.total_ca || 0),
-        total_profit: parseFloat(kpiData.total_profit || 0),
-        sales_count: parseInt(kpiData.sales_count || 0),
-        low_stock_items: parseInt(lowStockData.low_stock || 0),
-        top_client: {
-          name: topClient.nom || 'N/A',
-          ca: parseFloat(topClient.client_ca || 0)
-        },
-        chart_data: {
-          labels: chartLabels,
-          values: chartValues
-        }
-      },
-      status: 200
+    // Fonction helper pour sécuriser toFixed()
+    const safeToFixed = (value, digits = 2) => {
+      const num = Number(value || 0);
+      return isNaN(num) ? '0.00' : num.toFixed(digits);
     };
-
+    
+    // Mettre à jour les KPI avec vérifications
+    document.getElementById('totalCA').textContent = `${safeToFixed(kpi.total_ca)} DA`;
+    document.getElementById('totalProfit').textContent = `${safeToFixed(kpi.total_profit)} DA`;
+    document.getElementById('salesCount').textContent = kpi.sales_count || 0;
+    document.getElementById('lowStockItems').textContent = kpi.low_stock_items || 0;
+    document.getElementById('topClient').textContent = kpi.top_client?.name || 'N/A';
+    document.getElementById('topClient').title = kpi.top_client?.name || 'N/A';
+    document.getElementById('topClientCA').textContent = `${safeToFixed(kpi.top_client?.ca)} DA`;
+    
+    // Animation de mise à jour
+    const kpiCards = document.querySelectorAll('.kpi-card');
+    kpiCards.forEach(card => {
+      card.classList.add('kpi-updated');
+      setTimeout(() => card.classList.remove('kpi-updated'), 500);
+    });
+    
+    // Animation spécifique pour Top Client
+    const topClientCard = document.getElementById('topClient').parentElement;
+    topClientCard.classList.add('top-client-updated');
+    setTimeout(() => topClientCard.classList.remove('top-client-updated'), 600);
+    
+    // Mettre à jour les icônes dynamiques
+    document.getElementById('caIcon').className = `fas fa-money-bill-wave mr-1 dynamic-icon ${kpi.total_ca > 0 ? 'text-green-500 animate-pulse' : 'text-gray-400'}`;
+    document.getElementById('profitIcon').className = `fas fa-chart-pie mr-1 dynamic-icon ${kpi.total_profit > 0 ? 'text-blue-500 animate-pulse' : 'text-gray-400'}`;
+    document.getElementById('salesIcon').className = `fas fa-shopping-cart mr-1 dynamic-icon ${kpi.sales_count > 0 ? 'text-yellow-500 animate-pulse' : 'text-gray-400'}`;
+    document.getElementById('stockIcon').className = `fas fa-exclamation-triangle mr-1 dynamic-icon ${kpi.low_stock_items > 0 ? 'text-red-500 animate-pulse' : 'text-gray-400'}`;
+    document.getElementById('clientIcon').className = `fas fa-user-check mr-1 dynamic-icon ${(kpi.top_client?.ca || 0) > 0 ? 'text-purple-500 animate-pulse' : 'text-gray-400'}`;
+    
+    // Mettre à jour le graphique avec vérifications
+    if (kpi.chart_data && kpi.chart_data.labels && kpi.chart_data.values) {
+      updateChart(kpi.chart_data.labels, kpi.chart_data.values);
+    }
+    
+    // Réactiver l'opacité
+    document.getElementById('kpiSection').style.opacity = '1';
+    
   } catch (error) {
-    console.error("Erreur getDashboardData:", error);
-    return { 
-      success: false,
-      erreur: error.message, 
-      status: 500 
-    };
+    showToast(`Erreur de chargement des KPI: ${error.message}`, true);
+    console.error('Erreur KPI:', error);
+    document.getElementById('kpiSection').style.opacity = '1';
   }
 }
 export async function validerVendeur(data) {
