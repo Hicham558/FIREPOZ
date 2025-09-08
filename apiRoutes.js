@@ -1359,8 +1359,6 @@ export async function clientSolde() {
 
 
 // apiRoutes.js (ajouts aux fonctions existantes)
-// Remplacer toutes les fonctions ventes dans apiRoutes.js
-
 export async function validerVente(data) {
   try {
     console.log("Exécution de validerVente avec data:", data);
@@ -1446,8 +1444,8 @@ export async function validerVente(data) {
       const montant_reglement = payment_mode === 'espece' ? total_vente : amount_paid;
       const montant_reglement_str = toCommaDecimal(montant_reglement);
       
-      // SOLDE INVERSÉ : si à terme, le solde restant est POSITIF (dette du client)
-      const solde_restant = payment_mode === 'a_terme' ? total_vente - amount_paid : 0.0;
+      // SOLDE INVERSÉ : si à terme, le solde restant est NÉGATIF (dette du client)
+      const solde_restant = payment_mode === 'a_terme' ? -(total_vente - amount_paid) : 0.0;
       const solde_restant_str = toCommaDecimal(solde_restant);
 
       // 6. Insertion dans encaisse
@@ -1473,8 +1471,8 @@ export async function validerVente(data) {
 
         if (client) {
           const current_solde = toDotDecimal(client.solde || '0,00');
-          // SOLDE INVERSÉ : on AJOUTE la dette (solde_restant est positif)
-          const new_solde = current_solde + solde_restant;
+          // SOLDE INVERSÉ : on AJOUTE la dette NÉGATIVE
+          const new_solde = current_solde + solde_restant; // solde_restant est négatif
           const new_solde_str = toCommaDecimal(new_solde);
           
           const stmtUpdateClient = db.prepare("UPDATE client SET solde = ? WHERE numero_clt = ?");
@@ -1482,6 +1480,10 @@ export async function validerVente(data) {
           stmtUpdateClient.free();
           
           console.log(`Solde client mis à jour: ${current_solde} + ${solde_restant} = ${new_solde}`);
+          
+          // Exemples :
+          // Total 300, versé 0 → solde_restant = -300 → nouveau solde = ancien solde - 300
+          // Total 300, versé 100 → solde_restant = -200 → nouveau solde = ancien solde - 200
         }
       }
 
@@ -1494,7 +1496,7 @@ export async function validerVente(data) {
         total_vente: total_vente_str,
         montant_verse: toCommaDecimal(amount_paid),
         reglement: montant_reglement_str,
-        solde_restant: payment_mode === 'a_terme' ? solde_restant_str : "0,00",
+        solde_restant: payment_mode === 'a_terme' ? toCommaDecimal(Math.abs(solde_restant)) : "0,00",
         status: 200
       };
 
@@ -1575,7 +1577,9 @@ export async function modifierVente(numero_comande, data) {
       // Mettre à jour l'encaisse avec solde inversé
       const amount_paid_num = toDotDecimal(amount_paid);
       const montant_reglement = payment_mode === 'espece' ? total_vente : amount_paid_num;
-      const solde_restant = payment_mode === 'a_terme' ? total_vente - amount_paid_num : 0;
+      
+      // SOLDE INVERSÉ : solde restant négatif
+      const solde_restant = payment_mode === 'a_terme' ? -(total_vente - amount_paid_num) : 0;
 
       const stmtEncaisse = db.prepare(`
         UPDATE encaisse SET apaye = ?, reglement = ?, ht = ?, soldeR = ? WHERE numero_comande = ?
@@ -1592,7 +1596,7 @@ export async function modifierVente(numero_comande, data) {
       // Mettre à jour le solde client si à terme (solde inversé)
       if (payment_mode === 'a_terme' && numero_table != 0) {
         const stmtClient = db.prepare('UPDATE client SET solde = solde + ? WHERE numero_clt = ?');
-        stmtClient.run([toCommaDecimal(solde_restant), numero_table]);
+        stmtClient.run([toCommaDecimal(solde_restant), numero_table]); // solde_restant est négatif
         stmtClient.free();
       }
 
@@ -1701,7 +1705,7 @@ async function restaurerAncienneVente(numero_comande, db) {
   }
 
   // Récupérer les infos de l'ancienne vente pour restaurer le solde client
-  const stmtEncaisse = db.prepare('SELECT soldeR, numero_comande FROM encaisse WHERE numero_comande = ?');
+  const stmtEncaisse = db.prepare('SELECT soldeR FROM encaisse WHERE numero_comande = ?');
   stmtEncaisse.bind([numero_comande]);
   const encaisse = stmtEncaisse.step() ? stmtEncaisse.getAsObject() : null;
   stmtEncaisse.free();
@@ -1711,14 +1715,17 @@ async function restaurerAncienneVente(numero_comande, db) {
   const commande = stmtComande.step() ? stmtComande.getAsObject() : null;
   stmtComande.free();
 
-  // Restaurer le solde client (soustraire la dette précédente)
+  // Restaurer le solde client (soustraire la dette précédente qui est négative)
   if (encaisse && commande && commande.numero_table != 0) {
     const ancien_solde_restant = toDotDecimal(encaisse.soldeR || '0,00');
+    // Puisque ancien_solde_restant est négatif, on le soustrait pour annuler l'effet
     const stmtClient = db.prepare('UPDATE client SET solde = solde - ? WHERE numero_clt = ?');
     stmtClient.run([toCommaDecimal(ancien_solde_restant), commande.numero_table]);
     stmtClient.free();
   }
 }
+
+
 export async function getVente(numero_comande) {
   try {
     console.log("Exécution de getVente:", numero_comande);
