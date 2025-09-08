@@ -1459,7 +1459,7 @@ export async function validerVente(data) {
       ]);
       stmtEncaisse.free();
 
-      // 7. Mise à jour du solde client si à terme (SOLDE INVERSÉ)
+      // 7. Mise à jour du solde client si à terme (CUMUL DU SOLDE)
       if (payment_mode === 'a_terme' && numero_table !== 0) {
         const stmtClientSolde = db.prepare("SELECT solde FROM client WHERE numero_clt = ?");
         stmtClientSolde.bind([numero_table]);
@@ -1471,7 +1471,7 @@ export async function validerVente(data) {
 
         if (client) {
           const current_solde = toDotDecimal(client.solde || '0,00');
-          // SOLDE INVERSÉ : on AJOUTE la dette NÉGATIVE
+          // CUMUL DU SOLDE : on AJOUTE la nouvelle dette NÉGATIVE à l'ancien solde
           const new_solde = current_solde + solde_restant; // solde_restant est négatif
           const new_solde_str = toCommaDecimal(new_solde);
           
@@ -1481,9 +1481,9 @@ export async function validerVente(data) {
           
           console.log(`Solde client mis à jour: ${current_solde} + ${solde_restant} = ${new_solde}`);
           
-          // Exemples :
-          // Total 300, versé 0 → solde_restant = -300 → nouveau solde = ancien solde - 300
-          // Total 300, versé 100 → solde_restant = -200 → nouveau solde = ancien solde - 200
+          // Exemples de cumul :
+          // 1ère vente: Total 100, versé 10 → solde_restant = -90 → nouveau solde = 0 - 90 = -90
+          // 2ème vente: Total 200, versé 100 → solde_restant = -100 → nouveau solde = -90 - 100 = -190
         }
       }
 
@@ -1535,6 +1535,10 @@ export async function modifierVente(numero_comande, data) {
     db.run('BEGIN TRANSACTION');
 
     try {
+      // Sauvegarder l'ancien état avant modification
+      const ancienEncaisse = await getAncienEncaisse(numero_comande, db);
+      const ancienSoldeRestant = ancienEncaisse ? toDotDecimal(ancienEncaisse.soldeR || '0,00') : 0;
+      
       // Restaurer l'ancien état (stock et solde client)
       await restaurerAncienneVente(numero_comande, db);
 
@@ -1579,7 +1583,7 @@ export async function modifierVente(numero_comande, data) {
       const montant_reglement = payment_mode === 'espece' ? total_vente : amount_paid_num;
       
       // SOLDE INVERSÉ : solde restant négatif
-      const solde_restant = payment_mode === 'a_terme' ? -(total_vente - amount_paid_num) : 0;
+      const nouveau_solde_restant = payment_mode === 'a_terme' ? -(total_vente - amount_paid_num) : 0;
 
       const stmtEncaisse = db.prepare(`
         UPDATE encaisse SET apaye = ?, reglement = ?, ht = ?, soldeR = ? WHERE numero_comande = ?
@@ -1588,16 +1592,21 @@ export async function modifierVente(numero_comande, data) {
         toCommaDecimal(total_vente),
         toCommaDecimal(montant_reglement),
         toCommaDecimal(total_vente),
-        toCommaDecimal(solde_restant),
+        toCommaDecimal(nouveau_solde_restant),
         numero_comande
       ]);
       stmtEncaisse.free();
 
-      // Mettre à jour le solde client si à terme (solde inversé)
+      // Mettre à jour le solde client si à terme (CUMUL CORRECT)
       if (payment_mode === 'a_terme' && numero_table != 0) {
+        // Calculer la différence de solde
+        const difference_solde = nouveau_solde_restant - ancienSoldeRestant;
+        
         const stmtClient = db.prepare('UPDATE client SET solde = solde + ? WHERE numero_clt = ?');
-        stmtClient.run([toCommaDecimal(solde_restant), numero_table]); // solde_restant est négatif
+        stmtClient.run([toCommaDecimal(difference_solde), numero_table]);
         stmtClient.free();
+        
+        console.log(`Solde client ajusté: différence = ${difference_solde} (ancien: ${ancienSoldeRestant}, nouveau: ${nouveau_solde_restant})`);
       }
 
       db.run('COMMIT');
@@ -1619,6 +1628,15 @@ export async function modifierVente(numero_comande, data) {
     console.error("Erreur modifierVente:", error);
     return { erreur: error.message, status: 500 };
   }
+}
+
+// Fonction helper pour récupérer l'ancien encaisse
+async function getAncienEncaisse(numero_comande, db) {
+  const stmt = db.prepare('SELECT soldeR FROM encaisse WHERE numero_comande = ?');
+  stmt.bind([numero_comande]);
+  const result = stmt.step() ? stmt.getAsObject() : null;
+  stmt.free();
+  return result;
 }
 export async function annulerVente(data) {
   try {
@@ -1722,9 +1740,10 @@ async function restaurerAncienneVente(numero_comande, db) {
     const stmtClient = db.prepare('UPDATE client SET solde = solde - ? WHERE numero_clt = ?');
     stmtClient.run([toCommaDecimal(ancien_solde_restant), commande.numero_table]);
     stmtClient.free();
+    
+    console.log(`Solde client restauré: soustrait ${ancien_solde_restant}`);
   }
 }
-
 
 export async function getVente(numero_comande) {
   try {
