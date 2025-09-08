@@ -1371,7 +1371,8 @@ export async function validerVente(data) {
 
     const numero_table = parseInt(data.numero_table) || 0;
     const payment_mode = data.payment_mode || 'espece';
-    const amount_paid = toDotDecimal(data.amount_paid || '0,00');
+    const amount_paid_str = data.amount_paid || '0,00';
+    const amount_paid = toDotDecimal(amount_paid_str);
     const numero_util = data.numero_util;
     const password2 = data.password2;
     const nature = numero_table === 0 ? "TICKET" : "BON DE L.";
@@ -1392,13 +1393,14 @@ export async function validerVente(data) {
     db.run('BEGIN TRANSACTION');
 
     try {
-      // 3. Création de la commande
+      // 3. Création de la commande (comme Flask)
       const stmtCompteur = db.prepare("SELECT COALESCE(MAX(compteur), 0) + 1 AS next_compteur FROM comande WHERE nature = ?");
       stmtCompteur.bind([nature]);
       stmtCompteur.step();
       const { next_compteur } = stmtCompteur.getAsObject();
       stmtCompteur.free();
 
+      // Utiliser datetime('now') pour avoir le même format que Flask
       const stmtCommande = db.prepare(`
         INSERT INTO comande (numero_table, date_comande, etat_c, nature, connection1, compteur, numero_util)
         VALUES (?, datetime('now'), 'Cloture', ?, -1, ?, ?)
@@ -1412,56 +1414,79 @@ export async function validerVente(data) {
       const { numero_comande } = idStmt.getAsObject();
       idStmt.free();
 
-      // 4. Traitement des lignes et calcul du total
+      // 4. Traitement des lignes et calcul du total (comme Flask)
       let total_vente = 0.0;
       
       for (const ligne of data.lignes) {
         const quantite = toDotDecimal(ligne.quantite || '1');
-        const remarque = toDotDecimal(ligne.remarque || '0,00');
-        const prixt = quantite * remarque;
-        total_vente += prixt;
+        const remarque = toDotDecimal(ligne.remarque || '0,00'); // Prix unitaire
+        const prixt = toDotDecimal(ligne.prixt || '0,00'); // Total de la ligne
+        total_vente += quantite * remarque; // Calcul avec prix unitaire comme Flask
 
-        // Conversion pour stockage
+        // Conversion pour stockage avec virgule (comme Flask)
         const prixt_str = toCommaDecimal(prixt);
         const prixbh_str = toCommaDecimal(toDotDecimal(ligne.prixbh || '0,00'));
+
+        // Gestion de la remarque pour stockage (comme Flask)
+        let remarque_str = ligne.remarque || '';
+        if (typeof remarque_str === 'number') {
+          remarque_str = toCommaDecimal(remarque_str);
+        } else if (typeof remarque_str === 'string' && /[\d,.]/.test(remarque_str)) {
+          try {
+            if (remarque_str.includes('.') || remarque_str.includes(',')) {
+              remarque_str = toCommaDecimal(toDotDecimal(remarque_str));
+            }
+          } catch (e) {
+            // Garder la valeur originale si conversion échoue
+          }
+        }
         
-        // Insérer dans attache
+        // Insérer dans attache (comme Flask)
         const stmtAttache = db.prepare(`
           INSERT INTO attache (numero_comande, numero_item, quantite, prixt, remarque, prixbh, achatfx, send)
           VALUES (?, ?, ?, ?, ?, ?, 0, 1)
         `);
-        stmtAttache.run([numero_comande, ligne.numero_item, quantite, prixt_str, ligne.remarque || '', prixbh_str]);
+        stmtAttache.run([
+          numero_comande,
+          ligne.numero_item,
+          quantite,
+          prixt_str, // Stocké avec virgule
+          remarque_str, // Utiliser remarque_str formaté
+          prixbh_str, // Stocké avec virgule
+        ]);
         stmtAttache.free();
 
-        // Mettre à jour le stock
+        // Mettre à jour le stock (comme Flask)
         const stmtStock = db.prepare("UPDATE item SET qte = qte - ? WHERE numero_item = ?");
         stmtStock.run([quantite, ligne.numero_item]);
         stmtStock.free();
       }
 
-      // 5. Calculs des montants
+      // 5. Calculs des montants (comme Flask)
       const total_vente_str = toCommaDecimal(total_vente);
       const montant_reglement = payment_mode === 'espece' ? total_vente : amount_paid;
       const montant_reglement_str = toCommaDecimal(montant_reglement);
-      
-      // SOLDE RESTANT : positif (comme Flask)
       const solde_restant = payment_mode === 'a_terme' ? total_vente - amount_paid : 0.0;
       const solde_restant_str = toCommaDecimal(solde_restant);
 
-      // 6. Insertion dans encaisse
+      // 6. Insertion dans encaisse (comme Flask)
       const stmtEncaisse = db.prepare(`
         INSERT INTO encaisse (apaye, reglement, tva, ht, numero_comande, origine, time_enc, soldeR)
         VALUES (?, ?, '0,00', ?, ?, ?, datetime('now'), ?)
       `);
       stmtEncaisse.run([
-        total_vente_str, montant_reglement_str, total_vente_str, 
-        numero_comande, nature, solde_restant_str
+        total_vente_str,        // apaye stocké avec virgule
+        montant_reglement_str,  // reglement stocké avec virgule
+        total_vente_str,        // HT = total_vente
+        numero_comande,
+        nature,
+        solde_restant_str       // Solde restant avec virgule
       ]);
       stmtEncaisse.free();
 
       // 7. Mise à jour du solde client si à terme (EXACTEMENT COMME FLASK)
       if (payment_mode === 'a_terme' && numero_table !== 0) {
-        // Récupérer le solde actuel du client
+        // Récupérer le solde actuel du client (stocké avec virgule)
         const stmtClientSolde = db.prepare("SELECT solde FROM client WHERE numero_clt = ?");
         stmtClientSolde.bind([numero_table]);
         let client = null;
@@ -1471,22 +1496,16 @@ export async function validerVente(data) {
         stmtClientSolde.free();
 
         if (client) {
-          const current_solde = toDotDecimal(client.solde || '0,00');
-          
-          // LOGIQUE EXACTEMENT COMME FLASK : current_solde + solde_restant
-          // solde_restant est positif (dette à ajouter)
-          const new_solde = current_solde + solde_restant;
-          const new_solde_str = toCommaDecimal(new_solde);
+          // Convertir le solde actuel (avec virgule) en numérique, ajouter le solde_restant, et reconvertir en virgule
+          const current_solde_num = toDotDecimal(client.solde || '0,00');
+          const new_solde_num = current_solde_num + solde_restant;
+          const new_solde_str = toCommaDecimal(new_solde_num);
           
           const stmtUpdateClient = db.prepare("UPDATE client SET solde = ? WHERE numero_clt = ?");
           stmtUpdateClient.run([new_solde_str, numero_table]);
           stmtUpdateClient.free();
           
-          console.log(`Solde client mis à jour (comme Flask): ${current_solde} + ${solde_restant} = ${new_solde}`);
-          
-          // Exemples :
-          // 1ère vente: Total 100, versé 10 → solde_restant = 90 → nouveau solde = 0 + 90 = 90
-          // 2ème vente: Total 200, versé 100 → solde_restant = 100 → nouveau solde = 90 + 100 = 190
+          console.log(`Solde client mis à jour (exactement comme Flask): ${client.solde} + ${solde_restant} = ${new_solde_str}`);
         }
       }
 
@@ -1496,9 +1515,9 @@ export async function validerVente(data) {
       return {
         success: true,
         numero_comande,
-        total_vente: total_vente_str,
-        montant_verse: toCommaDecimal(amount_paid),
-        reglement: montant_reglement_str,
+        total_vente: total_vente_str,  // Renvoyé avec virgule
+        montant_verse: amount_paid_str,  // Renvoyé avec virgule
+        reglement: montant_reglement_str,  // Renvoyé avec virgule
         solde_restant: payment_mode === 'a_terme' ? solde_restant_str : "0,00",
         status: 200
       };
