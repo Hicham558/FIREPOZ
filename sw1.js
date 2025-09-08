@@ -7,9 +7,7 @@ import {
   validerVendeur,
   listeCategories, ajouterCategorie, modifierCategorie, supprimerCategorie,
   assignerCategorie, listeProduitsParCategorie,
-  clientSolde,
-  // Nouvelles fonctions de vente
-  validerVente, modifierVente, getVente, ventesJour, annulerVente
+  clientSolde // Ajout de l'import
 } from './apiRoutes.js';
 
 // Sauvegarde de la fonction fetch originale
@@ -23,26 +21,12 @@ const handlers = {
     'liste_produits': () => listeProduits(),
     'liste_utilisateurs': () => listeUtilisateurs(),
     'liste_categories': () => listeCategories(),
-    'client_solde': () => clientSolde(),
-    'vente/(\\w+)': (id) => getVente(id),
-    'ventes_jour': (url) => {
-      try {
-        const urlObj = new URL(url, window.location.origin);
-        const params = {
-          date: urlObj.searchParams.get('date'),
-          numero_clt: urlObj.searchParams.get('numero_clt'),
-          numero_util: urlObj.searchParams.get('numero_util')
-        };
-        return ventesJour(params);
-      } catch (error) {
-        console.error('❌ Erreur URL ventes_jour:', error);
-        return ventesJour({});
-      }
-    },
+    'client_solde': () => clientSolde(), // Ajout du nouvel endpoint
     'liste_produits_par_categorie': (url) => {
       try {
         const urlObj = new URL(url, window.location.origin);
         const numero_categorie = urlObj.searchParams.get('numero_categorie');
+        // Convertir en number ou garder undefined
         const catId = numero_categorie ? parseInt(numero_categorie) : undefined;
         return listeProduitsParCategorie(catId);
       } catch (error) {
@@ -52,12 +36,13 @@ const handlers = {
     },
     'dashboard': (url) => {
       try {
+        // Extrait le paramètre 'period' de l'URL
         const urlParams = new URL(url, window.location.origin).searchParams;
         const period = urlParams.get('period') || 'day';
         return dashboard(period);
       } catch (error) {
         console.error('❌ Erreur extraction paramètres dashboard:', error);
-        return dashboard('day');
+        return dashboard('day'); // Valeur par défaut en cas d'erreur
       }
     }
   },
@@ -68,17 +53,14 @@ const handlers = {
     'ajouter_utilisateur': (body) => ajouterUtilisateur(body),
     'ajouter_categorie': (body) => ajouterCategorie(body),
     'assigner_categorie': (body) => assignerCategorie(body),
-    'valider_vendeur': (body) => validerVendeur(body),
-    'valider_vente': (body) => validerVente(body),
-    'annuler_vente': (body) => annulerVente(body)
+    'valider_vendeur': (body) => validerVendeur(body) 
   },
   PUT: {
     'modifier_client/(\\w+)': (id, body) => modifierClient(id, body),
     'modifier_fournisseur/(\\w+)': (id, body) => modifierFournisseur(id, body),
     'modifier_item/(\\w+)': (id, body) => modifierItem(id, body),
     'modifier_utilisateur/(\\w+)': (id, body) => modifierUtilisateur(id, body),
-    'modifier_categorie/(\\w+)': (id, body) => modifierCategorie(id, body),
-    'modifier_vente/(\\w+)': (id, body) => modifierVente(id, body)
+    'modifier_categorie/(\\w+)': (id, body) => modifierCategorie(id, body)
   },
   DELETE: {
     'supprimer_client/(\\w+)': (id) => supprimerClient(id),
