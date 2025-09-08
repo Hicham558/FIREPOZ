@@ -1361,25 +1361,6 @@ export async function clientSolde() {
 // apiRoutes.js (ajouts aux fonctions existantes)
 
 
-// Définition de la fonction toDotDecimal
-function toDotDecimal(value) {
-  if (value == null || value === '') return 0.0;
-  try {
-    // Remplacer la virgule par un point et convertir en flottant
-    const cleanedValue = String(value).replace(',', '.').replace(/[^\d.-]/g, '');
-    const result = parseFloat(cleanedValue);
-    return isNaN(result) ? 0.0 : result;
-  } catch (error) {
-    console.error("Erreur dans toDotDecimal pour la valeur :", value, error);
-    return 0.0;
-  }
-}
-
-// Définition de toCommaDecimal (assumée, à adapter si différente)
-function toCommaDecimal(value) {
-  if (value == null || isNaN(value)) return '0,00';
-  return value.toFixed(2).toString().replace('.', ',');
-}
 
 export async function validerVente(data) {
   let numero_util; // Déclaration explicite pour éviter undefined dans catch
