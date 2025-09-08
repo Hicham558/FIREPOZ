@@ -8,7 +8,7 @@ import {
   listeCategories, ajouterCategorie, modifierCategorie, supprimerCategorie,
   assignerCategorie, listeProduitsParCategorie,
   clientSolde,
-  // Nouvelles fonctions de vente
+  // Nouveaux imports pour les ventes
   validerVente, modifierVente, getVente, ventesJour, annulerVente
 } from './apiRoutes.js';
 
@@ -24,21 +24,6 @@ const handlers = {
     'liste_utilisateurs': () => listeUtilisateurs(),
     'liste_categories': () => listeCategories(),
     'client_solde': () => clientSolde(),
-    'vente/(\\w+)': (id) => getVente(id),
-    'ventes_jour': (url) => {
-      try {
-        const urlObj = new URL(url, window.location.origin);
-        const params = {
-          date: urlObj.searchParams.get('date'),
-          numero_clt: urlObj.searchParams.get('numero_clt'),
-          numero_util: urlObj.searchParams.get('numero_util')
-        };
-        return ventesJour(params);
-      } catch (error) {
-        console.error('❌ Erreur URL ventes_jour:', error);
-        return ventesJour({});
-      }
-    },
     'liste_produits_par_categorie': (url) => {
       try {
         const urlObj = new URL(url, window.location.origin);
@@ -59,6 +44,21 @@ const handlers = {
         console.error('❌ Erreur extraction paramètres dashboard:', error);
         return dashboard('day');
       }
+    },
+    'vente/(\\d+)': (numero_comande) => getVente(parseInt(numero_comande)),
+    'ventes_jour': (url) => {
+      try {
+        const urlParams = new URL(url, window.location.origin).searchParams;
+        const params = {
+          date: urlParams.get('date'),
+          numero_clt: urlParams.get('numero_clt'),
+          numero_util: urlParams.get('numero_util')
+        };
+        return ventesJour(params);
+      } catch (error) {
+        console.error('❌ Erreur extraction paramètres ventes_jour:', error);
+        return ventesJour({});
+      }
     }
   },
   POST: {
@@ -78,7 +78,7 @@ const handlers = {
     'modifier_item/(\\w+)': (id, body) => modifierItem(id, body),
     'modifier_utilisateur/(\\w+)': (id, body) => modifierUtilisateur(id, body),
     'modifier_categorie/(\\w+)': (id, body) => modifierCategorie(id, body),
-    'modifier_vente/(\\w+)': (id, body) => modifierVente(id, body)
+    'modifier_vente/(\\d+)': (numero_comande, body) => modifierVente(parseInt(numero_comande), body)
   },
   DELETE: {
     'supprimer_client/(\\w+)': (id) => supprimerClient(id),
@@ -113,7 +113,7 @@ window.fetch = async function(input, init = {}) {
       let matchParams = null;
       
       for (const [pattern, handler] of Object.entries(methodHandlers)) {
-        const regex = new RegExp(`^${pattern}$`);
+        const regex = new RegExp(`^${pattern});
         const match = endpoint.match(regex);
         
         if (match) {
