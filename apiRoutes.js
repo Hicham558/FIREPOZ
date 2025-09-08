@@ -1509,3 +1509,367 @@ export async function validerVente(data) {
     return { erreur: error.message, status: 500 };
   }
 }
+export async function modifierVente(numero_comande, data) {
+  try {
+    console.log("Exécution de modifierVente:", numero_comande, data);
+    const db = await getDb();
+    
+    const { lignes, numero_util, password2, numero_table = 0, payment_mode = 'espece', amount_paid = '0,00' } = data;
+
+    if (!lignes || !numero_util || !password2) {
+      return { erreur: "Données manquantes", status: 400 };
+    }
+
+    // Vérification de l'authentification
+    const stmtUser = db.prepare('SELECT password2 FROM utilisateur WHERE numero_util = ?');
+    stmtUser.bind([numero_util]);
+    const user = stmtUser.step() ? stmtUser.getAsObject() : null;
+    stmtUser.free();
+
+    if (!user || user.password2 !== password2) {
+      return { erreur: "Authentification invalide", status: 401 };
+    }
+
+    db.run('BEGIN TRANSACTION');
+
+    try {
+      // Restaurer l'ancien état (stock et solde client)
+      await restaurerAncienneVente(numero_comande, db);
+
+      // Mettre à jour la commande
+      const nature = numero_table == 0 ? "TICKET" : "BON DE L.";
+      const stmtUpdate = db.prepare(`
+        UPDATE comande SET numero_table = ?, nature = ?, numero_util = ? WHERE numero_comande = ?
+      `);
+      stmtUpdate.run([numero_table, nature, numero_util, numero_comande]);
+      stmtUpdate.free();
+
+      // Traiter les nouvelles lignes
+      let total_vente = 0;
+      for (const ligne of lignes) {
+        const quantite = toDotDecimal(ligne.quantite || '1');
+        const prix_unitaire = toDotDecimal(ligne.remarque || '0,00');
+        const prixt = quantite * prix_unitaire;
+        total_vente += prixt;
+
+        const stmtAttache = db.prepare(`
+          INSERT INTO attache (numero_comande, numero_item, quantite, prixt, remarque, prixbh, achatfx, send)
+          VALUES (?, ?, ?, ?, ?, ?, 0, 1)
+        `);
+        stmtAttache.run([
+          numero_comande,
+          ligne.numero_item,
+          quantite,
+          toCommaDecimal(prixt),
+          ligne.remarque || '',
+          toCommaDecimal(toDotDecimal(ligne.prixbh || '0,00'))
+        ]);
+        stmtAttache.free();
+
+        // Mettre à jour le stock
+        const stmtUpdateStock = db.prepare('UPDATE item SET qte = qte - ? WHERE numero_item = ?');
+        stmtUpdateStock.run([quantite, ligne.numero_item]);
+        stmtUpdateStock.free();
+      }
+
+      // Mettre à jour l'encaisse avec solde inversé
+      const amount_paid_num = toDotDecimal(amount_paid);
+      const montant_reglement = payment_mode === 'espece' ? total_vente : amount_paid_num;
+      const solde_restant = payment_mode === 'a_terme' ? total_vente - amount_paid_num : 0;
+
+      const stmtEncaisse = db.prepare(`
+        UPDATE encaisse SET apaye = ?, reglement = ?, ht = ?, soldeR = ? WHERE numero_comande = ?
+      `);
+      stmtEncaisse.run([
+        toCommaDecimal(total_vente),
+        toCommaDecimal(montant_reglement),
+        toCommaDecimal(total_vente),
+        toCommaDecimal(solde_restant),
+        numero_comande
+      ]);
+      stmtEncaisse.free();
+
+      // Mettre à jour le solde client si à terme (solde inversé)
+      if (payment_mode === 'a_terme' && numero_table != 0) {
+        const stmtClient = db.prepare('UPDATE client SET solde = solde + ? WHERE numero_clt = ?');
+        stmtClient.run([toCommaDecimal(solde_restant), numero_table]);
+        stmtClient.free();
+      }
+
+      db.run('COMMIT');
+      saveDbToLocalStorage(db);
+
+      return {
+        statut: "Vente modifiée",
+        numero_comande,
+        total_vente: toCommaDecimal(total_vente),
+        status: 200
+      };
+
+    } catch (error) {
+      db.run('ROLLBACK');
+      throw error;
+    }
+
+  } catch (error) {
+    console.error("Erreur modifierVente:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+export async function annulerVente(data) {
+  try {
+    console.log("Exécution de annulerVente avec data:", data);
+    const db = await getDb();
+    
+    const { numero_comande, password2 } = data;
+
+    if (!numero_comande || !password2) {
+      return { erreur: "Données manquantes", status: 400 };
+    }
+
+    // Récupérer les infos de la commande
+    const stmtComande = db.prepare('SELECT numero_table, numero_util FROM comande WHERE numero_comande = ?');
+    stmtComande.bind([numero_comande]);
+    const commande = stmtComande.step() ? stmtComande.getAsObject() : null;
+    stmtComande.free();
+
+    if (!commande) {
+      return { erreur: "Commande non trouvée", status: 404 };
+    }
+
+    // Vérifier le mot de passe
+    const stmtUser = db.prepare('SELECT password2 FROM utilisateur WHERE numero_util = ?');
+    stmtUser.bind([commande.numero_util]);
+    const user = stmtUser.step() ? stmtUser.getAsObject() : null;
+    stmtUser.free();
+
+    if (!user || user.password2 !== password2) {
+      return { erreur: "Mot de passe incorrect", status: 401 };
+    }
+
+    db.run('BEGIN TRANSACTION');
+
+    try {
+      // Restaurer le stock et le solde client
+      await restaurerAncienneVente(numero_comande, db);
+
+      // Supprimer les enregistrements
+      const stmtDeleteAttache = db.prepare('DELETE FROM attache WHERE numero_comande = ?');
+      stmtDeleteAttache.run([numero_comande]);
+      stmtDeleteAttache.free();
+
+      const stmtDeleteEncaisse = db.prepare('DELETE FROM encaisse WHERE numero_comande = ?');
+      stmtDeleteEncaisse.run([numero_comande]);
+      stmtDeleteEncaisse.free();
+
+      const stmtDeleteComande = db.prepare('DELETE FROM comande WHERE numero_comande = ?');
+      stmtDeleteComande.run([numero_comande]);
+      stmtDeleteComande.free();
+
+      db.run('COMMIT');
+      saveDbToLocalStorage(db);
+
+      return { statut: "Vente annulée", status: 200 };
+
+    } catch (error) {
+      db.run('ROLLBACK');
+      throw error;
+    }
+
+  } catch (error) {
+    console.error("Erreur annulerVente:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+// Fonction helper pour restaurer l'ancien état
+async function restaurerAncienneVente(numero_comande, db) {
+  // Récupérer les anciennes lignes
+  const stmtLignes = db.prepare('SELECT numero_item, quantite FROM attache WHERE numero_comande = ?');
+  stmtLignes.bind([numero_comande]);
+  const lignes = [];
+  while (stmtLignes.step()) {
+    lignes.push(stmtLignes.getAsObject());
+  }
+  stmtLignes.free();
+
+  // Restaurer le stock
+  for (const ligne of lignes) {
+    const stmtRestore = db.prepare('UPDATE item SET qte = qte + ? WHERE numero_item = ?');
+    stmtRestore.run([ligne.quantite, ligne.numero_item]);
+    stmtRestore.free();
+  }
+
+  // Récupérer les infos de l'ancienne vente pour restaurer le solde client
+  const stmtEncaisse = db.prepare('SELECT soldeR, numero_comande FROM encaisse WHERE numero_comande = ?');
+  stmtEncaisse.bind([numero_comande]);
+  const encaisse = stmtEncaisse.step() ? stmtEncaisse.getAsObject() : null;
+  stmtEncaisse.free();
+
+  const stmtComande = db.prepare('SELECT numero_table FROM comande WHERE numero_comande = ?');
+  stmtComande.bind([numero_comande]);
+  const commande = stmtComande.step() ? stmtComande.getAsObject() : null;
+  stmtComande.free();
+
+  // Restaurer le solde client (soustraire la dette précédente)
+  if (encaisse && commande && commande.numero_table != 0) {
+    const ancien_solde_restant = toDotDecimal(encaisse.soldeR || '0,00');
+    const stmtClient = db.prepare('UPDATE client SET solde = solde - ? WHERE numero_clt = ?');
+    stmtClient.run([toCommaDecimal(ancien_solde_restant), commande.numero_table]);
+    stmtClient.free();
+  }
+}
+export async function getVente(numero_comande) {
+  try {
+    console.log("Exécution de getVente:", numero_comande);
+    const db = await getDb();
+
+    const stmtComande = db.prepare(`
+      SELECT c.*, cl.nom as client_nom, u.nom as utilisateur_nom 
+      FROM comande c
+      LEFT JOIN client cl ON c.numero_table = cl.numero_clt
+      LEFT JOIN utilisateur u ON c.numero_util = u.numero_util
+      WHERE c.numero_comande = ?
+    `);
+    stmtComande.bind([numero_comande]);
+    const commande = stmtComande.step() ? stmtComande.getAsObject() : null;
+    stmtComande.free();
+
+    if (!commande) {
+      return { erreur: "Commande non trouvée", status: 404 };
+    }
+
+    const stmtLignes = db.prepare(`
+      SELECT a.*, i.designation 
+      FROM attache a
+      JOIN item i ON a.numero_item = i.numero_item
+      WHERE a.numero_comande = ?
+    `);
+    stmtLignes.bind([numero_comande]);
+    const lignes = [];
+    while (stmtLignes.step()) {
+      lignes.push(stmtLignes.getAsObject());
+    }
+    stmtLignes.free();
+
+    return {
+      numero_comande: commande.numero_comande,
+      numero_table: commande.numero_table,
+      date_comande: commande.date_comande,
+      nature: commande.nature,
+      client_nom: commande.client_nom || 'Comptoir',
+      utilisateur_nom: commande.utilisateur_nom,
+      lignes: lignes.map(ligne => ({
+        numero_item: ligne.numero_item,
+        designation: ligne.designation,
+        quantite: ligne.quantite,
+        prixt: ligne.prixt,
+        remarque: ligne.remarque,
+        prixbh: ligne.prixbh
+      })),
+      status: 200
+    };
+
+  } catch (error) {
+    console.error("Erreur getVente:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+export async function ventesJour(params = {}) {
+  try {
+    console.log("Exécution de ventesJour avec params:", params);
+    const db = await getDb();
+
+    const { date, numero_clt, numero_util } = params;
+    let date_start, date_end;
+
+    if (date) {
+      date_start = `${date} 00:00:00`;
+      date_end = `${date} 23:59:59`;
+    } else {
+      const today = new Date().toISOString().split('T')[0];
+      date_start = `${today} 00:00:00`;
+      date_end = `${today} 23:59:59`;
+    }
+
+    let query = `
+      SELECT c.*, cl.nom as client_nom, u.nom as utilisateur_nom,
+             a.numero_item, a.quantite, a.prixt, a.remarque, i.designation
+      FROM comande c
+      LEFT JOIN client cl ON c.numero_table = cl.numero_clt
+      LEFT JOIN utilisateur u ON c.numero_util = u.numero_util
+      JOIN attache a ON c.numero_comande = a.numero_comande
+      JOIN item i ON a.numero_item = i.numero_item
+      WHERE c.date_comande BETWEEN ? AND ?
+    `;
+
+    const queryParams = [date_start, date_end];
+
+    if (numero_clt && numero_clt !== '0') {
+      query += ' AND c.numero_table = ?';
+      queryParams.push(parseInt(numero_clt));
+    }
+
+    if (numero_util && numero_util !== '0') {
+      query += ' AND c.numero_util = ?';
+      queryParams.push(parseInt(numero_util));
+    }
+
+    query += ' ORDER BY c.numero_comande DESC';
+
+    const stmt = db.prepare(query);
+    stmt.bind(queryParams);
+
+    const ventesMap = {};
+    let total = 0;
+
+    while (stmt.step()) {
+      const row = stmt.getAsObject();
+      const numero_comande = row.numero_comande;
+
+      if (!ventesMap[numero_comande]) {
+        ventesMap[numero_comande] = {
+          numero_comande: row.numero_comande,
+          date_comande: row.date_comande,
+          nature: row.nature,
+          client_nom: row.numero_table == 0 ? 'Comptoir' : row.client_nom,
+          utilisateur_nom: row.utilisateur_nom,
+          lignes: []
+        };
+      }
+
+      ventesMap[numero_comande].lignes.push({
+        numero_item: row.numero_item,
+        designation: row.designation,
+        quantite: row.quantite,
+        prixt: row.prixt,
+        remarque: row.remarque
+      });
+
+      total += toDotDecimal(row.prixt);
+    }
+    stmt.free();
+
+    const tickets = [];
+    const bons = [];
+
+    Object.values(ventesMap).forEach(vente => {
+      if (vente.nature === 'TICKET') {
+        tickets.push(vente);
+      } else {
+        bons.push(vente);
+      }
+    });
+
+    return {
+      tickets,
+      bons,
+      total: toCommaDecimal(total),
+      status: 200
+    };
+
+  } catch (error) {
+    console.error("Erreur ventesJour:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
