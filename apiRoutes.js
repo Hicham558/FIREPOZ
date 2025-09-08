@@ -1386,7 +1386,7 @@ export async function validerVente(data) {
     console.log("Tous les utilisateurs dans la base:");
     while (stmtAllUsers.step()) {
       const userDebug = stmtAllUsers.getAsObject();
-      console.log(`- ID: ${userDebug.numero_util} (${typeof userDebug.numero_util}), Nom: "${userDebug.nom}", Password: "${userDebug.password2}" (${typeof userDebug.password2})`);
+      console.log(`- ID: ${userDebug.NUMERO_UTIL} (${typeof userDebug.NUMERO_UTIL}), Nom: "${userDebug.NOM}", Password: "${userDebug.PASSWORD2}" (${typeof userDebug.PASSWORD2})`);
     }
     stmtAllUsers.free();
 
@@ -1397,13 +1397,13 @@ export async function validerVente(data) {
     if (stmtUser.step()) {
       user = stmtUser.getAsObject();
       console.log("Utilisateur trouvé:", user);
-      console.log("Password DB:", `"${user.password2}"` + ` (longueur: ${user.password2?.length})`);
+      console.log("Password DB:", `"${user.PASSWORD2}"` + ` (longueur: ${user.PASSWORD2?.length})`);
       console.log("Password fourni:", `"${password2}"` + ` (longueur: ${password2?.length})`);
       
       // Vérification caractère par caractère
-      if (user.password2 && password2) {
-        for (let i = 0; i < Math.max(user.password2.length, password2.length); i++) {
-          const charDB = user.password2[i] || 'undefined';
+      if (user.PASSWORD2 && password2) {
+        for (let i = 0; i < Math.max(user.PASSWORD2.length, password2.length); i++) {
+          const charDB = user.PASSWORD2[i] || 'undefined';
           const charFourni = password2[i] || 'undefined';
           if (charDB !== charFourni) {
             console.log(`Différence à l'index ${i}: DB="${charDB}" vs Fourni="${charFourni}"`);
@@ -1416,10 +1416,10 @@ export async function validerVente(data) {
     stmtUser.free();
 
     // Vérification de l'authentification avec nettoyage des espaces
-    if (!user || user.password2?.trim() !== password2?.trim()) {
+    if (!user || user.PASSWORD2?.trim() !== password2?.trim()) {
       console.log("=== ÉCHEC AUTHENTIFICATION ===");
       console.log("User exists:", !!user);
-      console.log("Password match (avec trim):", user?.password2?.trim() === password2?.trim());
+      console.log("Password match (avec trim):", user?.PASSWORD2?.trim() === password2?.trim());
       return { erreur: "Authentification invalide", status: 401 };
     }
 
