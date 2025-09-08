@@ -759,7 +759,7 @@ export async function dashboard(period = 'day') {
     const lowStockData = stmtLowStock.getAsObject();
     stmtLowStock.free();
 
-    // 3. Meilleur client
+    // 3. Meilleur client (AVEC LOG POUR DEBUG)
     const queryTopClient = `
       SELECT 
         cl.nom,
@@ -778,6 +778,7 @@ export async function dashboard(period = 'day') {
     let topClient = { nom: 'N/A', client_ca: 0 };
     if (stmtTopClient.step()) {
       topClient = stmtTopClient.getAsObject();
+      console.log('Top client trouvé:', topClient); // LOG DE DEBUG
     }
     stmtTopClient.free();
 
@@ -807,13 +808,10 @@ export async function dashboard(period = 'day') {
     const currentDate = new Date(date_start);
     
     while (currentDate <= date_end) {
-      const dateStr = currentDate.toISOString().split('T')[0]; // Format YYYY-MM-DD
+      const dateStr = currentDate.toISOString().split('T')[0];
       chartLabels.push(dateStr);
       
-      const dailyCa = chartData.find(row => 
-        row.sale_date === dateStr
-      );
-      
+      const dailyCa = chartData.find(row => row.sale_date === dateStr);
       chartValues.push(dailyCa ? parseDecimal(dailyCa.daily_ca) : 0);
       currentDate.setDate(currentDate.getDate() + 1);
     }
@@ -829,9 +827,7 @@ export async function dashboard(period = 'day') {
       return isNaN(parsed) ? 0 : parsed;
     };
 
-    // MODIFICATION IMPORTANTE : Retourner directement les données au format attendu par le HTML
-    // Au lieu de { success: true, data: {...}, status: 200 }
-    // On retourne directement l'objet data comme Flask le fait
+    // FORMAT COMPATIBLE AVEC LE HTML - TOUTES LES CLÉS EN MINUSCULES ✅
     return {
       total_ca: safeParseFloat(kpiData.total_ca),
       total_profit: safeParseFloat(kpiData.total_profit),
@@ -849,7 +845,6 @@ export async function dashboard(period = 'day') {
 
   } catch (error) {
     console.error("Erreur getDashboardData:", error);
-    // Retourner un objet vide avec des valeurs par défaut comme Flask le ferait en cas d'erreur
     return { 
       total_ca: 0,
       total_profit: 0,
