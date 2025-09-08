@@ -1359,6 +1359,7 @@ export async function clientSolde() {
 
 
 // apiRoutes.js (ajouts aux fonctions existantes)
+
 export async function validerVente(data) {
   try {
     console.log("Exécution de validerVente avec data:", data);
@@ -1422,7 +1423,6 @@ export async function validerVente(data) {
         const prixt = quantite * remarque;
         total_vente += prixt;
 
-        // Conversion pour stockage avec virgule
         const prixt_str = toCommaDecimal(prixt);
         const prixbh_str = toCommaDecimal(toDotDecimal(ligne.prixbh || '0,00'));
         
@@ -1444,8 +1444,7 @@ export async function validerVente(data) {
       const total_vente_str = toCommaDecimal(total_vente);
       const montant_reglement = payment_mode === 'espece' ? total_vente : amount_paid;
       const montant_reglement_str = toCommaDecimal(montant_reglement);
-      
-      // SOLDE RESTANT pour cette vente seulement
+
       const solde_restant_vente = total_vente - amount_paid;
       const solde_restant_str = toCommaDecimal(solde_restant_vente);
 
@@ -1460,9 +1459,8 @@ export async function validerVente(data) {
       ]);
       stmtEncaisse.free();
 
-      // 7. Mise à jour du solde client si à terme (CUMUL DES DETTES)
+      // 7. Mise à jour du solde client si vente à terme
       if (payment_mode === 'a_terme' && numero_table !== 0) {
-        // Lire ancien solde
         const stmtClient = db.prepare("SELECT solde FROM client WHERE numero_clt = ?");
         stmtClient.bind([numero_table]);
         let oldSolde = 0.0;
@@ -1472,18 +1470,15 @@ export async function validerVente(data) {
         }
         stmtClient.free();
 
-        // Nouvelle dette (négative)
-        const nouvelle_dette = -solde_restant_vente;
+        // reste dû = total - payé
+        const reste = solde_restant_vente;
+        const newSolde = oldSolde + reste;
 
-        // Cumul
-        const newSolde = oldSolde + nouvelle_dette;
-
-        // Sauvegarde formatée
         const stmtUpdateClient = db.prepare("UPDATE client SET solde = ? WHERE numero_clt = ?");
         stmtUpdateClient.run([toCommaDecimal(newSolde), numero_table]);
         stmtUpdateClient.free();
 
-        console.log(`✅ Solde client cumulé: ${oldSolde} + (${nouvelle_dette}) = ${newSolde}`);
+        console.log(`✅ Solde client cumulé: ${oldSolde} + ${reste} = ${newSolde}`);
       }
 
       db.run('COMMIT');
@@ -1510,7 +1505,6 @@ export async function validerVente(data) {
     return { erreur: error.message, status: 500 };
   }
 }
-
 
 export async function modifierVente(numero_comande, data) {
   try {
