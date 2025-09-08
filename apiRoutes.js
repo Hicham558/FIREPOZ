@@ -697,88 +697,70 @@ export async function supprimerItem(numero_item) {
   }
 }
 
-export async function dashboard(period = 'day') {
+export async function Dashboard(period = 'day') {
   try {
-    console.log("Exécution de dashboard avec period:", period);
+    console.log("Exécution de getDashboardData avec period:", period);
     const db = await getDb();
 
-    // Set date range based on period
+    // Calcul des dates de début et fin
     const now = new Date();
     let date_start, date_end;
+
     if (period === 'week') {
       date_end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-      date_start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0);
+      date_start = new Date(now.getTime() - (6 * 24 * 60 * 60 * 1000));
+      date_start.setHours(0, 0, 0, 0);
     } else {
       date_start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
       date_end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
     }
 
-    // Format dates for SQLite
-    const formatDate = (date) => {
-      return date.toISOString().replace('T', ' ').replace('Z', '').slice(0, 19);
-    };
-    const date_start_str = formatDate(date_start);
-    const date_end_str = formatDate(date_end);
+    const date_start_str = date_start.toISOString();
+    const date_end_str = date_end.toISOString();
 
-    console.log("📅 Date range:", date_start_str, "to", date_end_str);
+    // Fonction pour parser les décimaux avec virgule
+    function parseDecimal(value) {
+      if (value === null || value === undefined || value === '') {
+        return 0.0;
+      }
+      try {
+        return parseFloat(String(value).replace(',', '.'));
+      } catch {
+        return 0.0;
+      }
+    }
 
-    // 1. Requête CA total
-    const query_ca = `
-      SELECT COALESCE(SUM(
-        CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL)
-      ), 0) AS total_ca
-      FROM comande c
-      JOIN attache a ON c.numero_comande = a.numero_comande
-      WHERE c.date_comande >= ? AND c.date_comande <= ?
-    `;
-
-    const stmt_ca = db.prepare(query_ca);
-    stmt_ca.bind([date_start_str, date_end_str]);
-    const ca_data = stmt_ca.getAsObject() || { total_ca: 0 };
-    console.log("💰 CA data:", ca_data);
-    stmt_ca.free();
-
-    // 2. Requête profit total
-    const query_profit = `
-      SELECT COALESCE(SUM(
-        CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL) - 
-        (a.quantite * CAST(REPLACE(COALESCE(NULLIF(i.prixba, ''), '0'), ',', '.') AS REAL))
-      ), 0) AS total_profit
+    // 1. KPI principaux (CA, profit, nombre de ventes)
+    const queryKpi = `
+      SELECT 
+        COALESCE(SUM(CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL)), 0) AS total_ca,
+        COALESCE(SUM(
+          CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL) - 
+          (a.quantite * CAST(REPLACE(COALESCE(NULLIF(i.prixba, ''), '0'), ',', '.') AS REAL))
+        ), 0) AS total_profit,
+        COUNT(DISTINCT c.numero_comande) AS sales_count
       FROM comande c
       JOIN attache a ON c.numero_comande = a.numero_comande
       JOIN item i ON a.numero_item = i.numero_item
       WHERE c.date_comande >= ? AND c.date_comande <= ?
     `;
+    
+    const stmtKpi = db.prepare(queryKpi);
+    stmtKpi.bind([date_start_str, date_end_str]);
+    let kpiData = { total_ca: 0, total_profit: 0, sales_count: 0 };
+    if (stmtKpi.step()) {
+      kpiData = stmtKpi.getAsObject();
+    }
+    stmtKpi.free();
 
-    const stmt_profit = db.prepare(query_profit);
-    stmt_profit.bind([date_start_str, date_end_str]);
-    const profit_data = stmt_profit.getAsObject() || { total_profit: 0 };
-    console.log("💵 Profit data:", profit_data);
-    stmt_profit.free();
+    // 2. Articles en rupture de stock
+    const stmtLowStock = db.prepare("SELECT COUNT(*) AS low_stock FROM item WHERE qte < 10");
+    stmtLowStock.step();
+    const lowStockData = stmtLowStock.getAsObject();
+    stmtLowStock.free();
 
-    // 3. Nombre de ventes
-    const query_sales = `
-      SELECT COUNT(DISTINCT c.numero_comande) AS sales_count
-      FROM comande c
-      WHERE c.date_comande >= ? AND c.date_comande <= ?
-    `;
-
-    const stmt_sales = db.prepare(query_sales);
-    stmt_sales.bind([date_start_str, date_end_str]);
-    const sales_data = stmt_sales.getAsObject() || { sales_count: 0 };
-    console.log("🛒 Sales data:", sales_data);
-    stmt_sales.free();
-
-    // 4. Stock faible
-    const query_low_stock = `SELECT COUNT(*) AS low_stock FROM item WHERE qte < 10`;
-    const stmt_low_stock = db.prepare(query_low_stock);
-    const low_stock_data = stmt_low_stock.getAsObject() || { low_stock: 0 };
-    const low_stock_count = low_stock_data.low_stock || 0;
-    console.log("📦 Low stock:", low_stock_count);
-    stmt_low_stock.free();
-
-    // 5. Meilleur client
-    const query_top_client = `
+    // 3. Meilleur client
+    const queryTopClient = `
       SELECT 
         cl.nom,
         COALESCE(SUM(CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL)), 0) AS client_ca
@@ -790,14 +772,17 @@ export async function dashboard(period = 'day') {
       ORDER BY client_ca DESC
       LIMIT 1
     `;
-    const stmt_top_client = db.prepare(query_top_client);
-    stmt_top_client.bind([date_start_str, date_end_str]);
-    const top_client = stmt_top_client.getAsObject() || { nom: 'N/A', client_ca: 0 };
-    console.log("👑 Top client:", top_client);
-    stmt_top_client.free();
+    
+    const stmtTopClient = db.prepare(queryTopClient);
+    stmtTopClient.bind([date_start_str, date_end_str]);
+    let topClient = { nom: 'N/A', client_ca: 0 };
+    if (stmtTopClient.step()) {
+      topClient = stmtTopClient.getAsObject();
+    }
+    stmtTopClient.free();
 
-    // 6. Données graphique
-    const query_chart = `
+    // 4. Données pour le graphique
+    const queryChart = `
       SELECT 
         DATE(c.date_comande) AS sale_date,
         COALESCE(SUM(CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL)), 0) AS daily_ca
@@ -807,52 +792,59 @@ export async function dashboard(period = 'day') {
       GROUP BY DATE(c.date_comande)
       ORDER BY sale_date
     `;
-    const stmt_chart = db.prepare(query_chart);
-    stmt_chart.bind([date_start_str, date_end_str]);
-    const chart_data = [];
-    while (stmt_chart.step()) {
-      chart_data.push(stmt_chart.getAsObject());
+    
+    const stmtChart = db.prepare(queryChart);
+    stmtChart.bind([date_start_str, date_end_str]);
+    const chartData = [];
+    while (stmtChart.step()) {
+      chartData.push(stmtChart.getAsObject());
     }
-    stmt_chart.free();
-    console.log("📊 Chart data:", chart_data);
+    stmtChart.free();
 
-    // Generate chart labels and values
-    const chart_labels = [];
-    const chart_values = [];
-    let current_date = new Date(date_start);
-    while (current_date <= date_end) {
-      const date_str = current_date.toISOString().slice(0, 10);
-      chart_labels.push(date_str);
-      const daily_ca = chart_data.find(row => row.sale_date === date_str)?.daily_ca || 0;
-      chart_values.push(toDotDecimal(daily_ca.toString()));
-      current_date.setDate(current_date.getDate() + 1);
+    // 5. Préparation des données du graphique
+    const chartLabels = [];
+    const chartValues = [];
+    const currentDate = new Date(date_start);
+    
+    while (currentDate <= date_end) {
+      const dateStr = currentDate.toISOString().split('T')[0]; // Format YYYY-MM-DD
+      chartLabels.push(dateStr);
+      
+      const dailyCa = chartData.find(row => 
+        row.sale_date === dateStr
+      );
+      
+      chartValues.push(dailyCa ? parseDecimal(dailyCa.daily_ca) : 0);
+      currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    // Format response - AVEC SÉCURISATION
-    const response = {
-      statut: "Dashboard data retrieved",
+    // 6. Retour des données
+    return {
+      success: true,
       data: {
-        total_ca: toDotDecimal((ca_data.total_ca || 0).toString()),
-        total_profit: toDotDecimal((profit_data.total_profit || 0).toString()),
-        sales_count: parseInt(sales_data.sales_count) || 0,
-        low_stock_items: parseInt(low_stock_count) || 0,
+        total_ca: parseFloat(kpiData.total_ca || 0),
+        total_profit: parseFloat(kpiData.total_profit || 0),
+        sales_count: parseInt(kpiData.sales_count || 0),
+        low_stock_items: parseInt(lowStockData.low_stock || 0),
         top_client: {
-          name: top_client.nom || 'N/A',
-          ca: toDotDecimal((top_client.client_ca || 0).toString())
+          name: topClient.nom || 'N/A',
+          ca: parseFloat(topClient.client_ca || 0)
         },
         chart_data: {
-          labels: chart_labels,
-          values: chart_values
+          labels: chartLabels,
+          values: chartValues
         }
       },
       status: 200
     };
 
-    console.log("✅ Résultat dashboard:", response);
-    return response;
   } catch (error) {
-    console.error("❌ Erreur dashboard:", error);
-    return { erreur: error.message, status: 500 };
+    console.error("Erreur getDashboardData:", error);
+    return { 
+      success: false,
+      erreur: error.message, 
+      status: 500 
+    };
   }
 }
 export async function validerVendeur(data) {
