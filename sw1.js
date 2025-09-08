@@ -7,7 +7,7 @@ import {
   listeCategories, ajouterCategorie, modifierCategorie, supprimerCategorie,
   assignerCategorie, listeProduitsParCategorie,
   clientSolde, validerVente,
-  modifierVente, getVente, ventesJour, annulerVente
+  modifierVente, getVente, ventesJour, annulerVente, validerReception
 } from './apiRoutes.js';
 
 // Sauvegarde de la fonction fetch originale
@@ -66,7 +66,8 @@ const handlers = {
     'assigner_categorie': (body) => assignerCategorie(body),
     'valider_vendeur': (body) => validerVendeur(body),
     'valider_vente': (body) => validerVente(body),
-    'annuler_vente': (body) => annulerVente(body) // Nouvel endpoint POST
+    'annuler_vente': (body) => annulerVente(body) ,
+    'valider_reception': (body) => validerReception(body)
   },
   PUT: {
     'modifier_client/(\\w+)': (id, body) => modifierClient(id, body),
