@@ -1445,11 +1445,11 @@ export async function validerVente(data) {
       const montant_reglement = payment_mode === 'espece' ? total_vente : amount_paid;
       const montant_reglement_str = toCommaDecimal(montant_reglement);
       
-      // SOLDE NÉGATIF : comme vous voulez
-      const solde_restant = payment_mode === 'a_terme' ? -(total_vente - amount_paid) : 0.0;
-      const solde_restant_str = toCommaDecimal(solde_restant);
+      // SOLDE RESTANT pour cette vente seulement
+      const solde_restant_vente = total_vente - amount_paid;
+      const solde_restant_str = toCommaDecimal(solde_restant_vente);
 
-      // 6. Insertion dans encaisse (solde restant NÉGATIF)
+      // 6. Insertion dans encaisse
       const stmtEncaisse = db.prepare(`
         INSERT INTO encaisse (apaye, reglement, tva, ht, numero_comande, origine, time_enc, soldeR)
         VALUES (?, ?, '0,00', ?, ?, ?, datetime('now'), ?)
@@ -1460,7 +1460,7 @@ export async function validerVente(data) {
       ]);
       stmtEncaisse.free();
 
-      // 7. Mise à jour du solde client si à terme (SOLDE NÉGATIF)
+      // 7. Mise à jour du solde client si à terme (CUMUL DES DETTES)
       if (payment_mode === 'a_terme' && numero_table !== 0) {
         const stmtClientSolde = db.prepare("SELECT solde FROM client WHERE numero_clt = ?");
         stmtClientSolde.bind([numero_table]);
@@ -1473,15 +1473,18 @@ export async function validerVente(data) {
         if (client) {
           const current_solde = toDotDecimal(client.solde || '0,00');
           
-          // SOLDE NÉGATIF : on AJOUTE la dette NÉGATIVE
-          const new_solde = current_solde + solde_restant; // solde_restant est négatif
+          // NOUVELLE DETTE de cette vente seulement (négative)
+          const nouvelle_dette = -solde_restant_vente;
+          
+          // CUMULER avec l'ancien solde
+          const new_solde = current_solde + nouvelle_dette;
           const new_solde_str = toCommaDecimal(new_solde);
           
           const stmtUpdateClient = db.prepare("UPDATE client SET solde = ? WHERE numero_clt = ?");
           stmtUpdateClient.run([new_solde_str, numero_table]);
           stmtUpdateClient.free();
           
-          console.log(`Solde client mis à jour: ${current_solde} + ${solde_restant} = ${new_solde}`);
+          console.log(`✅ Solde client CUMULÉ: ${current_solde} + (${nouvelle_dette}) = ${new_solde}`);
         }
       }
 
@@ -1494,7 +1497,7 @@ export async function validerVente(data) {
         total_vente: total_vente_str,
         montant_verse: amount_paid_str,
         reglement: montant_reglement_str,
-        solde_restant: payment_mode === 'a_terme' ? toCommaDecimal(Math.abs(solde_restant)) : "0,00",
+        solde_restant: payment_mode === 'a_terme' ? toCommaDecimal(solde_restant_vente) : "0,00",
         status: 200
       };
 
