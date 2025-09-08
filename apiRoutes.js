@@ -1360,13 +1360,22 @@ export async function clientSolde() {
 
 // apiRoutes.js (ajouts aux fonctions existantes)
 
+// Dans apiRoutes.js
 
 
 export async function validerVente(data) {
   let numero_util; // Déclaration explicite pour éviter undefined dans catch
   try {
-    console.log("Exécution de validerVente avec data:", JSON.stringify(data));
+    console.log("🌐 Exécution de validerVente avec data:", JSON.stringify(data));
     const db = await getDb();
+    
+    // Vérification de la structure de la table utilisateur
+    const stmtCheckTable = db.prepare("PRAGMA table_info(utilisateur)");
+    const columns = [];
+    while (stmtCheckTable.step()) columns.push(stmtCheckTable.getAsObject());
+    stmtCheckTable.free();
+    console.log("📊 Colonnes de la table utilisateur:", columns.map(c => c.name));
+
     const {
       lignes,
       numero_util: raw_numero_util,
@@ -1378,28 +1387,46 @@ export async function validerVente(data) {
 
     // Validation des données d'entrée
     if (!data || typeof data !== 'object' || !lignes || !Array.isArray(lignes) || !raw_numero_util || !password2) {
-      console.error("Erreur : Données manquantes ou invalides", { data });
+      console.error("❌ Erreur : Données manquantes ou invalides", { data });
       return { erreur: "Données manquantes ou invalides", status: 400 };
     }
 
     // Conversion des nombres
     numero_util = parseInt(raw_numero_util, 10);
     if (isNaN(numero_util)) {
-      console.error("Erreur : numero_util invalide", { raw_numero_util, type: typeof raw_numero_util });
+      console.error("❌ Erreur : numero_util invalide", { raw_numero_util, type: typeof raw_numero_util });
       return { erreur: `numero_util invalide: ${raw_numero_util}`, status: 400 };
     }
     const amount_paid_float = toDotDecimal(amount_paid);
 
-    // Vérification de l'utilisateur (authentification comme Flask)
+    // Vérification de l'utilisateur avec débogage détaillé
     const stmtUser = db.prepare("SELECT password2 FROM utilisateur WHERE numero_util = ?");
     stmtUser.bind([numero_util]);
     const user = stmtUser.step() ? stmtUser.getAsObject() : null;
     stmtUser.free();
 
-    console.log("Résultat de la requête utilisateur pour numero_util:", numero_util, { user, received_password: password2 });
+    console.log("🔍 Résultat de la requête utilisateur pour numero_util:", numero_util, { user, received_password: password2 });
 
-    if (!user || user.password2 !== password2) {
-      console.error("Erreur : Authentification invalide pour numero_util:", numero_util, { received_password: password2, stored_password: user ? user.password2 : 'null' });
+    // Initialisation de password2 si absent
+    if (!user || user.password2 == null) {
+      console.warn("⚠️ password2 non trouvé ou null pour numero_util:", numero_util);
+      const stmtInit = db.prepare("ALTER TABLE utilisateur ADD COLUMN password2 TEXT");
+      stmtInit.run(); // Ajoute la colonne si elle n'existe pas
+      stmtInit.free();
+      const stmtUpdate = db.prepare("INSERT OR REPLACE INTO utilisateur (numero_util, password2) VALUES (?, ?) ON CONFLICT(numero_util) DO UPDATE SET password2=excluded.password2");
+      stmtUpdate.run([numero_util, 'v']); // Utilise "v" comme valeur par défaut (à ajuster si nécessaire)
+      stmtUpdate.free();
+      const stmtRetry = db.prepare("SELECT password2 FROM utilisateur WHERE numero_util = ?");
+      stmtRetry.bind([numero_util]);
+      const userRetry = stmtRetry.step() ? stmtRetry.getAsObject() : null;
+      stmtRetry.free();
+      console.log("🔧 Après initialisation, utilisateur:", { userRetry });
+      if (!userRetry || userRetry.password2 !== password2) {
+        console.error("❌ Authentification invalide après initialisation pour numero_util:", numero_util, { received_password: password2, stored_password: userRetry ? userRetry.password2 : 'null' });
+        return { erreur: `Authentification invalide pour numero_util: ${numero_util}`, status: 401 };
+      }
+    } else if (user.password2 !== password2) {
+      console.error("❌ Authentification invalide pour numero_util:", numero_util, { received_password: password2, stored_password: user.password2 });
       return { erreur: `Authentification invalide pour numero_util: ${numero_util}`, status: 401 };
     }
 
@@ -1427,14 +1454,14 @@ export async function validerVente(data) {
       const { numero_comande } = idStmt.getAsObject();
       idStmt.free();
       stmtComande.free();
-      console.log("Commande créée avec numero_comande:", numero_comande);
+      console.log("✅ Commande créée avec numero_comande:", numero_comande);
 
       // Traitement des lignes et calcul du total
       let total_vente = 0.0;
       for (const ligne of lignes) {
         const quantite = toDotDecimal(ligne.quantite || '1');
-        const remarque = toDotDecimal(ligne.remarque || '0,00'); // Prix unitaire
-        const prixt = toDotDecimal(ligne.prixt || '0,00'); // Total de la ligne
+        const remarque = toDotDecimal(ligne.remarque || '0,00');
+        const prixt = toDotDecimal(ligne.prixt || '0,00');
         total_vente += quantite * remarque;
 
         const prixt_str = toCommaDecimal(prixt);
@@ -1459,7 +1486,7 @@ export async function validerVente(data) {
         const item = stmtItem.step() ? stmtItem.getAsObject() : null;
         stmtItem.free();
         if (!item || item.qte < quantite) {
-          console.error("Erreur : Stock insuffisant pour numero_item:", ligne.numero_item, "pour numero_util:", numero_util);
+          console.error("❌ Erreur : Stock insuffisant pour numero_item:", ligne.numero_item, "pour numero_util:", numero_util);
           throw new Error(`Stock insuffisant pour numero_item: ${ligne.numero_item}`);
         }
         const stmtStock = db.prepare("UPDATE item SET qte = qte - ? WHERE numero_item = ?");
@@ -1489,7 +1516,7 @@ export async function validerVente(data) {
         const client = stmtClient.step() ? stmtClient.getAsObject() : null;
         stmtClient.free();
         if (!client) {
-          console.error("Erreur : Client non trouvé pour numero_table:", numero_table, "pour numero_util:", numero_util);
+          console.error("❌ Erreur : Client non trouvé pour numero_table:", numero_table, "pour numero_util:", numero_util);
           throw new Error(`Client non trouvé pour numero_table: ${numero_table}`);
         }
         const current_solde = toDotDecimal(client.solde || '0,00');
@@ -1502,7 +1529,7 @@ export async function validerVente(data) {
 
       db.run('commit');
       saveDbToLocalStorage(db);
-      console.log("Vente validée avec succès : numero_comande =", numero_comande);
+      console.log("✅ Vente validée avec succès : numero_comande =", numero_comande);
 
       return {
         success: true,
@@ -1515,11 +1542,11 @@ export async function validerVente(data) {
       };
     } catch (error) {
       db.run('rollback');
-      console.error("Erreur dans la transaction validerVente pour numero_util:", numero_util, error.message);
+      console.error("❌ Erreur dans la transaction validerVente pour numero_util:", numero_util, error.message);
       return { erreur: `Erreur dans la transaction pour numero_util: ${numero_util} - ${error.message}`, status: 500 };
     }
   } catch (error) {
-    console.error("Erreur globale validerVente pour numero_util:", numero_util || 'inconnu', error.message);
+    console.error("❌ Erreur globale validerVente pour numero_util:", numero_util || 'inconnu', error.message);
     return { erreur: `Erreur globale pour numero_util: ${numero_util || 'inconnu'} - ${error.message}`, status: 500 };
   }
 }
