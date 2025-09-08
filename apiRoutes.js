@@ -1364,128 +1364,215 @@ export async function clientSolde() {
 
 
 // Valider une vente
-export async function validerVente(data) {
+// Dans apiRoutes.js
+
+import { getDb, saveDbToLocalStorage, formatDateForSQLite } from './db'; // Assurez-vous que ces fonctions sont importées
+
+function toDotDecimal(value) {
+  if (value == null || value === '') return 0.0;
   try {
-    console.log("Exécution de validerVente avec data:", data);
+    const cleanedValue = String(value).replace(',', '.').replace(/[^\d.-]/g, '');
+    const result = parseFloat(cleanedValue);
+    return isNaN(result) ? 0.0 : result;
+  } catch (error) {
+    console.error("Erreur dans toDotDecimal pour la valeur :", value, error);
+    return 0.0;
+  }
+}
+
+function toCommaDecimal(value) {
+  if (value == null || isNaN(value)) return '0,00';
+  return value.toFixed(2).toString().replace('.', ',');
+}
+
+export async function validerVente(data) {
+  let numero_util; // Déclaration explicite pour éviter undefined dans catch
+  try {
+    console.log("🌐 Exécution de validerVente avec data:", JSON.stringify(data));
     const db = await getDb();
     
-    const { lignes, numero_util, password2, numero_table = 0, payment_mode = 'espece', amount_paid = '0,00' } = data;
+    // Vérification de la structure de la table utilisateur
+    const stmtCheckTable = db.prepare("PRAGMA table_info(utilisateur)");
+    const columns = [];
+    while (stmtCheckTable.step()) columns.push(stmtCheckTable.getAsObject());
+    stmtCheckTable.free();
+    console.log("📊 Colonnes de la table utilisateur:", columns.map(c => c.name));
 
-    if (!lignes || !numero_util || !password2) {
-      return { erreur: "Données manquantes (lignes, numero_util, password2)", status: 400 };
+    const {
+      lignes,
+      numero_util: raw_numero_util,
+      password2,
+      numero_table = 0,
+      payment_mode = 'espece',
+      amount_paid = '0,00'
+    } = data || {};
+
+    // Validation des données d'entrée
+    if (!data || typeof data !== 'object' || !lignes || !Array.isArray(lignes) || !raw_numero_util || !password2) {
+      console.error("❌ Erreur : Données manquantes ou invalides", { data });
+      return { erreur: "Données manquantes ou invalides", status: 400 };
     }
 
-    // Vérifier l'utilisateur
-    const stmtUser = db.prepare('SELECT password2 FROM utilisateur WHERE numero_util = ?');
+    // Conversion des nombres
+    numero_util = parseInt(raw_numero_util, 10);
+    if (isNaN(numero_util)) {
+      console.error("❌ Erreur : numero_util invalide", { raw_numero_util, type: typeof raw_numero_util });
+      return { erreur: `numero_util invalide: ${raw_numero_util}`, status: 400 };
+    }
+    const amount_paid_float = toDotDecimal(amount_paid);
+
+    // Vérification de l'utilisateur avec débogage détaillé
+    const stmtUser = db.prepare("SELECT * FROM utilisateur WHERE numero_util = ?");
     stmtUser.bind([numero_util]);
     const user = stmtUser.step() ? stmtUser.getAsObject() : null;
     stmtUser.free();
 
-    if (!user || user.password2 !== password2) {
-      return { erreur: "Authentification invalide", status: 401 };
+    console.log("🔍 Données utilisateur local pour numero_util:", numero_util, user);
+
+    // Initialisation de password2 si absent avec la valeur Flask
+    if (!user || user.password2 == null) {
+      console.warn("⚠️ password2 non trouvé ou null pour numero_util:", numero_util);
+      const stmtInit = db.prepare("ALTER TABLE utilisateur ADD COLUMN password2 TEXT");
+      stmtInit.run(); // Ajoute la colonne si elle n'existe pas
+      stmtInit.free();
+      const flaskPassword = "valeur_de_flask"; // Remplacez par la vraie valeur de Flask
+      const stmtUpdate = db.prepare("INSERT OR REPLACE INTO utilisateur (numero_util, password2) VALUES (?, ?) ON CONFLICT(numero_util) DO UPDATE SET password2=excluded.password2");
+      stmtUpdate.run([numero_util, flaskPassword]);
+      stmtUpdate.free();
+      const stmtRetry = db.prepare("SELECT * FROM utilisateur WHERE numero_util = ?");
+      stmtRetry.bind([numero_util]);
+      const userRetry = stmtRetry.step() ? stmtRetry.getAsObject() : null;
+      stmtRetry.free();
+      console.log("🔧 Après initialisation avec Flask, utilisateur:", { userRetry });
+      if (!userRetry || userRetry.password2 !== password2) {
+        console.error("❌ Authentification invalide après initialisation pour numero_util:", numero_util, { received_password: password2, stored_password: userRetry ? userRetry.password2 : 'null' });
+        return { erreur: `Authentification invalide pour numero_util: ${numero_util}`, status: 401 };
+      }
+    } else if (user.password2 !== password2) {
+      console.error("❌ Authentification invalide pour numero_util:", numero_util, { received_password: password2, stored_password: user.password2 });
+      return { erreur: `Authentification invalide pour numero_util: ${numero_util}`, status: 401 };
     }
 
-    db.run('BEGIN TRANSACTION');
+    const nature = numero_table === 0 ? "ticket" : "bon de l.";
+    const now = new Date();
+    const date_comande = formatDateForSQLite(now);
+
+    db.run('begin transaction');
 
     try {
-      // Créer la commande
-      const nature = numero_table == 0 ? "TICKET" : "BON DE L.";
-      
+      // Récupération du compteur
+      const stmtCompteur = db.prepare("SELECT COALESCE(MAX(compteur), 0) + 1 AS compteur FROM comande WHERE nature = ?");
+      stmtCompteur.bind([nature]);
+      const { compteur } = stmtCompteur.step() ? stmtCompteur.getAsObject() : { compteur: 1 };
+      stmtCompteur.free();
+
+      // Insertion dans comande
       const stmtComande = db.prepare(`
         INSERT INTO comande (numero_table, date_comande, etat_c, nature, connection1, compteur, numero_util)
-        VALUES (?, datetime('now'), 'Cloture', ?, -1, (SELECT COALESCE(MAX(compteur),0)+1 FROM comande WHERE nature = ?), ?)
+        VALUES (?, ?, 'cloture', ?, -1, ?, ?)
       `);
-      stmtComande.run([numero_table, nature, nature, numero_util]);
+      stmtComande.run([numero_table, date_comande, nature, compteur, numero_util]);
+      const idStmt = db.prepare("SELECT last_insert_rowid() AS numero_comande");
+      idStmt.step();
+      const { numero_comande } = idStmt.getAsObject();
+      idStmt.free();
       stmtComande.free();
+      console.log("✅ Commande créée avec numero_comande:", numero_comande);
 
-      const stmtLastId = db.prepare('SELECT last_insert_rowid() AS numero_comande');
-      stmtLastId.step();
-      const { numero_comande } = stmtLastId.getAsObject();
-      stmtLastId.free();
-
-      // Traiter les lignes de vente
-      let total_vente = 0;
+      // Traitement des lignes et calcul du total
+      let total_vente = 0.0;
       for (const ligne of lignes) {
         const quantite = toDotDecimal(ligne.quantite || '1');
-        const prix_unitaire = toDotDecimal(ligne.remarque || '0,00');
-        const prixt = quantite * prix_unitaire;
-        total_vente += prixt;
+        const remarque = toDotDecimal(ligne.remarque || '0,00');
+        const prixt = toDotDecimal(ligne.prixt || '0,00');
+        total_vente += quantite * remarque;
+
+        const prixt_str = toCommaDecimal(prixt);
+        const prixbh_str = toCommaDecimal(toDotDecimal(ligne.prixbh || '0,00'));
+        let remarque_str = ligne.remarque || '';
+        if (typeof remarque_str === 'number') {
+          remarque_str = toCommaDecimal(remarque_str);
+        } else if (typeof remarque_str === 'string' && (remarque_str.includes('.') || remarque_str.includes(','))) {
+          remarque_str = toCommaDecimal(toDotDecimal(remarque_str));
+        }
 
         const stmtAttache = db.prepare(`
           INSERT INTO attache (numero_comande, numero_item, quantite, prixt, remarque, prixbh, achatfx, send)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, 0, ?)
         `);
-        stmtAttache.run([
-          numero_comande,
-          ligne.numero_item,
-          quantite,
-          toCommaDecimal(prixt),
-          ligne.remarque || '',
-          toCommaDecimal(toDotDecimal(ligne.prixbh || '0,00')),
-          0,
-          1
-        ]);
+        stmtAttache.run([numero_comande, ligne.numero_item, quantite, prixt_str, remarque_str, prixbh_str, true]);
         stmtAttache.free();
 
-        // Mettre à jour le stock
-        const stmtUpdateStock = db.prepare('UPDATE item SET qte = qte - ? WHERE numero_item = ?');
-        stmtUpdateStock.run([quantite, ligne.numero_item]);
-        stmtUpdateStock.free();
+        // Mise à jour du stock
+        const stmtItem = db.prepare("SELECT qte FROM item WHERE numero_item = ?");
+        stmtItem.bind([ligne.numero_item]);
+        const item = stmtItem.step() ? stmtItem.getAsObject() : null;
+        stmtItem.free();
+        if (!item || item.qte < quantite) {
+          console.error("❌ Erreur : Stock insuffisant pour numero_item:", ligne.numero_item, "pour numero_util:", numero_util);
+          throw new Error(`Stock insuffisant pour numero_item: ${ligne.numero_item}`);
+        }
+        const stmtStock = db.prepare("UPDATE item SET qte = qte - ? WHERE numero_item = ?");
+        stmtStock.run([quantite, ligne.numero_item]);
+        stmtStock.free();
       }
 
-      // Enregistrer le paiement
-      const amount_paid_num = toDotDecimal(amount_paid);
-      const montant_reglement = payment_mode === 'espece' ? total_vente : amount_paid_num;
-      const solde_restant = payment_mode === 'a_terme' ? total_vente - amount_paid_num : 0;
+      // Conversion des totaux
+      const total_vente_str = toCommaDecimal(total_vente);
+      const montant_reglement = payment_mode === 'espece' ? total_vente : amount_paid_float;
+      const montant_reglement_str = toCommaDecimal(montant_reglement);
+      const solde_restant = payment_mode === 'a_terme' ? total_vente - amount_paid_float : 0.0;
+      const solde_restant_str = toCommaDecimal(solde_restant);
 
+      // Insertion dans encaisse
       const stmtEncaisse = db.prepare(`
-        INSERT INTO encaisse (apaye, reglement, tva, ht, numero_comande, origine, time_enc, soldeR)
-        VALUES (?, ?, ?, ?, ?, ?, datetime('now'), ?)
+        INSERT INTO encaisse (apaye, reglement, tva, ht, numero_comande, origine, time_enc, solder)
+        VALUES (?, ?, '0,00', ?, ?, ?, ?, ?)
       `);
-      stmtEncaisse.run([
-        toCommaDecimal(total_vente),
-        toCommaDecimal(montant_reglement),
-        '0,00',
-        toCommaDecimal(total_vente),
-        numero_comande,
-        nature,
-        toCommaDecimal(solde_restant)
-      ]);
+      stmtEncaisse.run([total_vente_str, montant_reglement_str, total_vente_str, numero_comande, nature, date_comande, solde_restant_str]);
       stmtEncaisse.free();
 
-      // Mettre à jour le solde client si à terme
-      if (payment_mode === 'a_terme' && numero_table != 0) {
-        const stmtClient = db.prepare('UPDATE client SET solde = ? WHERE numero_clt = ?');
-        const currentSolde = await getClientSolde(numero_table);
-        const newSolde = currentSolde + solde_restant;
-        stmtClient.run([toCommaDecimal(newSolde), numero_table]);
+      // Mise à jour du solde client si à terme
+      if (payment_mode === 'a_terme' && numero_table !== 0) {
+        const stmtClient = db.prepare("SELECT solde FROM client WHERE numero_clt = ?");
+        stmtClient.bind([numero_table]);
+        const client = stmtClient.step() ? stmtClient.getAsObject() : null;
         stmtClient.free();
+        if (!client) {
+          console.error("❌ Erreur : Client non trouvé pour numero_table:", numero_table, "pour numero_util:", numero_util);
+          throw new Error(`Client non trouvé pour numero_table: ${numero_table}`);
+        }
+        const current_solde = toDotDecimal(client.solde || '0,00');
+        const new_solde = current_solde + solde_restant;
+        const new_solde_str = toCommaDecimal(new_solde);
+        const stmtUpdateClient = db.prepare("UPDATE client SET solde = ? WHERE numero_clt = ?");
+        stmtUpdateClient.run([new_solde_str, numero_table]);
+        stmtUpdateClient.free();
       }
 
-      db.run('COMMIT');
+      db.run('commit');
       saveDbToLocalStorage(db);
+      console.log("✅ Vente validée avec succès : numero_comande =", numero_comande);
 
       return {
         success: true,
         numero_comande,
-        total_vente: toCommaDecimal(total_vente),
-        montant_verse: toCommaDecimal(amount_paid_num),
-        reglement: toCommaDecimal(montant_reglement),
-        solde_restant: toCommaDecimal(solde_restant),
+        total_vente: total_vente_str,
+        montant_verse: toCommaDecimal(amount_paid_float),
+        reglement: montant_reglement_str,
+        solde_restant: payment_mode === 'a_terme' ? solde_restant_str : "0,00",
         status: 200
       };
-
     } catch (error) {
-      db.run('ROLLBACK');
-      throw error;
+      db.run('rollback');
+      console.error("❌ Erreur dans la transaction validerVente pour numero_util:", numero_util, error.message);
+      return { erreur: `Erreur dans la transaction pour numero_util: ${numero_util} - ${error.message}`, status: 500 };
     }
-
   } catch (error) {
-    console.error("Erreur validerVente:", error);
-    return { erreur: error.message, status: 500 };
+    console.error("❌ Erreur globale validerVente pour numero_util:", numero_util || 'inconnu', error.message);
+    return { erreur: `Erreur globale pour numero_util: ${numero_util || 'inconnu'} - ${error.message}`, status: 500 };
   }
 }
-
 // Helper function to get client balance
 async function getClientSolde(numero_clt) {
   const db = await getDb();
