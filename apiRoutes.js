@@ -697,7 +697,7 @@ export async function supprimerItem(numero_item) {
   }
 }
 
-export async function Dashboard(period = 'day') {
+export async function dashboard(period = 'day') {
   try {
     console.log("Exécution de getDashboardData avec period:", period);
     const db = await getDb();
