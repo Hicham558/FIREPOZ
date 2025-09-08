@@ -1376,35 +1376,96 @@ export async function validerVente(data) {
     const password2 = data.password2;
     const nature = numero_table === 0 ? "TICKET" : "BON DE L.";
 
-    // 2. Vérification utilisateur
-    const stmtUser = db.prepare("SELECT password2 FROM utilisateur WHERE numero_util = ?");
+    // 2. Debug authentification complet
+    console.log("=== DEBUG AUTHENTIFICATION ===");
+    console.log("numero_util fourni:", numero_util, typeof numero_util);
+    console.log("password2 fourni:", `"${password2}"`, typeof password2);
+    
+    // Afficher tous les utilisateurs pour debug
+    const stmtAllUsers = db.prepare("SELECT numero_util, nom, password2 FROM utilisateur");
+    console.log("Tous les utilisateurs dans la base:");
+    while (stmtAllUsers.step()) {
+      const userDebug = stmtAllUsers.getAsObject();
+      console.log(`- ID: ${userDebug.numero_util} (${typeof userDebug.numero_util}), Nom: "${userDebug.nom}", Password: "${userDebug.password2}" (${typeof userDebug.password2})`);
+    }
+    stmtAllUsers.free();
+
+    // Vérification utilisateur avec debug détaillé
+    const stmtUser = db.prepare("SELECT numero_util, nom, password2 FROM utilisateur WHERE numero_util = ?");
     stmtUser.bind([numero_util]);
     let user = null;
     if (stmtUser.step()) {
       user = stmtUser.getAsObject();
+      console.log("Utilisateur trouvé:", user);
+      console.log("Password DB:", `"${user.password2}"` + ` (longueur: ${user.password2?.length})`);
+      console.log("Password fourni:", `"${password2}"` + ` (longueur: ${password2?.length})`);
+      
+      // Vérification caractère par caractère
+      if (user.password2 && password2) {
+        for (let i = 0; i < Math.max(user.password2.length, password2.length); i++) {
+          const charDB = user.password2[i] || 'undefined';
+          const charFourni = password2[i] || 'undefined';
+          if (charDB !== charFourni) {
+            console.log(`Différence à l'index ${i}: DB="${charDB}" vs Fourni="${charFourni}"`);
+          }
+        }
+      }
+    } else {
+      console.log("Aucun utilisateur trouvé avec numero_util:", numero_util);
     }
     stmtUser.free();
 
-    if (!user || user.password2 !== password2) {
+    // Vérification de l'authentification avec nettoyage des espaces
+    if (!user || user.password2?.trim() !== password2?.trim()) {
+      console.log("=== ÉCHEC AUTHENTIFICATION ===");
+      console.log("User exists:", !!user);
+      console.log("Password match (avec trim):", user?.password2?.trim() === password2?.trim());
       return { erreur: "Authentification invalide", status: 401 };
     }
+
+    console.log("=== AUTHENTIFICATION RÉUSSIE ===");
 
     db.run('BEGIN TRANSACTION');
 
     try {
-      // 3. Création de la commande - obtenir le prochain compteur
+      // 3. Création de la commande avec gestion de date corrigée
       const stmtCompteur = db.prepare("SELECT COALESCE(MAX(compteur), 0) + 1 AS next_compteur FROM comande WHERE nature = ?");
       stmtCompteur.bind([nature]);
       stmtCompteur.step();
       const { next_compteur } = stmtCompteur.getAsObject();
       stmtCompteur.free();
 
+      // Gestion de la date - utiliser datetime('now') pour SQLite ou la date fournie
+      let dateCommande;
+      if (data.date_comande) {
+        try {
+          const inputDate = new Date(data.date_comande);
+          // Convertir en format SQLite: YYYY-MM-DD HH:MM:SS
+          dateCommande = inputDate.toISOString().replace('T', ' ').slice(0, 19);
+          console.log("Date fournie convertie:", dateCommande);
+        } catch (e) {
+          console.warn("Date fournie invalide, utilisation de now():", data.date_comande);
+          dateCommande = null; // Utiliser datetime('now')
+        }
+      } else {
+        dateCommande = null; // Utiliser datetime('now')
+      }
+
       // Insérer la commande
-      const stmtCommande = db.prepare(`
-        INSERT INTO comande (numero_table, date_comande, etat_c, nature, connection1, compteur, numero_util)
-        VALUES (?, datetime('now'), 'Cloture', ?, -1, ?, ?)
-      `);
-      stmtCommande.run([numero_table, nature, next_compteur, numero_util]);
+      let stmtCommande;
+      if (dateCommande) {
+        stmtCommande = db.prepare(`
+          INSERT INTO comande (numero_table, date_comande, etat_c, nature, connection1, compteur, numero_util)
+          VALUES (?, ?, 'Cloture', ?, -1, ?, ?)
+        `);
+        stmtCommande.run([numero_table, dateCommande, nature, next_compteur, numero_util]);
+      } else {
+        stmtCommande = db.prepare(`
+          INSERT INTO comande (numero_table, date_comande, etat_c, nature, connection1, compteur, numero_util)
+          VALUES (?, datetime('now'), 'Cloture', ?, -1, ?, ?)
+        `);
+        stmtCommande.run([numero_table, nature, next_compteur, numero_util]);
+      }
       stmtCommande.free();
 
       // Récupérer l'ID de la commande
@@ -1412,6 +1473,8 @@ export async function validerVente(data) {
       idStmt.step();
       const { numero_comande } = idStmt.getAsObject();
       idStmt.free();
+
+      console.log("Commande créée avec ID:", numero_comande);
 
       // 4. Traitement des lignes et calcul du total
       let total_vente = 0.0;
@@ -1421,6 +1484,8 @@ export async function validerVente(data) {
         const remarque = toDotDecimal(ligne.remarque || '0,00'); // Prix unitaire
         const prixt = toDotDecimal(ligne.prixt || '0,00'); // Total de la ligne
         total_vente += quantite * remarque;
+
+        console.log(`Ligne: item=${ligne.numero_item}, qte=${quantite}, prix_unit=${remarque}, total_ligne=${prixt}`);
 
         // Conversion pour stockage
         const prixt_str = toCommaDecimal(prixt);
@@ -1452,6 +1517,8 @@ export async function validerVente(data) {
         stmtStock.free();
       }
 
+      console.log("Total vente calculé:", total_vente);
+
       // 5. Calculs des montants
       const total_vente_str = toCommaDecimal(total_vente);
       const montant_reglement = payment_mode === 'espece' ? total_vente : amount_paid;
@@ -1459,23 +1526,37 @@ export async function validerVente(data) {
       const solde_restant = payment_mode === 'a_terme' ? total_vente - amount_paid : 0.0;
       const solde_restant_str = toCommaDecimal(solde_restant);
 
-      // 6. Insertion dans encaisse
-      const stmtEncaisse = db.prepare(`
-        INSERT INTO encaisse (apaye, reglement, tva, ht, numero_comande, origine, time_enc, soldeR)
-        VALUES (?, ?, '0,00', ?, ?, ?, datetime('now'), ?)
-      `);
-      stmtEncaisse.run([
-        total_vente_str, montant_reglement_str, total_vente_str, 
-        numero_comande, nature, solde_restant_str
-      ]);
+      // 6. Insertion dans encaisse avec date corrigée
+      let stmtEncaisse;
+      if (dateCommande) {
+        stmtEncaisse = db.prepare(`
+          INSERT INTO encaisse (apaye, reglement, tva, ht, numero_comande, origine, time_enc, soldeR)
+          VALUES (?, ?, '0,00', ?, ?, ?, ?, ?)
+        `);
+        stmtEncaisse.run([
+          total_vente_str, montant_reglement_str, total_vente_str, 
+          numero_comande, nature, dateCommande, solde_restant_str
+        ]);
+      } else {
+        stmtEncaisse = db.prepare(`
+          INSERT INTO encaisse (apaye, reglement, tva, ht, numero_comande, origine, time_enc, soldeR)
+          VALUES (?, ?, '0,00', ?, ?, ?, datetime('now'), ?)
+        `);
+        stmtEncaisse.run([
+          total_vente_str, montant_reglement_str, total_vente_str, 
+          numero_comande, nature, solde_restant_str
+        ]);
+      }
       stmtEncaisse.free();
 
       // 7. Mise à jour du solde client si à terme
       if (payment_mode === 'a_terme' && numero_table !== 0) {
         const stmtClientSolde = db.prepare("SELECT solde FROM client WHERE numero_clt = ?");
         stmtClientSolde.bind([numero_table]);
-        stmtClientSolde.step();
-        const client = stmtClientSolde.getAsObject();
+        let client = null;
+        if (stmtClientSolde.step()) {
+          client = stmtClientSolde.getAsObject();
+        }
         stmtClientSolde.free();
 
         if (client) {
@@ -1486,12 +1567,15 @@ export async function validerVente(data) {
           const stmtUpdateClient = db.prepare("UPDATE client SET solde = ? WHERE numero_clt = ?");
           stmtUpdateClient.run([new_solde_str, numero_table]);
           stmtUpdateClient.free();
+          
+          console.log(`Solde client mis à jour: ${current_solde} + ${solde_restant} = ${new_solde}`);
         }
       }
 
       db.run('COMMIT');
       saveDbToLocalStorage(db);
 
+      console.log("=== VENTE VALIDÉE AVEC SUCCÈS ===");
       return {
         success: true,
         numero_comande,
@@ -1504,6 +1588,7 @@ export async function validerVente(data) {
 
     } catch (error) {
       db.run('ROLLBACK');
+      console.error("Erreur dans la transaction:", error);
       throw error;
     }
 
