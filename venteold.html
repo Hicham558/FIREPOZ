@@ -985,38 +985,86 @@ async function validerVente() {
     const storedSeller = localStorage.getItem('selectedSeller');
     if (!storedSeller) {
         showToast('Veuillez sélectionner et valider un vendeur', true);
+        // Forcer la validation du vendeur
+        document.getElementById('sellerContent').classList.remove('hidden');
+        document.getElementById('sellerChevron').classList.add('fa-chevron-up');
+        document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
         return;
     }
+
     const { numero_util } = JSON.parse(storedSeller);
-    const password2 = localStorage.getItem('sellerPassword');
-    const paymentMode = document.getElementById('paymentMode').value;
-    const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
-    const numeroTable = parseInt(document.getElementById('saleClientId').value) || 0;
-    if (paymentMode === 'a_terme' && numeroTable === 0) {
-        showToast('Veuillez sélectionner un client pour une vente à terme', true);
+    let password2 = localStorage.getItem('sellerPassword');
+    if (!password2) {
+        showToast('Mot de passe du vendeur manquant, veuillez le revalider', true);
+        // Réinitialiser pour forcer la revalidation
+        changeAndValidateSeller();
         return;
     }
-    if (paymentMode === 'a_terme' && amountPaid < 0) {
-        showToast('Le montant versé ne peut pas être négatif', true);
-        return;
-    }
-    const venteData = {
-        numero_table: numeroTable,
-        date_comande: new Date().toISOString(),
-        payment_mode: paymentMode,
-        amount_paid: amountPaid,
-        numero_util: parseInt(numero_util),
-        password2: password2,
-        lignes: tempSaleLines.map(ligne => ({
-            numero_item: ligne.numero_item,
-            quantite: parseFloat(ligne.quantite),
-            prixt: parseFloat(ligne.prixt),
-            remarque: ligne.remarque,
-            prixbh: ligne.prixbh
-        }))
-    };
+
+    // Revalider le vendeur auprès de l'API pour s'assurer de la cohérence
     try {
-        const response = await fetch(`${API_BASE_URL}/valider_vente`, {
+        const sellerSelect = document.getElementById('sellerSelect');
+        const selectedOption = sellerSelect.options[sellerSelect.selectedIndex];
+        const sellerName = selectedOption.text;
+        const vendeurData = {
+            nom: sellerName,
+            password2: password2
+        };
+
+        const response = await fetch(`${API_BASE_URL}/valider_vendeur`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-User-ID': userId
+            },
+            body: JSON.stringify(vendeurData)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.erreur || `Erreur serveur ${response.status}`);
+        }
+
+        const result = await response.json();
+        const { numero_util: validatedNumeroUtil } = result.utilisateur;
+
+        if (parseInt(numero_util) !== validatedNumeroUtil) {
+            showToast('Validation du vendeur échouée, veuillez réessayer', true);
+            changeAndValidateSeller();
+            return;
+        }
+
+        // Si la validation réussit, procéder à la validation de la vente
+        const paymentMode = document.getElementById('paymentMode').value;
+        const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
+        const numeroTable = parseInt(document.getElementById('saleClientId').value) || 0;
+
+        if (paymentMode === 'a_terme' && numeroTable === 0) {
+            showToast('Veuillez sélectionner un client pour une vente à terme', true);
+            return;
+        }
+        if (paymentMode === 'a_terme' && amountPaid < 0) {
+            showToast('Le montant versé ne peut pas être négatif', true);
+            return;
+        }
+
+        const venteData = {
+            numero_table: numeroTable,
+            date_comande: new Date().toISOString(),
+            payment_mode: paymentMode,
+            amount_paid: amountPaid,
+            numero_util: parseInt(numero_util),
+            password2: password2,
+            lignes: tempSaleLines.map(ligne => ({
+                numero_item: ligne.numero_item,
+                quantite: parseFloat(ligne.quantite),
+                prixt: parseFloat(ligne.prixt),
+                remarque: ligne.remarque,
+                prixbh: ligne.prixbh
+            }))
+        };
+
+        const venteResponse = await fetch(`${API_BASE_URL}/valider_vente`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1024,9 +1072,10 @@ async function validerVente() {
             },
             body: JSON.stringify(venteData)
         });
-        if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
-        const result = await response.json();
-        showToast(`Vente #${result.numero_comande} validée avec succès`);
+
+        if (!venteResponse.ok) throw new Error(`Erreur ${venteResponse.status}: ${await venteResponse.text()}`);
+        const venteResult = await venteResponse.json();
+        showToast(`Vente #${venteResult.numero_comande} validée avec succès`);
         tempSaleLines = [];
         document.getElementById('paymentMode').value = 'espece';
         document.getElementById('amountPaid').value = '';
@@ -1037,9 +1086,12 @@ async function validerVente() {
         chargerClients();
     } catch (error) {
         showToast(`Erreur validation vente: ${error.message}`, true);
+        // Si l'erreur est liée à l'authentification, forcer une nouvelle validation
+        if (error.message.includes('Authentification') || error.message.includes('401')) {
+            changeAndValidateSeller();
+        }
     }
 }
-
 async function modifierVente() {
     const userId = localStorage.getItem('userId');
     if (!userId) {
