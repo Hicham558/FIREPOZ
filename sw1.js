@@ -1,11 +1,14 @@
-// sw1.js
+// intercept.js
 import { 
   listeClients, listeFournisseurs, listeProduits, listeUtilisateurs, dashboard,
   ajouterClient, ajouterFournisseur, ajouterItem, ajouterUtilisateur,
   modifierClient, modifierFournisseur, modifierItem, modifierUtilisateur,
   supprimerClient, supprimerFournisseur, supprimerItem, supprimerUtilisateur,
-  validerVendeur, listeCategories, ajouterCategorie, modifierCategorie, supprimerCategorie,
-  assignerCategorie, listeProduitsParCategorie, clientSolde,
+  validerVendeur,
+  listeCategories, ajouterCategorie, modifierCategorie, supprimerCategorie,
+  assignerCategorie, listeProduitsParCategorie,
+  clientSolde,
+  // Nouvelles fonctions de vente
   validerVente, modifierVente, getVente, ventesJour, annulerVente
 } from './apiRoutes.js';
 
@@ -21,6 +24,21 @@ const handlers = {
     'liste_utilisateurs': () => listeUtilisateurs(),
     'liste_categories': () => listeCategories(),
     'client_solde': () => clientSolde(),
+    'vente/(\\w+)': (id) => getVente(id),
+    'ventes_jour': (url) => {
+      try {
+        const urlObj = new URL(url, window.location.origin);
+        const params = {
+          date: urlObj.searchParams.get('date'),
+          numero_clt: urlObj.searchParams.get('numero_clt'),
+          numero_util: urlObj.searchParams.get('numero_util')
+        };
+        return ventesJour(params);
+      } catch (error) {
+        console.error('❌ Erreur URL ventes_jour:', error);
+        return ventesJour({});
+      }
+    },
     'liste_produits_par_categorie': (url) => {
       try {
         const urlObj = new URL(url, window.location.origin);
@@ -41,9 +59,7 @@ const handlers = {
         console.error('❌ Erreur extraction paramètres dashboard:', error);
         return dashboard('day');
       }
-    },
-    'vente/(\\d+)': (numero_comande) => getVente(parseInt(numero_comande)),
-    'ventes_jour': (url) => ventesJour(url)
+    }
   },
   POST: {
     'ajouter_client': (body) => ajouterClient(body),
@@ -62,7 +78,7 @@ const handlers = {
     'modifier_item/(\\w+)': (id, body) => modifierItem(id, body),
     'modifier_utilisateur/(\\w+)': (id, body) => modifierUtilisateur(id, body),
     'modifier_categorie/(\\w+)': (id, body) => modifierCategorie(id, body),
-    'modifier_vente/(\\d+)': (numero_comande, body) => modifierVente(parseInt(numero_comande), body)
+    'modifier_vente/(\\w+)': (id, body) => modifierVente(id, body)
   },
   DELETE: {
     'supprimer_client/(\\w+)': (id) => supprimerClient(id),
@@ -73,29 +89,33 @@ const handlers = {
   }
 };
 
-// Intercepteur fetch
+// Le reste du code reste inchangé
 window.fetch = async function(input, init = {}) {
   const url = typeof input === 'string' ? input : input.url;
   const method = (init.method || 'GET').toUpperCase();
   const requestUrl = new URL(url, window.location.origin);
 
+  // Vérifier si la requête commence par /api/
   const isApiRequest = requestUrl.pathname.startsWith('/api/');
+
   console.log('🔍 Requête interceptée:', url, 'isApiRequest:', isApiRequest);
 
   if (isApiRequest) {
     try {
+      // Extraire l'endpoint après /api/
       const endpoint = requestUrl.pathname.replace('/api/', '');
       const methodHandlers = handlers[method] || {};
 
       console.log('🔍 Endpoint extrait:', endpoint, 'Méthode:', method);
 
+      // Recherche du gestionnaire correspondant
       let matchedHandler = null;
       let matchParams = null;
-
+      
       for (const [pattern, handler] of Object.entries(methodHandlers)) {
         const regex = new RegExp(`^${pattern}$`);
         const match = endpoint.match(regex);
-
+        
         if (match) {
           matchedHandler = handler;
           matchParams = match.slice(1);
@@ -106,17 +126,17 @@ window.fetch = async function(input, init = {}) {
 
       if (matchedHandler) {
         let responseData;
-
+        
         if (['POST', 'PUT'].includes(method)) {
           const body = init.body ? JSON.parse(init.body) : {};
           responseData = await matchedHandler(...matchParams, body);
         } else {
           responseData = await matchedHandler(...matchParams, url);
         }
-
+        
         const status = responseData.status || 200;
         console.log('✅ Réponse locale pour', endpoint, ':', responseData);
-
+        
         return new Response(JSON.stringify(responseData), {
           status,
           headers: { 'Content-Type': 'application/json' }
@@ -144,6 +164,7 @@ window.fetch = async function(input, init = {}) {
 // Initialisation au chargement de la page
 document.addEventListener('DOMContentLoaded', () => {
   console.log('✅ Interception des fetch activée pour /api/');
+  // Test automatique
   setTimeout(() => {
     console.log('🧪 Test automatique de l\'intercepteur...');
     fetch('/api/liste_clients')
