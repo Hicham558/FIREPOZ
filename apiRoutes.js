@@ -1962,7 +1962,9 @@ export async function validerReception(data) {
 
         // Charger l'article
         const stmtItem = db.prepare(`
-          SELECT qte, CAST(COALESCE(NULLIF(REPLACE(prixba, ',', '.'), ''), '0') AS FLOAT) AS prixba
+          SELECT 
+            COALESCE(qte, 0) AS qte,
+            CAST(COALESCE(NULLIF(REPLACE(prixba, ',', '.'), ''), '0') AS FLOAT) AS prixba
           FROM item WHERE numero_item = ?
         `);
         stmtItem.bind([numero_item]);
@@ -1973,15 +1975,17 @@ export async function validerReception(data) {
         const item = stmtItem.getAsObject();
         stmtItem.free();
 
-        const current_qte = parseFloat(item.qte || 0);
+        // Conversion explicite de la quantité actuelle
+        const current_qte = parseFloat(item.qte) || 0;
         const prixba = parseFloat(item.prixba || 0);
         const nqte = current_qte + qtea;
+
+        console.log(`Article ${numero_item}: qte actuelle=${current_qte}, qtea=${qtea}, nouvelle qte=${nqte}`);
 
         total_cost += qtea * prixbh;
 
         const prixbh_str = toCommaDecimal(prixbh);
         const prixba_str = toCommaDecimal(prixba);
-        const nqte_str = toCommaDecimal(nqte); // Nouvelle quantité formatée
 
         // Insérer dans attache2
         const stmtAtt = db.prepare(`
@@ -1991,9 +1995,9 @@ export async function validerReception(data) {
         stmtAtt.run([numero_item, numero_mouvement, qtea, nqte, prixbh_str, prixba_str]);
         stmtAtt.free();
 
-        // CORRECTION : Mise à jour stock avec la nouvelle quantité calculée
+        // CORRECTION : Mise à jour avec la valeur numérique directe
         const stmtUpdateItem = db.prepare("UPDATE item SET qte = ?, prixba = ?, numero_fou = ? WHERE numero_item = ?");
-        stmtUpdateItem.run([nqte_str, prixbh_str, numero_four, numero_item]);
+        stmtUpdateItem.run([nqte, prixbh_str, numero_four, numero_item]);
         stmtUpdateItem.free();
       }
 
