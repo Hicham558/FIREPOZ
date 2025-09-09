@@ -1214,12 +1214,28 @@ function updateProductsTable() {
     countElement.classList.remove('hidden');
 }
 
-        function selectProduct(numeroItem, bar, prix, prixba, stock, designation) {
+     function selectProduct(numeroItem, bar, prix, prixba, stock, designation) {
     console.log('Produit sélectionné:', numeroItem, bar, prix, prixba, stock, designation);
     const numeroItemInt = parseInt(numeroItem);
-    const barInt = parseInt(bar) || numeroItemInt; // Fallback sur numeroItemInt si bar est invalide
-    const unitPrice = parseFloat(prix || 0);
-    const pricePurchase = parseFloat(prixba || 0);
+    const barInt = parseInt(bar) || numeroItemInt;
+    
+    // CORRECTION: Conversion des prix depuis le format virgule vers point si nécessaire
+    let unitPrice = prix;
+    let pricePurchase = prixba;
+    
+    // Si les prix sont des strings avec virgule, les convertir
+    if (typeof prix === 'string' && prix.includes(',')) {
+        unitPrice = parseFloat(prix.replace(',', '.'));
+    } else {
+        unitPrice = parseFloat(prix || 0);
+    }
+    
+    if (typeof prixba === 'string' && prixba.includes(',')) {
+        pricePurchase = parseFloat(prixba.replace(',', '.'));
+    } else {
+        pricePurchase = parseFloat(prixba || 0);
+    }
+    
     const quantity = 1.0;
 
     if (isNaN(numeroItemInt) || unitPrice <= 0) {
@@ -1227,7 +1243,14 @@ function updateProductsTable() {
         return;
     }
 
-    const produit = produitsCache.find(p => p.numero_item === numeroItemInt || p.NUMERO_ITEM === numeroItemInt);
+    // CORRECTION: Chercher le produit avec les bonnes clés (MAJUSCULES ET minuscules)
+    const produit = produitsCache.find(p => 
+        p.NUMERO_ITEM === numeroItemInt || 
+        p.numero_item === numeroItemInt ||
+        parseInt(p.NUMERO_ITEM) === numeroItemInt ||
+        parseInt(p.numero_item) === numeroItemInt
+    );
+    
     const existingLine = tempSaleLines.find(line => line.numero_item === numeroItemInt);
     const totalQuantity = existingLine ? (parseFloat(existingLine.quantite) + quantity) : quantity;
     const priceTotal = quantity * unitPrice;
@@ -1241,7 +1264,10 @@ function updateProductsTable() {
         tempSaleLines.push({
             numero_item: numeroItemInt,
             produit_bar: barInt.toString(),
-            designation: produit ? (produit.designation || produit.DESIGNATION || 'N/A') : (designation || 'N/A'),
+            // CORRECTION: Utiliser le bon ordre de priorité pour la désignation
+            designation: designation || 
+                        (produit ? (produit.DESIGNATION || produit.designation) : null) || 
+                        'Produit sans nom',
             quantite: quantity.toFixed(2),
             prixt: priceTotal.toFixed(2),
             remarque: unitPrice.toFixed(2),
@@ -1250,7 +1276,13 @@ function updateProductsTable() {
     }
 
     updateTempSalesTable();
-    showToast(`Produit ajouté : ${produit ? (produit.designation || produit.DESIGNATION || 'N/A') : designation}`);
+    
+    // CORRECTION: Utiliser le nom correct du produit pour le message
+    const productName = designation || 
+                       (produit ? (produit.DESIGNATION || produit.designation) : null) || 
+                       'Produit sans nom';
+    
+    showToast(`Produit ajouté : ${productName}`);
 }
 function updateTempSalesTable() {
     const tbody = document.getElementById('tempSalesList');
