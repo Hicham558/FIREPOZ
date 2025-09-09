@@ -8,7 +8,7 @@ import {
   assignerCategorie, listeProduitsParCategorie,
   clientSolde, validerVente,
   modifierVente, getVente, ventesJour, annulerVente, validerReception,
-  rechercherProduitCodebar // Import de la nouvelle fonction
+  rechercherProduitCodebar
 } from './apiRoutes.js';
 
 // Sauvegarde de la fonction fetch originale
@@ -57,18 +57,41 @@ const handlers = {
         return ventesJour();
       }
     },
-    'rechercher_produit_codebar': (url) => {
+    'rechercher_produit_codebar': async (url) => {
       try {
         const urlParams = new URL(url, window.location.origin).searchParams;
         const codebar = urlParams.get('codebar');
         if (!codebar) {
           console.error('❌ Paramètre codebar manquant');
-          return Promise.resolve({ erreur: 'Code-barres requis', status: 400 });
+          return {
+            body: JSON.stringify({ erreur: 'Code-barres requis', status: 400 }),
+            init: {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' }
+            }
+          };
         }
-        return rechercherProduitCodebar(codebar);
+        const responseData = await rechercherProduitCodebar(codebar);
+        console.log('✅ Réponse de rechercherProduitCodebar:', responseData);
+        return {
+          body: JSON.stringify(responseData),
+          init: {
+            status: responseData.status || 200,
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Content-Type-Options': 'nosniff' // Imiter les en-têtes Flask
+            }
+          }
+        };
       } catch (error) {
         console.error('❌ Erreur extraction paramètre codebar:', error);
-        return Promise.resolve({ erreur: error.message, status: 500 });
+        return {
+          body: JSON.stringify({ erreur: error.message, status: 500 }),
+          init: {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+          }
+        };
       }
     }
   },
@@ -137,22 +160,25 @@ window.fetch = async function(input, init = {}) {
       }
 
       if (matchedHandler) {
-        let responseData;
+        let response;
         
         if (['POST', 'PUT'].includes(method)) {
           const body = init.body ? JSON.parse(init.body) : {};
-          responseData = await matchedHandler(...matchParams, body);
+          response = await matchedHandler(...matchParams, body);
         } else {
-          responseData = await matchedHandler(...matchParams, url);
+          response = await matchedHandler(...matchParams, url);
         }
-        
-        const status = responseData.status || 200;
-        console.log('✅ Réponse locale pour', endpoint, ':', responseData);
-        
-        return new Response(JSON.stringify(responseData), {
-          status,
+
+        // Vérifier si la réponse est un objet avec body et init (pour rechercher_produit_codebar)
+        const responseBody = response.body || JSON.stringify(response);
+        const responseInit = response.init || {
+          status: response.status || 200,
           headers: { 'Content-Type': 'application/json' }
-        });
+        };
+
+        console.log('✅ Réponse locale pour', endpoint, ':', JSON.parse(responseBody));
+        
+        return new Response(responseBody, responseInit);
       } else {
         console.warn('❌ Aucun handler trouvé pour l\'endpoint:', endpoint);
         return new Response(JSON.stringify({ erreur: 'Endpoint inconnu', status: 404 }), {
@@ -183,5 +209,13 @@ document.addEventListener('DOMContentLoaded', () => {
       .then(response => response.json())
       .then(data => console.log('✅ Test réussi - Données clients:', data))
       .catch(error => console.error('❌ Test échoué:', error));
+    // Test supplémentaire pour rechercher_produit_codebar
+    setTimeout(() => {
+      console.log('🧪 Test automatique de rechercher_produit_codebar...');
+      fetch('/api/rechercher_produit_codebar?codebar=1234567890123')
+        .then(response => response.json())
+        .then(data => console.log('✅ Test réussi - Données produit:', data))
+        .catch(error => console.error('❌ Test échoué:', error));
+    }, 1500);
   }, 1000);
 });
