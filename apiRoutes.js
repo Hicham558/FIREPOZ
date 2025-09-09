@@ -31,11 +31,11 @@ function toCommaDecimal(value) {
 
 export async function rechercherProduitCodebar(codebar) {
   try {
-    console.log("Exécution de rechercherProduitCodebar avec codebar:", codebar);
+    console.log("📥 Exécution de rechercherProduitCodebar avec codebar:", codebar);
     const db = await getDb();
 
     if (!codebar) {
-      console.error("Erreur : Code-barres requis");
+      console.error("❌ Erreur : Code-barres requis");
       return { erreur: "Code-barres requis", status: 400 };
     }
 
@@ -54,11 +54,11 @@ export async function rechercherProduitCodebar(codebar) {
     stmt.free();
 
     if (!produit) {
-      console.log("Produit non trouvé pour codebar:", codebar);
+      console.log("🔍 Produit non trouvé pour codebar:", codebar);
       return { statut: "non trouvé", status: 404 };
     }
 
-    console.log("Produit brut récupéré:", produit);
+    console.log("📦 Produit brut récupéré:", produit);
 
     // Conversion et validation des valeurs
     const prixFormatted = produit.prix !== null && produit.prix !== undefined && produit.prix !== ''
@@ -72,27 +72,38 @@ export async function rechercherProduitCodebar(codebar) {
       : 0;
     const numeroItem = produit.numero_item !== null && produit.numero_item !== undefined && produit.numero_item !== ''
       ? produit.numero_item.toString()
-      : 'UNKNOWN_' + codebar; // Valeur par défaut unique si numero_item est vide
+      : 'UNKNOWN_' + codebar;
 
     // Formatage des données pour correspondre à l'API Flask
     const produitFormate = {
       numero_item: numeroItem,
       bar: produit.bar !== null && produit.bar !== undefined ? produit.bar.toString() : codebar,
       designation: produit.designation !== null && produit.designation !== undefined && produit.designation !== ''
-        ? produit.designation
+        ? produit.designation.trim()
         : 'Produit sans nom',
       prix: prixFormatted,
       prixba: prixbaFormatted,
       qte: qteInt
     };
 
-    console.log("Produit formaté retourné:", produitFormate);
+    console.log("📤 Produit formaté retourné:", produitFormate);
     return { statut: "trouvé", produit: produitFormate, status: 200 };
 
   } catch (error) {
-    console.error("Erreur rechercherProduitCodebar:", error);
+    console.error("❌ Erreur rechercherProduitCodebar:", error);
     return { erreur: error.message, status: 500 };
   }
+}
+
+// Fonctions utilitaires pour le formatage
+export function toDotDecimal(value) {
+  if (!value) return '0.00';
+  return String(value).replace(',', '.');
+}
+
+export function toCommaDecimal(value) {
+  if (!value) return '0,00';
+  return String(Number(value).toFixed(2)).replace('.', ',');
 }
 export async function listeTables() {
   try {
