@@ -1214,8 +1214,25 @@ function updateProductsTable() {
     countElement.classList.remove('hidden');
 }
 
-    function selectProduct(numeroItem, bar, prix, prixba, stock, designation) {
+    function selectProduct(productData) {
+    // Accepte soit un objet complet, soit des paramètres séparés
+    let numeroItem, bar, prix, prixba, stock, designation;
+    
+    if (typeof productData === 'object') {
+        // Si c'est un objet, extraire les propriétés (supporte les deux casses)
+        numeroItem = productData.NUMERO_ITEM || productData.numero_item;
+        bar = productData.BAR || productData.bar;
+        prix = productData.PRIX || productData.prix;
+        prixba = productData.PRIXBA || productData.prixba;
+        stock = productData.QTE || productData.qte;
+        designation = productData.DESIGNATION || productData.designation;
+    } else {
+        // Ancien format pour backward compatibility
+        [numeroItem, bar, prix, prixba, stock, designation] = arguments;
+    }
+    
     console.log('Produit sélectionné:', numeroItem, bar, prix, prixba, stock, designation);
+    
     const numeroItemInt = parseInt(numeroItem);
     const barInt = parseInt(bar) || numeroItemInt;
     const unitPrice = parseFloat(prix || 0);
@@ -1227,7 +1244,6 @@ function updateProductsTable() {
         return;
     }
 
-    // Recherche dans le cache avec les clés en majuscules
     const produit = produitsCache.find(p => 
         p.NUMERO_ITEM === numeroItemInt || p.numero_item === numeroItemInt
     );
@@ -1242,15 +1258,10 @@ function updateProductsTable() {
         tempSaleLines[existingLineIndex].prixt = (totalQuantity * unitPrice).toFixed(2);
         tempSaleLines[existingLineIndex].remarque = unitPrice.toFixed(2);
     } else {
-        // Utiliser les propriétés en majuscules comme retournées par l'API
-        const productDesignation = produit 
-            ? (produit.DESIGNATION || produit.designation || 'N/A') 
-            : (designation || 'N/A');
-            
         tempSaleLines.push({
             numero_item: numeroItemInt,
             produit_bar: barInt.toString(),
-            designation: productDesignation,
+            designation: designation || 'N/A',
             quantite: quantity.toFixed(2),
             prixt: priceTotal.toFixed(2),
             remarque: unitPrice.toFixed(2),
@@ -1259,13 +1270,7 @@ function updateProductsTable() {
     }
 
     updateTempSalesTable();
-    
-    // Utiliser la même logique pour le toast
-    const productDesignation = produit 
-        ? (produit.DESIGNATION || produit.designation || 'N/A') 
-        : (designation || 'N/A');
-        
-    showToast(`Produit ajouté : ${productDesignation}`);
+    showToast(`Produit ajouté : ${designation || 'N/A'}`);
 }
 function updateTempSalesTable() {
     const tbody = document.getElementById('tempSalesList');
@@ -1991,12 +1996,7 @@ async function startScanner() {
                     if (result.statut === 'trouvé') {
                         const { produit } = result;
                         selectProduct(
-                            produit.numero_item,
-                            produit.bar,
-                            produit.prix,
-                            produit.prixba,
-                            produit.qte,
-                            produit.designation
+                            produit
                         );
                         // Ajout de la vibration
                         if ('vibrate' in navigator) {
@@ -2081,12 +2081,7 @@ function stopScanner() {
             if (result.statut === 'trouvé') {
                 const { produit } = result;
                 selectProduct(
-                    produit.numero_item,
-                    produit.bar,
-                    produit.prix,
-                    produit.prixba,
-                    produit.qte,
-                    produit.designation
+                    produit
                 );
                 showToast(`Produit ajouté : ${produit.designation}`);
                 event.target.value = '';
