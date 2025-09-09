@@ -1214,28 +1214,12 @@ function updateProductsTable() {
     countElement.classList.remove('hidden');
 }
 
-     function selectProduct(numeroItem, bar, prix, prixba, stock, designation) {
+    function selectProduct(numeroItem, bar, prix, prixba, stock, designation) {
     console.log('Produit sélectionné:', numeroItem, bar, prix, prixba, stock, designation);
     const numeroItemInt = parseInt(numeroItem);
     const barInt = parseInt(bar) || numeroItemInt;
-    
-    // CORRECTION: Conversion des prix depuis le format virgule vers point si nécessaire
-    let unitPrice = prix;
-    let pricePurchase = prixba;
-    
-    // Si les prix sont des strings avec virgule, les convertir
-    if (typeof prix === 'string' && prix.includes(',')) {
-        unitPrice = parseFloat(prix.replace(',', '.'));
-    } else {
-        unitPrice = parseFloat(prix || 0);
-    }
-    
-    if (typeof prixba === 'string' && prixba.includes(',')) {
-        pricePurchase = parseFloat(prixba.replace(',', '.'));
-    } else {
-        pricePurchase = parseFloat(prixba || 0);
-    }
-    
+    const unitPrice = parseFloat(prix || 0);
+    const pricePurchase = parseFloat(prixba || 0);
     const quantity = 1.0;
 
     if (isNaN(numeroItemInt) || unitPrice <= 0) {
@@ -1243,12 +1227,9 @@ function updateProductsTable() {
         return;
     }
 
-    // CORRECTION: Chercher le produit avec les bonnes clés (MAJUSCULES ET minuscules)
+    // Recherche dans le cache avec les clés en majuscules
     const produit = produitsCache.find(p => 
-        p.NUMERO_ITEM === numeroItemInt || 
-        p.numero_item === numeroItemInt ||
-        parseInt(p.NUMERO_ITEM) === numeroItemInt ||
-        parseInt(p.numero_item) === numeroItemInt
+        p.NUMERO_ITEM === numeroItemInt || p.numero_item === numeroItemInt
     );
     
     const existingLine = tempSaleLines.find(line => line.numero_item === numeroItemInt);
@@ -1261,13 +1242,15 @@ function updateProductsTable() {
         tempSaleLines[existingLineIndex].prixt = (totalQuantity * unitPrice).toFixed(2);
         tempSaleLines[existingLineIndex].remarque = unitPrice.toFixed(2);
     } else {
+        // Utiliser les propriétés en majuscules comme retournées par l'API
+        const productDesignation = produit 
+            ? (produit.DESIGNATION || produit.designation || 'N/A') 
+            : (designation || 'N/A');
+            
         tempSaleLines.push({
             numero_item: numeroItemInt,
             produit_bar: barInt.toString(),
-            // CORRECTION: Utiliser le bon ordre de priorité pour la désignation
-            designation: designation || 
-                        (produit ? (produit.DESIGNATION || produit.designation) : null) || 
-                        'Produit sans nom',
+            designation: productDesignation,
             quantite: quantity.toFixed(2),
             prixt: priceTotal.toFixed(2),
             remarque: unitPrice.toFixed(2),
@@ -1277,12 +1260,12 @@ function updateProductsTable() {
 
     updateTempSalesTable();
     
-    // CORRECTION: Utiliser le nom correct du produit pour le message
-    const productName = designation || 
-                       (produit ? (produit.DESIGNATION || produit.designation) : null) || 
-                       'Produit sans nom';
-    
-    showToast(`Produit ajouté : ${productName}`);
+    // Utiliser la même logique pour le toast
+    const productDesignation = produit 
+        ? (produit.DESIGNATION || produit.designation || 'N/A') 
+        : (designation || 'N/A');
+        
+    showToast(`Produit ajouté : ${productDesignation}`);
 }
 function updateTempSalesTable() {
     const tbody = document.getElementById('tempSalesList');
@@ -2005,29 +1988,27 @@ async function startScanner() {
                     const result = await response.json();
                     console.log('Résultat API:', result);
 
-             if (result.statut === 'trouvé') {
-    const { produit } = result;
-    
-    // CORRECTION: Passer la DESIGNATION directement comme paramètre designation
-    selectProduct(
-        produit.NUMERO_ITEM,
-        produit.BAR,
-        produit.PRIX,  // Garder le format original, selectProduct gère la conversion
-        produit.PRIXBA,
-        produit.QTE,
-        produit.DESIGNATION  // IMPORTANT: Passer la désignation ici
-    );
-    
-    // Ajout de la vibration
-    if ('vibrate' in navigator) {
-        navigator.vibrate(200);
-    }
-    
-    // Le message sera affiché par selectProduct avec le bon nom
-    // Pas besoin de showToast ici car selectProduct l'affiche déjà
-} else {
-    showToast('Produit non trouvé', true);
-}
+                    if (result.statut === 'trouvé') {
+                        const { produit } = result;
+                        selectProduct(
+                            produit.numero_item,
+                            produit.bar,
+                            produit.prix,
+                            produit.prixba,
+                            produit.qte,
+                            produit.designation
+                        );
+                        // Ajout de la vibration
+                        if ('vibrate' in navigator) {
+                            navigator.vibrate(200); // Vibration de 200ms
+                        } else {
+                            console.log('API Vibration non supportée');
+                        }
+                        showToast(`Produit ajouté : ${produit.designation}`);
+                        // Ne pas appeler stopScanner pour garder le scanner actif
+                    } else {
+                        showToast('Produit non trouvé', true);
+                    }
                 }
             } catch (err) {
                 console.error('Erreur détection code-barres:', err);
@@ -2074,8 +2055,7 @@ function stopScanner() {
     }
 }
 
-       // 1. CORRECTION du gestionnaire d'événement pour le champ code-barres
-document.getElementById('productBar').addEventListener('change', async (event) => {
+       document.getElementById('productBar').addEventListener('change', async (event) => {
     const barcode = event.target.value.trim();
     if (barcode) {
         console.log('Recherche produit par code-barres:', barcode);
@@ -2100,16 +2080,15 @@ document.getElementById('productBar').addEventListener('change', async (event) =
 
             if (result.statut === 'trouvé') {
                 const { produit } = result;
-                
-                // CORRECTION: Passer la DESIGNATION directement comme paramètre designation
                 selectProduct(
-                    produit.NUMERO_ITEM,
-                    produit.BAR,
-                    produit.PRIX,  // Garder le format original, selectProduct gère la conversion
-                    produit.PRIXBA,
-                    produit.QTE,
-                    produit.DESIGNATION  // IMPORTANT: Passer la désignation ici
+                    produit.numero_item,
+                    produit.bar,
+                    produit.prix,
+                    produit.prixba,
+                    produit.qte,
+                    produit.designation
                 );
+                showToast(`Produit ajouté : ${produit.designation}`);
                 event.target.value = '';
             } else {
                 showToast('Produit non trouvé', true);
@@ -2122,8 +2101,6 @@ document.getElementById('productBar').addEventListener('change', async (event) =
         }
     }
 });
-
-
         document.getElementById('searchProduct').addEventListener('input', (event) => {
             const searchTerm = event.target.value.toLowerCase();
             console.log('Recherche produit:', searchTerm);
