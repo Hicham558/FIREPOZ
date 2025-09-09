@@ -1945,16 +1945,15 @@ async function startScanner() {
                     scanIndicator.classList.add('detected');
                     setTimeout(() => {
                         scanIndicator.classList.remove('detected');
-                        scanIndicator.classList.add('scanning'); // Remettre en mode scanning
+                        scanIndicator.classList.add('scanning');
                     }, 500);
 
-                    // Créer l'overlay pour l'animation de flash
                     const flashOverlay = document.createElement('div');
                     flashOverlay.className = 'flash-overlay';
                     document.body.appendChild(flashOverlay);
                     setTimeout(() => {
                         flashOverlay.remove();
-                    }, 200); // Supprimer après la fin de l'animation (200ms)
+                    }, 200);
 
                     const userId = localStorage.getItem('userId');
                     const response = await fetch(`${API_BASE_URL}/rechercher_produit_codebar?codebar=${encodeURIComponent(barcode)}`, {
@@ -1963,9 +1962,9 @@ async function startScanner() {
                     console.log('Réponse API:', response.status, response.statusText);
 
                     if (!response.ok) {
-                        const errorText = await response.text();
-                        console.error('Erreur API:', errorText);
-                        showToast('Produit non trouvé', true);
+                        const errorData = await response.json();
+                        console.error('Erreur API:', errorData);
+                        showToast(errorData.message || 'Produit non trouvé', true);
                         requestAnimationFrame(scan);
                         return;
                     }
@@ -1973,27 +1972,31 @@ async function startScanner() {
                     const result = await response.json();
                     console.log('Résultat API:', result);
 
-                    if (result.statut === 'trouvé') {
-                        const { produit } = result;
-                        selectProduct(
-                            produit.numero_item,
-                            produit.bar,
-                            produit.prix,
-                            produit.prixba,
-                            produit.qte,
-                            produit.designation
-                        );
-                        // Ajout de la vibration
-                        if ('vibrate' in navigator) {
-                            navigator.vibrate(200); // Vibration de 200ms
-                        } else {
-                            console.log('API Vibration non supportée');
+                    if (result.statut === 'trouvé' && result.produit) {
+                        const produit = result.produit;
+                        if (!produit.NUMERO_ITEM || produit.PRIX == null) {
+                            console.error('Produit invalide:', produit);
+                            showToast('Produit trouvé mais données invalides', true);
+                            requestAnimationFrame(scan);
+                            return;
                         }
-                        showToast(`Produit ajouté : ${produit.designation}`);
-                        // Ne pas appeler stopScanner pour garder le scanner actif
+                        const designationSafe = produit.DESIGNATION || produit.designation || 'Produit sans nom';
+                        selectProduct(
+                            produit.NUMERO_ITEM,
+                            produit.BAR || produit.NUMERO_ITEM,
+                            produit.PRIX,
+                            produit.PRIXBA || 0,
+                            produit.QTE || 0,
+                            designationSafe
+                        );
+                        if ('vibrate' in navigator) {
+                            navigator.vibrate(200);
+                        }
+                        showToast(`Produit ajouté : ${designationSafe}`);
                     } else {
-                        showToast('Produit non trouvé', true);
+                        showToast(result.message || 'Produit non trouvé', true);
                     }
+                    requestAnimationFrame(scan);
                 }
             } catch (err) {
                 console.error('Erreur détection code-barres:', err);
@@ -2053,9 +2056,9 @@ function stopScanner() {
             console.log('Réponse API:', response.status, response.statusText);
 
             if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Erreur API:', errorText);
-                showToast('Produit non trouvé', true);
+                const errorData = await response.json();
+                console.error('Erreur API:', errorData);
+                showToast(errorData.message || 'Produit non trouvé', true);
                 event.target.value = '';
                 return;
             }
@@ -2063,20 +2066,29 @@ function stopScanner() {
             const result = await response.json();
             console.log('Résultat API:', result);
 
-            if (result.statut === 'trouvé') {
-                const { produit } = result;
+            if (result.statut === 'trouvé' && result.produit) {
+                const produit = result.produit;
+                // Vérifier les champs obligatoires
+                if (!produit.NUMERO_ITEM || produit.PRIX == null) {
+                    console.error('Produit invalide:', produit);
+                    showToast('Produit trouvé mais données invalides', true);
+                    event.target.value = '';
+                    return;
+                }
+                // Utiliser DESIGNATION avec fallback
+                const designationSafe = produit.DESIGNATION || produit.designation || 'Produit sans nom';
                 selectProduct(
-                    produit.numero_item,
-                    produit.bar,
-                    produit.prix,
-                    produit.prixba,
-                    produit.qte,
-                    produit.designation
+                    produit.NUMERO_ITEM,
+                    produit.BAR || produit.NUMERO_ITEM,
+                    produit.PRIX,
+                    produit.PRIXBA || 0,
+                    produit.QTE || 0,
+                    designationSafe
                 );
-                showToast(`Produit ajouté : ${produit.designation}`);
+                showToast(`Produit ajouté : ${designationSafe}`);
                 event.target.value = '';
             } else {
-                showToast('Produit non trouvé', true);
+                showToast(result.message || 'Produit non trouvé', true);
                 event.target.value = '';
             }
         } catch (err) {
