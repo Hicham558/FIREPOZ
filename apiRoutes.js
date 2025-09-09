@@ -95,16 +95,7 @@ export async function rechercherProduitCodebar(codebar) {
   }
 }
 
-// Fonctions utilitaires pour le formatage
-export function toDotDecimal(value) {
-  if (!value) return '0.00';
-  return String(value).replace(',', '.');
-}
 
-export function toCommaDecimal(value) {
-  if (!value) return '0,00';
-  return String(Number(value).toFixed(2)).replace('.', ',');
-}
 export async function listeTables() {
   try {
     console.log("Exécution de listeTables...");
