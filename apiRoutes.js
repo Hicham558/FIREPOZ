@@ -29,6 +29,7 @@ function toCommaDecimal(value) {
   }
 }
 
+
 export async function rechercherProduitCodebar(codebar) {
   try {
     console.log("📥 Exécution de rechercherProduitCodebar avec codebar:", codebar);
@@ -60,7 +61,7 @@ export async function rechercherProduitCodebar(codebar) {
 
     console.log("📦 Produit brut récupéré:", produit);
 
-    // Conversion et validation des valeurs
+    // Conversion et validation des valeurs pour correspondre à l'API Flask
     const prixFormatted = produit.prix !== null && produit.prix !== undefined && produit.prix !== ''
       ? toCommaDecimal(parseFloat(toDotDecimal(produit.prix)).toFixed(2))
       : '0,00';
@@ -74,16 +75,16 @@ export async function rechercherProduitCodebar(codebar) {
       ? produit.numero_item.toString()
       : 'UNKNOWN_' + codebar;
 
-    // Formatage des données pour correspondre à l'API Flask
+    // Formatage des données avec clés en MAJUSCULES pour correspondre à l'API Flask
     const produitFormate = {
-      numero_item: numeroItem,
-      bar: produit.bar !== null && produit.bar !== undefined ? produit.bar.toString() : codebar,
-      designation: produit.designation !== null && produit.designation !== undefined && produit.designation !== ''
+      NUMERO_ITEM: numeroItem,
+      BAR: produit.bar !== null && produit.bar !== undefined ? produit.bar.toString() : codebar,
+      DESIGNATION: produit.designation !== null && produit.designation !== undefined && produit.designation.trim() !== ''
         ? produit.designation.trim()
         : 'Produit sans nom',
-      prix: prixFormatted,
-      prixba: prixbaFormatted,
-      qte: qteInt
+      PRIX: prixFormatted,
+      PRIXBA: prixbaFormatted,
+      QTE: qteInt
     };
 
     console.log("📤 Produit formaté retourné:", produitFormate);
