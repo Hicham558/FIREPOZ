@@ -1214,20 +1214,25 @@ function updateProductsTable() {
     countElement.classList.remove('hidden');
 }
 
-        function selectProduct(numeroItem, prix, prixba, stock, designation, produitBar) {
+        function selectProduct(numeroItem, bar, prix, prixba, stock, designation) {
+    console.log('Produit sélectionné:', numeroItem, bar, prix, prixba, stock, designation);
     const numeroItemInt = parseInt(numeroItem);
-    const unitPrice = parseFloat(prix) || 0;
-    const pricePurchase = parseFloat(prixba) || 0;
+    const barInt = parseInt(bar) || numeroItemInt; // Fallback sur numeroItemInt si bar est invalide
+    const unitPrice = parseFloat(prix || 0);
+    const pricePurchase = parseFloat(prixba || 0);
     const quantity = 1.0;
+
     if (isNaN(numeroItemInt) || unitPrice <= 0) {
         showToast('Produit invalide ou prix incorrect', true);
         return;
     }
-    const produit = produitsCache.find(p => p.numero_item === numeroItemInt);
+
+    const produit = produitsCache.find(p => p.numero_item === numeroItemInt || p.NUMERO_ITEM === numeroItemInt);
     const existingLine = tempSaleLines.find(line => line.numero_item === numeroItemInt);
     const totalQuantity = existingLine ? (parseFloat(existingLine.quantite) + quantity) : quantity;
     const priceTotal = quantity * unitPrice;
     const existingLineIndex = tempSaleLines.findIndex(line => line.numero_item === numeroItemInt);
+
     if (existingLineIndex >= 0) {
         tempSaleLines[existingLineIndex].quantite = totalQuantity.toFixed(2);
         tempSaleLines[existingLineIndex].prixt = (totalQuantity * unitPrice).toFixed(2);
@@ -1235,19 +1240,18 @@ function updateProductsTable() {
     } else {
         tempSaleLines.push({
             numero_item: numeroItemInt,
-            produit_bar: produitBar ? produitBar.toString() : numeroItemInt.toString(),
-            designation: designation || 'N/A',
+            produit_bar: barInt.toString(),
+            designation: produit ? (produit.designation || produit.DESIGNATION || 'N/A') : (designation || 'N/A'),
             quantite: quantity.toFixed(2),
             prixt: priceTotal.toFixed(2),
             remarque: unitPrice.toFixed(2),
             prixbh: pricePurchase
         });
     }
-    updateTempSalesTable();
-    showToast(`Produit ajouté : ${produit ? produit.designation : designation}`);
-}
 
-     
+    updateTempSalesTable();
+    showToast(`Produit ajouté : ${produit ? (produit.designation || produit.DESIGNATION || 'N/A') : designation}`);
+}
 function updateTempSalesTable() {
     const tbody = document.getElementById('tempSalesList');
     const totalElement = document.getElementById('totalSale');
