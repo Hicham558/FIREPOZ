@@ -95,7 +95,33 @@ const handlers = {
       }
     }
   },
-  // ... (les autres méthodes POST, PUT, DELETE restent inchangées)
+  POST: {
+    'ajouter_client': (body) => ajouterClient(body),
+    'ajouter_fournisseur': (body) => ajouterFournisseur(body),
+    'ajouter_item': (body) => ajouterItem(body),
+    'ajouter_utilisateur': (body) => ajouterUtilisateur(body),
+    'valider_vendeur': (body) => validerVendeur(body),
+    'ajouter_categorie': (body) => ajouterCategorie(body),
+    'valider_vente': (body) => validerVente(body),
+    'valider_reception': (body) => validerReception(body)
+  },
+  PUT: {
+    'modifier_client/(\\w+)': (id, body) => modifierClient(id, body),
+    'modifier_fournisseur/(\\w+)': (id, body) => modifierFournisseur(id, body),
+    'modifier_item/(\\w+)': (id, body) => modifierItem(id, body),
+    'modifier_utilisateur/(\\w+)': (id, body) => modifierUtilisateur(id, body),
+    'modifier_categorie/(\\w+)': (id, body) => modifierCategorie(id, body),
+    'modifier_vente/(\\w+)': (id, body) => modifierVente(id, body),
+    'assigner_categorie/(\\w+)/(\\w+)': (idItem, idCategorie) => assignerCategorie(idItem, idCategorie)
+  },
+  DELETE: {
+    'supprimer_client/(\\w+)': (id) => supprimerClient(id),
+    'supprimer_fournisseur/(\\w+)': (id) => supprimerFournisseur(id),
+    'supprimer_item/(\\w+)': (id) => supprimerItem(id),
+    'supprimer_utilisateur/(\\w+)': (id) => supprimerUtilisateur(id),
+    'supprimer_categorie/(\\w+)': (id) => supprimerCategorie(id),
+    'annuler_vente/(\\w+)': (id) => annulerVente(id)
+  }
 };
 
 // Intercepteur de fetch
