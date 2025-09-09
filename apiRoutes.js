@@ -28,6 +28,61 @@ function toCommaDecimal(value) {
     return "0,00";
   }
 }
+
+export async function rechercherProduitCodebar(codebar) {
+  try {
+    console.log("Exécution de rechercherProduitCodebar avec codebar:", codebar);
+    const db = await getDb();
+
+    if (!codebar) {
+      console.error("Erreur : Code-barres requis");
+      return { erreur: "Code-barres requis", status: 400 };
+    }
+
+    // Requête pour chercher le produit par code-barres
+    const stmt = db.prepare(`
+      SELECT numero_item, bar, designation, prix, prixba, qte
+      FROM item
+      WHERE bar = ?
+    `);
+    stmt.bind([codebar]);
+
+    let produit = null;
+    if (stmt.step()) {
+      produit = stmt.getAsObject();
+    }
+    stmt.free();
+
+    if (!produit) {
+      console.log("Produit non trouvé pour codebar:", codebar);
+      return { statut: "non trouvé", status: 404 };
+    }
+
+    console.log("Produit brut récupéré:", produit);
+
+    // Conversion des valeurs
+    const prixFloat = toDotDecimal(produit.prix);
+    const prixbaFloat = toDotDecimal(produit.prixba);
+    const qteInt = parseInt(produit.qte) || 0;
+
+    // Formatage des données pour correspondre à l'API Flask (clés en minuscules)
+    const produitFormate = {
+      numero_item: produit.numero_item !== null ? produit.numero_item : '',
+      bar: produit.bar !== null ? produit.bar : '',
+      designation: produit.designation !== null ? produit.designation : '',
+      prix: produit.prix !== null && produit.prix !== '' ? produit.prix : '0,00',
+      prixba: produit.prixba !== null && produit.prixba !== '' ? produit.prixba : '0,00',
+      qte: qteInt
+    };
+
+    console.log("Produit formaté retourné:", produitFormate);
+    return { statut: "trouvé", produit: produitFormate, status: 200 };
+
+  } catch (error) {
+    console.error("Erreur rechercherProduitCodebar:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
 export async function listeTables() {
   try {
     console.log("Exécution de listeTables...");
