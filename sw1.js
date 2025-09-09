@@ -7,7 +7,8 @@ import {
   listeCategories, ajouterCategorie, modifierCategorie, supprimerCategorie,
   assignerCategorie, listeProduitsParCategorie,
   clientSolde, validerVente,
-  modifierVente, getVente, ventesJour, annulerVente, validerReception
+  modifierVente, getVente, ventesJour, annulerVente, validerReception,
+  rechercherProduitCodebar // Import de la nouvelle fonction
 } from './apiRoutes.js';
 
 // Sauvegarde de la fonction fetch originale
@@ -43,7 +44,7 @@ const handlers = {
         return dashboard('day');
       }
     },
-    'get_vente/(\\w+)': (id) => getVente(id), // Nouvel endpoint GET
+    'get_vente/(\\w+)': (id) => getVente(id),
     'ventes_jour': (url) => {
       try {
         const urlParams = new URL(url, window.location.origin).searchParams;
@@ -54,6 +55,20 @@ const handlers = {
       } catch (error) {
         console.error('❌ Erreur extraction paramètres ventesJour:', error);
         return ventesJour();
+      }
+    },
+    'rechercher_produit_codebar': (url) => {
+      try {
+        const urlParams = new URL(url, window.location.origin).searchParams;
+        const codebar = urlParams.get('codebar');
+        if (!codebar) {
+          console.error('❌ Paramètre codebar manquant');
+          return Promise.resolve({ erreur: 'Code-barres requis', status: 400 });
+        }
+        return rechercherProduitCodebar(codebar);
+      } catch (error) {
+        console.error('❌ Erreur extraction paramètre codebar:', error);
+        return Promise.resolve({ erreur: error.message, status: 500 });
       }
     }
   },
@@ -66,7 +81,7 @@ const handlers = {
     'assigner_categorie': (body) => assignerCategorie(body),
     'valider_vendeur': (body) => validerVendeur(body),
     'valider_vente': (body) => validerVente(body),
-    'annuler_vente': (body) => annulerVente(body) ,
+    'annuler_vente': (body) => annulerVente(body),
     'valider_reception': (body) => validerReception(body)
   },
   PUT: {
@@ -75,7 +90,7 @@ const handlers = {
     'modifier_item/(\\w+)': (id, body) => modifierItem(id, body),
     'modifier_utilisateur/(\\w+)': (id, body) => modifierUtilisateur(id, body),
     'modifier_categorie/(\\w+)': (id, body) => modifierCategorie(id, body),
-    'modifier_vente/(\\w+)': (id, body) => modifierVente(id, body) // Nouvel endpoint PUT
+    'modifier_vente/(\\w+)': (id, body) => modifierVente(id, body)
   },
   DELETE: {
     'supprimer_client/(\\w+)': (id) => supprimerClient(id),
@@ -86,7 +101,7 @@ const handlers = {
   }
 };
 
-// Le reste du code reste inchangé
+// Intercepteur de fetch
 window.fetch = async function(input, init = {}) {
   const url = typeof input === 'string' ? input : input.url;
   const method = (init.method || 'GET').toUpperCase();
