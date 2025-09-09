@@ -60,18 +60,29 @@ export async function rechercherProduitCodebar(codebar) {
 
     console.log("Produit brut récupéré:", produit);
 
-    // Conversion des valeurs avec gestion rigoureuse des null/undefined
-    const prixFloat = toDotDecimal(produit.prix || '0,00');
-    const prixbaFloat = toDotDecimal(produit.prixba || '0,00');
-    const qteInt = parseInt(produit.qte) || 0;
+    // Conversion et validation des valeurs
+    const prixFormatted = produit.prix !== null && produit.prix !== undefined && produit.prix !== ''
+      ? toCommaDecimal(parseFloat(toDotDecimal(produit.prix)).toFixed(2))
+      : '0,00';
+    const prixbaFormatted = produit.prixba !== null && produit.prixba !== undefined && produit.prixba !== ''
+      ? toCommaDecimal(parseFloat(toDotDecimal(produit.prixba)).toFixed(2))
+      : '0,00';
+    const qteInt = produit.qte !== null && produit.qte !== undefined && !isNaN(parseInt(produit.qte))
+      ? parseInt(produit.qte)
+      : 0;
+    const numeroItem = produit.numero_item !== null && produit.numero_item !== undefined && produit.numero_item !== ''
+      ? produit.numero_item.toString()
+      : 'UNKNOWN_' + codebar; // Valeur par défaut unique si numero_item est vide
 
-    // Formatage des données pour correspondre à l'API Flask (clés en minuscules)
+    // Formatage des données pour correspondre à l'API Flask
     const produitFormate = {
-      numero_item: produit.numero_item !== null && produit.numero_item !== undefined ? produit.numero_item : '',
-      bar: produit.bar !== null && produit.bar !== undefined ? produit.bar : '',
-      designation: produit.designation !== null && produit.designation !== undefined ? produit.designation : 'Produit sans nom',
-      prix: produit.prix !== null && produit.prix !== undefined && produit.prix !== '' ? produit.prix : '0,00',
-      prixba: produit.prixba !== null && produit.prixba !== undefined && produit.prixba !== '' ? produit.prixba : '0,00',
+      numero_item: numeroItem,
+      bar: produit.bar !== null && produit.bar !== undefined ? produit.bar.toString() : codebar,
+      designation: produit.designation !== null && produit.designation !== undefined && produit.designation !== ''
+        ? produit.designation
+        : 'Produit sans nom',
+      prix: prixFormatted,
+      prixba: prixbaFormatted,
       qte: qteInt
     };
 
