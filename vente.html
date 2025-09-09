@@ -1214,55 +1214,46 @@ function updateProductsTable() {
     countElement.classList.remove('hidden');
 }
 
-        function selectProduct(numeroItem, bar, prix, prixba, stock, designation) {
-            console.log('Produit sélectionné:', numeroItem, bar, prix, prixba, stock, designation);
-            const numeroItemInt = parseInt(numeroItem);
-            const barInt = parseInt(bar);
-            const unitPrice = parseFloat(prix) || 0;
-            const pricePurchase = parseFloat(prixba) || 0;
-            const quantity = 1.0;
-
-            if (isNaN(numeroItemInt) || isNaN(barInt) || unitPrice <= 0) {
-                showToast('Produit invalide ou prix incorrect', true);
-                return;
-            }
-
-            if (stock <= 0) {
-                showToast('Stock insuffisant pour ce produit', true);
-                return;
-            }
-
-            const produit = produitsCache.find(p => p.NUMERO_ITEM === numeroItemInt);
-            const existingLine = tempSaleLines.find(line => line.numero_item === numeroItemInt);
-            const totalQuantity = existingLine ? (parseFloat(existingLine.quantite) + quantity) : quantity;
-
-            if (produit && totalQuantity > produit.QTE) {
-                showToast('Quantité demandée supérieure au stock disponible', true);
-                return;
-            }
-
-            const priceTotal = quantity * unitPrice;
-            const existingLineIndex = tempSaleLines.findIndex(line => line.numero_item === numeroItemInt);
-
-            if (existingLineIndex >= 0) {
-                tempSaleLines[existingLineIndex].quantite = totalQuantity.toFixed(2);
-                tempSaleLines[existingLineIndex].prixt = (totalQuantity * unitPrice).toFixed(2);
-                tempSaleLines[existingLineIndex].remarque = unitPrice.toFixed(2);
-            } else {
-                tempSaleLines.push({
-                    numero_item: numeroItemInt,
-                    produit_bar: barInt.toString(),
-                    designation: designation || 'N/A',
-                    quantite: quantity.toFixed(2),
-                    prixt: priceTotal.toFixed(2),
-                    remarque: unitPrice.toFixed(2),
-                    prixbh: pricePurchase
-                });
-            }
-
-            updateTempSalesTable();
-            showToast(`Produit ajouté : ${designation}`);
-        }
+        function selectProduct(numeroItem, prix, prixba, stock, designation, produitBar) {
+    const numeroItemInt = parseInt(numeroItem);
+    const unitPrice = parseFloat(prix) || 0;
+    const pricePurchase = parseFloat(prixba) || 0;
+    const quantity = 1.0;
+    if (isNaN(numeroItemInt) || unitPrice <= 0) {
+        showToast('Produit invalide ou prix incorrect', true);
+        return;
+    }
+    if (stock <= 0) {
+        showToast('Stock insuffisant pour ce produit', true);
+        return;
+    }
+    const produit = produitsCache.find(p => p.numero_item === numeroItemInt);
+    const existingLine = tempSaleLines.find(line => line.numero_item === numeroItemInt);
+    const totalQuantity = existingLine ? (parseFloat(existingLine.quantite) + quantity) : quantity;
+    if (produit && totalQuantity > produit.qte) {
+        showToast('Quantité demandée supérieure au stock disponible', true);
+        return;
+    }
+    const priceTotal = quantity * unitPrice;
+    const existingLineIndex = tempSaleLines.findIndex(line => line.numero_item === numeroItemInt);
+    if (existingLineIndex >= 0) {
+        tempSaleLines[existingLineIndex].quantite = totalQuantity.toFixed(2);
+        tempSaleLines[existingLineIndex].prixt = (totalQuantity * unitPrice).toFixed(2);
+        tempSaleLines[existingLineIndex].remarque = unitPrice.toFixed(2);
+    } else {
+        tempSaleLines.push({
+            numero_item: numeroItemInt,
+            produit_bar: produitBar ? produitBar.toString() : numeroItemInt.toString(), // Adaptation pour inclure produit_bar
+            designation: produit ? produit.designation : (designation || 'N/A'), // Priorité à produitsCache
+            quantite: quantity.toFixed(2),
+            prixt: priceTotal.toFixed(2),
+            remarque: unitPrice.toFixed(2),
+            prixbh: pricePurchase
+        });
+    }
+    updateTempSalesTable();
+    showToast(`Produit ajouté : ${produit ? produit.designation : designation}`);
+}
 function updateTempSalesTable() {
     const tbody = document.getElementById('tempSalesList');
     const totalElement = document.getElementById('totalSale');
