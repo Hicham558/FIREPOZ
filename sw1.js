@@ -3,12 +3,10 @@ import {
   ajouterClient, ajouterFournisseur, ajouterItem, ajouterUtilisateur,
   modifierClient, modifierFournisseur, modifierItem, modifierUtilisateur,
   supprimerClient, supprimerFournisseur, supprimerItem, supprimerUtilisateur,
-  validerVendeur,
-  listeCategories, ajouterCategorie, modifierCategorie, supprimerCategorie,
-  assignerCategorie, listeProduitsParCategorie,
-  clientSolde, validerVente,
-  modifierVente, getVente, ventesJour, annulerVente, validerReception,
-  rechercherProduitCodebar
+  validerVendeur, listeCategories, ajouterCategorie, modifierCategorie, 
+  supprimerCategorie, assignerCategorie, listeProduitsParCategorie,
+  clientSolde, validerVente, modifierVente, getVente, ventesJour, 
+  annulerVente, validerReception, rechercherProduitCodebar
 } from './apiRoutes.js';
 
 // Sauvegarde de la fonction fetch originale
@@ -73,20 +71,35 @@ const handlers = {
         }
         const responseData = await rechercherProduitCodebar(codebar);
         console.log('✅ Réponse de rechercherProduitCodebar:', responseData);
+        
+        // Gestion explicite du cas "non trouvé"
+        if (responseData.statut === 'non trouvé') {
+          return {
+            body: JSON.stringify({ statut: 'non trouvé', message: 'Produit non trouvé dans la base', status: 404 }),
+            init: {
+              status: 404,
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Content-Type-Options': 'nosniff'
+              }
+            }
+          };
+        }
+        
         return {
           body: JSON.stringify(responseData),
           init: {
             status: responseData.status || 200,
             headers: {
               'Content-Type': 'application/json',
-              'X-Content-Type-Options': 'nosniff' // Imiter les en-têtes Flask
+              'X-Content-Type-Options': 'nosniff'
             }
           }
         };
       } catch (error) {
         console.error('❌ Erreur extraction paramètre codebar:', error);
         return {
-          body: JSON.stringify({ erreur: error.message, status: 500 }),
+          body: JSON.stringify({ erreur: error.message, message: 'Erreur serveur lors de la recherche', status: 500 }),
           init: {
             status: 500,
             headers: { 'Content-Type': 'application/json' }
@@ -112,7 +125,7 @@ const handlers = {
     'modifier_utilisateur/(\\w+)': (id, body) => modifierUtilisateur(id, body),
     'modifier_categorie/(\\w+)': (id, body) => modifierCategorie(id, body),
     'modifier_vente/(\\w+)': (id, body) => modifierVente(id, body),
-    'assigner_categorie/(\\w+)/(\\w+)': (idItem, idCategorie) => assignerCategorie(idItem, idCategorie)
+    'assigner_categorie': (body) => assignerCategorie(body)
   },
   DELETE: {
     'supprimer_client/(\\w+)': (id) => supprimerClient(id),
@@ -120,7 +133,7 @@ const handlers = {
     'supprimer_item/(\\w+)': (id) => supprimerItem(id),
     'supprimer_utilisateur/(\\w+)': (id) => supprimerUtilisateur(id),
     'supprimer_categorie/(\\w+)': (id) => supprimerCategorie(id),
-    'annuler_vente/(\\w+)': (id) => annulerVente(id)
+    'annuler_vente': (body) => annulerVente(body)
   }
 };
 
@@ -162,7 +175,7 @@ window.fetch = async function(input, init = {}) {
       if (matchedHandler) {
         let response;
         
-        if (['POST', 'PUT'].includes(method)) {
+        if (['POST', 'PUT', 'DELETE'].includes(method)) {
           const body = init.body ? JSON.parse(init.body) : {};
           response = await matchedHandler(...matchParams, body);
         } else {
