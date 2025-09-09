@@ -1214,27 +1214,10 @@ function updateProductsTable() {
     countElement.classList.remove('hidden');
 }
 
-    function selectProduct(productData) {
-    // Accepte soit un objet complet, soit des paramètres séparés
-    let numeroItem, bar, prix, prixba, stock, designation;
-    
-    if (typeof productData === 'object') {
-        // Si c'est un objet, extraire les propriétés (supporte les deux casses)
-        numeroItem = productData.NUMERO_ITEM || productData.numero_item;
-        bar = productData.BAR || productData.bar;
-        prix = productData.PRIX || productData.prix;
-        prixba = productData.PRIXBA || productData.prixba;
-        stock = productData.QTE || productData.qte;
-        designation = productData.DESIGNATION || productData.designation;
-    } else {
-        // Ancien format pour backward compatibility
-        [numeroItem, bar, prix, prixba, stock, designation] = arguments;
-    }
-    
+        function selectProduct(numeroItem, bar, prix, prixba, stock, designation) {
     console.log('Produit sélectionné:', numeroItem, bar, prix, prixba, stock, designation);
-    
     const numeroItemInt = parseInt(numeroItem);
-    const barInt = parseInt(bar) || numeroItemInt;
+    const barInt = parseInt(bar) || numeroItemInt; // Fallback sur numeroItemInt si bar est invalide
     const unitPrice = parseFloat(prix || 0);
     const pricePurchase = parseFloat(prixba || 0);
     const quantity = 1.0;
@@ -1244,10 +1227,7 @@ function updateProductsTable() {
         return;
     }
 
-    const produit = produitsCache.find(p => 
-        p.NUMERO_ITEM === numeroItemInt || p.numero_item === numeroItemInt
-    );
-    
+    const produit = produitsCache.find(p => p.numero_item === numeroItemInt || p.NUMERO_ITEM === numeroItemInt);
     const existingLine = tempSaleLines.find(line => line.numero_item === numeroItemInt);
     const totalQuantity = existingLine ? (parseFloat(existingLine.quantite) + quantity) : quantity;
     const priceTotal = quantity * unitPrice;
@@ -1261,7 +1241,7 @@ function updateProductsTable() {
         tempSaleLines.push({
             numero_item: numeroItemInt,
             produit_bar: barInt.toString(),
-            designation: designation || 'N/A',
+            designation: produit ? (produit.designation || produit.DESIGNATION || 'N/A') : (designation || 'N/A'),
             quantite: quantity.toFixed(2),
             prixt: priceTotal.toFixed(2),
             remarque: unitPrice.toFixed(2),
@@ -1270,7 +1250,7 @@ function updateProductsTable() {
     }
 
     updateTempSalesTable();
-    showToast(`Produit ajouté : ${designation || 'N/A'}`);
+    showToast(`Produit ajouté : ${produit ? (produit.designation || produit.DESIGNATION || 'N/A') : designation}`);
 }
 function updateTempSalesTable() {
     const tbody = document.getElementById('tempSalesList');
@@ -1996,7 +1976,12 @@ async function startScanner() {
                     if (result.statut === 'trouvé') {
                         const { produit } = result;
                         selectProduct(
-                            produit
+                            produit.numero_item,
+                            produit.bar,
+                            produit.prix,
+                            produit.prixba,
+                            produit.qte,
+                            produit.designation
                         );
                         // Ajout de la vibration
                         if ('vibrate' in navigator) {
@@ -2081,7 +2066,12 @@ function stopScanner() {
             if (result.statut === 'trouvé') {
                 const { produit } = result;
                 selectProduct(
-                    produit
+                    produit.numero_item,
+                    produit.bar,
+                    produit.prix,
+                    produit.prixba,
+                    produit.qte,
+                    produit.designation
                 );
                 showToast(`Produit ajouté : ${produit.designation}`);
                 event.target.value = '';
