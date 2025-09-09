@@ -60,18 +60,18 @@ export async function rechercherProduitCodebar(codebar) {
 
     console.log("Produit brut récupéré:", produit);
 
-    // Conversion des valeurs
-    const prixFloat = toDotDecimal(produit.prix);
-    const prixbaFloat = toDotDecimal(produit.prixba);
+    // Conversion des valeurs avec gestion rigoureuse des null/undefined
+    const prixFloat = toDotDecimal(produit.prix || '0,00');
+    const prixbaFloat = toDotDecimal(produit.prixba || '0,00');
     const qteInt = parseInt(produit.qte) || 0;
 
     // Formatage des données pour correspondre à l'API Flask (clés en minuscules)
     const produitFormate = {
-      numero_item: produit.numero_item !== null ? produit.numero_item : '',
-      bar: produit.bar !== null ? produit.bar : '',
-      designation: produit.designation !== null ? produit.designation : '',
-      prix: produit.prix !== null && produit.prix !== '' ? produit.prix : '0,00',
-      prixba: produit.prixba !== null && produit.prixba !== '' ? produit.prixba : '0,00',
+      numero_item: produit.numero_item !== null && produit.numero_item !== undefined ? produit.numero_item : '',
+      bar: produit.bar !== null && produit.bar !== undefined ? produit.bar : '',
+      designation: produit.designation !== null && produit.designation !== undefined ? produit.designation : 'Produit sans nom',
+      prix: produit.prix !== null && produit.prix !== undefined && produit.prix !== '' ? produit.prix : '0,00',
+      prixba: produit.prixba !== null && produit.prixba !== undefined && produit.prixba !== '' ? produit.prixba : '0,00',
       qte: qteInt
     };
 
