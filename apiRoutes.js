@@ -61,22 +61,35 @@ export async function rechercherProduitCodebar(codebar) {
 
     console.log("📦 Produit brut récupéré:", produit);
 
-    // Conversion et validation des valeurs pour correspondre à l'API Flask
+    // Conversion et validation des valeurs
     const prixFormatted = produit.prix !== null && produit.prix !== undefined && produit.prix !== ''
       ? toCommaDecimal(parseFloat(toDotDecimal(produit.prix)).toFixed(2))
       : '0,00';
+    
     const prixbaFormatted = produit.prixba !== null && produit.prixba !== undefined && produit.prixba !== ''
       ? toCommaDecimal(parseFloat(toDotDecimal(produit.prixba)).toFixed(2))
       : '0,00';
+    
     const qteInt = produit.qte !== null && produit.qte !== undefined && !isNaN(parseInt(produit.qte))
       ? parseInt(produit.qte)
       : 0;
+    
     const numeroItem = produit.numero_item !== null && produit.numero_item !== undefined && produit.numero_item !== ''
       ? produit.numero_item.toString()
       : 'UNKNOWN_' + codebar;
 
-    // Formatage des données avec clés en MAJUSCULES pour correspondre à l'API Flask
+    // NORMALISATION DES DONNÉES - Toujours retourner les mêmes clés en minuscules
     const produitFormate = {
+      numero_item: numeroItem,
+      bar: produit.bar !== null && produit.bar !== undefined ? produit.bar.toString() : codebar,
+      designation: produit.designation !== null && produit.designation !== undefined && produit.designation.trim() !== ''
+        ? produit.designation.trim()
+        : 'Produit sans nom',
+      prix: prixFormatted,
+      prixba: prixbaFormatted,
+      qte: qteInt,
+      
+      // Ajout des alias en majuscules pour compatibilité ascendante
       NUMERO_ITEM: numeroItem,
       BAR: produit.bar !== null && produit.bar !== undefined ? produit.bar.toString() : codebar,
       DESIGNATION: produit.designation !== null && produit.designation !== undefined && produit.designation.trim() !== ''
@@ -87,7 +100,7 @@ export async function rechercherProduitCodebar(codebar) {
       QTE: qteInt
     };
 
-    console.log("📤 Produit formaté retourné:", produitFormate);
+    console.log("📤 Produit formaté normalisé:", produitFormate);
     return { statut: "trouvé", produit: produitFormate, status: 200 };
 
   } catch (error) {
@@ -95,8 +108,6 @@ export async function rechercherProduitCodebar(codebar) {
     return { erreur: error.message, status: 500 };
   }
 }
-
-
 export async function listeTables() {
   try {
     console.log("Exécution de listeTables...");
