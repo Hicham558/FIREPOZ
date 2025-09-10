@@ -2091,3 +2091,371 @@ export async function validerReception(data) {
     return { erreur: error.message, status: 500 };
   }
 }
+export async function receptionsJour(params = {}) {
+  try {
+    console.log("Exécution de receptionsJour avec params:", params);
+    const db = await getDb();
+
+    const { date, numero_util, numero_four } = params;
+    let date_start, date_end;
+
+    if (date) {
+      date_start = `${date} 00:00:00`;
+      date_end = `${date} 23:59:59`;
+    } else {
+      const today = new Date().toISOString().split('T')[0];
+      date_start = `${today} 00:00:00`;
+      date_end = `${today} 23:59:59`;
+    }
+
+    let query = `
+      SELECT m.*, f.nom as fournisseur_nom, u.nom as utilisateur_nom,
+             a2.numero_item, a2.qtea, a2.nprix, a2.nqte, i.designation
+      FROM mouvement m
+      LEFT JOIN fournisseur f ON m.numero_four = f.numero_fou
+      LEFT JOIN utilisateur u ON m.numero_util = u.numero_util
+      JOIN attache2 a2 ON m.numero_mouvement = a2.numero_mouvement
+      JOIN item i ON a2.numero_item = i.numero_item
+      WHERE m.date_m BETWEEN ? AND ? AND m.nature = 'Bon de réception'
+    `;
+
+    const queryParams = [date_start, date_end];
+
+    if (numero_util && numero_util !== '0') {
+      query += ' AND m.numero_util = ?';
+      queryParams.push(parseInt(numero_util));
+    }
+
+    if (numero_four && numero_four !== '') {
+      query += ' AND m.numero_four = ?';
+      queryParams.push(numero_four);
+    }
+
+    query += ' ORDER BY m.numero_mouvement DESC';
+
+    const stmt = db.prepare(query);
+    stmt.bind(queryParams);
+
+    const receptionsMap = {};
+    let total = 0;
+
+    while (stmt.step()) {
+      const row = stmt.getAsObject();
+      const numero_mouvement = row.numero_mouvement;
+
+      if (!receptionsMap[numero_mouvement]) {
+        receptionsMap[numero_mouvement] = {
+          numero_mouvement: row.numero_mouvement,
+          date_m: row.date_m,
+          nature: row.nature,
+          fournisseur_nom: row.fournisseur_nom || 'N/A',
+          utilisateur_nom: row.utilisateur_nom,
+          lignes: []
+        };
+      }
+
+      const total_ligne = toDotDecimal(row.nprix) * parseFloat(row.qtea || 0);
+      
+      receptionsMap[numero_mouvement].lignes.push({
+        numero_item: row.numero_item,
+        designation: row.designation,
+        qtea: row.qtea,
+        nprix: row.nprix,
+        total_ligne: toCommaDecimal(total_ligne)
+      });
+
+      total += total_ligne;
+    }
+    stmt.free();
+
+    const receptions = Object.values(receptionsMap);
+
+    return {
+      receptions,
+      total: toCommaDecimal(total),
+      status: 200
+    };
+
+  } catch (error) {
+    console.error("Erreur receptionsJour:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+export async function articlesPlusVendus(params = {}) {
+  try {
+    console.log("Exécution de articlesPlusVendus avec params:", params);
+    const db = await getDb();
+
+    const { date, numero_clt, numero_util } = params;
+    let date_start, date_end;
+
+    if (date) {
+      date_start = `${date} 00:00:00`;
+      date_end = `${date} 23:59:59`;
+    } else {
+      const today = new Date().toISOString().split('T')[0];
+      date_start = `${today} 00:00:00`;
+      date_end = `${today} 23:59:59`;
+    }
+
+    let query = `
+      SELECT 
+        i.numero_item,
+        i.designation,
+        SUM(a.quantite) AS quantite,
+        SUM(CAST(COALESCE(NULLIF(REPLACE(a.prixt, ',', '.'), ''), '0') AS REAL)) AS total_vente
+      FROM comande c
+      JOIN attache a ON c.numero_comande = a.numero_comande
+      JOIN item i ON a.numero_item = i.numero_item
+      WHERE c.date_comande BETWEEN ? AND ?
+    `;
+
+    const queryParams = [date_start, date_end];
+
+    if (numero_clt && numero_clt !== '0') {
+      query += ' AND c.numero_table = ?';
+      queryParams.push(parseInt(numero_clt));
+    }
+
+    if (numero_util && numero_util !== '0') {
+      query += ' AND c.numero_util = ?';
+      queryParams.push(parseInt(numero_util));
+    }
+
+    query += `
+      GROUP BY i.numero_item, i.designation
+      ORDER BY quantite DESC
+      LIMIT 10
+    `;
+
+    const stmt = db.prepare(query);
+    stmt.bind(queryParams);
+
+    const articles = [];
+    while (stmt.step()) {
+      const row = stmt.getAsObject();
+      articles.push({
+        numero_item: row.numero_item,
+        designation: row.designation || 'N/A',
+        quantite: parseInt(row.quantite || 0),
+        total_vente: toCommaDecimal(parseFloat(row.total_vente || 0))
+      });
+    }
+    stmt.free();
+
+    return articles;
+
+  } catch (error) {
+    console.error("Erreur articlesPlusVendus:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+export async function profitByDate(params = {}) {
+  try {
+    console.log("Exécution de profitByDate avec params:", params);
+    const db = await getDb();
+
+    const { date, numero_clt, numero_util } = params;
+    let date_start, date_end;
+
+    if (date) {
+      date_start = `${date} 00:00:00`;
+      date_end = `${date} 23:59:59`;
+    } else {
+      // Par défaut, 30 derniers jours
+      date_end = new Date();
+      date_end.setHours(23, 59, 59, 999);
+      date_start = new Date(date_end);
+      date_start.setDate(date_start.getDate() - 30);
+      date_start.setHours(0, 0, 0, 0);
+    }
+
+    let query = `
+      SELECT
+        DATE(c.date_comande) AS date,
+        SUM(CAST(COALESCE(NULLIF(REPLACE(a.prixt, ',', '.'), ''), '0') AS REAL) -
+            (a.quantite * CAST(COALESCE(NULLIF(REPLACE(i.prixba, ',', '.'), ''), '0') AS REAL))) AS profit
+      FROM comande c
+      JOIN attache a ON c.numero_comande = a.numero_comande
+      JOIN item i ON a.numero_item = i.numero_item
+      WHERE c.date_comande BETWEEN ? AND ?
+    `;
+
+    const queryParams = [
+      date_start.toISOString().replace('T', ' ').slice(0, 19),
+      date_end.toISOString().replace('T', ' ').slice(0, 19)
+    ];
+
+    if (numero_clt && numero_clt !== '0') {
+      query += ' AND c.numero_table = ?';
+      queryParams.push(parseInt(numero_clt));
+    }
+
+    if (numero_util && numero_util !== '0') {
+      query += ' AND c.numero_util = ?';
+      queryParams.push(parseInt(numero_util));
+    }
+
+    query += `
+      GROUP BY DATE(c.date_comande)
+      ORDER BY DATE(c.date_comande) DESC
+    `;
+
+    const stmt = db.prepare(query);
+    stmt.bind(queryParams);
+
+    const profits = [];
+    while (stmt.step()) {
+      const row = stmt.getAsObject();
+      profits.push({
+        date: row.date,
+        profit: toCommaDecimal(parseFloat(row.profit || 0))
+      });
+    }
+    stmt.free();
+
+    return profits;
+
+  } catch (error) {
+    console.error("Erreur profitByDate:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+export async function stockValue() {
+  try {
+    console.log("Exécution de stockValue...");
+    const db = await getDb();
+
+    // Calculer la valeur du stock en excluant les articles avec qte négative
+    const stmt = db.prepare(`
+      SELECT 
+        SUM(COALESCE(CAST(NULLIF(REPLACE(prixb, ',', '.'), '') AS FLOAT), 0) * COALESCE(qte, 0)) AS valeur_achat,
+        SUM(COALESCE(CAST(NULLIF(REPLACE(prix, ',', '.'), '') AS FLOAT), 0) * COALESCE(qte, 0)) AS valeur_vente
+      FROM item
+      WHERE qte >= 0 AND GERE = 1
+    `);
+    
+    stmt.step();
+    const result = stmt.getAsObject();
+    stmt.free();
+
+    // Extraire les valeurs
+    const valeur_achat = parseFloat(result.valeur_achat || 0);
+    const valeur_vente = parseFloat(result.valeur_vente || 0);
+
+    // Calculer la zakat (2.5% de la valeur de vente)
+    const zakat = valeur_vente * 0.025;
+
+    return {
+      valeur_achat: toCommaDecimal(valeur_achat),
+      valeur_vente: toCommaDecimal(valeur_vente),
+      zakat: toCommaDecimal(zakat),
+      status: 200
+    };
+
+  } catch (error) {
+    console.error("Erreur stockValue:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+export async function annulerReception(data) {
+  try {
+    console.log("Exécution de annulerReception avec data:", data);
+    const db = await getDb();
+    
+    const { numero_mouvement, password2 } = data;
+
+    if (!numero_mouvement || !password2) {
+      return { erreur: "Données manquantes", status: 400 };
+    }
+
+    // Récupérer la réception
+    const stmtMouvement = db.prepare('SELECT numero_util, numero_four FROM mouvement WHERE numero_mouvement = ?');
+    stmtMouvement.bind([numero_mouvement]);
+    const mouvement = stmtMouvement.step() ? stmtMouvement.getAsObject() : null;
+    stmtMouvement.free();
+
+    if (!mouvement) {
+      return { erreur: "Réception non trouvée", status: 404 };
+    }
+
+    // Vérifier mot de passe
+    const stmtUser = db.prepare('SELECT password2 FROM utilisateur WHERE numero_util = ?');
+    stmtUser.bind([mouvement.numero_util]);
+    const user = stmtUser.step() ? stmtUser.getAsObject() : null;
+    stmtUser.free();
+
+    if (!user || user.password2 !== password2) {
+      return { erreur: "Mot de passe incorrect", status: 401 };
+    }
+
+    db.run('BEGIN TRANSACTION');
+
+    try {
+      // 1. Restaurer stock et solde fournisseur
+      await restaurerAncienneReception(numero_mouvement, db);
+
+      // 2. Supprimer la réception
+      const stmtDeleteAttache = db.prepare('DELETE FROM attache2 WHERE numero_mouvement = ?');
+      stmtDeleteAttache.run([numero_mouvement]);
+      stmtDeleteAttache.free();
+
+      const stmtDeleteMouvement = db.prepare('DELETE FROM mouvement WHERE numero_mouvement = ?');
+      stmtDeleteMouvement.run([numero_mouvement]);
+      stmtDeleteMouvement.free();
+
+      db.run('COMMIT');
+      saveDbToLocalStorage(db);
+
+      return { statut: "Réception annulée", status: 200 };
+
+    } catch (error) {
+      db.run('ROLLBACK');
+      throw error;
+    }
+
+  } catch (error) {
+    console.error("Erreur annulerReception:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+// Fonction utilitaire pour restaurer une réception annulée
+async function restaurerAncienneReception(numero_mouvement, db) {
+  // Récupérer les anciennes lignes de réception
+  const stmtLignes = db.prepare('SELECT numero_item, qtea, nprix FROM attache2 WHERE numero_mouvement = ?');
+  stmtLignes.bind([numero_mouvement]);
+  const lignes = [];
+  while (stmtLignes.step()) {
+    lignes.push(stmtLignes.getAsObject());
+  }
+  stmtLignes.free();
+
+  // Restaurer le stock
+  for (const ligne of lignes) {
+    const stmtRestore = db.prepare('UPDATE item SET qte = qte - ? WHERE numero_item = ?');
+    stmtRestore.run([ligne.qtea, ligne.numero_item]);
+    stmtRestore.free();
+  }
+
+  // Restaurer le solde fournisseur
+  const stmtMouvement = db.prepare('SELECT numero_four FROM mouvement WHERE numero_mouvement = ?');
+  stmtMouvement.bind([numero_mouvement]);
+  const mouvement = stmtMouvement.step() ? stmtMouvement.getAsObject() : null;
+  stmtMouvement.free();
+
+  if (mouvement && mouvement.numero_four) {
+    let total_cost = 0;
+    for (const ligne of lignes) {
+      total_cost += toDotDecimal(ligne.nprix) * parseFloat(ligne.qtea || 0);
+    }
+
+    const stmtFour = db.prepare('UPDATE fournisseur SET solde = solde + ? WHERE numero_fou = ?');
+    stmtFour.run([toCommaDecimal(total_cost), mouvement.numero_four]);
+    stmtFour.free();
+  }
+}
