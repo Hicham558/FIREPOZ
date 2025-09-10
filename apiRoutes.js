@@ -2381,12 +2381,11 @@ export async function stockValue() {
 
 export async function annulerVente(data) {
   try {
-    console.log("🔍 EXECUTION annulerVente - Données reçues:", data);
+    console.log("Exécution de annulerVente avec data:", data);
     const db = await getDb();
 
-    // 1. Validation des données
+    // 1. Validation des données - mêmes clés que Flask (minuscules)
     if (!data || !data.numero_comande || !data.password2) {
-      console.error("❌ ERREUR: Données manquantes - numero_comande ou password2");
       return { error: "Numéro de commande ou mot de passe manquant", status: 400 };
     }
 
@@ -2394,22 +2393,17 @@ export async function annulerVente(data) {
     const password2 = data.password2;
 
     if (isNaN(numero_comande)) {
-      console.error("❌ ERREUR: Format invalide pour numero_comande:", data.numero_comande);
       return { error: "Format invalide pour numero_comande", status: 400 };
     }
 
     if (typeof password2 !== 'string' || !password2.trim()) {
-      console.error("❌ ERREUR: Mot de passe invalide");
       return { error: "Mot de passe invalide", status: 400 };
     }
-
-    console.log("✅ Validation des données OK - numero_comande:", numero_comande);
 
     db.run("BEGIN TRANSACTION");
 
     try {
-      // 2. Vérifier l'existence de la commande
-      console.log("🔍 Recherche commande:", numero_comande);
+      // 2. Vérifier l'existence de la commande et récupérer le numero_util
       const stmtComande = db.prepare(`
         SELECT numero_table, nature, numero_util 
         FROM comande 
@@ -2419,35 +2413,25 @@ export async function annulerVente(data) {
       const commande = stmtComande.step() ? stmtComande.getAsObject() : null;
       stmtComande.free();
 
-      console.log("📋 Résultat recherche commande:", commande);
-
       if (!commande) {
-        console.error("❌ ERREUR: Commande non trouvée");
         return { error: "Commande non trouvée", status: 404 };
       }
 
       // 3. Vérifier le mot de passe de l'utilisateur
-      console.log("🔍 Recherche utilisateur:", commande.numero_util);
       const stmtUser = db.prepare("SELECT password2 FROM utilisateur WHERE numero_util = ?");
       stmtUser.bind([commande.numero_util]);
       const utilisateur = stmtUser.step() ? stmtUser.getAsObject() : null;
       stmtUser.free();
 
-      console.log("📋 Résultat recherche utilisateur:", utilisateur);
-
       if (!utilisateur) {
-        console.error("❌ ERREUR: Utilisateur non trouvé");
         return { error: "Utilisateur associé à la commande non trouvé", status: 400 };
       }
 
       if (utilisateur.password2 !== password2) {
-        console.error("❌ ERREUR: Mot de passe incorrect");
-        console.log("📋 Password reçu:", password2, "Password attendu:", utilisateur.password2);
         return { error: "Mot de passe incorrect", status: 401 };
       }
 
       // 4. Récupérer les lignes de la vente
-      console.log("🔍 Recherche lignes de vente pour commande:", numero_comande);
       const stmtLignes = db.prepare(`
         SELECT numero_item, quantite, prixt
         FROM attache 
@@ -2463,38 +2447,27 @@ export async function annulerVente(data) {
       }
       stmtLignes.free();
 
-      console.log("📋 Lignes de vente trouvées:", lignes.length, "lignes");
-
       if (lignes.length === 0) {
-        console.error("❌ ERREUR: Aucune ligne de vente trouvée");
         return { error: "Aucune ligne de vente trouvée", status: 404 };
       }
 
       // 5. Restaurer le stock dans item
-      console.log("🔄 Restauration du stock pour", lignes.length, "articles");
       for (const ligne of lignes) {
-        console.log("🔍 Recherche item:", ligne.numero_item);
         const stmtItem = db.prepare("SELECT qte FROM item WHERE numero_item = ?");
         stmtItem.bind([ligne.numero_item]);
         const item = stmtItem.step() ? stmtItem.getAsObject() : null;
         stmtItem.free();
 
         if (item) {
-          const ancienneQte = parseInt(item.qte);
-          const nouvelleQte = ancienneQte + parseInt(ligne.quantite);
-          console.log("📦 Mise à jour stock item:", ligne.numero_item, "ancienne:", ancienneQte, "nouvelle:", nouvelleQte);
-          
+          const nouvelleQte = parseInt(item.qte) + parseInt(ligne.quantite);
           db.prepare("UPDATE item SET qte = ? WHERE numero_item = ?")
             .run([nouvelleQte, ligne.numero_item])
             .free();
-        } else {
-          console.warn("⚠️ Item non trouvé:", ligne.numero_item);
         }
       }
 
-      // 6. Si vente à terme, ajuster le solde du client
+      // 6. Si vente à terme (numero_table != 0), ajuster le solde du client
       if (commande.numero_table !== 0) {
-        console.log("💰 Ajustement solde client:", commande.numero_table);
         const totalVente = lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
         
         const stmtClient = db.prepare("SELECT solde FROM client WHERE numero_clt = ?");
@@ -2503,41 +2476,26 @@ export async function annulerVente(data) {
         stmtClient.free();
 
         if (!client) {
-          console.error("❌ ERREUR: Client non trouvé:", commande.numero_table);
           throw new Error(`Client ${commande.numero_table} non trouvé`);
         }
 
-        const ancienSolde = parseFloat(client.solde || 0);
-        const nouveauSolde = ancienSolde - totalVente;
-        console.log("💳 Solde client - ancien:", ancienSolde, "nouveau:", nouveauSolde, "total vente:", totalVente);
-        
+        const nouveauSolde = parseFloat(client.solde || 0) - totalVente;
         db.prepare("UPDATE client SET solde = ? WHERE numero_clt = ?")
           .run([nouveauSolde.toFixed(2), commande.numero_table])
           .free();
-      } else {
-        console.log("ℹ️ Vente comptoir - pas d'ajustement de solde client");
       }
 
-      // 7. Supprimer les enregistrements associés
-      console.log("🗑️ Suppression des enregistrements associés");
-      
-      // Supprimer encaisse
-      const stmtEncaisse = db.prepare("SELECT COUNT(*) as count FROM encaisse WHERE numero_comande = ?");
-      stmtEncaisse.bind([numero_comande]);
-      const countEncaisse = stmtEncaisse.step() ? stmtEncaisse.getAsObject().count : 0;
-      stmtEncaisse.free();
-      console.log("📊 Enregistrements encaisse à supprimer:", countEncaisse);
-      
+      // 7. Supprimer les enregistrements associés dans encaisse
       db.prepare("DELETE FROM encaisse WHERE numero_comande = ?")
         .run([numero_comande])
         .free();
 
-      // Supprimer attache
+      // 8. Supprimer les lignes de attache
       db.prepare("DELETE FROM attache WHERE numero_comande = ?")
         .run([numero_comande])
         .free();
 
-      // Supprimer comande
+      // 9. Supprimer la commande
       db.prepare("DELETE FROM comande WHERE numero_comande = ?")
         .run([numero_comande])
         .free();
@@ -2545,29 +2503,27 @@ export async function annulerVente(data) {
       db.run("COMMIT");
       saveDbToLocalStorage(db);
 
-      console.log("✅ SUCCÈS: Vente annulée - numero_comande:", numero_comande, "lignes:", lignes.length);
+      console.log(`Vente annulée: numero_comande=${numero_comande}, ${lignes.length} lignes`);
       return { statut: "Vente annulée", status: 200 };
 
     } catch (error) {
       db.run("ROLLBACK");
-      console.error("❌ ERREUR TRANSACTION annulerVente:", error);
       throw error;
     }
 
   } catch (error) {
-    console.error("❌ ERREUR FATALE annulerVente:", error);
+    console.error("Erreur annulerVente:", error);
     return { error: error.message || "Erreur lors de l'annulation de la vente", status: 500 };
   }
 }
 
 export async function annulerReception(data) {
   try {
-    console.log("🔍 EXECUTION annulerReception - Données reçues:", data);
+    console.log("Exécution de annulerReception avec data:", data);
     const db = await getDb();
 
-    // 1. Validation des données
+    // 1. Validation des données - mêmes clés que Flask (minuscules)
     if (!data || !data.numero_mouvement || !data.password2) {
-      console.error("❌ ERREUR: Données manquantes - numero_mouvement ou password2");
       return { error: "Numéro de mouvement ou mot de passe manquant", status: 400 };
     }
 
@@ -2575,22 +2531,17 @@ export async function annulerReception(data) {
     const password2 = data.password2;
 
     if (isNaN(numero_mouvement)) {
-      console.error("❌ ERREUR: Format invalide pour numero_mouvement:", data.numero_mouvement);
       return { error: "Format invalide pour numero_mouvement", status: 400 };
     }
 
     if (typeof password2 !== 'string' || !password2.trim()) {
-      console.error("❌ ERREUR: Mot de passe invalide");
       return { error: "Mot de passe invalide", status: 400 };
     }
-
-    console.log("✅ Validation des données OK - numero_mouvement:", numero_mouvement);
 
     db.run("BEGIN TRANSACTION");
 
     try {
-      // 2. Vérifier l'existence du mouvement
-      console.log("🔍 Recherche mouvement:", numero_mouvement);
+      // 2. Vérifier l'existence du mouvement et récupérer le numero_util
       const stmtMouvement = db.prepare(`
         SELECT numero_four, numero_util 
         FROM mouvement 
@@ -2600,35 +2551,25 @@ export async function annulerReception(data) {
       const mouvement = stmtMouvement.step() ? stmtMouvement.getAsObject() : null;
       stmtMouvement.free();
 
-      console.log("📋 Résultat recherche mouvement:", mouvement);
-
       if (!mouvement) {
-        console.error("❌ ERREUR: Mouvement non trouvé");
         return { error: "Mouvement non trouvé", status: 404 };
       }
 
       // 3. Vérifier le mot de passe de l'utilisateur
-      console.log("🔍 Recherche utilisateur:", mouvement.numero_util);
       const stmtUser = db.prepare("SELECT password2 FROM utilisateur WHERE numero_util = ?");
       stmtUser.bind([mouvement.numero_util]);
       const utilisateur = stmtUser.step() ? stmtUser.getAsObject() : null;
       stmtUser.free();
 
-      console.log("📋 Résultat recherche utilisateur:", utilisateur);
-
       if (!utilisateur) {
-        console.error("❌ ERREUR: Utilisateur non trouvé");
         return { error: "Utilisateur associé au mouvement non trouvé", status: 400 };
       }
 
       if (utilisateur.password2 !== password2) {
-        console.error("❌ ERREUR: Mot de passe incorrect");
-        console.log("📋 Password reçu:", password2, "Password attendu:", utilisateur.password2);
         return { error: "Mot de passe incorrect", status: 401 };
       }
 
       // 4. Récupérer les lignes de la réception
-      console.log("🔍 Recherche lignes de réception pour mouvement:", numero_mouvement);
       const stmtLignes = db.prepare(`
         SELECT numero_item, qtea, nprix 
         FROM attache2 
@@ -2644,10 +2585,7 @@ export async function annulerReception(data) {
       }
       stmtLignes.free();
 
-      console.log("📋 Lignes de réception trouvées:", lignes.length, "lignes");
-
       if (lignes.length === 0) {
-        console.error("❌ ERREUR: Aucune ligne de réception trouvée");
         return { error: "Aucune ligne de réception trouvée", status: 404 };
       }
 
@@ -2655,59 +2593,43 @@ export async function annulerReception(data) {
       const totalCout = lignes.reduce((sum, ligne) => {
         return sum + (parseFloat(ligne.qtea || 0) * parseFloat(ligne.nprix || 0));
       }, 0);
-      console.log("💰 Coût total de la réception:", totalCout);
 
       // 6. Restaurer le stock dans item
-      console.log("🔄 Restauration du stock pour", lignes.length, "articles");
       for (const ligne of lignes) {
-        console.log("🔍 Recherche item:", ligne.numero_item);
         const stmtItem = db.prepare("SELECT qte FROM item WHERE numero_item = ?");
         stmtItem.bind([ligne.numero_item]);
         const item = stmtItem.step() ? stmtItem.getAsObject() : null;
         stmtItem.free();
 
         if (item) {
-          const ancienneQte = parseInt(item.qte);
-          const nouvelleQte = ancienneQte - parseInt(ligne.qtea);
-          console.log("📦 Mise à jour stock item:", ligne.numero_item, "ancienne:", ancienneQte, "nouvelle:", nouvelleQte);
-          
+          const nouvelleQte = parseInt(item.qte) - parseInt(ligne.qtea);
           db.prepare("UPDATE item SET qte = ? WHERE numero_item = ?")
             .run([nouvelleQte, ligne.numero_item])
             .free();
-        } else {
-          console.warn("⚠️ Item non trouvé:", ligne.numero_item);
         }
       }
 
       // 7. Mettre à jour le solde du fournisseur
-      console.log("💰 Ajustement solde fournisseur:", mouvement.numero_four);
       const stmtFournisseur = db.prepare("SELECT solde FROM fournisseur WHERE numero_fou = ?");
       stmtFournisseur.bind([mouvement.numero_four]);
       const fournisseur = stmtFournisseur.step() ? stmtFournisseur.getAsObject() : null;
       stmtFournisseur.free();
 
       if (!fournisseur) {
-        console.error("❌ ERREUR: Fournisseur non trouvé:", mouvement.numero_four);
         throw new Error(`Fournisseur ${mouvement.numero_four} non trouvé`);
       }
 
-      const ancienSolde = parseFloat(fournisseur.solde || 0);
-      const nouveauSolde = ancienSolde + totalCout;
-      console.log("💳 Solde fournisseur - ancien:", ancienSolde, "nouveau:", nouveauSolde, "total coût:", totalCout);
-      
+      const nouveauSolde = parseFloat(fournisseur.solde || 0) + totalCout;
       db.prepare("UPDATE fournisseur SET solde = ? WHERE numero_fou = ?")
         .run([nouveauSolde.toFixed(2), mouvement.numero_four])
         .free();
 
-      // 8. Supprimer les enregistrements associés
-      console.log("🗑️ Suppression des enregistrements associés");
-      
-      // Supprimer attache2
+      // 8. Supprimer les lignes de attache2
       db.prepare("DELETE FROM attache2 WHERE numero_mouvement = ?")
         .run([numero_mouvement])
         .free();
 
-      // Supprimer mouvement
+      // 9. Supprimer le mouvement
       db.prepare("DELETE FROM mouvement WHERE numero_mouvement = ?")
         .run([numero_mouvement])
         .free();
@@ -2715,17 +2637,16 @@ export async function annulerReception(data) {
       db.run("COMMIT");
       saveDbToLocalStorage(db);
 
-      console.log("✅ SUCCÈS: Réception annulée - numero_mouvement:", numero_mouvement, "lignes:", lignes.length);
+      console.log(`Réception annulée: numero_mouvement=${numero_mouvement}, ${lignes.length} lignes`);
       return { statut: "Réception annulée", status: 200 };
 
     } catch (error) {
       db.run("ROLLBACK");
-      console.error("❌ ERREUR TRANSACTION annulerReception:", error);
       throw error;
     }
 
   } catch (error) {
-    console.error("❌ ERREUR FATALE annulerReception:", error);
+    console.error("Erreur annulerReception:", error);
     return { error: error.message || "Erreur lors de l'annulation de la réception", status: 500 };
   }
 }
