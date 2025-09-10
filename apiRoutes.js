@@ -2097,9 +2097,19 @@ export async function receptionsJour(params = {}) {
     const db = await getDb();
 
     const { date, numero_util, numero_four } = params;
+    
+    // Validation et formatage des dates
     let date_start, date_end;
-
     if (date) {
+      // Valider le format de la date
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return { 
+          receptions: [], 
+          total: "0,00", 
+          status: 400,
+          erreur: "Format de date invalide. Utilisez YYYY-MM-DD" 
+        };
+      }
       date_start = `${date} 00:00:00`;
       date_end = `${date} 23:59:59`;
     } else {
@@ -2107,6 +2117,8 @@ export async function receptionsJour(params = {}) {
       date_start = `${today} 00:00:00`;
       date_end = `${today} 23:59:59`;
     }
+
+    console.log("Plage de dates recherchée:", date_start, "à", date_end);
 
     let query = `
       SELECT m.*, f.nom as fournisseur_nom, u.nom as utilisateur_nom,
@@ -2133,34 +2145,56 @@ export async function receptionsJour(params = {}) {
 
     query += ' ORDER BY m.numero_mouvement DESC';
 
+    console.log("Requête SQL:", query);
+    console.log("Paramètres:", queryParams);
+
     const stmt = db.prepare(query);
     stmt.bind(queryParams);
 
     const receptionsMap = {};
     let total = 0;
+    let rowCount = 0;
 
     while (stmt.step()) {
+      rowCount++;
       const row = stmt.getAsObject();
-      const numero_mouvement = row.numero_mouvement;
+      console.log(`Ligne ${rowCount} brute:`, row);
+
+      // CORRECTION : SQL.js retourne les colonnes en MAJUSCULES
+      const numero_mouvement = row.NUMERO_MOUVEMENT || row.numero_mouvement;
+      
+      if (!numero_mouvement) {
+        console.warn("Ligne sans numero_mouvement, ignorée:", row);
+        continue;
+      }
 
       if (!receptionsMap[numero_mouvement]) {
         receptionsMap[numero_mouvement] = {
-          numero_mouvement: row.numero_mouvement,
-          date_m: row.date_m,
-          nature: row.nature,
-          fournisseur_nom: row.fournisseur_nom || 'N/A',
-          utilisateur_nom: row.utilisateur_nom,
+          numero_mouvement: numero_mouvement,
+          date_m: row.DATE_M || row.date_m,
+          nature: row.NATURE || row.nature,
+          fournisseur_nom: row.FOURNISSEUR_NOM || row.fournisseur_nom || 'N/A',
+          utilisateur_nom: row.UTILISATEUR_NOM || row.utilisateur_nom || 'N/A',
           lignes: []
         };
       }
 
-      const total_ligne = toDotDecimal(row.nprix) * parseFloat(row.qtea || 0);
-      
+      // Calcul du total ligne avec gestion des erreurs
+      let total_ligne = 0;
+      try {
+        const nprix = toDotDecimal(row.NPRIX || row.nprix || "0");
+        const qtea = parseFloat(row.QTEA || row.qtea || 0);
+        total_ligne = nprix * qtea;
+      } catch (error) {
+        console.error("Erreur calcul total_ligne:", error, "pour la ligne:", row);
+        total_ligne = 0;
+      }
+
       receptionsMap[numero_mouvement].lignes.push({
-        numero_item: row.numero_item,
-        designation: row.designation,
-        qtea: row.qtea,
-        nprix: row.nprix,
+        numero_item: row.NUMERO_ITEM || row.numero_item,
+        designation: row.DESIGNATION || row.designation || 'N/A',
+        qtea: row.QTEA || row.qtea || 0,
+        nprix: row.NPRIX || row.nprix || "0,00",
         total_ligne: toCommaDecimal(total_ligne)
       });
 
@@ -2168,7 +2202,15 @@ export async function receptionsJour(params = {}) {
     }
     stmt.free();
 
+    console.log(`Total lignes traitées: ${rowCount}`);
+    console.log(`Réceptions groupées: ${Object.keys(receptionsMap).length}`);
+
     const receptions = Object.values(receptionsMap);
+
+    // Debug: Vérifier le contenu des réceptions
+    receptions.forEach((rec, index) => {
+      console.log(`Réception ${index + 1}:`, rec);
+    });
 
     return {
       receptions,
@@ -2178,10 +2220,14 @@ export async function receptionsJour(params = {}) {
 
   } catch (error) {
     console.error("Erreur receptionsJour:", error);
-    return { erreur: error.message, status: 500 };
+    return { 
+      receptions: [], 
+      total: "0,00", 
+      erreur: error.message, 
+      status: 500 
+    };
   }
 }
-
 export async function articlesPlusVendus(params = {}) {
   try {
     console.log("Exécution de articlesPlusVendus avec params:", params);
