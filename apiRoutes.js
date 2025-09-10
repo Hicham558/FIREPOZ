@@ -1,2409 +1,1691 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import psycopg2
-import logging
-import os
-from psycopg2.extras import RealDictCursor
-from datetime import datetime, timedelta
-from psycopg2 import Error as Psycopg2Error
-app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
-app.debug = False  # Activer le mode debug pour voir les erreurs
-
-# Connexion à la base de données locale PostgreSQL
-def get_conn():
-    try:
-        return psycopg2.connect(
-            dbname="restocafee",
-            user="postgres",
-            password="masterkey",
-            host="localhost",
-            port="5432"
-        )
-    except Exception as e:
-        logging.error(f"Erreur de connexion à la base de données : {str(e)}")
-        raise
-
-# Configurez le logger
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
-
-def to_comma_decimal(value):
-    """
-    Convertit une valeur numérique en chaîne avec virgule comme séparateur décimal.
-    Ex. : 1234.56 → '1234,56'
-    """
-    try:
-        if isinstance(value, (int, float)):
-            return f"{value:.2f}".replace(".", ",")
-        return str(value).replace(".", ",")
-    except (ValueError, TypeError):
-        return "0,00"
-
-def to_dot_decimal(value):
-    """Convertit une chaîne avec virgule ou point (ex. '123,45', '-123.45') ou un nombre en flottant."""
-    if isinstance(value, (int, float)):
-        return float(value)
-    if not value or not isinstance(value, str):
-        return 0.0
-    try:
-        # Remplacer la virgule par un point et nettoyer la chaîne
-        cleaned_value = value.replace(',', '.').strip()
-        return float(cleaned_value)
-    except ValueError:
-        logger.error(f"Erreur de conversion décimale pour la valeur: {value}")
-        return 0.0
-# Route pour vérifier que l'API est en ligne
-@app.route('/', methods=['GET'])
-def index():
-    try:
-        conn = get_conn()
-        conn.close()
-        return 'API en ligne - Connexion PostgreSQL OK'
-    except Exception as e:
-        return f'Erreur connexion DB : {e}', 500
-
-@app.route('/valider_vendeur', methods=['POST'])
-def valider_vendeur():
-    """
-    Endpoint pour valider un vendeur en vérifiant son nom et son mot de passe.
-    Reçoit un JSON avec 'nom' et 'password2'.
-    Retourne les informations du vendeur si valide, sinon une erreur.
-    """
-    # Récupérer les données JSON de la requête
-    data = request.get_json()
-    if not data or 'nom' not in data or 'password2' not in data:
-        logger.error("Données invalides: 'nom' ou 'password2' manquant")
-        return jsonify({"erreur": "Le nom et le mot de passe sont requis"}), 400
-
-    nom = data.get('nom')
-    password2 = data.get('password2')
-
-    try:
-        # Établir la connexion à la base de données
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        
-        # Requête pour vérifier l'utilisateur sans user_id
-        cur.execute("""
-            SELECT numero_util, nom, statue 
-            FROM utilisateur 
-            WHERE nom = %s AND password2 = %s
-        """, (nom, password2))
-        
-        utilisateur = cur.fetchone()
-        
-        # Fermer le curseur et la connexion
-        cur.close()
-        conn.close()
-
-        # Vérifier si l'utilisateur existe
-        if not utilisateur:
-            logger.error(f"Échec authentification: nom={nom}")
-            return jsonify({"erreur": "Nom ou mot de passe incorrect"}), 401
-
-        logger.info(f"Vendeur validé: numero_util={utilisateur['numero_util']}, nom={nom}")
-        return jsonify({
-            "statut": "Vendeur validé",
-            "utilisateur": {
-                "numero_util": utilisateur['numero_util'],
-                "nom": utilisateur['nom'],
-                "statut": utilisateur['statue']
-            }
-        }), 200
-
-    except Exception as e:
-        logger.error(f"Erreur lors de la validation du vendeur: {str(e)}", exc_info=True)
-        # S'assurer que la connexion est fermée en cas d'erreur
-        if 'conn' in locals() and conn:
-            cur.close()
-            conn.close()
-        return jsonify({"erreur": str(e)}), 500
-
-@app.route('/rechercher_produit_codebar', methods=['GET'])
-def rechercher_produit_codebar():
-    codebar = request.args.get('codebar')
-    if not codebar:
-        return jsonify({'erreur': 'Code-barres requis'}), 400
-
-    try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # Rechercher d'abord par code-barres principal dans item
-        cur.execute("""
-            SELECT numero_item, bar, designation, prix, prixba, qte
-            FROM item
-            WHERE bar = %s
-        """, (codebar,))
-        produit = cur.fetchone()
-
-        if produit:
-            cur.close()
-            conn.close()
-            return jsonify({
-                'statut': 'trouvé',
-                'type': 'principal',
-                'produit': produit
-            }), 200
-
-        # Si non trouvé, rechercher dans codebar pour un code-barres lié
-        cur.execute("""
-            SELECT i.numero_item, i.bar, i.designation, i.prix, i.prixba, i.qte
-            FROM codebar c
-            JOIN item i ON c.bar = i.numero_item::varchar
-            WHERE c.bar2 = %s
-        """, (codebar,))
-        produit = cur.fetchone()
-
-        if produit:
-            cur.close()
-            conn.close()
-            return jsonify({
-                'statut': 'trouvé',
-                'type': 'lié',
-                'produit': produit
-            }), 200
-
-        cur.close()
-        conn.close()
-        return jsonify({'erreur': 'Produit non trouvé'}), 404
-
-    except Exception as e:
-        if conn:
-            conn.close()
-        return jsonify({'erreur': str(e)}), 500
-
-@app.route('/ajouter_codebar_lie', methods=['POST'])
-def ajouter_codebar_lie():
-    data = request.get_json()
-    numero_item = data.get('numero_item')
-    bar2 = data.get('barcode')
-
-    if not numero_item:
-        return jsonify({'erreur': 'numero_item est requis'}), 400
-
-    try:
-        numero_item = int(numero_item)
-        conn = get_conn()
-        conn.autocommit = False
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # Vérifier que l'item existe
-        cur.execute("SELECT 1 FROM item WHERE numero_item = %s", (numero_item,))
-        item = cur.fetchone()
-        if not item:
-            cur.close()
-            conn.close()
-            return jsonify({'erreur': 'Produit non trouvé'}), 404
-
-        # Vérifier que bar2 n'existe pas déjà
-        if bar2:
-            cur.execute("SELECT 1 FROM codebar WHERE bar2 = %s", (bar2,))
-            if cur.fetchone():
-                cur.close()
-                conn.close()
-                return jsonify({'erreur': 'Ce code-barres lié existe déjà'}), 409
-
-        # Générer un bar2 si non fourni
-        cur.execute("SELECT bar2 FROM codebar")
-        existing_barcodes = cur.fetchall()
-        used_numbers = []
-        for code in existing_barcodes:
-            bar_num = int(code['bar2'][1:12]) if code['bar2'].startswith('1') and len(code['bar2']) == 13 and code['bar2'][1:12].isdigit() else 0
-            used_numbers.append(bar_num)
-
-        next_number = 1
-        used_numbers = sorted(set(used_numbers))
-        for num in used_numbers:
-            if num == next_number:
-                next_number += 1
-            elif num > next_number:
-                break
-
-        if not bar2:
-            code12 = f"1{next_number:011d}"
-            check_digit = calculate_ean13_check_digit(code12)
-            bar2 = f"{code12}{check_digit}"
-            cur.execute("SELECT 1 FROM codebar WHERE bar2 = %s", (bar2,))
-            if cur.fetchone():
-                conn.rollback()
-                cur.close()
-                conn.close()
-                return jsonify({'erreur': 'Le code EAN-13 généré existe déjà'}), 409
-
-        cur.execute("LOCK TABLE codebar IN EXCLUSIVE MODE")
-        cur.execute(
-            "INSERT INTO codebar (bar2, bar) VALUES (%s, %s) RETURNING n",
-            (bar2, numero_item)
-        )
-        codebar_id = cur.fetchone()['n']
-
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({'statut': 'Code-barres lié ajouté', 'id': codebar_id, 'bar2': bar2}), 201
-    except ValueError:
-        conn.rollback()
-        return jsonify({'erreur': 'numero_item doit être un nombre valide'}), 400
-    except Exception as e:
-        if conn:
-            conn.rollback()
-            conn.close()
-        return jsonify({'erreur': str(e)}), 500
-
-@app.route('/liste_codebar_lies', methods=['GET'])
-def liste_codebar_lies():
-    numero_item = request.args.get('numero_item')
-    if not numero_item:
-        return jsonify({'erreur': 'numero_item est requis'}), 400
-
-    try:
-        numero_item = int(numero_item)
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # Vérifier que l'item existe
-        cur.execute("SELECT 1 FROM item WHERE numero_item = %s", (numero_item,))
-        item = cur.fetchone()
-        if not item:
-            cur.close()
-            conn.close()
-            return jsonify({'erreur': 'Produit non trouvé'}), 404
-
-        # Récupérer les codes-barres liés en castant bar en INTEGER
-        cur.execute("SELECT bar2 FROM codebar WHERE bar::INTEGER = %s ORDER BY n", (numero_item,))
-        linked_barcodes = [row['bar2'] for row in cur.fetchall()]
-
-        cur.close()
-        conn.close()
-        return jsonify({'linked_barcodes': linked_barcodes}), 200
-    except ValueError:
-        if conn:
-            conn.close()
-        return jsonify({'erreur': 'numero_item doit être un nombre valide'}), 400
-    except Exception as e:
-        if conn:
-            conn.close()
-        return jsonify({'erreur': str(e)}), 500
-
-@app.route('/supprimer_codebar_lie', methods=['POST'])
-def supprimer_codebar_lie():
-    data = request.get_json()
-    numero_item = data.get('numero_item')
-    bar2 = data.get('bar2')
-
-    if not numero_item or not bar2:
-        return jsonify({'erreur': 'numero_item et bar2 sont requis'}), 400
-
-    try:
-        numero_item_str = str(numero_item)
-        conn = get_conn()
-        conn.autocommit = False
-        try:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-
-            # Vérifier que l'item existe
-            cur.execute("SELECT 1 FROM item WHERE numero_item = %s", (int(numero_item),))
-            item = cur.fetchone()
-            if not item:
-                raise Exception('Produit non trouvé')
-
-            # Vérifier que le code-barres lié existe
-            cur.execute("SELECT 1 FROM codebar WHERE bar2 = %s AND bar = %s", (bar2, numero_item_str))
-            if not cur.fetchone():
-                raise Exception('Code-barres lié non trouvé pour ce produit')
-
-            # Supprimer le code-barres lié
-            cur.execute("DELETE FROM codebar WHERE bar2 = %s AND bar = %s", (bar2, numero_item_str))
-
-            conn.commit()
-            return jsonify({'statut': 'Code-barres lié supprimé'}), 200
-        except Exception as e:
-            conn.rollback()
-            raise e
-        finally:
-            cur.close()
-            conn.close()
-    except Exception as e:
-        return jsonify({'erreur': str(e)}), 500
-
-# --- Clients ---
-
-
-
-
-@app.route('/liste_clients', methods=['GET'])
-def liste_clients():
-    conn = None
-    try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT numero_clt, nom, solde, reference, contact, adresse FROM client ORDER BY nom")
-        rows = cur.fetchall()
-
-        clients = [
-            {
-                'numero_clt': row['numero_clt'],
-                'nom': row['nom'] or '',
-               'solde': to_comma_decimal(to_dot_decimal(row['solde'] or '0,00')),  # Conversion robuste
-                'reference': row['reference'] or '',
-                'contact': row['contact'] or '',
-                'adresse': row['adresse'] or ''
-            }
-            for row in rows
-        ]
-
-        logger.info(f"Récupération de {len(clients)} clients")
-        return jsonify(clients), 200
-
-    except Psycopg2Error as e:
-        logger.error(f"Erreur PostgreSQL lors de la récupération des clients: {str(e)}")
-        return jsonify({'erreur': f"Erreur de base de données: {str(e)}"}), 500
-    except Exception as e:
-        logger.error(f"Erreur inattendue lors de la récupération des clients: {str(e)}")
-        return jsonify({'erreur': f"Erreur serveur: {str(e)}"}), 500
-    finally:
-        if conn:
-            cur.close()
-            conn.close()
-
-@app.route('/ajouter_client', methods=['POST'])
-def ajouter_client():
-    data = request.get_json()
-    nom = data.get('nom')
-    contact = data.get('contact')
-    adresse = data.get('adresse')
-
-    if not nom:
-        return jsonify({'erreur': 'Le champ nom est obligatoire'}), 400
-
-    try:
-        conn = get_conn()
-        cur = conn.cursor()
-        # Compter les clients
-        cur.execute("SELECT COUNT(*) FROM client")
-        count = cur.fetchone()[0]
-        reference = f"C{count + 1}"
-
-        # Insérer avec solde = '0,00'
-        cur.execute(
-            "INSERT INTO client (nom, solde, reference, contact, adresse) VALUES (%s, %s, %s, %s, %s) RETURNING numero_clt",
-            (nom, '0,00', reference, contact, adresse)
-        )
-        client_id = cur.fetchone()[0]
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({'statut': 'Client ajouté', 'id': client_id, 'reference': reference}), 201
-    except Exception as e:
-        return jsonify({'erreur': str(e)}), 500
-
-@app.route('/modifier_client/<numero_clt>', methods=['PUT'])
-def modifier_client(numero_clt):
-    data = request.get_json()
-    nom = data.get('nom')
-    contact = data.get('contact')
-    adresse = data.get('adresse')
-
-    if not nom:
-        return jsonify({'erreur': 'Le champ nom est obligatoire'}), 400
-
-    try:
-        conn = get_conn()
-        cur = conn.cursor()
-        cur.execute(
-            "UPDATE client SET nom = %s, contact = %s, adresse = %s WHERE numero_clt = %s RETURNING numero_clt",
-            (nom, contact, adresse, numero_clt)
-        )
-        if cur.rowcount == 0:
-            cur.close()
-            conn.close()
-            return jsonify({'erreur': 'Client non trouvé'}), 404
-
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({'statut': 'Client modifié'}), 200
-    except Exception as e:
-        return jsonify({'erreur': str(e)}), 500
-@app.route('/supprimer_client/<numero_clt>', methods=['DELETE'])
-def supprimer_client(numero_clt):
-    try:
-        conn = get_conn()
-        cur = conn.cursor()
-        cur.execute("DELETE FROM client WHERE numero_clt = %s", (numero_clt,))
-        if cur.rowcount == 0:
-            cur.close()
-            conn.close()
-            return jsonify({'erreur': 'Client non trouvé'}), 404
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({'statut': 'Client supprimé'}), 200
-    except Exception as e:
-        return jsonify({'erreur': str(e)}), 500
-
-# --- Fournisseurs ---
-
-
-@app.route('/liste_fournisseurs', methods=['GET'])
-def liste_fournisseurs():
-    conn = None
-    try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT numero_fou, nom, solde, reference, contact, adresse FROM fournisseur ORDER BY nom")
-        rows = cur.fetchall()
-
-        fournisseurs = [
-            {
-                'numero_fou': row['numero_fou'] or '',
-                'nom': row['nom'] or '',
-                'solde': to_comma_decimal(to_dot_decimal(row['solde'] or '0,00')),  # Conversion robuste
-                'reference': row['reference'] or '',
-                'contact': row['contact'] or '',
-                'adresse': row['adresse'] or ''
-            }
-            for row in rows
-        ]
-
-        logger.info(f"Récupération de {len(fournisseurs)} fournisseurs")
-        return jsonify(fournisseurs), 200
-
-    except Psycopg2Error as e:
-        logger.error(f"Erreur PostgreSQL lors de la récupération des fournisseurs: {str(e)}")
-        return jsonify({'erreur': f"Erreur de base de données: {str(e)}"}), 500
-    except Exception as e:
-        logger.error(f"Erreur inattendue lors de la récupération des fournisseurs: {str(e)}")
-        return jsonify({'erreur': f"Erreur serveur: {str(e)}"}), 500
-    finally:
-        if conn:
-            cur.close()
-            conn.close()
-@app.route('/modifier_fournisseur/<numero_fou>', methods=['PUT'])
-def modifier_fournisseur(numero_fou):
-    data = request.get_json()
-    nom = data.get('nom')
-    contact = data.get('contact')
-    adresse = data.get('adresse')
-
-    if not nom:
-        return jsonify({'erreur': 'Le champ nom est obligatoire'}), 400
-
-    try:
-        conn = get_conn()
-        cur = conn.cursor()
-        cur.execute(
-            "UPDATE fournisseur SET nom = %s, contact = %s, adresse = %s WHERE numero_fou = %s RETURNING numero_fou",
-            (nom, contact, adresse, numero_fou)
-        )
-        if cur.rowcount == 0:
-            cur.close()
-            conn.close()
-            return jsonify({'erreur': 'Fournisseur non trouvé'}), 404
-
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({'statut': 'Fournisseur modifié'}), 200
-    except Exception as e:
-        return jsonify({'erreur': str(e)}), 500
-
-@app.route('/ajouter_fournisseur', methods=['POST'])
-def ajouter_fournisseur():
-    data = request.get_json()
-    nom = data.get('nom')
-    contact = data.get('contact')
-    adresse = data.get('adresse')
-
-    if not nom:
-        return jsonify({'erreur': 'Le champ nom est obligatoire'}), 400
-
-    try:
-        conn = get_conn()
-        cur = conn.cursor()
-        # Compter les fournisseurs
-        cur.execute("SELECT COUNT(*) FROM fournisseur")
-        count = cur.fetchone()[0]
-        reference = f"F{count + 1}"
-
-        # Insérer avec solde = '0,00'
-        cur.execute(
-            "INSERT INTO fournisseur (nom, solde, reference, contact, adresse) VALUES (%s, %s, %s, %s, %s) RETURNING numero_fou",
-            (nom, '0,00', reference, contact, adresse)
-        )
-        fournisseur_id = cur.fetchone()[0]
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({'statut': 'Fournisseur ajouté', 'id': fournisseur_id, 'reference': reference}), 201
-    except Exception as e:
-        return jsonify({'erreur': str(e)}), 500
-
-@app.route('/supprimer_fournisseur/<numero_fou>', methods=['DELETE'])
-def supprimer_fournisseur(numero_fou):
-    try:
-        conn = get_conn()
-        cur = conn.cursor()
-        cur.execute("DELETE FROM fournisseur WHERE numero_fou = %s", (numero_fou,))
-        if cur.rowcount == 0:
-            cur.close()
-            conn.close()
-            return jsonify({'erreur': 'Fournisseur non trouvé'}), 404
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({'statut': 'Fournisseur supprimé'}), 200
-    except Exception as e:
-        return jsonify({'erreur': str(e)}), 500
-
-# --- Produits ---
-@app.route('/liste_produits', methods=['GET'])
-def liste_produits():
-    try:
-        conn = get_conn()
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT numero_item, bar, designation, qte, prix, prixba, ref 
-            FROM item 
-            ORDER BY designation
-        """)
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
-
-        produits = []
-        for row in rows:
-            # Conversion des valeurs texte avec virgule en float pour les calculs
-            prix_float = to_dot_decimal(row[4]) if row[4] else 0.0
-            prixba_float = to_dot_decimal(row[5]) if row[5] else 0.0
-            
-            produits.append({
-                'NUMERO_ITEM': row[0],
-                'BAR': row[1] or '',
-                'DESIGNATION': row[2] or '',
-                'QTE': int(row[3]) if row[3] is not None else 0,  # Champ numérique
-                'PRIX': row[4] if row[4] else '0,00',  # Champ texte tel quel
-                'PRIXBA': row[5] if row[5] else '0,00',  # Champ texte tel quel
-                'REF': row[6] or '',
-                # Valeurs converties pour les calculs (facultatif)
-                'PRIX_NUM': prix_float,
-                'PRIXBA_NUM': prixba_float,
-                # Formatage standardisé (facultatif)
-                'PRIX_FMT': to_comma_decimal(prix_float),
-                'PRIXBA_FMT': to_comma_decimal(prixba_float),
-                'QTE_FMT': f"{int(row[3]) if row[3] is not None else 0:n}"
-            })
-        
-        return jsonify(produits)
-    except Exception as e:
-        logger.error(f"Erreur dans liste_produits: {str(e)}")
-        return jsonify({'erreur': 'Une erreur est survenue lors de la récupération des produits'}), 500
-@app.route('/modifier_item/<numero_item>', methods=['PUT'])
-def modifier_item(numero_item):
-    if not request.is_json:
-        return jsonify({'erreur': 'Le contenu doit être au format JSON'}), 400
-
-    try:
-        data = request.get_json()
-        designation = data.get('designation')  # Correction de l'orthographe
-        bar = data.get('bar')
-        prix = data.get('prix')
-        qte = data.get('qte')
-        prixba = data.get('prixba')
-
-        # Validation des champs obligatoires
-        if not all([designation, bar, prix is not None, qte is not None]):
-            return jsonify({'erreur': 'Champs obligatoires manquants (designation, bar, prix, qte)'}), 400
-
-        # Conversion des valeurs
-        try:
-            prix_float = to_dot_decimal(prix) if prix else 0.0
-            qte_float = to_dot_decimal(qte) if qte else 0.0  # Conversion en float pour qte
-            prix_str = to_comma_decimal(prix_float)
-            prixba_str = to_comma_decimal(prixba) if prixba else "0,00"
-        except (ValueError, TypeError) as conv_error:
-            return jsonify({'erreur': f'Format numérique invalide: {str(conv_error)}'}), 400
-
-        if prix_float < 0 or qte_float < 0:
-            return jsonify({'erreur': 'Le prix et la quantité doivent être positifs'}), 400
-
-        conn = None
-        cur = None
-        try:
-            conn = get_conn()
-            conn.autocommit = False
-            cur = conn.cursor()
-
-            # Vérification unicité code-barres
-            cur.execute("SELECT 1 FROM item WHERE bar = %s AND numero_item != %s", (bar, numero_item))
-            if cur.fetchone():
-                return jsonify({'erreur': 'Ce code-barres est déjà utilisé par un autre produit'}), 409
-
-            # Mise à jour du produit
-            cur.execute(
-                """UPDATE item SET 
-                    designation = %s,
-                    bar = %s,
-                    prix = %s,
-                    qte = %s,
-                    prixba = %s,
-                    prixb = %s,
-                    prixvh = %s
-                WHERE numero_item = %s
-                RETURNING numero_item""",
-                (designation, bar, prix_str, qte_float, prixba_str, prixba_str, prix_str, numero_item)
-            )
-
-            if cur.rowcount == 0:
-                return jsonify({'erreur': 'Produit non trouvé'}), 404
-
-            conn.commit()
-            return jsonify({
-                'statut': 'Produit modifié avec succès',
-                'numero_item': numero_item,
-                'qte': qte_float  # Retourne la valeur décimale
-            }), 200
-
-        except psycopg2.Error as db_error:
-            if conn:
-                conn.rollback()
-            logger.error(f"Erreur DB: {str(db_error)}")
-            return jsonify({'erreur': 'Erreur de base de données'}), 500
-        finally:
-            if cur:
-                cur.close()
-            if conn:
-                conn.close()
-
-    except Exception as e:
-        logger.error(f"Erreur inattendue: {str(e)}", exc_info=True)
-        return jsonify({'erreur': 'Erreur serveur interne'}), 500
-# Calcul du chiffre de contrôle EAN-13
-def calculate_ean13_check_digit(code12):
-    """Calcule le chiffre de contrôle pour un code EAN-13 à partir d'un code de 12 chiffres."""
-    digits = [int(d) for d in code12]
-    odd_sum = sum(digits[0::2])
-    even_sum = sum(digits[1::2])
-    total = odd_sum * 3 + even_sum
-    next_multiple_of_10 = (total + 9) // 10 * 10
-    check_digit = next_multiple_of_10 - total
-    return check_digit
-
-
-@app.route('/ajouter_item', methods=['POST'])
-def ajouter_item():
-    data = request.get_json()
-    designation = data.get('designation')  # Note: Il y a une faute de frappe ici ('designation' vs 'designation')
-    bar = data.get('bar')
-    prix = data.get('prix')
-    qte = data.get('qte')
-    prixba = data.get('prixba')
-
-    if not all([designation, prix is not None, qte is not None]):  # Corriger 'designation' ici aussi
-        return jsonify({'erreur': 'Champs obligatoires manquants (designation, prix, qte)'}), 400
-
-    try:
-        # Conversion des valeurs
-        prix_float = to_dot_decimal(prix)  # Convertit en float
-        qte_int = int(qte) if qte else 0
-        prixba_str = to_comma_decimal(prixba) if prixba is not None else "0,00"
-
-        if prix_float < 0 or qte_int < 0:
-            return jsonify({'erreur': 'Le prix et la quantité doivent être positifs'}), 400
-
-        conn = get_conn()
-        conn.autocommit = False
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        # Verrouiller pour éviter les conflits
-        cur.execute("LOCK TABLE item IN EXCLUSIVE MODE")
-
-        # Si bar est fourni, vérifier son unicité
-        if bar:
-            cur.execute("SELECT 1 FROM item WHERE bar = %s", (bar,))
-            if cur.fetchone():
-                cur.close()
-                conn.close()
-                return jsonify({'erreur': 'Ce code-barres existe déjà'}), 409
-
-            # Vérifier si le code-barres existe dans la table codebar
-            cur.execute("SELECT 1 FROM codebar WHERE bar2 = %s", (bar,))
-            if cur.fetchone():
-                cur.close()
-                conn.close()
-                return jsonify({'erreur': 'Ce code-barres existe déjà comme code-barres lié'}), 409
-
-        # Trouver le prochain numéro disponible pour ref et bar
-        cur.execute("SELECT ref, bar FROM item ORDER BY ref")
-        existing_items = cur.fetchall()
-        used_numbers = []
-        for item in existing_items:
-            ref_num = int(item['ref'][1:]) if item['ref'].startswith('P') and item['ref'][1:].isdigit() else 0
-            bar_num = int(item['bar'][1:12]) if item['bar'].startswith('1') and len(item['bar']) == 13 and item['bar'][1:12].isdigit() else 0
-            used_numbers.append(max(ref_num, bar_num))
-
-        next_number = 1
-        used_numbers = sorted(set(used_numbers))
-        for num in used_numbers:
-            if num == next_number:
-                next_number += 1
-            elif num > next_number:
-                break
-
-        ref = f"P{next_number}"
-
-        temp_bar = bar if bar else 'TEMP_BAR'
-        cur.execute(
-            """INSERT INTO item (
-                designation, bar, prix, qte, prixba, ref,
-                gere, prixb, tva, disponible, tvav, prixvh, qtea
-            ) VALUES (
-                %s, %s, %s, %s, %s, %s,
-                %s, %s, %s, %s, %s, %s, %s
-            ) RETURNING numero_item""",
-            (
-                designation, temp_bar, to_comma_decimal(prix_float), qte_int, prixba_str, ref,
-                True, prixba_str, 0, True, "0", to_comma_decimal(prix_float), 0
-            )
-        )
-        item_id = cur.fetchone()['numero_item']
-
-        if not bar:
-            code12 = f"1{next_number:011d}"
-            check_digit = calculate_ean13_check_digit(code12)
-            bar = f"{code12}{check_digit}"
-
-            cur.execute("SELECT 1 FROM item WHERE bar = %s AND numero_item != %s", (bar, item_id))
-            if cur.fetchone():
-                conn.rollback()
-                cur.close()
-                conn.close()
-                return jsonify({'erreur': 'Le code EAN-13 généré existe déjà'}), 409
-
-            cur.execute("SELECT 1 FROM codebar WHERE bar2 = %s", (bar,))
-            if cur.fetchone():
-                conn.rollback()
-                cur.close()
-                conn.close()
-                return jsonify({'erreur': 'Le code EAN-13 généré existe déjà comme code-barres lié'}), 409
-
-            cur.execute(
-                "UPDATE item SET bar = %s WHERE numero_item = %s",
-                (bar, item_id)
-            )
-
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({'statut': 'Item ajouté', 'id': item_id, 'ref': ref, 'bar': bar}), 201
-    except ValueError:
-        conn.rollback()
-        return jsonify({'erreur': 'Le prix et la quantité doivent être des nombres valides'}), 400
-    except Exception as e:
-        if conn:
-            conn.rollback()
-            conn.close()
-        return jsonify({'erreur': str(e)}), 500
-
-@app.route('/supprimer_item/<numero_item>', methods=['DELETE'])
-def supprimer_item(numero_item):
-    try:
-        conn = get_conn()
-        cur = conn.cursor()
-        cur.execute("DELETE FROM item WHERE numero_item = %s", (numero_item,))
-        if cur.rowcount == 0:
-            cur.close()
-            conn.close()
-            return jsonify({'erreur': 'Produit non trouvé'}), 404
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({'statut': 'Produit supprimé'}), 200
-    except Exception as e:
-        return jsonify({'erreur': str(e)}), 500
-
-
-
-
-@app.route('/valider_vente', methods=['POST'])
-def valider_vente():
-    conn = None
-    cur = None
+import { getDb, saveDbToLocalStorage } from './db.js';
+
+// Fonction utilitaire pour convertir une date en format SQLite
+function formatDateForSQLite(date) {
+  return date.toISOString().replace('T', ' ').replace('Z', '').slice(0, 19);
+}
+// Convertit une chaîne avec virgule (ex. "200,00") en flottant (ex. 200.0)
+function toDotDecimal(value) {
+  if (value == null || value === '') return 0.0;
+  try {
+    // Remplacer la virgule par un point et convertir en flottant
+    const cleanedValue = String(value).replace(',', '.').replace(/[^\d.-]/g, '');
+    const result = parseFloat(cleanedValue);
+    return isNaN(result) ? 0.0 : result;
+  } catch (error) {
+    console.error("Erreur dans toDotDecimal pour la valeur :", value, error);
+    return 0.0;
+  }
+}
+
+// Convertit un flottant (ex. 200.0) en chaîne avec virgule (ex. "200,00")
+function toCommaDecimal(value) {
+  if (value == null || isNaN(value)) return "0,00";
+  try {
+    return value.toFixed(2).replace('.', ',');
+  } catch (error) {
+    console.error("Erreur dans toCommaDecimal pour la valeur :", value, error);
+    return "0,00";
+  }
+}
+
+
+export async function rechercherProduitCodebar(codebar) {
+  try {
+    console.log("📥 Exécution de rechercherProduitCodebar avec codebar:", codebar);
+    const db = await getDb();
+
+    if (!codebar) {
+      console.error("❌ Erreur : Code-barres requis");
+      return { erreur: "Code-barres requis", status: 400 };
+    }
+
+    // Requête pour chercher le produit par code-barres
+    const stmt = db.prepare(`
+      SELECT numero_item, bar, designation, prix, prixba, qte
+      FROM item
+      WHERE bar = ?
+    `);
+    stmt.bind([codebar]);
+
+    let produit = null;
+    if (stmt.step()) {
+      produit = stmt.getAsObject();
+      console.log("📦 Produit brut récupéré:", produit);
+    }
+    stmt.free();
+
+    if (!produit) {
+      console.log("🔍 Produit non trouvé pour codebar:", codebar);
+      return { statut: "non trouvé", status: 404 };
+    }
+
+    // Conversion simple sans formatage complexe
+    const produitFormate = {
+      numero_item: produit.NUMERO_ITEM?.toString() || 'UNKNOWN_' + codebar,
+      bar: produit.BAR?.toString() || codebar,
+      designation: produit.DESIGNATION?.trim() || 'Produit sans nom',
+      prix: produit.PRIX?.toString() || '0,00',
+      prixba: produit.PRIXBA?.toString() || '0,00',
+      qte: parseInt(produit.QTE) || 0
+    };
+
+    console.log("📤 Produit formaté normalisé:", produitFormate);
+    return { statut: "trouvé", produit: produitFormate, status: 200 };
+
+  } catch (error) {
+    console.error("❌ Erreur rechercherProduitCodebar:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+export async function listeTables() {
+  try {
+    console.log("Exécution de listeTables...");
+    const db = await getDb();
+    const stmt = db.prepare("SELECT name FROM sqlite_master WHERE type='table'");
+    const tables = [];
+    while (stmt.step()) tables.push(stmt.getAsObject().name);
+    stmt.free();
+    console.log("Tables retournées :", tables);
+    return tables;
+  } catch (error) {
+    console.error("Erreur listeTables :", error);
+    return [];
+  }
+}
+
+export async function listeClients() {
+  try {
+    console.log("Exécution de listeClients...");
+    const db = await getDb();
+    const stmtInfo = db.prepare("PRAGMA table_info(client)");
+    const columns = [];
+    while (stmtInfo.step()) {
+      columns.push(stmtInfo.getAsObject().name);
+    }
+    stmtInfo.free();
+    console.log("Colonnes de la table client :", columns);
+
+    const stmt = db.prepare('SELECT numero_clt, nom, solde, reference, contact, adresse FROM client');
+    const clients = [];
+    while (stmt.step()) {
+      const row = stmt.get();
+      console.log("Client brut récupéré :", row);
+      clients.push({
+        numero_clt: row[0] !== null ? row[0] : '',
+        nom: row[1] !== null ? row[1] : '',
+        solde: row[2] !== null ? row[2] : '0,00',
+        reference: row[3] !== null ? row[3] : '',
+        contact: row[4] !== null ? row[4] : '',
+        adresse: row[5] !== null ? row[5] : ''
+      });
+    }
+    stmt.free();
+    console.log("Clients formatés retournés :", clients);
+    return clients;
+  } catch (error) {
+    console.error("Erreur listeClients :", error);
+    return [];
+  }
+}
+
+export async function listeFournisseurs() {
+  try {
+    console.log("Exécution de listeFournisseurs...");
+    const db = await getDb();
+    const stmtInfo = db.prepare("PRAGMA table_info(fournisseur)");
+    const columns = [];
+    while (stmtInfo.step()) {
+      columns.push(stmtInfo.getAsObject().name);
+    }
+    stmtInfo.free();
+    console.log("Colonnes de la table fournisseur :", columns);
+
+    const stmt = db.prepare('SELECT numero_fou, nom, solde, reference, contact, adresse FROM fournisseur');
+    const fournisseurs = [];
+    while (stmt.step()) {
+      const row = stmt.get();
+      console.log("Fournisseur brut récupéré :", row);
+      fournisseurs.push({
+        numero_fou: row[0] !== null ? row[0] : '',
+        nom: row[1] !== null ? row[1] : '',
+        solde: row[2] !== null ? row[2] : '0,00',
+        reference: row[3] !== null ? row[3] : '',
+        contact: row[4] !== null ? row[4] : '',
+        adresse: row[5] !== null ? row[5] : ''
+      });
+    }
+    stmt.free();
+    console.log("Fournisseurs formatés retournés :", fournisseurs);
+    return fournisseurs;
+  } catch (error) {
+    console.error("Erreur listeFournisseurs :", error);
+    return [];
+  }
+}
+
+export async function listeUtilisateurs() {
+  try {
+    console.log("Exécution de listeUtilisateurs...");
+    const db = await getDb();
+    const stmtInfo = db.prepare("PRAGMA table_info(utilisateur)");
+    const columns = [];
+    while (stmtInfo.step()) {
+      columns.push(stmtInfo.getAsObject().name);
+    }
+    stmtInfo.free();
+    console.log("Colonnes de la table utilisateur :", columns);
+
+    const stmt = db.prepare('SELECT numero_util, nom, statue FROM utilisateur ORDER BY nom');
+    const utilisateurs = [];
+    while (stmt.step()) {
+      const row = stmt.get();
+      console.log("Utilisateur brut récupéré :", row);
+      utilisateurs.push({
+        numero: row[0] !== null ? row[0] : '',
+        nom: row[1] !== null ? row[1] : '',
+        statut: row[2] !== null ? row[2] : ''
+      });
+    }
+    stmt.free();
+    console.log("Utilisateurs formatés retournés :", utilisateurs);
+    return utilisateurs;
+  } catch (error) {
+    console.error("Erreur listeUtilisateurs :", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+export async function listeProduits() {
+  try {
+    console.log("Exécution de listeProduits...");
+    const db = await getDb();
+
+    // Vérifier les colonnes de la table item
+    const stmtInfo = db.prepare("PRAGMA table_info(item)");
+    const columns = [];
+    while (stmtInfo.step()) {
+      columns.push(stmtInfo.getAsObject().name);
+    }
+    stmtInfo.free();
+    console.log("Colonnes de la table item :", columns);
+
+    // Récupérer les données
+    const stmt = db.prepare('SELECT numero_item, bar, designation, qte, prix, prixba, ref FROM item ORDER BY designation');
+    const produits = [];
+    while (stmt.step()) {
+      const row = stmt.get();
+      console.log("Produit brut récupéré :", row);
+
+      // Conversion des valeurs avec débogage
+      const prixRaw = row[4];
+      const prixbaRaw = row[5];
+      console.log("Valeurs brutes - prix :", prixRaw, "prixba :", prixbaRaw);
+
+      const prixFloat = toDotDecimal(prixRaw);
+      const prixbaFloat = toDotDecimal(prixbaRaw);
+      const qteInt = parseInt(row[3]) || 0;
+
+      console.log("Valeurs converties - prixFloat :", prixFloat, "prixbaFloat :", prixbaFloat, "qteInt :", qteInt);
+
+      produits.push({
+        NUMERO_ITEM: row[0] !== null ? row[0] : '',
+        BAR: row[1] !== null ? row[1] : '',
+        DESIGNATION: row[2] !== null ? row[2] : '',
+        QTE: qteInt,
+        PRIX: prixRaw !== null && prixRaw !== '' ? prixRaw : '0,00',
+        PRIXBA: prixbaRaw !== null && prixbaRaw !== '' ? prixbaRaw : '0,00',
+        REF: row[6] !== null ? row[6] : '',
+        PRIX_NUM: prixFloat,
+        PRIXBA_NUM: prixbaFloat,
+        PRIX_FMT: toCommaDecimal(prixFloat),
+        PRIXBA_FMT: toCommaDecimal(prixbaFloat),
+        QTE_FMT: `${qteInt}`
+      });
+    }
+    stmt.free();
+    console.log("Produits formatés retournés :", produits);
+    return produits;
+  } catch (error) {
+    console.error("Erreur listeProduits :", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+export async function ajouterClient(data) {
+  try {
+    console.log("Exécution de ajouterClient avec data :", data);
+    const db = await getDb();
+    const { nom, contact, adresse } = data;
+
+    if (!nom) {
+      console.error("Erreur : Le champ nom est obligatoire");
+      return { erreur: "Le champ nom est obligatoire", status: 400 };
+    }
+
+    const countStmt = db.prepare("SELECT COUNT(*) AS total FROM client");
+    countStmt.step();
+    const { total } = countStmt.getAsObject();
+    countStmt.free();
+
+    const reference = `C${total + 1}`;
+    const solde = "0,00";
+
+    const stmt = db.prepare(
+      "INSERT INTO client (nom, solde, reference, contact, adresse) VALUES (?, ?, ?, ?, ?)"
+    );
+    stmt.run([nom, solde, reference, contact || null, adresse || null]);
+    stmt.free();
+
+    const idStmt = db.prepare("SELECT last_insert_rowid() AS id");
+    idStmt.step();
+    const { id } = idStmt.getAsObject();
+    idStmt.free();
+
+    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
+    console.log("Client ajouté : ID =", id, ", Référence =", reference);
+    return { statut: "Client ajouté", id, reference, status: 201 };
+  } catch (error) {
+    console.error("Erreur ajouterClient :", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+export async function ajouterFournisseur(data) {
+  try {
+    console.log("Exécution de ajouterFournisseur avec data :", data);
+    const db = await getDb();
+    const { nom, contact, adresse } = data;
+
+    if (!nom) {
+      console.error("Erreur : Le champ nom est obligatoire");
+      return { erreur: "Le champ nom est obligatoire", status: 400 };
+    }
+
+    const countStmt = db.prepare("SELECT COUNT(*) AS total FROM fournisseur");
+    countStmt.step();
+    const { total } = countStmt.getAsObject();
+    countStmt.free();
+
+    const reference = `F${total + 1}`;
+    const solde = "0,00";
+
+    const stmt = db.prepare(
+      "INSERT INTO fournisseur (nom, solde, reference, contact, adresse) VALUES (?, ?, ?, ?, ?)"
+    );
+    stmt.run([nom, solde, reference, contact || null, adresse || null]);
+    stmt.free();
+
+    const idStmt = db.prepare("SELECT last_insert_rowid() AS id");
+    idStmt.step();
+    const { id } = idStmt.getAsObject();
+    idStmt.free();
+
+    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
+    console.log("Fournisseur ajouté : ID =", id, ", Référence =", reference);
+    return { statut: "Fournisseur ajouté", id, reference, status: 201 };
+  } catch (error) {
+    console.error("Erreur ajouterFournisseur :", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+export async function ajouterUtilisateur(data) {
+  try {
+    console.log("Exécution de ajouterUtilisateur avec data :", data);
+    const db = await getDb();
+    const { nom, password2, statue } = data;
+
+    if (!nom || !password2 || !statue) {
+      console.error("Erreur : Champs obligatoires manquants (nom, password2, statue)");
+      return { erreur: "Champs obligatoires manquants (nom, password2, statue)", status: 400 };
+    }
+
+    if (!['admin', 'emplo'].includes(statue)) {
+      console.error("Erreur : Statue invalide (doit être 'admin' ou 'emplo')");
+      return { erreur: "Statue invalide (doit être 'admin' ou 'emplo')", status: 400 };
+    }
+
+    const stmt = db.prepare(
+      "INSERT INTO utilisateur (nom, password2, statue) VALUES (?, ?, ?)"
+    );
+    stmt.run([nom, password2, statue]);
+    stmt.free();
+
+    const idStmt = db.prepare("SELECT last_insert_rowid() AS id");
+    idStmt.step();
+    const { id } = idStmt.getAsObject();
+    idStmt.free();
+
+    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
+    console.log("Utilisateur ajouté : ID =", id);
+    return { statut: "Utilisateur ajouté", id, status: 201 };
+  } catch (error) {
+    console.error("Erreur ajouterUtilisateur :", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+export async function ajouterItem(data) {
+  try {
+    console.log("Exécution de ajouterItem avec data :", data);
+    const db = await getDb();
+    const { designation, bar, prix, qte, prixba } = data;
+
+    // Validation des champs obligatoires
+    if (!designation || prix == null || qte == null) {
+      return { erreur: "Champs obligatoires manquants (designation, prix, qte)", status: 400 };
+    }
+
+    // Conversion des valeurs
+    let prixFloat, qteInt;
+    try {
+      prixFloat = toDotDecimal(prix);
+      qteInt = parseInt(qte) || 0;
+      if (isNaN(prixFloat) || isNaN(qteInt)) {
+        return { erreur: "Le prix et la quantité doivent être des nombres valides", status: 400 };
+      }
+    } catch (error) {
+      return { erreur: "Erreur de conversion des données", status: 400 };
+    }
+
+    const prixbaStr = prixba != null ? toCommaDecimal(toDotDecimal(prixba)) : "0,00";
+
+    if (prixFloat < 0 || qteInt < 0) {
+      return { erreur: "Le prix et la quantité doivent être positifs", status: 400 };
+    }
+
+    // Vérifier le contenu de la table item
+    const stmtAllItems = db.prepare('SELECT * FROM item');
+    const items = [];
+    while (stmtAllItems.step()) {
+      items.push(stmtAllItems.getAsObject());
+    }
+    stmtAllItems.free();
+    console.log("Contenu actuel de la table item :", items);
+
+    // Vérifier la table codebar (si elle existe)
+    let codebars = [];
+    try {
+      const stmtCodebar = db.prepare('SELECT * FROM codebar');
+      while (stmtCodebar.step()) {
+        codebars.push(stmtCodebar.getAsObject());
+      }
+      stmtCodebar.free();
+      console.log("Contenu de la table codebar :", codebars);
+    } catch (error) {
+      console.log("Table codebar non trouvée, ignorée");
+    }
+
+    console.log("Code-barres fourni :", bar);
+
+    db.run('BEGIN TRANSACTION');
+
+    try {
+      // ÉTAPE 1: Pas de vérification d'unicité pour bar (supprimée)
+
+      // ÉTAPE 2: Si bar est vide, on utilisera numero_item pour bar et ref
+      let tempBar = bar || `TEMP_${Date.now()}`; // Code temporaire si bar est vide
+      let generatedRef = bar ? `P${Date.now()}` : null; // Ref temporaire, sera mis à jour si bar est vide
+
+      console.log("Code temporaire (tempBar) :", tempBar);
+      console.log("Référence temporaire (generatedRef) :", generatedRef);
+
+      // ÉTAPE 3: Insertion avec le code temporaire
+      const stmtInsert = db.prepare(`
+        INSERT INTO item (designation, bar, prix, qte, prixba, ref, gere, prixb, tva, disponible, tvav, prixvh, qtea)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      
+      stmtInsert.run([
+        designation, 
+        tempBar, 
+        toCommaDecimal(prixFloat), 
+        qteInt, 
+        prixbaStr, 
+        generatedRef || "TEMP_REF", // Ref temporaire si bar est vide
+        true, // gere
+        prixbaStr, // prixb
+        0, // tva
+        true, // disponible
+        "0", // tvav
+        toCommaDecimal(prixFloat), // prixvh
+        0 // qtea
+      ]);
+      stmtInsert.free();
+
+      // ÉTAPE 4: Récupérer l'ID
+      const idStmt = db.prepare('SELECT last_insert_rowid() AS id');
+      idStmt.step();
+      const { id } = idStmt.getAsObject();
+      idStmt.free();
+      console.log("ID de l'item inséré (numero_item) :", id);
+
+      // ÉTAPE 5: Si aucun code-barres fourni, utiliser numero_item pour bar et ref
+      let finalBar = bar || `${id}`; // Utiliser numero_item si bar est vide
+      let finalRef = bar ? generatedRef : `P${id}`; // Utiliser P + numero_item si bar est vide
+
+      console.log("Code-barres final (finalBar) :", finalBar);
+      console.log("Référence finale (finalRef) :", finalRef);
+
+      // Mettre à jour bar et ref avec les valeurs finales
+      const stmtUpdate = db.prepare('UPDATE item SET bar = ?, ref = ? WHERE numero_item = ?');
+      stmtUpdate.run([finalBar, finalRef, id]);
+      stmtUpdate.free();
+
+      db.run('COMMIT');
+      saveDbToLocalStorage(db);
+      
+      console.log("✅ Produit ajouté avec succès:", { id, ref: finalRef, bar: finalBar });
+      return { 
+        statut: "Item ajouté", 
+        id: id, 
+        ref: finalRef, 
+        bar: finalBar, 
+        status: 201 
+      };
+
+    } catch (error) {
+      db.run('ROLLBACK');
+      console.error("❌ Erreur dans la transaction:", error);
+      throw error;
+    }
+  } catch (error) {
+    console.error("❌ Erreur ajouterItem :", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+export async function modifierClient(numero_clt, data) {
+  try {
+    console.log("Exécution de modifierClient :", numero_clt, data);
+    const db = await getDb();
+    const { nom, contact, adresse } = data;
+
+    if (!nom) {
+      console.error("Erreur : Le champ nom est obligatoire");
+      return { erreur: "Le champ nom est obligatoire", status: 400 };
+    }
+
+    const stmt = db.prepare(
+      'UPDATE client SET nom = ?, contact = ?, adresse = ? WHERE numero_clt = ?'
+    );
+    stmt.run([nom, contact || null, adresse || null, numero_clt]);
+    const changes = db.getRowsModified();
+    stmt.free();
+
+    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
+    console.log("Client modifié : changements =", changes);
+    return { statut: changes > 0 ? 'Client modifié' : 'Aucun client modifié', status: 200 };
+  } catch (error) {
+    console.error("Erreur modifierClient :", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+export async function modifierFournisseur(numero_fou, data) {
+  try {
+    console.log("Exécution de modifierFournisseur :", numero_fou, data);
+    const db = await getDb();
+    const { nom, contact, adresse } = data;
+
+    if (!nom) {
+      console.error("Erreur : Le champ nom est obligatoire");
+      return { erreur: "Le champ nom est obligatoire", status: 400 };
+    }
+
+    const stmt = db.prepare(
+      'UPDATE fournisseur SET nom = ?, contact = ?, adresse = ? WHERE numero_fou = ?'
+    );
+    stmt.run([nom, contact || null, adresse || null, numero_fou]);
+    const changes = db.getRowsModified();
+    stmt.free();
+
+    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
+    console.log("Fournisseur modifié : changements =", changes);
+    return { statut: changes > 0 ? 'Fournisseur modifié' : 'Aucun fournisseur modifié', status: 200 };
+  } catch (error) {
+    console.error("Erreur modifierFournisseur :", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+export async function modifierUtilisateur(numero_util, data) {
+  try {
+    console.log("Exécution de modifierUtilisateur :", numero_util, data);
+    const db = await getDb();
+    const { nom, password2, statue } = data;
+
+    if (!nom || !statue) {
+      console.error("Erreur : Champs obligatoires manquants (nom, statue)");
+      return { erreur: "Champs obligatoires manquants (nom, statue)", status: 400 };
+    }
+
+    if (!['admin', 'emplo'].includes(statue)) {
+      console.error("Erreur : Statue invalide (doit être 'admin' ou 'emplo')");
+      return { erreur: "Statue invalide (doit être 'admin' ou 'emplo')", status: 400 };
+    }
+
+    let stmt;
+    if (password2) {
+      stmt = db.prepare(
+        'UPDATE utilisateur SET nom = ?, password2 = ?, statue = ? WHERE numero_util = ?'
+      );
+      stmt.run([nom, password2, statue, numero_util]);
+    } else {
+      stmt = db.prepare(
+        'UPDATE utilisateur SET nom = ?, statue = ? WHERE numero_util = ?'
+      );
+      stmt.run([nom, statue, numero_util]);
+    }
+    const changes = db.getRowsModified();
+    stmt.free();
+
+    if (changes === 0) {
+      console.error("Erreur : Utilisateur non trouvé");
+      return { erreur: "Utilisateur non trouvé", status: 404 };
+    }
+
+    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
+    console.log("Utilisateur modifié : changements =", changes);
+    return { statut: "Utilisateur modifié", status: 200 };
+  } catch (error) {
+    console.error("Erreur modifierUtilisateur :", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+export async function modifierItem(numero_item, data) {
+  try {
+    console.log("Exécution de modifierItem :", numero_item, data);
+    const db = await getDb();
+    const { designation, bar, prix, qte, prixba } = data;
+
+    if (!designation || !bar || prix == null || qte == null) {
+      console.error("Erreur : Champs obligatoires manquants (designation, bar, prix, qte)");
+      return { erreur: "Champs obligatoires manquants (designation, bar, prix, qte)", status: 400 };
+    }
+
+    const prixFloat = toDotDecimal(prix);
+    const qteFloat = parseFloat(qte) || 0;
+    const prixbaStr = prixba != null ? toCommaDecimal(toDotDecimal(prixba)) : '0,00';
+
+    if (prixFloat < 0 || qteFloat < 0) {
+      console.error("Erreur : Le prix et la quantité doivent être positifs");
+      return { erreur: "Le prix et la quantité doivent être positifs", status: 400 };
+    }
+
+    const stmtCheck = db.prepare('SELECT 1 FROM item WHERE numero_item = ?');
+    stmtCheck.step([numero_item]);
+    const exists = stmtCheck.get();
+    stmtCheck.free();
+    if (!exists) {
+      console.error("Erreur : Produit non trouvé");
+      return { erreur: "Produit non trouvé", status: 404 };
+    }
+
+    const stmtBar = db.prepare('SELECT 1 FROM item WHERE bar = ? AND numero_item != ?');
+    stmtBar.step([bar, numero_item]);
+    const barExists = stmtBar.get();
+    stmtBar.free();
+    if (barExists) {
+      console.error("Erreur : Ce code-barres est déjà utilisé par un autre produit");
+      return { erreur: "Ce code-barres est déjà utilisé par un autre produit", status: 409 };
+    }
+
+    const stmt = db.prepare(`
+      UPDATE item SET 
+        designation = ?, bar = ?, prix = ?, qte = ?, prixba = ?, prixb = ?, prixvh = ? 
+      WHERE numero_item = ?
+    `);
+    stmt.run([designation, bar, toCommaDecimal(prixFloat), qteFloat, prixbaStr, prixbaStr, toCommaDecimal(prixFloat), numero_item]);
+    const changes = db.getRowsModified();
+    stmt.free();
+
+    if (changes === 0) {
+      console.error("Erreur : Produit non trouvé");
+      return { erreur: "Produit non trouvé", status: 404 };
+    }
+
+    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
+    console.log("Produit modifié : changements =", changes);
+    return { statut: "Produit modifié", numero_item, qte: qteFloat, status: 200 };
+  } catch (error) {
+    console.error("Erreur modifierItem :", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+export async function supprimerClient(numero_clt) {
+  try {
+    console.log("Exécution de supprimerClient :", numero_clt);
+    const db = await getDb();
+    const stmt = db.prepare('DELETE FROM client WHERE numero_clt = ?');
+    stmt.run([numero_clt]);
+    const changes = db.getRowsModified();
+    stmt.free();
+
+    if (changes === 0) {
+      console.error("Erreur : Client non trouvé");
+      return { erreur: "Client non trouvé", status: 404 };
+    }
+
+    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
+    console.log("Client supprimé : changements =", changes);
+    return { statut: "Client supprimé", status: 200 };
+  } catch (error) {
+    console.error("Erreur supprimerClient :", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+export async function supprimerFournisseur(numero_fou) {
+  try {
+    console.log("Exécution de supprimerFournisseur :", numero_fou);
+    const db = await getDb();
+    const stmt = db.prepare('DELETE FROM fournisseur WHERE numero_fou = ?');
+    stmt.run([numero_fou]);
+    const changes = db.getRowsModified();
+    stmt.free();
+
+    if (changes === 0) {
+      console.error("Erreur : Fournisseur non trouvé");
+      return { erreur: "Fournisseur non trouvé", status: 404 };
+    }
+
+    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
+    console.log("Fournisseur supprimé : changements =", changes);
+    return { statut: "Fournisseur supprimé", status: 200 };
+  } catch (error) {
+    console.error("Erreur supprimerFournisseur :", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+export async function supprimerUtilisateur(numero_util) {
+  try {
+    console.log("Exécution de supprimerUtilisateur :", numero_util);
+    const db = await getDb();
+    const stmt = db.prepare('DELETE FROM utilisateur WHERE numero_util = ?');
+    stmt.run([numero_util]);
+    const changes = db.getRowsModified();
+    stmt.free();
+
+    if (changes === 0) {
+      console.error("Erreur : Utilisateur non trouvé");
+      return { erreur: "Utilisateur non trouvé", status: 404 };
+    }
+
+    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
+    console.log("Utilisateur supprimé : changements =", changes);
+    return { statut: "Utilisateur supprimé", status: 200 };
+  } catch (error) {
+    console.error("Erreur supprimerUtilisateur :", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+export async function supprimerItem(numero_item) {
+  try {
+    console.log("Exécution de supprimerItem :", numero_item);
+    const db = await getDb();
+    const stmt = db.prepare('DELETE FROM item WHERE numero_item = ?');
+    stmt.run([numero_item]);
+    const changes = db.getRowsModified();
+    stmt.free();
+
+    if (changes === 0) {
+      console.error("Erreur : Produit non trouvé");
+      return { erreur: "Produit non trouvé", status: 404 };
+    }
+
+    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
+    console.log("Produit supprimé : changements =", changes);
+    return { statut: "Produit supprimé", status: 200 };
+  } catch (error) {
+    console.error("Erreur supprimerItem :", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+export async function dashboard(period = 'day') {
+  try {
+    console.log("Exécution de getDashboardData avec period:", period);
+    const db = await getDb();
+
+    // Calcul des dates de début et fin
+    const now = new Date();
+    let date_start, date_end;
+
+    if (period === 'week') {
+      date_end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      date_start = new Date(now.getTime() - (6 * 24 * 60 * 60 * 1000));
+      date_start.setHours(0, 0, 0, 0);
+    } else {
+      date_start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      date_end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    }
+
+    const date_start_str = date_start.toISOString();
+    const date_end_str = date_end.toISOString();
+
+    // Fonction pour parser les décimaux avec virgule
+    function parseDecimal(value) {
+      if (value === null || value === undefined || value === '') {
+        return 0.0;
+      }
+      try {
+        return parseFloat(String(value).replace(',', '.'));
+      } catch {
+        return 0.0;
+      }
+    }
+
+    // 1. KPI principaux (CA, profit, nombre de ventes)
+    const queryKpi = `
+      SELECT 
+        COALESCE(SUM(CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL)), 0) AS total_ca,
+        COALESCE(SUM(
+          CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL) - 
+          (a.quantite * CAST(REPLACE(COALESCE(NULLIF(i.prixba, ''), '0'), ',', '.') AS REAL))
+        ), 0) AS total_profit,
+        COUNT(DISTINCT c.numero_comande) AS sales_count
+      FROM comande c
+      JOIN attache a ON c.numero_comande = a.numero_comande
+      JOIN item i ON a.numero_item = i.numero_item
+      WHERE c.date_comande >= ? AND c.date_comande <= ?
+    `;
     
-    try:
-        # 1. Validation et conversion des données
-        data = request.get_json()
-        if not data or not all(k in data for k in ['lignes', 'numero_util', 'password2']):
-            logger.error("Données manquantes")
-            return jsonify({"error": "Données manquantes"}), 400
+    const stmtKpi = db.prepare(queryKpi);
+    stmtKpi.bind([date_start_str, date_end_str]);
+    let kpiData = { total_ca: 0, total_profit: 0, sales_count: 0 };
+    if (stmtKpi.step()) {
+      kpiData = stmtKpi.getAsObject();
+    }
+    stmtKpi.free();
 
-        # Conversion des nombres avec virgule
-        numero_table = int(data.get('numero_table', 0))
-        payment_mode = data.get('payment_mode', 'espece')
-        amount_paid = to_dot_decimal(data.get('amount_paid', '0,00'))  # Convertit en float avec point
-        amount_paid_str = to_comma_decimal(amount_paid)  # Convertit en string avec virgule
-        numero_util = data['numero_util']
-        password2 = data['password2']
-        nature = "TICKET" if numero_table == 0 else "BON DE L."
+    // 2. Articles en rupture de stock
+    const stmtLowStock = db.prepare("SELECT COUNT(*) AS low_stock FROM item WHERE qte < 10");
+    stmtLowStock.step();
+    const lowStockData = stmtLowStock.getAsObject();
+    stmtLowStock.free();
 
-        # 2. Connexion et vérification utilisateur
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        conn.autocommit = False
-
-        cur.execute("SELECT password2 FROM utilisateur WHERE numero_util = %s", (numero_util,))
-        user = cur.fetchone()
-        if not user or user['password2'] != password2:
-            logger.error("Authentification invalide")
-            return jsonify({"error": "Authentification invalide"}), 401
-
-        # 3. Création de la commande
-        cur.execute("""
-            INSERT INTO comande (
-                numero_table, date_comande, etat_c, nature, 
-                connection1, compteur, numero_util
-            ) VALUES (
-                %s, NOW(), 'Cloture', %s, 
-                -1, 
-                (SELECT COALESCE(MAX(compteur),0)+1 FROM comande WHERE nature = %s), 
-                %s
-            ) RETURNING numero_comande
-        """, (numero_table, nature, nature, numero_util))
-        numero_comande = cur.fetchone()['numero_comande']
-
-        # 4. Traitement des lignes et calcul du total
-        total_vente = 0.0
-        for ligne in data['lignes']:
-            quantite = to_dot_decimal(ligne.get('quantite', '1'))
-            remarque = to_dot_decimal(ligne.get('remarque', '0,00'))  # Prix unitaire
-            prixt = to_dot_decimal(ligne.get('prixt', '0,00'))  # Total de la ligne
-            total_vente += quantite * remarque  # Calcul avec prix unitaire
-
-            # Conversion pour stockage avec virgule
-            prixt_str = to_comma_decimal(prixt)
-            prixbh_str = to_comma_decimal(to_dot_decimal(ligne.get('prixbh', '0,00')))
-
-            # Gestion de la remarque pour stockage
-            remarque_str = ligne.get('remarque', '')
-            if isinstance(remarque_str, (int, float)):
-                remarque_str = to_comma_decimal(remarque_str)
-            elif isinstance(remarque_str, str) and any(c.isdigit() for c in remarque_str):
-                try:
-                    if '.' in remarque_str or ',' in remarque_str:
-                        remarque_str = to_comma_decimal(to_dot_decimal(remarque_str))
-                except ValueError:
-                    pass  # Garder la valeur originale si conversion échoue
-
-            cur.execute("""
-                INSERT INTO attache (
-                    numero_comande, numero_item, quantite, prixt,
-                    remarque, prixbh, achatfx, send
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """, (
-                numero_comande,
-                ligne['numero_item'],
-                quantite,
-                prixt_str,  # Stocké avec virgule
-                remarque_str,  # Utiliser remarque_str formaté
-                prixbh_str,  # Stocké avec virgule
-                0,
-                True
-            ))
-            cur.execute("UPDATE item SET qte = qte - %s WHERE numero_item = %s", 
-                        (quantite, ligne['numero_item']))
-
-        # Conversion du total pour stockage
-        total_vente_str = to_comma_decimal(total_vente)
-        montant_reglement = total_vente if payment_mode == 'espece' else amount_paid
-        montant_reglement_str = to_comma_decimal(montant_reglement)
-        solde_restant = total_vente - amount_paid if payment_mode == 'a_terme' else 0.0
-        solde_restant_str = to_comma_decimal(solde_restant)
-
-        # 6. Insertion dans encaisse (valeurs stockées avec virgule)
-        now = datetime.now()
-        cur.execute("""
-            INSERT INTO encaisse (
-                apaye, reglement, tva, ht, 
-                numero_comande, origine, time_enc, soldeR
-            ) VALUES (
-                %s, %s, %s, %s, 
-                %s, %s, %s, %s
-            )
-        """, (
-            total_vente_str,        # apaye stocké avec virgule
-            montant_reglement_str,  # reglement stocké avec virgule
-            '0,00',                 # TVA (ajuste si nécessaire)
-            total_vente_str,        # HT = total_vente
-            numero_comande,
-            nature,
-            now,
-            solde_restant_str       # Solde restant avec virgule
-        ))
-
-        # 7. Mise à jour du solde client si à terme (stocké avec virgule)
-        if payment_mode == 'a_terme' and numero_table != 0:
-            cur.execute("""
-                UPDATE client 
-                SET solde = to_char((CAST(REPLACE(solde, ',', '.') AS NUMERIC) + %s), 'FM999999999.99')
-                WHERE numero_clt = %s
-            """, (solde_restant, numero_table))
-
-        conn.commit()
-        return jsonify({
-            "success": True,
-            "numero_comande": numero_comande,
-            "total_vente": total_vente_str,  # Renvoyé avec virgule
-            "montant_verse": amount_paid_str,  # Renvoyé avec virgule
-            "reglement": montant_reglement_str,  # Renvoyé avec virgule
-            "solde_restant": solde_restant_str if payment_mode == 'a_terme' else "0,00"
-        }), 200
-
-    except Exception as e:
-        if conn:
-            conn.rollback()
-        logger.error(f"Erreur: {str(e)}")
-        return jsonify({
-            "error": "Erreur de traitement",
-            "details": str(e)
-        }), 500
-
-    finally:
-        if cur:
-            cur.close()
-        if conn:
-            conn.close()
-@app.route('/client_solde', methods=['GET'])
-def client_solde():
-    conn = None
-    try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT numero_clt, COALESCE(solde, '0.00') as solde FROM client")
-        soldes = cur.fetchall()
-        print(f"Soldes récupérés: {len(soldes)} clients")
-        return jsonify(soldes), 200
-    except Exception as e:
-        print(f"Erreur récupération soldes: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-    finally:
-        if conn:
-            cur.close()
-            conn.close()
-
-
-@app.route('/ventes_jour', methods=['GET'])
-def ventes_jour():
-    selected_date = request.args.get('date')
-    numero_clt = request.args.get('numero_clt')
-    numero_util = request.args.get('numero_util')
+    // 3. Meilleur client (AVEC LOG POUR DEBUG)
+    const queryTopClient = `
+      SELECT 
+        cl.nom,
+        COALESCE(SUM(CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL)), 0) AS client_ca
+      FROM comande c
+      JOIN attache a ON c.numero_comande = a.numero_comande
+      LEFT JOIN client cl ON c.numero_table = cl.numero_clt
+      WHERE c.date_comande >= ? AND c.date_comande <= ?
+      GROUP BY cl.nom
+      ORDER BY client_ca DESC
+      LIMIT 1
+    `;
     
-    try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        
-        if selected_date:
-            try:
-                date_obj = datetime.strptime(selected_date, '%Y-%m-%d')
-                date_start = date_obj.replace(hour=0, minute=0, second=0, microsecond=0)
-                date_end = date_obj.replace(hour=23, minute=59, second=59, microsecond=999999)
-            except ValueError:
-                return jsonify({'erreur': 'Format de date invalide (attendu: YYYY-MM-DD)'}), 400
-        else:
-            date_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-            date_end = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
-        
-        query = """
-            SELECT
-                c.numero_comande,
-                c.date_comande,
-                c.nature,
-                c.numero_table,
-                cl.nom AS client_nom,
-                c.numero_util,
-                u.nom AS utilisateur_nom,
-                a.numero_item,
-                a.quantite,
-                CAST(COALESCE(NULLIF(REPLACE(a.prixt, ',', '.'), ''), '0') AS FLOAT) AS prixt,
-                a.remarque,
-                i.designation
-            FROM comande c
-            LEFT JOIN client cl ON c.numero_table = cl.numero_clt
-            LEFT JOIN utilisateur u ON c.numero_util = u.numero_util
-            JOIN attache a ON c.numero_comande = a.numero_comande
-            JOIN item i ON a.numero_item = i.numero_item
-            WHERE c.date_comande >= %s
-            AND c.date_comande <= %s
-        """
-        params = [date_start, date_end]
-        
-        if numero_clt:
-            if numero_clt == '0':
-                query += " AND c.numero_table = 0"
-            else:
-                query += " AND c.numero_table = %s"
-                params.append(int(numero_clt))
-        
-        if numero_util:
-            if numero_util == '0':
-                pass
-            else:
-                query += " AND c.numero_util = %s"
-                params.append(int(numero_util))
-        
-        query += " ORDER BY c.numero_comande DESC"
-        cur.execute(query, params)
-        rows = cur.fetchall()
-        
-        tickets = []
-        bons = []
-        total = 0.0
-        ventes_map = {}
-        
-        for row in rows:
-            if row['numero_comande'] not in ventes_map:
-                ventes_map[row['numero_comande']] = {
-                    'numero_comande': row['numero_comande'],
-                    'date_comande': row['date_comande'].isoformat(),
-                    'nature': row['nature'],
-                    'client_nom': 'Comptoir' if row['numero_table'] == 0 else row['client_nom'],
-                    'utilisateur_nom': row['utilisateur_nom'] or 'N/A',
-                    'lignes': []
-                }
-            
-            ventes_map[row['numero_comande']]['lignes'].append({
-                'numero_item': row['numero_item'],
-                'designation': row['designation'],
-                'quantite': row['quantite'],
-                'prixt': str(row['prixt']),
-                'remarque': row['remarque'] or ''
-            })
-            
-            total += float(row['prixt'])
-        
-        for vente in ventes_map.values():
-            if vente['nature'] == 'TICKET':
-                tickets.append(vente)
-            elif vente['nature'] == 'BON DE L.':
-                bons.append(vente)
-        
-        cur.close()
-        conn.close()
-        
-        return jsonify({
-            'tickets': tickets,
-            'bons': bons,
-            'total': f"{total:.2f}"
-        }), 200
+    const stmtTopClient = db.prepare(queryTopClient);
+    stmtTopClient.bind([date_start_str, date_end_str]);
+    let topClient = { nom: 'N/A', client_ca: 0 };
+    if (stmtTopClient.step()) {
+      topClient = stmtTopClient.getAsObject();
+      console.log('Top client trouvé:', topClient); // LOG DE DEBUG
+    }
+    stmtTopClient.free();
+
+    // 4. Données pour le graphique
+    const queryChart = `
+      SELECT 
+        DATE(c.date_comande) AS sale_date,
+        COALESCE(SUM(CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL)), 0) AS daily_ca
+      FROM comande c
+      JOIN attache a ON c.numero_comande = a.numero_comande
+      WHERE c.date_comande >= ? AND c.date_comande <= ?
+      GROUP BY DATE(c.date_comande)
+      ORDER BY sale_date
+    `;
     
-    except Exception as e:
-        if conn:
-            cur.close()
-            conn.close()
-        print(f"Erreur récupération ventes du jour: {str(e)}")
-        return jsonify({'erreur': str(e)}), 500
-        
+    const stmtChart = db.prepare(queryChart);
+    stmtChart.bind([date_start_str, date_end_str]);
+    const chartData = [];
+    while (stmtChart.step()) {
+      chartData.push(stmtChart.getAsObject());
+    }
+    stmtChart.free();
 
-@app.route('/articles_plus_vendus', methods=['GET'])
-def articles_plus_vendus():
-    selected_date = request.args.get('date')
-    numero_clt = request.args.get('numero_clt')
-    numero_util = request.args.get('numero_util')
-    conn = None
+    // 5. Préparation des données du graphique
+    const chartLabels = [];
+    const chartValues = [];
+    const currentDate = new Date(date_start);
     
-    try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        
-        if selected_date:
-            try:
-                date_obj = datetime.strptime(selected_date, '%Y-%m-%d')
-                date_start = date_obj.replace(hour=0, minute=0, second=0, microsecond=0)
-                date_end = date_obj.replace(hour=23, minute=59, second=59, microsecond=999999)
-            except ValueError:
-                return jsonify({'erreur': 'Format de date invalide (attendu: YYYY-MM-DD)'}), 400
-        else:
-            date_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-            date_end = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
-        
-        query = """
-            SELECT
-                i.numero_item,
-                i.designation,
-                SUM(a.quantite) AS quantite,
-                SUM(CAST(COALESCE(NULLIF(REPLACE(a.prixt, ',', '.'), ''), '0') AS FLOAT)) AS total_vente
-            FROM comande c
-            JOIN attache a ON c.numero_comande = a.numero_comande
-            JOIN item i ON a.numero_item = i.numero_item
-            WHERE c.date_comande >= %s
-            AND c.date_comande <= %s
-        """
-        params = [date_start, date_end]
-        
-        if numero_clt:
-            if numero_clt == '0':
-                query += " AND c.numero_table = 0"
-            else:
-                query += " AND c.numero_table = %s"
-                params.append(int(numero_clt))
-        
-        if numero_util and numero_util != '0':
-            query += " AND c.numero_util = %s"
-            params.append(int(numero_util))
-        
-        query += """
-            GROUP BY i.numero_item, i.designation
-            ORDER BY quantite DESC
-            LIMIT 10
-        """
-        cur.execute(query, params)
-        rows = cur.fetchall()
-        
-        articles = [
-            {
-                'numero_item': row['numero_item'],
-                'designation': row['designation'] or 'N/A',
-                'quantite': int(row['quantite'] or 0),
-                'total_vente': f"{float(row['total_vente'] or 0):.2f}"
-            }
-            for row in rows
-        ]
-        
-        return jsonify(articles), 200
+    while (currentDate <= date_end) {
+      const dateStr = currentDate.toISOString().split('T')[0];
+      chartLabels.push(dateStr);
+      
+      const dailyCa = chartData.find(row => row.sale_date === dateStr);
+      chartValues.push(dailyCa ? parseDecimal(dailyCa.daily_ca) : 0);
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // 6. Retour des données avec gestion sécurisée des valeurs
+    const safeParseFloat = (value) => {
+      const parsed = parseFloat(value || 0);
+      return isNaN(parsed) ? 0.0 : parsed;
+    };
+
+    const safeParseInt = (value) => {
+      const parsed = parseInt(value || 0);
+      return isNaN(parsed) ? 0 : parsed;
+    };
+
+    // FORMAT COMPATIBLE AVEC LE HTML - TOUTES LES CLÉS EN MINUSCULES ✅
+    return {
+      total_ca: safeParseFloat(kpiData.total_ca),
+      total_profit: safeParseFloat(kpiData.total_profit),
+      sales_count: safeParseInt(kpiData.sales_count),
+      low_stock_items: safeParseInt(lowStockData.low_stock),
+      top_client: {
+        name: topClient.nom || 'N/A',
+        ca: safeParseFloat(topClient.client_ca)
+      },
+      chart_data: {
+        labels: chartLabels,
+        values: chartValues.map(v => safeParseFloat(v))
+      }
+    };
+
+  } catch (error) {
+    console.error("Erreur getDashboardData:", error);
+    return { 
+      total_ca: 0,
+      total_profit: 0,
+      sales_count: 0,
+      low_stock_items: 0,
+      top_client: {
+        name: 'N/A',
+        ca: 0
+      },
+      chart_data: {
+        labels: [],
+        values: []
+      }
+    };
+  }
+}
+export async function validerVendeur(data) {
+  try {
+    console.log("Exécution de validerVendeur avec data:", data);
+    const db = await getDb();
+    const { nom, password2 } = data;
+
+    if (!nom || !password2) {
+      console.error("Erreur : Le nom et le mot de passe sont requis");
+      return { erreur: "Le nom et le mot de passe sont requis", status: 400 };
+    }
+
+    // Requête SQLite pour vérifier l'utilisateur
+    const stmt = db.prepare(`
+      SELECT numero_util, nom, statue 
+      FROM utilisateur 
+      WHERE nom = ? AND password2 = ?
+    `);
     
-    except Exception as e:
-        print(f"Erreur récupération articles plus vendus: {str(e)}")
-        return jsonify({'erreur': str(e)}), 500
+    stmt.bind([nom, password2]);
     
-    finally:
-        if conn:
-            cur.close()
-            conn.close()
+    let utilisateur = null;
+    if (stmt.step()) {
+      utilisateur = stmt.getAsObject();
+    }
+    stmt.free();
 
-@app.route('/profit_by_date', methods=['GET'])
-def profit_by_date():
-    selected_date = request.args.get('date')
-    numero_clt = request.args.get('numero_clt')
-    numero_util = request.args.get('numero_util', '0')
-    conn = None
-    
-    try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        
-        if selected_date:
-            try:
-                date_obj = datetime.strptime(selected_date, '%Y-%m-%d')
-                date_start = date_obj.replace(hour=0, minute=0, second=0, microsecond=0)
-                date_end = date_obj.replace(hour=23, minute=59, second=59, microsecond=999999)
-            except ValueError:
-                return jsonify({'erreur': 'Format de date invalide (attendu: YYYY-MM-DD)'}), 400
-        else:
-            date_end = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
-            date_start = date_end - timedelta(days=30)
-        
-        query = """
-            SELECT
-                DATE(c.date_comande) AS date,
-                SUM(CAST(COALESCE(NULLIF(REPLACE(a.prixt, ',', '.'), ''), '0') AS FLOAT) -
-                    (a.quantite * CAST(COALESCE(NULLIF(REPLACE(i.prixba, ',', '.'), ''), '0') AS FLOAT))) AS profit
-            FROM comande c
-            JOIN attache a ON c.numero_comande = a.numero_comande
-            JOIN item i ON a.numero_item = i.numero_item
-            WHERE c.date_comande >= %s
-            AND c.date_comande <= %s
-        """
-        params = [date_start, date_end]
-        
-        if numero_clt:
-            if numero_clt == '0':
-                query += " AND c.numero_table = 0"
-            else:
-                query += " AND c.numero_table = %s"
-                params.append(int(numero_clt))
-        
-        if numero_util != '0':
-            query += " AND c.numero_util = %s"
-            params.append(int(numero_util))
-        
-        query += """
-            GROUP BY DATE(c.date_comande)
-            ORDER BY DATE(c.date_comande) DESC
-        """
-        cur.execute(query, params)
-        rows = cur.fetchall()
-        
-        profits = [
-            {
-                'date': row['date'].strftime('%Y-%m-%d'),
-                'profit': f"{float(row['profit'] or 0):.2f}"
-            }
-            for row in rows
-        ]
-        
-        return jsonify(profits), 200
-    
-    except Exception as e:
-        print(f"Erreur récupération profit par date: {str(e)}")
-        return jsonify({'erreur': str(e)}), 500
-    
-    finally:
-        if conn:
-            cur.close()
-            conn.close()
-            
-@app.route('/dashboard', methods=['GET'])
-def dashboard():
-    period = request.args.get('period', 'day')
-    try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+    // Vérifier si l'utilisateur existe
+    if (!utilisateur) {
+      console.error("Échec authentification pour:", nom);
+      return { erreur: "Nom ou mot de passe incorrect", status: 401 };
+    }
 
-        if period == 'week':
-            date_end = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
-            date_start = (datetime.now() - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
-        else:
-            date_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-            date_end = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
+    console.log("✅ Vendeur validé:", utilisateur);
+    return {
+      statut: "Vendeur validé",
+      utilisateur: {
+        numero_util: utilisateur.numero_util,
+        nom: utilisateur.nom,
+        statut: utilisateur.statue
+      },
+      status: 200
+    };
 
-        # Fonction pour convertir les nombres avec virgule en float
-        def parse_decimal(value):
-            if value is None or value == '':
-                return 0.0
-            try:
-                # Remplace les virgules par des points et convertit en float
-                return float(str(value).replace(',', '.'))
-            except:
-                return 0.0
-
-        query_kpi = """
-            SELECT 
-                COALESCE(SUM(CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS NUMERIC)), 0) AS total_ca,
-                COALESCE(SUM(
-                    CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS NUMERIC) - 
-                    (a.quantite * CAST(REPLACE(COALESCE(NULLIF(i.prixba, ''), '0'), ',', '.') AS NUMERIC))
-                ), 0) AS total_profit,
-                COUNT(DISTINCT c.numero_comande) AS sales_count
-            FROM comande c
-            JOIN attache a ON c.numero_comande = a.numero_comande
-            JOIN item i ON a.numero_item = i.numero_item
-            WHERE c.date_comande >= %s
-            AND c.date_comande <= %s
-        """
-        cur.execute(query_kpi, (date_start, date_end))
-        kpi_data = cur.fetchone()
-
-        cur.execute("SELECT COUNT(*) AS low_stock FROM item WHERE qte < 10")
-        low_stock_count = cur.fetchone()['low_stock']
-
-        query_top_client = """
-            SELECT 
-                cl.nom,
-                COALESCE(SUM(CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS NUMERIC)), 0) AS client_ca
-            FROM comande c
-            JOIN attache a ON c.numero_comande = a.numero_comande
-            LEFT JOIN client cl ON c.numero_table = cl.numero_clt
-            WHERE c.date_comande >= %s
-            AND c.date_comande <= %s
-            GROUP BY cl.nom
-            ORDER BY client_ca DESC
-            LIMIT 1
-        """
-        cur.execute(query_top_client, (date_start, date_end))
-        top_client = cur.fetchone()
-
-        query_chart = """
-            SELECT 
-                DATE(c.date_comande) AS sale_date,
-                COALESCE(SUM(CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS NUMERIC)), 0) AS daily_ca
-            FROM comande c
-            JOIN attache a ON c.numero_comande = a.numero_comande
-            WHERE c.date_comande >= %s
-            AND c.date_comande <= %s
-            GROUP BY DATE(c.date_comande)
-            ORDER BY sale_date
-        """
-        cur.execute(query_chart, (date_start, date_end))
-        chart_data = cur.fetchall()
-
-        cur.close()
-        conn.close()
-
-        chart_labels = []
-        chart_values = []
-        current_date = date_start
-        while current_date <= date_end:
-            chart_labels.append(current_date.strftime('%Y-%m-%d'))
-            daily_ca = next((parse_decimal(row['daily_ca']) for row in chart_data 
-                           if row['sale_date'].strftime('%Y-%m-%d') == current_date.strftime('%Y-%m-%d')), 0)
-            chart_values.append(daily_ca)
-            current_date += timedelta(days=1)
-
-        return jsonify({
-            'total_ca': float(kpi_data['total_ca'] or 0),
-            'total_profit': float(kpi_data['total_profit'] or 0),
-            'sales_count': int(kpi_data['sales_count'] or 0),
-            'low_stock_items': int(low_stock_count or 0),
-            'top_client': {
-                'name': top_client['nom'] if top_client else 'N/A',
-                'ca': float(top_client['client_ca'] or 0) if top_client else 0
-            },
-            'chart_data': {
-                'labels': chart_labels,
-                'values': chart_values
-            }
-        }), 200
-
-    except Exception as e:
-        if conn:
-            cur.close()
-            conn.close()
-        print(f"Erreur récupération KPI: {str(e)}")
-        return jsonify({'erreur': str(e)}), 500
-        
-@app.route('/liste_utilisateurs', methods=['GET'])
-def liste_utilisateurs():
-    try:
-        conn = get_conn()
-        cur = conn.cursor()
-        cur.execute("SELECT numero_util, nom, statue FROM utilisateur ORDER BY nom")
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
-
-        utilisateurs = [
-            {
-                'numero': row[0],
-                'nom': row[1],
-                'statut': row[2]
-            }
-            for row in rows
-        ]
-        return jsonify(utilisateurs)
-    except Exception as e:
-        return jsonify({'erreur': str(e)}), 500
-
-@app.route('/modifier_utilisateur/<int:numero_util>', methods=['PUT'])
-def modifier_utilisateur(numero_util):
-    data = request.get_json()
-    nom = data.get('nom')
-    password2 = data.get('password2')
-    statue = data.get('statue')
-
-    if not all([nom, statue]):
-        return jsonify({'erreur': 'Champs obligatoires manquants (nom, statue)'}), 400
-
-    if statue not in ['admin', 'emplo']:
-        return jsonify({'erreur': 'Statue invalide (doit être "admin" ou "emplo")'}), 400
-
-    try:
-        conn = get_conn()
-        cur = conn.cursor()
-        if password2:
-            cur.execute(
-                "UPDATE utilisateur SET nom = %s, password2 = %s, statue = %s WHERE numero_util = %s",
-                (nom, password2, statue, numero_util)
-            )
-        else:
-            cur.execute(
-                "UPDATE utilisateur SET nom = %s, statue = %s WHERE numero_util = %s",
-                (nom, statue, numero_util)
-            )
-        if cur.rowcount == 0:
-            return jsonify({'erreur': 'Utilisateur non trouvé'}), 404
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({'statut': 'Utilisateur modifié'}), 200
-    except Exception as e:
-        return jsonify({'erreur': str(e)}), 500
-
-@app.route('/ajouter_utilisateur', methods=['POST'])
-def ajouter_utilisateur():
-    data = request.get_json()
-    nom = data.get('nom')
-    password2 = data.get('password2')
-    statue = data.get('statue')
-
-    if not all([nom, password2, statue]):
-        return jsonify({'erreur': 'Champs obligatoires manquants (nom, password2, statue)'}), 400
-
-    if statue not in ['admin', 'emplo']:
-        return jsonify({'erreur': 'Statue invalide (doit être "admin" ou "emplo")'}), 400
-
-    try:
-        conn = get_conn()
-        cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO utilisateur (nom, password2, statue) VALUES (%s, %s, %s) RETURNING numero_util",
-            (nom, password2, statue)
-        )
-        numero_util = cur.fetchone()[0]
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({'statut': 'Utilisateur ajouté', 'id': numero_util}), 201
-    except Exception as e:
-        return jsonify({'erreur': str(e)}), 500
-
-@app.route('/supprimer_utilisateur/<numero_util>', methods=['DELETE'])
-def supprimer_utilisateur(numero_util):
-    try:
-        conn = get_conn()
-        cur = conn.cursor()
-        cur.execute("DELETE FROM utilisateur WHERE numero_util = %s", (numero_util,))
-        if cur.rowcount == 0:
-            cur.close()
-            conn.close()
-            return jsonify({'erreur': 'Utilisateur non trouvé'}), 404
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({'statut': 'Utilisateur supprimé'}), 200
-    except Exception as e:
-        return jsonify({'erreur': str(e)}), 500
+  } catch (error) {
+    console.error("❌ Erreur validerVendeur:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+/// CATEGORIES FUNCTIONS
 
 
+export async function listeCategories() {
+  try {
+    console.log('Exécution de listeCategories...');
+    const db = await getDb();
 
-@app.route('/stock_value', methods=['GET'])
-def valeur_stock():
-    conn = None
-    try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        # Calculer la valeur du stock en excluant les articles avec qte négative
-        cur.execute("""
-            SELECT 
-                SUM(COALESCE(CAST(NULLIF(REPLACE(prixb, ',', '.'), '') AS FLOAT), 0) * COALESCE(qte, 0)) AS valeur_achat,
-                SUM(COALESCE(CAST(NULLIF(REPLACE(prix, ',', '.'), '') AS FLOAT), 0) * COALESCE(qte, 0)) AS valeur_vente
-            FROM item
-            WHERE qte >= 0 AND GERE=TRUE
-        """)
-        result = cur.fetchone()
+    // Vérifier les colonnes de la table categorie
+    const stmtInfo = db.prepare('PRAGMA table_info(categorie)');
+    const columns = [];
+    while (stmtInfo.step()) {
+      columns.push(stmtInfo.getAsObject().name);
+    }
+    stmtInfo.free();
+    console.log('Colonnes de la table categorie:', columns);
 
-        # Extraire les valeurs et convertir en float
-        valeur_achat = to_dot_decimal(result['valeur_achat'] or '0,00')
-        valeur_vente = to_dot_decimal(result['valeur_vente'] or '0,00')
+    // Récupérer toutes les données
+    const stmt = db.prepare('SELECT numer_categorie, description_c FROM categorie ORDER BY description_c');
+    const categories = [];
+    while (stmt.step()) {
+      const row = stmt.get();
+      console.log('Catégorie brute récupérée:', row);
 
-        # Calculer la zakat (2,5% de la valeur de vente)
-        zakat = valeur_vente * 0.025
+      // Conversion des valeurs avec débogage
+      const numer_categorieRaw = row[0];
+      const description_cRaw = row[1];
+      console.log('Valeurs brutes - numer_categorie:', numer_categorieRaw, 'description_c:', description_cRaw);
 
-        # Formater la réponse avec des virgules
-        response = {
-            'valeur_achat': to_comma_decimal(valeur_achat),
-            'valeur_vente': to_comma_decimal(valeur_vente),
-            'zakat': to_comma_decimal(zakat)
+      const numer_categorie = numer_categorieRaw !== null && numer_categorieRaw !== undefined ? numer_categorieRaw : '';
+      const description_c = description_cRaw !== null && description_cRaw !== undefined ? description_cRaw : '';
+
+      console.log('Valeurs converties - numer_categorie:', numer_categorie, 'description_c:', description_c);
+
+      categories.push({
+        numer_categorie: numer_categorie,
+        description_c: description_c
+      });
+    }
+    stmt.free();
+    console.log('Categories formatées retournées:', categories);
+    return categories;
+  } catch (error) {
+    console.error('Erreur listeCategories:', error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+// Ajoute une nouvelle catégorie
+export async function ajouterCategorie(data) {
+  try {
+    console.log("Exécution de ajouterCategorie avec data :", data);
+    const db = await getDb();
+    const { description_c } = data;
+
+    if (!description_c) {
+      console.error("Erreur : Description requise");
+      return { erreur: "Description requise", status: 400 };
+    }
+
+    // Vérifier le contenu de la table categorie avant insertion
+    console.log("Vérification du contenu de la table categorie avant insertion...");
+    const categoriesAvant = await listeCategories();
+    console.log("Catégories avant insertion :", categoriesAvant);
+
+    db.run('BEGIN TRANSACTION');
+
+    try {
+      // Vérification optionnelle des doublons (commentée)
+      /*
+      const stmtCheck = db.prepare('SELECT 1 FROM categorie WHERE description_c = ?');
+      stmtCheck.step([description_c]);
+      if (stmtCheck.get()) {
+        stmtCheck.free();
+        db.run('ROLLBACK');
+        console.error("Erreur : Catégorie existante");
+        return { erreur: "Catégorie existante", status: 409 };
+      }
+      stmtCheck.free();
+      */
+
+      const stmt = db.prepare('INSERT INTO categorie (description_c) VALUES (?)');
+      stmt.run([description_c]);
+      stmt.free();
+
+      const idStmt = db.prepare('SELECT last_insert_rowid() AS id');
+      idStmt.step();
+      const { id } = idStmt.getAsObject();
+      idStmt.free();
+
+      db.run('COMMIT');
+      saveDbToLocalStorage(db);
+
+      // Vérifier après insertion
+      console.log("Vérification du contenu de la table categorie après insertion...");
+      const categoriesApres = await listeCategories();
+      console.log("Catégories après insertion :", categoriesApres);
+
+      console.log("Catégorie ajoutée : ID =", id);
+      return { statut: "Catégorie ajoutée", id, status: 201 };
+    } catch (error) {
+      db.run('ROLLBACK');
+      console.error("Erreur dans la transaction :", error);
+      throw error;
+    }
+  } catch (error) {
+    console.error("Erreur ajouterCategorie :", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+// Modifie une catégorie existante
+export async function modifierCategorie(numer_categorie, data) {
+  try {
+    console.log("Exécution de modifierCategorie :", numer_categorie, data);
+    const db = await getDb();
+    const { description_c } = data;
+
+    if (!description_c) {
+      console.error("Erreur : Description requise");
+      return { erreur: "Description requise", status: 400 };
+    }
+
+    // Vérifier le contenu de la table categorie avant modification
+    console.log("Vérification du contenu de la table categorie avant modification...");
+    const categoriesAvant = await listeCategories();
+    console.log("Catégories avant modification :", categoriesAvant);
+
+    db.run('BEGIN TRANSACTION');
+
+    try {
+      // Vérifier si la catégorie existe
+      const stmtCheck = db.prepare('SELECT 1 FROM categorie WHERE numer_categorie = ?');
+      stmtCheck.step([numer_categorie]);
+      if (!stmtCheck.get()) {
+        stmtCheck.free();
+        db.run('ROLLBACK');
+        console.error("Erreur : Catégorie non trouvée");
+        return { erreur: "Catégorie non trouvée", status: 404 };
+      }
+      stmtCheck.free();
+
+      // Vérification optionnelle des doublons (commentée)
+      /*
+      const stmtCheckDup = db.prepare('SELECT 1 FROM categorie WHERE description_c = ? AND numer_categorie != ?');
+      stmtCheckDup.step([description_c, numer_categorie]);
+      if (stmtCheckDup.get()) {
+        stmtCheckDup.free();
+        db.run('ROLLBACK');
+        console.error("Erreur : Catégorie existante");
+        return { erreur: "Catégorie existante", status: 409 };
+      }
+      stmtCheckDup.free();
+      */
+
+      const stmt = db.prepare('UPDATE categorie SET description_c = ? WHERE numer_categorie = ?');
+      stmt.run([description_c, numer_categorie]);
+      const changes = db.getRowsModified();
+      stmt.free();
+
+      if (changes === 0) {
+        db.run('ROLLBACK');
+        console.error("Erreur : Catégorie non trouvée");
+        return { erreur: "Catégorie non trouvée", status: 404 };
+      }
+
+      db.run('COMMIT');
+      saveDbToLocalStorage(db);
+
+      // Vérifier après modification
+      console.log("Vérification du contenu de la table categorie après modification...");
+      const categoriesApres = await listeCategories();
+      console.log("Catégories après modification :", categoriesApres);
+
+      console.log("Catégorie modifiée : changements =", changes);
+      return { statut: "Catégorie modifiée", status: 200 };
+    } catch (error) {
+      db.run('ROLLBACK');
+      console.error("Erreur dans la transaction :", error);
+      throw error;
+    }
+  } catch (error) {
+    console.error("Erreur modifierCategorie :", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+export async function supprimerCategorie(numer_categorie) {
+  try {
+    console.log('Exécution de supprimerCategorie:', numer_categorie);
+    const db = await getDb();
+
+    // Vérifier le contenu de la table categorie avant suppression
+    console.log('Vérification du contenu de la table categorie avant suppression...');
+    const categoriesAvant = await listeCategories();
+    console.log('Catégories avant suppression:', categoriesAvant);
+
+    db.run('BEGIN TRANSACTION');
+
+    try {
+      // Vérifier si la catégorie existe
+      const stmtCheckExist = db.prepare('SELECT 1 FROM categorie WHERE numer_categorie = ?');
+      stmtCheckExist.bind([numer_categorie]);
+      const exists = stmtCheckExist.step() && stmtCheckExist.get();
+      stmtCheckExist.free();
+      if (!exists) {
+        db.run('ROLLBACK');
+        console.error('Erreur: Catégorie non trouvée pour numer_categorie:', numer_categorie);
+        return { erreur: 'Catégorie non trouvée', status: 404 };
+      }
+
+      // Vérifier si la catégorie est utilisée par des produits
+      const stmtCheck = db.prepare('SELECT numero_item FROM item WHERE numero_categorie = ?');
+      stmtCheck.bind([numer_categorie]);
+      const hasProducts = stmtCheck.step();
+      const productSample = hasProducts ? stmtCheck.get() : null;
+      stmtCheck.free();
+      console.log('Résultat vérification produits - hasProducts:', hasProducts, 'productSample:', productSample);
+      if (hasProducts) {
+        db.run('ROLLBACK');
+        console.error('Erreur: Catégorie utilisée par des produits, exemple:', productSample);
+        return { erreur: 'Catégorie utilisée par des produits', status: 400 };
+      }
+
+      // Supprimer la catégorie
+      const stmt = db.prepare('DELETE FROM categorie WHERE numer_categorie = ?');
+      stmt.run([numer_categorie]);
+      const changes = db.getRowsModified();
+      stmt.free();
+
+      if (changes === 0) {
+        db.run('ROLLBACK');
+        console.error('Erreur: Aucune catégorie supprimée pour numer_categorie:', numer_categorie);
+        return { erreur: 'Catégorie non trouvée', status: 404 };
+      }
+
+      db.run('COMMIT');
+      await saveDbToLocalStorage(db);
+
+      // Vérifier après suppression
+      console.log('Vérification du contenu de la table categorie après suppression...');
+      const categoriesApres = await listeCategories();
+      console.log('Catégories après suppression:', categoriesApres);
+
+      console.log('Catégorie supprimée: changements =', changes);
+      return { statut: 'Catégorie supprimée', status: 200 };
+    } catch (error) {
+      db.run('ROLLBACK');
+      console.error('Erreur dans la transaction:', error);
+      throw error;
+    }
+  } catch (error) {
+    console.error('Erreur supprimerCategorie:', error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+// Assigne une catégorie à un produit
+
+export async function assignerCategorie(data) {
+  try {
+    console.log('Exécution de assignerCategorie avec data:', data);
+    const db = await getDb();
+    const { numero_item, numer_categorie } = data;
+
+    if (numero_item === undefined || numero_item === null || isNaN(parseInt(numero_item))) {
+      console.error('Erreur: Numéro d\'article requis et doit être un entier');
+      return { erreur: 'Numéro d\'article requis et doit être un entier', status: 400 };
+    }
+
+    // Vérifier le contenu des tables avant modification
+    console.log('Vérification du contenu des tables avant assignation...');
+    const produitsAvant = await listeProduits();
+    const categoriesAvant = await listeCategories();
+    console.log('Produits avant assignation:', produitsAvant);
+    console.log('Catégories avant assignation:', categoriesAvant);
+
+    db.run('BEGIN TRANSACTION');
+
+    try {
+      // Vérifier si l'article existe
+      const stmtCheckItem = db.prepare('SELECT numero_item FROM item WHERE numero_item = ?');
+      stmtCheckItem.bind([numero_item]);
+      const itemExists = stmtCheckItem.step() && stmtCheckItem.get();
+      stmtCheckItem.free();
+      console.log('Vérification article - existe:', !!itemExists, 'détails:', itemExists);
+      if (!itemExists) {
+        db.run('ROLLBACK');
+        console.error('Erreur: Article non trouvé pour numero_item:', numero_item);
+        return { erreur: 'Article non trouvé', status: 404 };
+      }
+
+      // Vérifier si la catégorie existe (si fournie)
+      if (numer_categorie !== null && numer_categorie !== undefined) {
+        const stmtCheckCat = db.prepare('SELECT numer_categorie FROM categorie WHERE numer_categorie = ?');
+        stmtCheckCat.bind([numer_categorie]);
+        const catExists = stmtCheckCat.step() && stmtCheckCat.get();
+        stmtCheckCat.free();
+        console.log('Vérification catégorie - existe:', !!catExists, 'détails:', catExists);
+        if (!catExists) {
+          db.run('ROLLBACK');
+          console.error('Erreur: Catégorie non trouvée pour numer_categorie:', numer_categorie);
+          return { erreur: 'Catégorie non trouvée', status: 404 };
+        }
+      }
+
+      // Mettre à jour la catégorie de l'article
+      const stmt = db.prepare('UPDATE item SET numero_categorie = ? WHERE numero_item = ?');
+      console.log('Exécution UPDATE avec:', { numer_categorie, numero_item });
+      stmt.run([numer_categorie === undefined || numer_categorie === null ? null : numer_categorie, numero_item]);
+      const changes = db.getRowsModified();
+      stmt.free();
+      console.log('Résultat UPDATE - changements:', changes);
+
+      if (changes === 0) {
+        db.run('ROLLBACK');
+        console.error('Erreur: Aucun article mis à jour pour numero_item:', numero_item);
+        return { erreur: 'Aucun article mis à jour', status: 404 };
+      }
+
+      db.run('COMMIT');
+      await saveDbToLocalStorage(db);
+
+      // Vérifier après assignation
+      console.log('Vérification du contenu des tables après assignation...');
+      const produitsApres = await listeProduits();
+      console.log('Produits après assignation:', produitsApres);
+
+      console.log('Catégorie assignée:', { numero_item, numer_categorie });
+      return {
+        statut: 'Catégorie assignée',
+        numero_item: numero_item,
+        numer_categorie: numer_categorie === undefined || numer_categorie === null ? null : numer_categorie,
+        status: 200
+      };
+    } catch (error) {
+      db.run('ROLLBACK');
+      console.error('Erreur dans la transaction:', error);
+      throw error;
+    }
+  } catch (error) {
+    console.error('Erreur assignerCategorie:', error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+export async function listeProduitsParCategorie(numero_categorie) {
+  try {
+    console.log('Exécution de listeProduitsParCategorie:', numero_categorie);
+    const db = await getDb();
+
+    if (numero_categorie === undefined || numero_categorie === null) {
+      // Produits sans catégorie - AVEC CLÉS MINUSCULES
+      const stmt = db.prepare('SELECT numero_item, designation FROM item WHERE numero_categorie IS NULL');
+      const produits = [];
+      while (stmt.step()) {
+        const row = stmt.getAsObject();
+        console.log('Produit sans catégorie brut:', row);
+
+        // Conversion des clés majuscules en minuscules
+        const numero_item = row.NUMERO_ITEM !== null && row.NUMERO_ITEM !== undefined ? row.NUMERO_ITEM : '';
+        const designation = row.DESIGNATION !== null && row.DESIGNATION !== undefined ? row.DESIGNATION : '';
+
+        produits.push({
+          numero_item: numero_item, // clé en minuscule
+          designation: designation  // clé en minuscule
+        });
+      }
+      stmt.free();
+      console.log('Produits sans catégorie:', produits);
+      return { produits };
+    } else {
+      // Vérifier si la catégorie existe
+      const stmtCheckCat = db.prepare('SELECT 1 FROM categorie WHERE numer_categorie = ?');
+      stmtCheckCat.bind([numero_categorie]);
+      const exists = stmtCheckCat.step();
+      stmtCheckCat.free();
+      if (!exists) {
+        console.error('Erreur: Catégorie non trouvée pour numer_categorie:', numero_categorie);
+        return { erreur: 'Catégorie non trouvée', status: 404 };
+      }
+
+      // Produits par catégorie - AVEC CLÉS MINUSCULES
+      const stmt = db.prepare(`
+        SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
+        FROM categorie c
+        LEFT JOIN item i ON c.numer_categorie = i.numero_categorie
+        WHERE c.numer_categorie = ?
+      `);
+      stmt.bind([numero_categorie]);
+
+      const categories = {};
+      while (stmt.step()) {
+        const row = stmt.getAsObject();
+        console.log('Données brutes pour catégorie:', row);
+
+        // Conversion des clés majuscules en minuscules
+        const numer_categorie = row.NUMER_CATEGORIE !== null && row.NUMER_CATEGORIE !== undefined ? row.NUMER_CATEGORIE : '';
+        const description_c = row.DESCRIPTION_C !== null && row.DESCRIPTION_C !== undefined ? row.DESCRIPTION_C : '';
+        const numero_item = row.NUMERO_ITEM !== null && row.NUMERO_ITEM !== undefined ? row.NUMERO_ITEM : '';
+        const designation = row.DESIGNATION !== null && row.DESIGNATION !== undefined ? row.DESIGNATION : '';
+
+        if (!categories[numer_categorie]) {
+          categories[numer_categorie] = {
+            numer_categorie: numer_categorie, // clé en minuscule
+            description_c: description_c,     // clé en minuscule
+            produits: []                      // clé en minuscule
+          };
         }
 
-        logger.info(f"Valeur stock calculée: valeur_achat={to_comma_decimal(valeur_achat)}, valeur_vente={to_comma_decimal(valeur_vente)}, zakat={to_comma_decimal(zakat)}")
-        return jsonify(response), 200
+        if (numero_item) {
+          categories[numer_categorie].produits.push({
+            numero_item: numero_item,    // clé en minuscule
+            designation: designation     // clé en minuscule
+          });
+        }
+      }
+      stmt.free();
 
-    except Exception as e:
-        logger.error(f"Erreur récupération valeur stock: {str(e)}")
-        return jsonify({'erreur': str(e)}), 500
-    finally:
-        if conn:
-            cur.close()
-            conn.close()
+      console.log('Catégories avec produits:', Object.values(categories));
+      return { categories: Object.values(categories) };
+    }
+  } catch (error) {
+    console.error('Erreur listeProduitsParCategorie:', error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+export async function clientSolde() {
+  try {
+    console.log("Exécution de clientSolde...");
+    const db = await getDb();
+    
+    const stmt = db.prepare('SELECT numero_clt, solde FROM client');
+    const soldes = [];
+    
+    while (stmt.step()) {
+      const row = stmt.get();
+      console.log("Solde client brut récupéré:", row);
+      
+      soldes.push({
+        numero_clt: row[0] !== null ? row[0] : '',
+        solde: row[1] !== null ? row[1] : '0,00'
+      });
+    }
+    stmt.free();
+    
+    console.log("Soldes clients formatés retournés:", soldes);
+    return soldes;
+  } catch (error) {
+    console.error("Erreur clientSolde:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
 
 
-@app.route('/valider_reception', methods=['POST'])
-def valider_reception():
-    data = request.get_json()
-    if not data or 'lignes' not in data or not data['lignes'] or 'numero_four' not in data or 'numero_util' not in data or 'password2' not in data:
-        print("Erreur: Données de réception invalides")
-        return jsonify({"error": "Données de réception invalides, fournisseur, utilisateur ou mot de passe manquant"}), 400
 
-    numero_four = data.get('numero_four')
-    numero_util = data.get('numero_util')
-    password2 = data.get('password2')
-    lignes = data['lignes']
-    nature = "Bon de réception"
 
-    conn = None
-    try:
-        conn = get_conn()
-        conn.autocommit = False
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+// apiRoutes.js (ajouts aux fonctions existantes)
 
-        cur.execute("SELECT Password2 FROM utilisateur WHERE numero_util = %s", (numero_util,))
-        utilisateur = cur.fetchone()
-        if not utilisateur:
-            print(f"Erreur: Utilisateur {numero_util} non trouvé")
-            return jsonify({"error": "Utilisateur non trouvé"}), 400
-        if utilisateur['password2'] != password2:
-            print(f"Erreur: Mot de passe incorrect pour l'utilisateur {numero_util}")
-            return jsonify({"error": "Mot de passe incorrect"}), 401
+export async function validerVente(data) {
+  try {
+    console.log("Exécution de validerVente avec data:", data);
+    const db = await getDb();
+    
+    // 1. Validation des données
+    if (!data || !data.lignes || !data.numero_util || !data.password2) {
+      return { erreur: "Données manquantes", status: 400 };
+    }
 
-        cur.execute("SELECT numero_fou FROM fournisseur WHERE numero_fou = %s", (numero_four,))
-        if not cur.fetchone():
-            print(f"Erreur: Fournisseur {numero_four} non trouvé")
-            return jsonify({"error": "Fournisseur non trouvé"}), 400
+    const numero_table = parseInt(data.numero_table) || 0;
+    const payment_mode = data.payment_mode || 'espece';
+    const amount_paid_str = data.amount_paid || '0,00';
+    const amount_paid = toDotDecimal(amount_paid_str);
+    const numero_util = data.numero_util;
+    const password2 = data.password2;
+    const nature = numero_table === 0 ? "TICKET" : "BON DE L.";
 
-        cur.execute("""
-            INSERT INTO mouvement (date_m, etat_m, numero_four, refdoc, vers, nature, connection1, numero_util, cheque)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            RETURNING numero_mouvement
-        """, (datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0), "cloture", numero_four, "", "", nature, 0, numero_util, ""))
-        numero_mouvement = cur.fetchone()['numero_mouvement']
+    // 2. Vérification de l'authentification
+    const stmtUser = db.prepare("SELECT numero_util, nom, password2 FROM utilisateur WHERE numero_util = ?");
+    stmtUser.bind([numero_util]);
+    let user = null;
+    if (stmtUser.step()) {
+      user = stmtUser.getAsObject();
+    }
+    stmtUser.free();
 
-        cur.execute("UPDATE mouvement SET refdoc = %s WHERE numero_mouvement = %s", 
-                    (str(numero_mouvement), numero_mouvement))
+    if (!user || user.PASSWORD2 !== password2) {
+      return { erreur: "Authentification invalide", status: 401 };
+    }
 
-        total_cost = 0.0
-        for ligne in lignes:
-            numero_item = ligne.get('numero_item')
-            qtea = float(ligne.get('qtea', '0').replace(',', '.') if isinstance(ligne.get('qtea'), str) else ligne.get('qtea', 0))
-            prixbh = float(ligne.get('prixbh', '0').replace(',', '.') if isinstance(ligne.get('prixbh'), str) else ligne.get('prixbh', 0))
+    db.run('BEGIN TRANSACTION');
 
-            if qtea <= 0:
-                raise Exception("La quantité ajoutée doit être positive")
+    try {
+      // 3. Création de la commande
+      const stmtCompteur = db.prepare("SELECT COALESCE(MAX(compteur), 0) + 1 AS next_compteur FROM comande WHERE nature = ?");
+      stmtCompteur.bind([nature]);
+      stmtCompteur.step();
+      const { next_compteur } = stmtCompteur.getAsObject();
+      stmtCompteur.free();
 
-            cur.execute("""
-                SELECT qte, CAST(COALESCE(NULLIF(REPLACE(prixba, ',', '.'), ''), '0') AS FLOAT) AS prixba 
-                FROM item WHERE numero_item = %s
-            """, (numero_item,))
-            item = cur.fetchone()
-            if not item:
-                raise Exception(f"Article {numero_item} non trouvé")
+      const stmtCommande = db.prepare(`
+        INSERT INTO comande (numero_table, date_comande, etat_c, nature, connection1, compteur, numero_util)
+        VALUES (?, datetime('now'), 'Cloture', ?, -1, ?, ?)
+      `);
+      stmtCommande.run([numero_table, nature, next_compteur, numero_util]);
+      stmtCommande.free();
 
-            current_qte = float(item['qte'] or 0)
-            prixba = float(item['prixba'] or 0)
+      // Récupérer l'ID de la commande
+      const idStmt = db.prepare('SELECT last_insert_rowid() AS numero_comande');
+      idStmt.step();
+      const { numero_comande } = idStmt.getAsObject();
+      idStmt.free();
 
-            nqte = current_qte + qtea
-            total_cost += qtea * prixbh
+      // 4. Traitement des lignes et calcul du total
+      let total_vente = 0.0;
+      
+      for (const ligne of data.lignes) {
+        const quantite = toDotDecimal(ligne.quantite || '1');
+        const remarque = toDotDecimal(ligne.remarque || '0,00');
+        const prixt = quantite * remarque;
+        total_vente += prixt;
 
-            prixbh_str = str(prixbh).replace('.', ',')[:30]  # Stocker avec virgule
-            prixba_str = str(prixba).replace('.', ',')[:30]  # Stocker avec virgule
-
-            cur.execute("""
-                INSERT INTO attache2 (numero_item, numero_mouvement, qtea, nqte, nprix, pump, send)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """, (numero_item, numero_mouvement, qtea, nqte, prixbh_str, prixba_str, True))
-
-            # Mise à jour du fournisseur pour l'article
-            cur.execute("UPDATE item SET qte = %s, prixba = %s, numero_fou = %s WHERE numero_item = %s", 
-                        (nqte, prixbh_str, numero_four, numero_item))
-
-        cur.execute("""
-            SELECT CAST(COALESCE(NULLIF(REPLACE(solde, ',', '.'), ''), '0') AS FLOAT) AS solde 
-            FROM fournisseur WHERE numero_fou = %s
-        """, (numero_four,))
-        fournisseur = cur.fetchone()
-        if not fournisseur:
-            raise Exception(f"Fournisseur {numero_four} non trouvé")
-
-        current_solde = float(fournisseur['solde'] or 0)
-        new_solde = current_solde - total_cost
-        new_solde_str = str(new_solde).replace('.', ',')  # Stocker avec virgule
-
-        cur.execute("UPDATE fournisseur SET solde = %s WHERE numero_fou = %s", 
-                    (new_solde_str, numero_four))
-        print(f"Solde fournisseur mis à jour: numero_fou={numero_four}, total_cost={total_cost}, new_solde={new_solde_str}")
-
-        conn.commit()
-        print(f"Réception validée: numero_mouvement={numero_mouvement}, {len(lignes)} lignes")
-        return jsonify({"numero_mouvement": numero_mouvement}), 200
-
-    except Exception as e:
-        if conn:
-            conn.rollback()
-        print(f"Erreur validation réception: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
-    finally:
-        if conn:
-            cur.close()
-            conn.close()
-
-@app.route('/receptions_jour', methods=['GET'])
-def receptions_jour():
-    selected_date = request.args.get('date')
-    numero_util = request.args.get('numero_util')
-    numero_four = request.args.get('numero_four', '')
-
-    try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        if selected_date:
-            try:
-                date_obj = datetime.strptime(selected_date, '%Y-%m-%d')
-                date_start = date_obj.replace(hour=0, minute=0, second=0, microsecond=0)
-                date_end = date_obj.replace(hour=23, minute=59, second=59, microsecond=999999)
-            except ValueError:
-                return jsonify({'erreur': 'Format de date invalide (attendu: YYYY-MM-DD)'}), 400
-        else:
-            date_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-            date_end = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
-
-        query = """
-            SELECT 
-                m.numero_mouvement,
-                m.date_m,
-                m.nature,
-                m.numero_four,
-                f.nom AS fournisseur_nom,
-                m.numero_util,
-                u.nom AS utilisateur_nom,
-                a2.numero_item,
-                a2.qtea,
-                CAST(COALESCE(NULLIF(REPLACE(a2.nprix, ',', '.'), ''), '0') AS FLOAT) AS nprix,
-                i.designation
-            FROM mouvement m
-            LEFT JOIN fournisseur f ON m.numero_four = f.numero_fou
-            LEFT JOIN utilisateur u ON m.numero_util = u.numero_util
-            JOIN attache2 a2 ON m.numero_mouvement = a2.numero_mouvement
-            JOIN item i ON a2.numero_item = i.numero_item
-            WHERE m.date_m >= %s 
-            AND m.date_m <= %s
-            AND m.nature = 'Bon de réception'
-        """
-        params = [date_start, date_end]
-
-        if numero_util and numero_util != '0':
-            query += " AND m.numero_util = %s"
-            params.append(int(numero_util))
-        if numero_four and numero_four != '':
-            query += " AND m.numero_four = %s"
-            params.append(numero_four)
-
-        query += " ORDER BY m.numero_mouvement DESC"
-
-        cur.execute(query, params)
-        rows = cur.fetchall()
-
-        receptions = []
-        total = 0.0
-        receptions_map = {}
-
-        for row in rows:
-            nprix = float(row['nprix'])
-            total_ligne = float(row['qtea']) * nprix
-
-            if row['numero_mouvement'] not in receptions_map:
-                receptions_map[row['numero_mouvement']] = {
-                    'numero_mouvement': row['numero_mouvement'],
-                    'date_m': row['date_m'].isoformat(),
-                    'nature': row['nature'],
-                    'fournisseur_nom': row['fournisseur_nom'] or 'N/A',
-                    'utilisateur_nom': row['utilisateur_nom'] or 'N/A',
-                    'lignes': []
-                }
-
-            receptions_map[row['numero_mouvement']]['lignes'].append({
-                'numero_item': row['numero_item'],
-                'designation': row['designation'],
-                'qtea': row['qtea'],
-                'nprix': str(nprix).replace('.', ','),  # Retourner avec virgule
-                'total_ligne': str(total_ligne).replace('.', ',')  # Retourner avec virgule
-            })
-
-            total += total_ligne
-
-        receptions = list(receptions_map.values())
-
-        cur.close()
-        conn.close()
-
-        return jsonify({
-            'receptions': receptions,
-            'total': str(total).replace('.', ',')  # Retourner avec virgule
-        }), 200
-
-    except Exception as e:
-        if conn:
-            cur.close()
-            conn.close()
-        print(f"Erreur récupération réceptions: {str(e)}")
-        return jsonify({'erreur': str(e)}), 500
+        const prixt_str = toCommaDecimal(prixt);
+        const prixbh_str = toCommaDecimal(toDotDecimal(ligne.prixbh || '0,00'));
         
-@app.route('/ajouter_versement', methods=['POST'])
-def ajouter_versement():
-    """
-    Ajoute un versement pour un client ou fournisseur avec validation des données et mise à jour du solde.
-    """
-    # Récupération et validation des données JSON
-    data = request.get_json()
-    required_fields = ['type', 'numero_cf', 'montant', 'numero_util', 'password2']
-    if not data or any(field not in data for field in required_fields):
-        print("Erreur: Données de versement invalides")
-        return jsonify({"error": "Type, numéro client/fournisseur, montant, utilisateur ou mot de passe manquant"}), 400
-
-    type_versement = data.get('type')
-    numero_cf = data.get('numero_cf')
-    montant = data.get('montant')
-    justificatif = data.get('justificatif', '')
-    numero_util = data.get('numero_util')
-    password2 = data.get('password2')
-
-    # Validation du type de versement
-    if type_versement not in ['C', 'F']:
-        return jsonify({"error": "Type invalide (doit être 'C' ou 'F')"}), 400
-
-    # Connexion à la base de données
-    conn = None
-    cur = None
-    try:
-        # Conversion du montant avec to_dot_decimal
-        montant = to_dot_decimal(montant)
-        if montant == 0:
-            return jsonify({"error": "Le montant ne peut pas être zéro"}), 400
-
-        conn = get_conn()
-        conn.autocommit = False
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # Vérification de l'utilisateur et du mot de passe
-        cur.execute("SELECT Password2 FROM utilisateur WHERE numero_util = %s", (numero_util,))
-        utilisateur = cur.fetchone()
-        if not utilisateur:
-            print(f"Erreur: Utilisateur {numero_util} non trouvé")
-            return jsonify({"error": "Utilisateur non trouvé"}), 400
-        if utilisateur['password2'] != password2:
-            print(f"Erreur: Mot de passe incorrect pour l'utilisateur {numero_util}")
-            return jsonify({"error": "Mot de passe incorrect"}), 401
-
-        # Sélection des informations selon le type (client ou fournisseur)
-        if type_versement == 'C':
-            cur.execute("SELECT solde FROM client WHERE numero_clt = %s", (numero_cf,))
-            entity = cur.fetchone()
-            table = 'client'
-            id_column = 'numero_clt'
-            origine = 'VERSEMENT C'
-        else:
-            cur.execute("SELECT solde FROM fournisseur WHERE numero_fou = %s", (numero_cf,))
-            entity = cur.fetchone()
-            table = 'fournisseur'
-            id_column = 'numero_fou'
-            origine = 'VERSEMENT F'
-
-        if not entity:
-            print(f"Erreur: {'Client' if type_versement == 'C' else 'Fournisseur'} {numero_cf} non trouvé")
-            return jsonify({"error": f"{'Client' if type_versement == 'C' else 'Fournisseur'} non trouvé"}), 400
-
-        # Mise à jour du solde
-        current_solde = to_dot_decimal(entity['solde'] or '0,00')
-        new_solde = current_solde + montant
-        new_solde_str = to_comma_decimal(new_solde)  # Formatage pour la base de données
-
-        cur.execute(f"UPDATE {table} SET solde = %s WHERE {id_column} = %s",
-                    (new_solde_str, numero_cf))
-
-        # Enregistrement du mouvement
-        now = datetime.utcnow()
-        cur.execute(
-            """
-            INSERT INTO MOUVEMENTC (date_mc, time_mc, montant, justificatif, numero_util, origine, cf, numero_cf)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            RETURNING numero_mc
-            """,
-            (now.date(), now, to_comma_decimal(montant), justificatif,
-             numero_util, origine, type_versement, numero_cf)
-        )
-        numero_mc = cur.fetchone()['numero_mc']
-
-        conn.commit()
-        print(f"Versement ajouté: numero_mc={numero_mc}, type={type_versement}, montant={to_comma_decimal(montant)}")
-        return jsonify({"numero_mc": numero_mc, "statut": "Versement ajouté"}), 201
-
-    except Exception as e:
-        if conn:
-            conn.rollback()
-        print(f"Erreur ajout versement: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
-    finally:
-        if cur:
-            cur.close()
-        if conn:
-            conn.close()
-@app.route('/historique_versements', methods=['GET'])
-def historique_versements():
-    selected_date = request.args.get('date')
-    type_versement = request.args.get('type')
-
-    try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        if selected_date:
-            try:
-                date_obj = datetime.strptime(selected_date, '%Y-%m-%d')
-                date_start = date_obj.replace(hour=0, minute=0, second=0, microsecond=0)
-                date_end = date_obj.replace(hour=23, minute=59, second=59, microsecond=999999)
-            except ValueError:
-                return jsonify({'erreur': 'Format de date invalide (attendu: YYYY-MM-DD)'}), 400
-        else:
-            date_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-            date_end = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
-
-        query = """
-            SELECT 
-                mc.numero_mc,
-                mc.date_mc,
-                mc.montant,
-                mc.justificatif,
-                mc.cf,
-                mc.numero_cf,
-                mc.numero_util,
-                COALESCE(cl.nom, f.nom) AS nom_cf,
-                u.nom AS utilisateur_nom
-            FROM MOUVEMENTC mc
-            LEFT JOIN client cl ON mc.cf = 'C' AND mc.numero_cf = cl.numero_clt
-            LEFT JOIN fournisseur f ON mc.cf = 'F' AND mc.numero_cf = f.numero_fou
-            LEFT JOIN utilisateur u ON mc.numero_util = u.numero_util
-            WHERE mc.date_mc >= %s
-            AND mc.date_mc <= %s
-            AND mc.origine IN ('VERSEMENT C', 'VERSEMENT F')
-        """
-        params = [date_start, date_end]
-
-        if type_versement in ['C', 'F']:
-            query += " AND mc.cf = %s"
-            params.append(type_versement)
-
-        query += " ORDER BY mc.date_mc DESC, mc.time_mc DESC"
-
-        cur.execute(query, params)
-        rows = cur.fetchall()
-
-        versements = [
-            {
-                'numero_mc': row['numero_mc'],
-                'date_mc': row['date_mc'].strftime('%Y-%m-%d'),
-                'montant': str(row['montant']),
-                'justificatif': row['justificatif'] or '',
-                'type': 'Client' if row['cf'] == 'C' else 'Fournisseur',
-                'numero_cf': row['numero_cf'],
-                'nom_cf': row['nom_cf'] or 'N/A',
-                'utilisateur_nom': row['utilisateur_nom'] or 'N/A'
-            }
-            for row in rows
-        ]
-
-        cur.close()
-        conn.close()
-        return jsonify(versements), 200
-
-    except Exception as e:
-        if conn:
-            cur.close()
-            conn.close()
-        print(f"Erreur récupération historique versements: {str(e)}")
-        return jsonify({'erreur': str(e)}), 500
-
-
-
-@app.route('/annuler_versement', methods=['DELETE'])
-def annuler_versement():
-    """
-    Annule un versement existant pour un client ou fournisseur avec mise à jour du solde.
-    """
-    # Récupération et validation des données JSON
-    data = request.get_json()
-    required_fields = ['numero_mc', 'type', 'numero_cf', 'numero_util', 'password2']
-    if not data or any(field not in data for field in required_fields):
-        print("Erreur: Données d'annulation invalides")
-        return jsonify({"error": "Numéro de versement, type, numéro client/fournisseur, utilisateur ou mot de passe manquant"}), 400
-
-    numero_mc = data.get('numero_mc')
-    type_versement = data.get('type')
-    numero_cf = data.get('numero_cf')
-    numero_util = data.get('numero_util')
-    password2 = data.get('password2')
-
-    # Validation du type de versement
-    if type_versement not in ['C', 'F']:
-        return jsonify({"error": "Type invalide (doit être 'C' ou 'F')"}), 400
-
-    # Connexion à la base de données
-    conn = None
-    cur = None
-    try:
-        conn = get_conn()
-        conn.autocommit = False
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # Vérification de l'utilisateur et du mot de passe
-        cur.execute("SELECT Password2 FROM utilisateur WHERE numero_util = %s", (numero_util,))
-        utilisateur = cur.fetchone()
-        if not utilisateur:
-            print(f"Erreur: Utilisateur {numero_util} non trouvé")
-            return jsonify({"error": "Utilisateur non trouvé"}), 400
-        if utilisateur['password2'] != password2:
-            print(f"Erreur: Mot de passe incorrect pour l'utilisateur {numero_util}")
-            return jsonify({"error": "Mot de passe incorrect"}), 401
-
-        # Vérification du versement existant
-        cur.execute("SELECT montant, cf, numero_cf FROM MOUVEMENTC WHERE numero_mc = %s AND origine IN ('VERSEMENT C', 'VERSEMENT F')",
-                    (numero_mc,))
-        versement = cur.fetchone()
-        if not versement:
-            print(f"Erreur: Versement {numero_mc} non trouvé")
-            return jsonify({"error": "Versement non trouvé"}), 404
-
-        # Vérification de la cohérence du type
-        if type_versement != versement['cf']:
-            print(f"Erreur: Type {type_versement} ne correspond pas au versement {numero_mc}")
-            return jsonify({"error": "Type ne correspond pas au versement"}), 400
-
-        # Détermination de la table
-        if versement['cf'] == 'C':
-            table = 'client'
-            id_column = 'numero_clt'
-        else:
-            table = 'fournisseur'
-            id_column = 'numero_fou'
-
-        # Vérification de l'entité (client ou fournisseur)
-        cur.execute(f"SELECT solde FROM {table} WHERE {id_column} = %s", (numero_cf,))
-        entity = cur.fetchone()
-        if not entity:
-            print(f"Erreur: {'Client' if versement['cf'] == 'C' else 'Fournisseur'} {numero_cf} non trouvé")
-            return jsonify({"error": f"{'Client' if versement['cf'] == 'C' else 'Fournisseur'} non trouvé"}), 400
-
-        # Calcul du nouveau solde
-        montant = to_dot_decimal(versement['montant'])
-        current_solde = to_dot_decimal(entity['solde'] or '0,00')
-        new_solde = current_solde - montant
-        new_solde_str = to_comma_decimal(new_solde)
-
-        # Mise à jour du solde
-        cur.execute(f"UPDATE {table} SET solde = %s WHERE {id_column} = %s",
-                    (new_solde_str, numero_cf))
-
-        # Suppression du versement
-        cur.execute("DELETE FROM MOUVEMENTC WHERE numero_mc = %s", (numero_mc,))
-        if cur.rowcount == 0:
-            conn.rollback()
-            print(f"Erreur: Versement {numero_mc} non supprimé")
-            return jsonify({"error": "Versement non supprimé"}), 500
-
-        conn.commit()
-        print(f"Versement annulé: numero_mc={numero_mc}, type={type_versement}, montant={to_comma_decimal(montant)}")
-        return jsonify({"statut": "Versement annulé", "numero_mc": numero_mc}), 200
-
-    except Exception as e:
-        if conn:
-            conn.rollback()
-        print(f"Erreur annulation versement: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
-    finally:
-        if cur:
-            cur.close()
-        if conn:
-            conn.close()
-
-
-@app.route('/modifier_versement', methods=['PUT'])
-def modifier_versement():
-    """
-    Modifie un versement existant pour un client ou fournisseur avec mise à jour du solde.
-    """
-    # Récupération et validation des données JSON
-    data = request.get_json()
-    required_fields = ['numero_mc', 'type', 'numero_cf', 'montant', 'numero_util', 'password2']
-    if not data or any(field not in data for field in required_fields):
-        print("Erreur: Données de modification invalides")
-        return jsonify({"error": "Numéro de versement, type, numéro client/fournisseur, montant, utilisateur ou mot de passe manquant"}), 400
-
-    numero_mc = data.get('numero_mc')
-    type_versement = data.get('type')
-    numero_cf = data.get('numero_cf')
-    montant = data.get('montant')
-    justificatif = data.get('justificatif', '')
-    numero_util = data.get('numero_util')
-    password2 = data.get('password2')
-
-    # Validation du type de versement
-    if type_versement not in ['C', 'F']:
-        return jsonify({"error": "Type invalide (doit être 'C' ou 'F')"}), 400
-
-    # Connexion à la base de données
-    conn = None
-    cur = None
-    try:
-        # Conversion du montant avec to_dot_decimal
-        montant = to_dot_decimal(montant)
-        if montant == 0:
-            return jsonify({"error": "Le montant ne peut pas être zéro"}), 400
-
-        conn = get_conn()
-        conn.autocommit = False
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # Vérification de l'utilisateur et du mot de passe
-        cur.execute("SELECT Password2 FROM utilisateur WHERE numero_util = %s", (numero_util,))
-        utilisateur = cur.fetchone()
-        if not utilisateur:
-            print(f"Erreur: Utilisateur {numero_util} non trouvé")
-            return jsonify({"error": "Utilisateur non trouvé"}), 400
-        if utilisateur['password2'] != password2:
-            print(f"Erreur: Mot de passe incorrect pour l'utilisateur {numero_util}")
-            return jsonify({"error": "Mot de passe incorrect"}), 401
-
-        # Vérification du versement existant
-        cur.execute("SELECT montant, cf, numero_cf FROM MOUVEMENTC WHERE numero_mc = %s AND origine IN ('VERSEMENT C', 'VERSEMENT F')",
-                    (numero_mc,))
-        versement = cur.fetchone()
-        if not versement:
-            print(f"Erreur: Versement {numero_mc} non trouvé")
-            return jsonify({"error": "Versement non trouvé"}), 404
-
-        # Détermination de la table et des paramètres
-        if versement['cf'] == 'C':
-            table = 'client'
-            id_column = 'numero_clt'
-            origine = 'VERSEMENT C'
-        else:
-            table = 'fournisseur'
-            id_column = 'numero_fou'
-            origine = 'VERSEMENT F'
-
-        # Vérification de l'entité (client ou fournisseur)
-        cur.execute(f"SELECT solde FROM {table} WHERE {id_column} = %s", (numero_cf,))
-        entity = cur.fetchone()
-        if not entity:
-            print(f"Erreur: {'Client' if versement['cf'] == 'C' else 'Fournisseur'} {numero_cf} non trouvé")
-            return jsonify({"error": f"{'Client' if versement['cf'] == 'C' else 'Fournisseur'} non trouvé"}), 400
-
-        # Calcul du nouveau solde
-        old_montant = to_dot_decimal(versement['montant'])
-        current_solde = to_dot_decimal(entity['solde'] or '0,00')
-        solde_change = -old_montant + montant
-        new_solde = current_solde + solde_change
-        new_solde_str = to_comma_decimal(new_solde)
-
-        # Mise à jour du solde
-        cur.execute(f"UPDATE {table} SET solde = %s WHERE {id_column} = %s",
-                    (new_solde_str, numero_cf))
-
-        # Mise à jour du versement dans MOUVEMENTC
-        now = datetime.utcnow()
-        cur.execute("""
-            UPDATE MOUVEMENTC 
-            SET montant = %s, justificatif = %s, date_mc = %s, time_mc = %s
-            WHERE numero_mc = %s AND origine = %s
-        """, (to_comma_decimal(montant), justificatif, now.date(), now, numero_mc, origine))
-
-        if cur.rowcount == 0:
-            conn.rollback()
-            print(f"Erreur: Versement {numero_mc} non modifié")
-            return jsonify({"error": "Versement non modifié"}), 500
-
-        conn.commit()
-        print(f"Versement modifié: numero_mc={numero_mc}, type={type_versement}, montant={to_comma_decimal(montant)}, justificatif={justificatif}")
-        return jsonify({"statut": "Versement modifié", "numero_mc": numero_mc}), 200
-
-    except Exception as e:
-        if conn:
-            conn.rollback()
-        print(f"Erreur modification versement: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
-    finally:
-        if cur:
-            cur.close()
-        if conn:
-            conn.close()
-
-# Endpoint: Situation des versements
-@app.route('/situation_versements', methods=['GET'])
-def situation_versements():
-    type_versement = request.args.get('type')  # 'C' ou 'F'
-    numero_cf = request.args.get('numero_cf')  # ID du client ou fournisseur
-
-    if not type_versement or type_versement not in ['C', 'F']:
-        return jsonify({'erreur': "Paramètre 'type' requis et doit être 'C' ou 'F'"}), 400
-    if not numero_cf:
-        return jsonify({'erreur': "Paramètre 'numero_cf' requis"}), 400
-
-    try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        query = """
-            SELECT 
-                mc.numero_mc,
-                mc.date_mc,
-                mc.montant,
-                mc.justificatif,
-                mc.cf,
-                mc.numero_cf,
-                mc.numero_util,
-                COALESCE(cl.nom, f.nom) AS nom_cf,
-                u.nom AS utilisateur_nom
-            FROM MOUVEMENTC mc
-            LEFT JOIN client cl ON mc.cf = 'C' AND mc.numero_cf = cl.numero_clt
-            LEFT JOIN fournisseur f ON mc.cf = 'F' AND mc.numero_cf = f.numero_fou
-            LEFT JOIN utilisateur u ON mc.numero_util = u.numero_util
-            WHERE mc.origine IN ('VERSEMENT C', 'VERSEMENT F')
-            AND mc.cf = %s
-            AND mc.numero_cf = %s
-            ORDER BY mc.date_mc DESC, mc.time_mc DESC
-        """
-        params = [type_versement, numero_cf]
-
-        cur.execute(query, params)
-        rows = cur.fetchall()
-
-        versements = [
-            {
-                'numero_mc': row['numero_mc'],
-                'date_mc': row['date_mc'].strftime('%Y-%m-%d'),
-                'montant': str(row['montant']),
-                'justificatif': row['justificatif'] or '',
-                'cf': row['cf'],
-                'numero_cf': row['numero_cf'],
-                'nom_cf': row['nom_cf'] or 'N/A',
-                'utilisateur_nom': row['utilisateur_nom'] or 'N/A'
-            }
-            for row in rows
-        ]
-
-        cur.close()
-        conn.close()
-        logger.info(f"Situation versements: type={type_versement}, numero_cf={numero_cf}, {len(versements)} versements")
-        return jsonify(versements), 200
-
-    except Exception as e:
-        if conn:
-            cur.close()
-            conn.close()
-        logger.error(f"Erreur récupération situation versements: {str(e)}")
-        return jsonify({'erreur': str(e)}), 500
-
-# Endpoint: Annuler une vente
-
-
-@app.route('/annuler_vente', methods=['POST'])
-def annuler_vente():
-    # Récupération et validation des données JSON
-    data = request.get_json()
-    required_fields = ['numero_comande', 'password2']
-    if not data or any(field not in data for field in required_fields):
-        logger.error(f"Données d'annulation invalides: champs manquants {', '.join(field for field in required_fields if field not in data)}")
-        return jsonify({"error": "Numéro de commande ou mot de passe manquant"}), 400
-
-    numero_comande = data.get('numero_comande')
-    password2 = data.get('password2')
-
-    # Validation des types
-    try:
-        numero_comande = int(numero_comande)  # Vérifier que c'est un entier
-        if not isinstance(password2, str) or not password2.strip():
-            logger.error("Mot de passe invalide (vide ou non-chaîne)")
-            return jsonify({"error": "Mot de passe invalide"}), 400
-    except (ValueError, TypeError):
-        logger.error("Format invalide pour numero_comande")
-        return jsonify({"error": "Format invalide pour numero_comande"}), 400
-
-    conn = None
-    cur = None
-    try:
-        conn = get_conn()
-        conn.autocommit = False
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # Vérifier l'existence de la commande et récupérer le numero_util
-        cur.execute("""
-            SELECT c.numero_table, c.nature, c.numero_util 
-            FROM comande c
-            WHERE c.numero_comande = %s
-        """, (numero_comande,))
-        commande = cur.fetchone()
-        if not commande:
-            logger.error(f"Commande {numero_comande} non trouvée")
-            return jsonify({"error": "Commande non trouvée"}), 404
-
-        # Vérifier le mot de passe de l'utilisateur associé
-        cur.execute("SELECT password2 FROM utilisateur WHERE numero_util = %s", (commande['numero_util'],))
-        utilisateur = cur.fetchone()
-        if not utilisateur:
-            logger.error(f"Utilisateur {commande['numero_util']} non trouvé")
-            return jsonify({"error": "Utilisateur associé à la commande non trouvé"}), 400
-        if utilisateur['password2'] != password2:
-            logger.error(f"Mot de passe incorrect pour la commande {numero_comande}")
-            return jsonify({"error": "Mot de passe incorrect"}), 401
-
-        # Récupérer les lignes de la vente
-        cur.execute("""
-            SELECT numero_item, quantite, prixt
-            FROM attache 
-            WHERE numero_comande = %s
-        """, (numero_comande,))
-        lignes = cur.fetchall()
-        if not lignes:
-            logger.error(f"Aucune ligne trouvée pour la commande {numero_comande}")
-            return jsonify({"error": "Aucune ligne de vente trouvée"}), 404
-
-        # Restaurer le stock dans item
-        for ligne in lignes:
-            cur.execute("""
-                UPDATE item 
-                SET qte = qte + %s 
-                WHERE numero_item = %s
-            """, (ligne['quantite'], ligne['numero_item']))
-
-        # Si vente à terme (numero_table != 0), ajuster le solde du client
-        if commande['numero_table'] != 0:
-            total_sale = sum(to_dot_decimal(ligne['prixt'] or '0,00') for ligne in lignes)
-            cur.execute("SELECT solde FROM client WHERE numero_clt = %s", 
-                        (commande['numero_table'],))
-            client = cur.fetchone()
-            if not client:
-                logger.error(f"Client {commande['numero_table']} non trouvé")
-                raise Exception(f"Client {commande['numero_table']} non trouvé")
-            
-            current_solde = to_dot_decimal(client['solde'] or '0,00')
-            new_solde = current_solde - total_sale  # Réduire la dette (inverser la vente)
-            new_solde_str = to_comma_decimal(new_solde)
-            
-            cur.execute("""
-                UPDATE client 
-                SET solde = %s 
-                WHERE numero_clt = %s
-            """, (new_solde_str, commande['numero_table']))
-            logger.info(f"Solde client mis à jour: numero_clt={commande['numero_table']}, total_sale={total_sale}, new_solde={new_solde_str}")
-
-        # Supprimer les enregistrements associés dans encaisse
-        cur.execute("DELETE FROM encaisse WHERE numero_comande = %s", (numero_comande,))
-        logger.info(f"Enregistrements supprimés de la table encaisse pour numero_comande={numero_comande}")
-
-        # Supprimer les lignes de attache
-        cur.execute("DELETE FROM attache WHERE numero_comande = %s", (numero_comande,))
-
-        # Supprimer la commande
-        cur.execute("DELETE FROM comande WHERE numero_comande = %s", (numero_comande,))
-
-        conn.commit()
-        logger.info(f"Vente annulée: numero_comande={numero_comande}, {len(lignes)} lignes")
-        return jsonify({"statut": "Vente annulée"}), 200
-
-    except Exception as e:
-        if conn:
-            conn.rollback()
-        logger.error(f"Erreur annulation vente: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-    finally:
-        if cur:
-            cur.close()
-        if conn:
-            conn.close()
-
-@app.route('/annuler_reception', methods=['POST'])
-def annuler_reception():
-    # Récupération et validation des données JSON
-    data = request.get_json()
-    required_fields = ['numero_mouvement', 'password2']
-    if not data or any(field not in data for field in required_fields):
-        logger.error(f"Données d'annulation invalides: champs manquants {', '.join(field for field in required_fields if field not in data)}")
-        return jsonify({"error": "Numéro de mouvement ou mot de passe manquant"}), 400
-
-    numero_mouvement = data.get('numero_mouvement')
-    password2 = data.get('password2')
-
-    # Validation des types
-    try:
-        numero_mouvement = int(numero_mouvement)  # Vérifier que c'est un entier
-        if not isinstance(password2, str) or not password2.strip():
-            logger.error("Mot de passe invalide (vide ou non-chaîne)")
-            return jsonify({"error": "Mot de passe invalide"}), 400
-    except (ValueError, TypeError):
-        logger.error("Format invalide pour numero_mouvement")
-        return jsonify({"error": "Format invalide pour numero_mouvement"}), 400
-
-    conn = None
-    cur = None
-    try:
-        conn = get_conn()
-        conn.autocommit = False
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # Vérifier l'existence du mouvement et récupérer le numero_util
-        cur.execute("""
-            SELECT m.numero_four, m.numero_util 
-            FROM mouvement m
-            WHERE m.numero_mouvement = %s AND m.nature = 'Bon de réception'
-        """, (numero_mouvement,))
-        mouvement = cur.fetchone()
-        if not mouvement:
-            logger.error(f"Mouvement {numero_mouvement} non trouvé")
-            return jsonify({"error": "Mouvement non trouvé"}), 404
-
-        # Vérifier le mot de passe de l'utilisateur associé
-        cur.execute("SELECT password2 FROM utilisateur WHERE numero_util = %s", (mouvement['numero_util'],))
-        utilisateur = cur.fetchone()
-        if not utilisateur:
-            logger.error(f"Utilisateur {mouvement['numero_util']} non trouvé")
-            return jsonify({"error": "Utilisateur associé au mouvement non trouvé"}), 400
-        if utilisateur['password2'] != password2:
-            logger.error(f"Mot de passe incorrect pour le mouvement {numero_mouvement}")
-            return jsonify({"error": "Mot de passe incorrect"}), 401
-
-        # Récupérer les lignes de la réception
-        cur.execute("""
-            SELECT numero_item, qtea, nprix 
-            FROM attache2 
-            WHERE numero_mouvement = %s
-        """, (numero_mouvement,))
-        lignes = cur.fetchall()
-
-        if not lignes:
-            logger.error(f"Aucune ligne trouvée pour le mouvement {numero_mouvement}")
-            return jsonify({"error": "Aucune ligne de réception trouvée"}), 404
-
-        # Calculer le coût total de la réception
-        total_cost = sum(to_dot_decimal(ligne['qtea']) * to_dot_decimal(ligne['nprix']) for ligne in lignes)
-
-        # Restaurer le stock dans item
-        for ligne in lignes:
-            cur.execute("""
-                UPDATE item 
-                SET qte = qte - %s 
-                WHERE numero_item = %s
-            """, (to_dot_decimal(ligne['qtea']), ligne['numero_item']))
-
-        # Mettre à jour le solde du fournisseur
-        cur.execute("SELECT solde FROM fournisseur WHERE numero_fou = %s", 
-                    (mouvement['numero_four'],))
-        fournisseur = cur.fetchone()
-        if not fournisseur:
-            raise Exception(f"Fournisseur {mouvement['numero_four']} non trouvé")
-
-        current_solde = to_dot_decimal(fournisseur['solde'] or '0,00')
-        new_solde = current_solde + total_cost  # Inverser l'effet de la réception
-        new_solde_str = to_comma_decimal(new_solde)
-
-        cur.execute("""
-            UPDATE fournisseur 
-            SET solde = %s 
-            WHERE numero_fou = %s
-        """, (new_solde_str, mouvement['numero_four']))
-        logger.info(f"Solde fournisseur mis à jour: numero_fou={mouvement['numero_four']}, total_cost={total_cost}, new_solde={new_solde_str}")
-
-        # Supprimer les lignes de attache2
-        cur.execute("DELETE FROM attache2 WHERE numero_mouvement = %s", (numero_mouvement,))
-
-        # Supprimer le mouvement
-        cur.execute("DELETE FROM mouvement WHERE numero_mouvement = %s", (numero_mouvement,))
-
-        conn.commit()
-        logger.info(f"Réception annulée: numero_mouvement={numero_mouvement}, {len(lignes)} lignes")
-        return jsonify({"statut": "Réception annulée"}), 200
-
-    except Exception as e:
-        if conn:
-            conn.rollback()
-        logger.error(f"Erreur annulation réception: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-    finally:
-        if cur:
-            cur.close()
-        if conn:
-            conn.close()
+        // Insérer dans attache
+        const stmtAttache = db.prepare(`
+          INSERT INTO attache (numero_comande, numero_item, quantite, prixt, remarque, prixbh, achatfx, send)
+          VALUES (?, ?, ?, ?, ?, ?, 0, 1)
+        `);
+        stmtAttache.run([numero_comande, ligne.numero_item, quantite, prixt_str, ligne.remarque || '', prixbh_str]);
+        stmtAttache.free();
+
+        // Mettre à jour le stock
+        const stmtStock = db.prepare("UPDATE item SET qte = qte - ? WHERE numero_item = ?");
+        stmtStock.run([quantite, ligne.numero_item]);
+        stmtStock.free();
+      }
+
+      // 5. Calculs des montants
+      const total_vente_str = toCommaDecimal(total_vente);
+      const montant_reglement = payment_mode === 'espece' ? total_vente : amount_paid;
+      const montant_reglement_str = toCommaDecimal(montant_reglement);
+
+      const solde_restant_vente = total_vente - amount_paid; // montant dû (positif en brut)
+      const solde_restant_str = toCommaDecimal(solde_restant_vente);
+
+      // 6. Insertion dans encaisse
+      const stmtEncaisse = db.prepare(`
+        INSERT INTO encaisse (apaye, reglement, tva, ht, numero_comande, origine, time_enc, soldeR)
+        VALUES (?, ?, '0,00', ?, ?, ?, datetime('now'), ?)
+      `);
+      stmtEncaisse.run([
+        total_vente_str, montant_reglement_str, total_vente_str, 
+        numero_comande, nature, solde_restant_str
+      ]);
+      stmtEncaisse.free();
+
+      // 7. Mise à jour du solde client si vente à terme
+      if (payment_mode === 'a_terme' && numero_table !== 0) {
+        // Lire ancien solde (converti en REAL même si TEXT)
+        const stmtClient = db.prepare("SELECT COALESCE(CAST(solde AS REAL), 0) AS solde FROM client WHERE numero_clt = ?");
+        stmtClient.bind([numero_table]);
+        let oldSolde = 0.0;
+        if (stmtClient.step()) {
+          const client = stmtClient.getAsObject();
+          oldSolde = parseFloat(client.solde) || 0.0;
+        }
+        stmtClient.free();
+
+        // Nouvelle dette (toujours négative)
+        const nouvelle_dette = -(solde_restant_vente);
+        const newSolde = oldSolde + nouvelle_dette;
+
+        // Mise à jour du client
+        const stmtUpdateClient = db.prepare("UPDATE client SET solde = ? WHERE numero_clt = ?");
+        stmtUpdateClient.run([newSolde.toString(), numero_table]);
+        stmtUpdateClient.free();
+
+        console.log(`✅ Solde client cumulé: ${oldSolde} + (${nouvelle_dette}) = ${newSolde}`);
+      }
+
+      db.run('COMMIT');
+      saveDbToLocalStorage(db);
+
+      return {
+        success: true,
+        numero_comande,
+        total_vente: total_vente_str,
+        montant_verse: amount_paid_str,
+        reglement: montant_reglement_str,
+        solde_restant: payment_mode === 'a_terme' ? toCommaDecimal(solde_restant_vente) : "0,00",
+        status: 200
+      };
+
+    } catch (error) {
+      db.run('ROLLBACK');
+      console.error("Erreur dans la transaction:", error);
+      throw error;
+    }
+
+  } catch (error) {
+    console.error("Erreur validerVente:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+export async function modifierVente(numero_comande, data) {
+  try {
+    console.log("Exécution de modifierVente:", numero_comande, data);
+    const db = await getDb();
+    
+    const { lignes, numero_util, password2, numero_table = 0, payment_mode = 'espece', amount_paid = '0,00' } = data;
+
+    if (!lignes || !numero_util || !password2) {
+      return { erreur: "Données manquantes", status: 400 };
+    }
+
+    const amount_paid_num = toDotDecimal(amount_paid);
+
+    // Vérification de l'authentification
+    const stmtUser = db.prepare('SELECT password2 FROM utilisateur WHERE numero_util = ?');
+    stmtUser.bind([numero_util]);
+    const user = stmtUser.step() ? stmtUser.getAsObject() : null;
+    stmtUser.free();
+
+    if (!user || user.password2 !== password2) {
+      return { erreur: "Authentification invalide", status: 401 };
+    }
+
+    db.run('BEGIN TRANSACTION');
+
+    try {
+      // Sauvegarder l'ancien état avant modification
+      const ancienEncaisse = await getAncienEncaisse(numero_comande, db);
+      const ancienSoldeRestant = ancienEncaisse ? toDotDecimal(ancienEncaisse.soldeR || '0,00') : 0;
+      
+      // Restaurer l'ancien état (stock et solde client)
+      await restaurerAncienneVente(numero_comande, db);
+
+      // Mettre à jour la commande
+      const nature = numero_table == 0 ? "TICKET" : "BON DE L.";
+      const stmtUpdate = db.prepare(`
+        UPDATE comande SET numero_table = ?, nature = ?, numero_util = ? WHERE numero_comande = ?
+      `);
+      stmtUpdate.run([numero_table, nature, numero_util, numero_comande]);
+      stmtUpdate.free();
+
+      // Traiter les nouvelles lignes
+      let total_vente = 0;
+      for (const ligne of lignes) {
+        const quantite = toDotDecimal(ligne.quantite || '1');
+        const prix_unitaire = toDotDecimal(ligne.remarque || '0,00');
+        const prixt = quantite * prix_unitaire;
+        total_vente += prixt;
+
+        const prixt_str = toCommaDecimal(prixt);
+        const prixbh_str = toCommaDecimal(toDotDecimal(ligne.prixbh || '0,00'));
+
+        const stmtAttache = db.prepare(`
+          INSERT INTO attache (numero_comande, numero_item, quantite, prixt, remarque, prixbh, achatfx, send)
+          VALUES (?, ?, ?, ?, ?, ?, 0, 1)
+        `);
+        stmtAttache.run([
+          numero_comande,
+          ligne.numero_item,
+          quantite,
+          prixt_str,
+          ligne.remarque || '',
+          prixbh_str
+        ]);
+        stmtAttache.free();
+
+        const stmtUpdateStock = db.prepare('UPDATE item SET qte = qte - ? WHERE numero_item = ?');
+        stmtUpdateStock.run([quantite, ligne.numero_item]);
+        stmtUpdateStock.free();
+      }
+
+      // Calcul du reste dû
+      const reste = total_vente - amount_paid_num; // positif si dette
+      const nouveau_solde_restant = payment_mode === 'a_terme' ? -reste : 0;
+
+      const total_vente_str = toCommaDecimal(total_vente);
+      const montant_reglement_str = toCommaDecimal(payment_mode === 'espece' ? total_vente : amount_paid_num);
+      const nouveau_solde_restant_str = toCommaDecimal(nouveau_solde_restant);
+
+      // Mettre à jour l'encaisse
+      const stmtEncaisse = db.prepare(`
+        UPDATE encaisse SET apaye = ?, reglement = ?, ht = ?, soldeR = ? WHERE numero_comande = ?
+      `);
+      stmtEncaisse.run([
+        total_vente_str,
+        montant_reglement_str,
+        total_vente_str,
+        nouveau_solde_restant_str,
+        numero_comande
+      ]);
+      stmtEncaisse.free();
+
+      // Mise à jour du solde client (cumule négatif)
+      if (payment_mode === 'a_terme' && numero_table != 0) {
+        const difference_solde = nouveau_solde_restant - ancienSoldeRestant;
+        const stmtClient = db.prepare('UPDATE client SET solde = solde + ? WHERE numero_clt = ?');
+        stmtClient.run([toCommaDecimal(difference_solde), numero_table]);
+        stmtClient.free();
+      }
+
+      db.run('COMMIT');
+      saveDbToLocalStorage(db);
+
+      return {
+        statut: "Vente modifiée",
+        numero_comande,
+        total_vente: total_vente_str,
+        status: 200
+      };
+
+    } catch (error) {
+      db.run('ROLLBACK');
+      throw error;
+    }
+
+  } catch (error) {
+    console.error("Erreur modifierVente:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+
 export async function annulerVente(data) {
   try {
     console.log("Exécution de annulerVente avec data:", data);
@@ -2675,705 +1957,794 @@ export async function annulerReception(data) {
     return { error: error.message || "Erreur lors de l'annulation de la réception", status: 500 };
   }
 }
-# Endpoint: Modifier une vente
+export async function getVente(numero_comande) {
+  try {
+    console.log("Exécution de getVente:", numero_comande);
+    const db = await getDb();
 
-@app.route('/modifier_vente/<int:numero_comande>', methods=['PUT'])
-def modifier_vente(numero_comande):
-    data = request.get_json()
-    if not data or 'lignes' not in data or not data['lignes'] or 'numero_util' not in data or 'password2' not in data:
-        logger.error("Données de vente invalides")
-        return jsonify({"error": "Données de vente invalides, utilisateur ou mot de passe manquant"}), 400
+    const stmtComande = db.prepare(`
+      SELECT c.*, cl.nom as client_nom, u.nom as utilisateur_nom 
+      FROM comande c
+      LEFT JOIN client cl ON c.numero_table = cl.numero_clt
+      LEFT JOIN utilisateur u ON c.numero_util = u.numero_util
+      WHERE c.numero_comande = ?
+    `);
+    stmtComande.bind([numero_comande]);
+    const commande = stmtComande.step() ? stmtComande.getAsObject() : null;
+    stmtComande.free();
 
-    numero_table = int(data.get('numero_table', 0))
-    date_comande = data.get('date_comande', datetime.utcnow().isoformat())
-    payment_mode = data.get('payment_mode', 'espece')
-    amount_paid = to_dot_decimal(data.get('amount_paid', '0,00'))  # Convertit en float avec point
-    amount_paid_str = to_comma_decimal(amount_paid)  # Convertit en string avec virgule
-    lignes = data['lignes']
-    numero_util = data.get('numero_util')
-    password2 = data.get('password2')
-    nature = "TICKET" if numero_table == 0 else "BON DE L."
+    if (!commande) {
+      return { erreur: "Commande non trouvée", status: 404 };
+    }
 
-    conn = None
-    cur = None
-    try:
-        conn = get_conn()
-        conn.autocommit = False
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+    const stmtLignes = db.prepare(`
+      SELECT a.*, i.designation 
+      FROM attache a
+      JOIN item i ON a.numero_item = i.numero_item
+      WHERE a.numero_comande = ?
+    `);
+    stmtLignes.bind([numero_comande]);
+    const lignes = [];
+    while (stmtLignes.step()) {
+      lignes.push(stmtLignes.getAsObject());
+    }
+    stmtLignes.free();
 
-        # Vérifier l'utilisateur et le mot de passe
-        cur.execute("SELECT password2 FROM utilisateur WHERE numero_util = %s", (numero_util,))
-        utilisateur = cur.fetchone()
-        if not utilisateur or utilisateur['password2'] != password2:
-            logger.error(f"Utilisateur {numero_util} ou mot de passe incorrect")
-            return jsonify({"error": "Utilisateur ou mot de passe incorrect"}), 401
+    return {
+      numero_comande: commande.numero_comande,
+      numero_table: commande.numero_table,
+      date_comande: commande.date_comande,
+      nature: commande.nature,
+      client_nom: commande.client_nom || 'Comptoir',
+      utilisateur_nom: commande.utilisateur_nom,
+      lignes: lignes.map(ligne => ({
+        numero_item: ligne.numero_item,
+        designation: ligne.designation,
+        quantite: ligne.quantite,
+        prixt: ligne.prixt,
+        remarque: ligne.remarque,
+        prixbh: ligne.prixbh
+      })),
+      status: 200
+    };
 
-        # Vérifier l'existence de la commande
-        cur.execute("SELECT numero_table FROM comande WHERE numero_comande = %s", (numero_comande,))
-        commande = cur.fetchone()
-        if not commande:
-            logger.error(f"Commande {numero_comande} non trouvée")
-            return jsonify({"error": "Commande non trouvée"}), 404
+  } catch (error) {
+    console.error("Erreur getVente:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+export async function ventesJour(params = {}) {
+  try {
+    console.log("Exécution de ventesJour avec params:", params);
+    const db = await getDb();
 
-        # Restaurer le solde client si paiement à terme et numero_table != 0
-        if commande['numero_table'] != 0:
-            cur.execute("SELECT solde FROM client WHERE numero_clt = %s", (commande['numero_table'],))
-            old_client = cur.fetchone()
-            if old_client and old_client['solde']:
-                old_solde = to_dot_decimal(old_client['solde'])
-                cur.execute("UPDATE client SET solde = %s WHERE numero_clt = %s",
-                            (to_comma_decimal(0), commande['numero_table']))
+    const { date, numero_clt, numero_util } = params;
+    let date_start, date_end;
 
-        # Restaurer le stock des anciens articles
-        cur.execute("SELECT numero_item, quantite FROM attache WHERE numero_comande = %s", (numero_comande,))
-        old_lignes = cur.fetchall()
-        for ligne in old_lignes:
-            cur.execute("UPDATE item SET qte = qte + %s WHERE numero_item = %s",
-                        (ligne['quantite'], ligne['numero_item']))
+    // Gestion des dates
+    if (date) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return {
+          tickets: [],
+          bons: [],
+          total: "0,00",
+          status: 400,
+          erreur: "Format de date invalide. Utilisez YYYY-MM-DD"
+        };
+      }
+      date_start = `${date} 00:00:00`;
+      date_end = `${date} 23:59:59`;
+    } else {
+      const today = new Date().toISOString().split("T")[0];
+      date_start = `${today} 00:00:00`;
+      date_end = `${today} 23:59:59`;
+    }
 
-        # Supprimer les anciennes lignes et l'entrée encaisse
-        cur.execute("DELETE FROM attache WHERE numero_comande = %s", (numero_comande,))
-        cur.execute("DELETE FROM encaisse WHERE numero_comande = %s", (numero_comande,))
+    console.log("Plage de dates recherchée:", date_start, "à", date_end);
 
-        # Mettre à jour la commande
-        cur.execute("""
-            UPDATE comande 
-            SET numero_table = %s, date_comande = %s, nature = %s, numero_util = %s
-            WHERE numero_comande = %s
-        """, (numero_table, date_comande, nature, numero_util, numero_comande))
+    // Requête SQL
+    let query = `
+      SELECT c.*, cl.nom as client_nom, u.nom as utilisateur_nom,
+             a.numero_item, a.quantite, a.prixt, a.remarque, i.designation
+      FROM comande c
+      LEFT JOIN client cl ON c.numero_table = cl.numero_clt
+      LEFT JOIN utilisateur u ON c.numero_util = u.numero_util
+      JOIN attache a ON c.numero_comande = a.numero_comande
+      JOIN item i ON a.numero_item = i.numero_item
+      WHERE c.date_comande BETWEEN ? AND ?
+    `;
 
-        # Insérer les nouvelles lignes et ajuster le stock
-        total_vente = 0.0
-        for ligne in lignes:
-            quantite = to_dot_decimal(ligne.get('quantite', '1'))
-            remarque = to_dot_decimal(ligne.get('remarque', '0,00'))  # Prix unitaire
-            prixt = to_dot_decimal(ligne.get('prixt', '0,00'))  # Total de la ligne
-            total_vente += quantite * remarque  # Calcul avec prix unitaire
+    const queryParams = [date_start, date_end];
 
-            # Conversion pour stockage avec virgule
-            prixt_str = to_comma_decimal(prixt)
-            prixbh_str = to_comma_decimal(to_dot_decimal(ligne.get('prixbh', '0,00')))
+    if (numero_clt && numero_clt !== "0") {
+      query += " AND c.numero_table = ?";
+      queryParams.push(parseInt(numero_clt));
+    }
 
-            # Gestion de la remarque
-            remarque_str = ligne.get('remarque', '')
-            if isinstance(remarque_str, (int, float)):
-                remarque_str = to_comma_decimal(remarque_str)
-            elif isinstance(remarque_str, str) and any(c.isdigit() for c in remarque_str):
-                try:
-                    if '.' in remarque_str or ',' in remarque_str:
-                        remarque_str = to_comma_decimal(to_dot_decimal(remarque_str))
-                except ValueError:
-                    pass  # Garder la valeur originale si la conversion échoue
+    if (numero_util && numero_util !== "0") {
+      query += " AND c.numero_util = ?";
+      queryParams.push(parseInt(numero_util));
+    }
 
-            cur.execute("""
-                INSERT INTO attache (numero_comande, numero_item, quantite, prixt, remarque, prixbh, achatfx, send)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """, (numero_comande, ligne.get('numero_item'), quantite, prixt_str,
-                  remarque_str, prixbh_str, 0, True))
-            cur.execute("UPDATE item SET qte = qte - %s WHERE numero_item = %s",
-                        (quantite, ligne.get('numero_item')))
+    query += " ORDER BY c.numero_comande DESC";
 
-        # Insertion dans encaisse
-        total_vente_str = to_comma_decimal(total_vente)
-        montant_reglement = total_vente if payment_mode == 'espece' else amount_paid
-        montant_reglement_str = to_comma_decimal(montant_reglement)
-        solde_restant = total_vente - amount_paid if payment_mode == 'a_terme' else 0.0
-        solde_restant_str = to_comma_decimal(solde_restant)
+    console.log("Requête SQL:", query);
+    console.log("Paramètres:", queryParams);
 
-        cur.execute("""
-            INSERT INTO encaisse (
-                apaye, reglement, tva, ht, 
-                numero_comande, origine, time_enc, soldeR
-            ) VALUES (
-                %s, %s, %s, %s, 
-                %s, %s, %s, %s
-            )
-        """, (
-            total_vente_str,        # apaye stocké avec virgule
-            montant_reglement_str,  # reglement stocké avec virgule
-            '0,00',                 # TVA (ajuste si nécessaire)
-            total_vente_str,        # HT = total_vente
-            numero_comande,
-            nature,
-            datetime.now(),
-            solde_restant_str       # Solde restant avec virgule
-        ))
+    const stmt = db.prepare(query);
+    stmt.bind(queryParams);
 
-        # Mise à jour du solde client si à terme
-        if payment_mode == 'a_terme' and numero_table != 0:
-            cur.execute("""
-                UPDATE client SET solde = solde + %s 
-                WHERE numero_clt = %s
-            """, (solde_restant_str, numero_table))
+    const ventesMap = {};
+    let total = 0;
+    let rowCount = 0;
 
-        conn.commit()
-        logger.info(f"Vente modifiée: numero_comande={numero_comande}, {len(lignes)} lignes")
-        return jsonify({
-            "numero_comande": numero_comande,
-            "statut": "Vente modifiée",
-            "total_vente": total_vente_str,  # Renvoyé avec virgule
-            "montant_verse": amount_paid_str,  # Renvoyé avec virgule
-            "reglement": montant_reglement_str,  # Renvoyé avec virgule
-            "solde_restant": solde_restant_str if payment_mode == 'a_terme' else "0,00"
-        }), 200
+    while (stmt.step()) {
+      rowCount++;
+      const row = stmt.getAsObject();
+      console.log(`Ligne ${rowCount} brute:`, row);
 
-    except Exception as e:
-        if conn:
-            conn.rollback()
-        logger.error(f"Erreur modification vente: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-    finally:
-        if cur:
-            cur.close()
-        if conn:
-            conn.close()
+      // Sécurisation colonnes (MAJUSCULES / minuscules)
+      const numero_comande = row.NUMERO_COMANDE || row.numero_comande;
+      if (!numero_comande) {
+        console.warn("Ligne ignorée, pas de numero_comande:", row);
+        continue;
+      }
 
-# Endpoint: Récupérer une vente
-@app.route('/vente/<int:numero_comande>', methods=['GET'])
-def get_vente(numero_comande):
-    try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+      const date_comande    = row.DATE_COMANDE || row.date_comande;
+      const nature          = row.NATURE || row.nature;
+      const numero_table    = row.NUMERO_TABLE || row.numero_table || 0;
+      const client_nom      = row.CLIENT_NOM || row.client_nom || "N/A";
+      const utilisateur_nom = row.UTILISATEUR_NOM || row.utilisateur_nom || "N/A";
 
-        # Récupérer les détails de la commande
-        cur.execute("""
-            SELECT c.numero_comande, c.numero_table, c.date_comande, c.nature, c.numero_util,
-                   cl.nom AS client_nom, u.nom AS utilisateur_nom
-            FROM comande c
-            LEFT JOIN client cl ON c.numero_table = cl.numero_clt
-            LEFT JOIN utilisateur u ON c.numero_util = u.numero_util
-            WHERE c.numero_comande = %s
-        """, (numero_comande,))
-        commande = cur.fetchone()
+      if (!ventesMap[numero_comande]) {
+        ventesMap[numero_comande] = {
+          numero_comande,
+          date_comande,
+          nature,
+          client_nom: numero_table == 0 ? "Comptoir" : client_nom,
+          utilisateur_nom,
+          lignes: []
+        };
+      }
 
-        if not commande:
-            logger.error(f"Commande {numero_comande} non trouvée")
-            return jsonify({"error": "Commande non trouvée"}), 404
+      // Ligne attachée
+      ventesMap[numero_comande].lignes.push({
+        numero_item: row.NUMERO_ITEM || row.numero_item,
+        designation: row.DESIGNATION || row.designation || "N/A",
+        quantite: row.QUANTITE || row.quantite || 0,
+        prixt: row.PRIXT || row.prixt || "0,00",
+        remarque: row.REMARQUE || row.remarque || ""
+      });
 
-        # Récupérer les lignes de la commande
-        cur.execute("""
-            SELECT a.numero_item, a.quantite, a.prixt, a.remarque, a.prixbh, i.designation
-            FROM attache a
-            JOIN item i ON a.numero_item = i.numero_item
-            WHERE a.numero_comande = %s
-        """, (numero_comande,))
-        lignes = cur.fetchall()
+      // Total (avec conversion sécurisée)
+      total += toDotDecimal(row.PRIXT || row.prixt || "0");
+    }
+    stmt.free();
 
-        # Formater la réponse
-        response = {
-            'numero_comande': commande['numero_comande'],
-            'numero_table': commande['numero_table'],
-            'date_comande': commande['date_comande'].isoformat(),
-            'nature': commande['nature'],
-            'client_nom': commande['client_nom'] or 'Comptoir',
-            'utilisateur_nom': commande['utilisateur_nom'] or 'N/A',
-            'lignes': [
-                {
-                    'numero_item': ligne['numero_item'],
-                    'designation': ligne['designation'],
-                    'quantite': ligne['quantite'],
-                    'prixt': str(ligne['prixt']),
-                    'remarque': ligne['remarque'] or '',
-                    'prixbh': str(ligne['prixbh'])
-                }
-                for ligne in lignes
-            ]
+    console.log(`Total lignes traitées: ${rowCount}`);
+    console.log(`Commandes groupées: ${Object.keys(ventesMap).length}`);
+
+    const tickets = [];
+    const bons = [];
+
+    Object.values(ventesMap).forEach(vente => {
+      if (vente.nature === "TICKET") {
+        tickets.push(vente);
+      } else {
+        bons.push(vente);
+      }
+    });
+
+    return {
+      tickets,
+      bons,
+      total: toCommaDecimal(total),
+      status: 200
+    };
+
+  } catch (error) {
+    console.error("Erreur ventesJour:", error);
+    return {
+      tickets: [],
+      bons: [],
+      total: "0,00",
+      erreur: error.message,
+      status: 500
+    };
+  }
+}
+
+export async function validerReception(data) {
+  try {
+    console.log("Exécution de validerReception avec data:", data);
+    const db = await getDb();
+
+    // 1. Validation des données
+    if (!data || !data.lignes || !data.numero_four || !data.numero_util || !data.password2) {
+      return { erreur: "Données invalides (fournisseur, utilisateur ou mot de passe manquant)", status: 400 };
+    }
+
+    const numero_four = data.numero_four;
+    const numero_util = data.numero_util;
+    const password2 = data.password2;
+    const lignes = data.lignes;
+    const nature = "Bon de réception";
+
+    // 2. Vérification de l'utilisateur
+    const stmtUser = db.prepare("SELECT numero_util, nom, password2 FROM utilisateur WHERE numero_util = ?");
+    stmtUser.bind([numero_util]);
+    let user = null;
+    if (stmtUser.step()) {
+      user = stmtUser.getAsObject();
+    }
+    stmtUser.free();
+
+    if (!user || user.PASSWORD2 !== password2) {
+      return { erreur: "Authentification invalide", status: 401 };
+    }
+
+    // 3. Vérification du fournisseur
+    const stmtFour = db.prepare("SELECT numero_fou FROM fournisseur WHERE numero_fou = ?");
+    stmtFour.bind([numero_four]);
+    if (!stmtFour.step()) {
+      stmtFour.free();
+      return { erreur: "Fournisseur non trouvé", status: 400 };
+    }
+    stmtFour.free();
+
+    db.run("BEGIN TRANSACTION");
+
+    try {
+      // 4. Création du mouvement
+      const stmtMouv = db.prepare(`
+        INSERT INTO mouvement (date_m, etat_m, numero_four, refdoc, vers, nature, connection1, numero_util, cheque)
+        VALUES (datetime('now'), 'cloture', ?, '', '', ?, 0, ?, '')
+      `);
+      stmtMouv.run([numero_four, nature, numero_util]);
+      stmtMouv.free();
+
+      // Récupérer l'ID du mouvement
+      const idStmt = db.prepare("SELECT last_insert_rowid() AS numero_mouvement");
+      idStmt.step();
+      const { numero_mouvement } = idStmt.getAsObject();
+      idStmt.free();
+
+      // Mettre à jour le refdoc
+      const stmtRefdoc = db.prepare("UPDATE mouvement SET refdoc = ? WHERE numero_mouvement = ?");
+      stmtRefdoc.run([String(numero_mouvement), numero_mouvement]);
+      stmtRefdoc.free();
+
+      let total_cost = 0.0;
+
+      // 5. Traitement des lignes
+      for (const ligne of lignes) {
+        const numero_item = ligne.numero_item;
+        const qtea = toDotDecimal(ligne.qtea || "0");
+        const prixbh = toDotDecimal(ligne.prixbh || "0");
+
+        if (qtea <= 0) throw new Error("La quantité doit être positive");
+
+        // Charger l'article
+        const stmtItem = db.prepare(`
+          SELECT 
+            COALESCE(qte, 0) AS qte,
+            CAST(COALESCE(NULLIF(REPLACE(prixba, ',', '.'), ''), '0') AS FLOAT) AS prixba
+          FROM item WHERE numero_item = ?
+        `);
+        stmtItem.bind([numero_item]);
+        if (!stmtItem.step()) {
+          stmtItem.free();
+          throw new Error(`Article ${numero_item} non trouvé`);
         }
+        const item = stmtItem.getAsObject();
+        stmtItem.free();
 
-        cur.close()
-        conn.close()
-        logger.info(f"Vente récupérée: numero_comande={numero_comande}")
-        return jsonify(response), 200
+        // Conversion explicite de la quantité actuelle
+        const current_qte = parseFloat(item.qte) || 0;
+        const prixba = parseFloat(item.prixba || 0);
+        const nqte = current_qte + qtea;
 
-    except Exception as e:
-        if conn:
-            cur.close()
-            conn.close()
-        logger.error(f"Erreur récupération vente: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        console.log(`Article ${numero_item}: qte actuelle=${current_qte}, qtea=${qtea}, nouvelle qte=${nqte}`);
 
-# Endpoint: Récupérer une réception
-@app.route('/reception/<int:numero_mouvement>', methods=['GET'])
-def get_reception(numero_mouvement):
-    try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        total_cost += qtea * prixbh;
 
-        # Récupérer les détails du mouvement
-        cur.execute("""
-            SELECT m.numero_mouvement, m.numero_four, m.date_m, m.nature, m.numero_util,
-                   f.nom AS fournisseur_nom, u.nom AS utilisateur_nom
-            FROM mouvement m
-            LEFT JOIN fournisseur f ON m.numero_four = f.numero_fou
-            LEFT JOIN utilisateur u ON m.numero_util = u.numero_util
-            WHERE m.numero_mouvement = %s AND m.nature = 'Bon de réception'
-        """, (numero_mouvement,))
-        mouvement = cur.fetchone()
+        const prixbh_str = toCommaDecimal(prixbh);
+        const prixba_str = toCommaDecimal(prixba);
 
-        if not mouvement:
-            logger.error(f"Mouvement {numero_mouvement} non trouvé")
-            return jsonify({"error": "Mouvement non trouvé"}), 404
+        // Insérer dans attache2
+        const stmtAtt = db.prepare(`
+          INSERT INTO attache2 (numero_item, numero_mouvement, qtea, nqte, nprix, pump, send)
+          VALUES (?, ?, ?, ?, ?, ?, 1)
+        `);
+        stmtAtt.run([numero_item, numero_mouvement, qtea, nqte, prixbh_str, prixba_str]);
+        stmtAtt.free();
 
-        # Récupérer les lignes du mouvement
-        cur.execute("""
-            SELECT a2.numero_item, a2.qtea, a2.nprix, a2.nqte, a2.pump, i.designation
-            FROM attache2 a2
-            JOIN item i ON a2.numero_item = i.numero_item
-            WHERE a2.numero_mouvement = %s
-        """, (numero_mouvement,))
-        lignes = cur.fetchall()
+        // CORRECTION : Mise à jour avec la valeur numérique directe
+        const stmtUpdateItem = db.prepare("UPDATE item SET qte = ?, prixba = ?, numero_fou = ? WHERE numero_item = ?");
+        stmtUpdateItem.run([nqte, prixbh_str, numero_four, numero_item]);
+        stmtUpdateItem.free();
+      }
 
-        # Formater la réponse
-        response = {
-            'numero_mouvement': mouvement['numero_mouvement'],
-            'numero_four': mouvement['numero_four'],
-            'date_m': mouvement['date_m'].isoformat(),
-            'nature': mouvement['nature'],
-            'fournisseur_nom': mouvement['fournisseur_nom'] or 'N/A',
-            'utilisateur_nom': mouvement['utilisateur_nom'] or 'N/A',
-            'lignes': [
-                {
-                    'numero_item': ligne['numero_item'],
-                    'designation': ligne['designation'],
-                    'qtea': ligne['qtea'],
-                    'nprix': str(ligne['nprix']),
-                    'nqte': ligne['nqte'],
-                    'pump': str(ligne['pump'])
-                }
-                for ligne in lignes
-            ]
-        }
+      // 6. Mise à jour du solde fournisseur (format TEXT cumulé)
+      const stmtSolde = db.prepare(`
+        SELECT CAST(COALESCE(NULLIF(REPLACE(solde, ',', '.'), ''), '0') AS FLOAT) AS solde
+        FROM fournisseur WHERE numero_fou = ?
+      `);
+      stmtSolde.bind([numero_four]);
+      stmtSolde.step();
+      const fournisseur = stmtSolde.getAsObject();
+      stmtSolde.free();
 
-        cur.close()
-        conn.close()
-        logger.info(f"Réception récupérée: numero_mouvement={numero_mouvement}")
-        return jsonify(response), 200
+      const current_solde = parseFloat(fournisseur.solde || 0);
+      const new_solde = current_solde - total_cost;
+      const new_solde_str = toCommaDecimal(new_solde);
 
-    except Exception as e:
-        if conn:
-            cur.close()
-            conn.close()
-        logger.error(f"Erreur récupération réception: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+      const stmtUpdateFour = db.prepare("UPDATE fournisseur SET solde = ? WHERE numero_fou = ?");
+      stmtUpdateFour.run([new_solde_str, numero_four]);
+      stmtUpdateFour.free();
 
-# Endpoint: Modifier une réception
+      db.run("COMMIT");
+      saveDbToLocalStorage(db);
 
-@app.route('/modifier_reception/<int:numero_mouvement>', methods=['PUT'])
-def modifier_reception(numero_mouvement):
-    data = request.get_json()
-    if not data or 'lignes' not in data or not data['lignes'] or 'numero_four' not in data or 'numero_util' not in data or 'password2' not in data:
-        logger.error("Données de réception invalides")
-        return jsonify({"error": "Données de réception invalides, fournisseur, utilisateur ou mot de passe manquant"}), 400
+      return { success: true, numero_mouvement, new_solde: new_solde_str, status: 200 };
 
-    numero_four = data.get('numero_four')
-    numero_util = data.get('numero_util')
-    password2 = data.get('password2')
-    lignes = data['lignes']
+    } catch (err) {
+      db.run("ROLLBACK");
+      console.error("Erreur validerReception transaction:", err);
+      throw err;
+    }
 
-    conn = None
-    try:
-        conn = get_conn()
-        conn.autocommit = False
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+  } catch (error) {
+    console.error("Erreur validerReception:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+export async function receptionsJour(params = {}) {
+  try {
+    console.log("Exécution de receptionsJour avec params:", params);
+    const db = await getDb();
 
-        # Vérifier l'utilisateur et le mot de passe
-        cur.execute("SELECT Password2 FROM utilisateur WHERE numero_util = %s", (numero_util,))
-        utilisateur = cur.fetchone()
-        if not utilisateur:
-            logger.error(f"Utilisateur {numero_util} non trouvé")
-            return jsonify({"error": "Utilisateur non trouvé"}), 400
-        if utilisateur['password2'] != password2:
-            logger.error(f"Mot de passe incorrect pour l'utilisateur {numero_util}")
-            return jsonify({"error": "Mot de passe incorrect"}), 401
+    const { date, numero_util, numero_four } = params;
+    
+    // Validation et formatage des dates
+    let date_start, date_end;
+    if (date) {
+      // Valider le format de la date
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return { 
+          receptions: [], 
+          total: "0,00", 
+          status: 400,
+          erreur: "Format de date invalide. Utilisez YYYY-MM-DD" 
+        };
+      }
+      date_start = `${date} 00:00:00`;
+      date_end = `${date} 23:59:59`;
+    } else {
+      const today = new Date().toISOString().split('T')[0];
+      date_start = `${today} 00:00:00`;
+      date_end = `${today} 23:59:59`;
+    }
 
-        # Vérifier le fournisseur
-        cur.execute("""
-            SELECT numero_fou, CAST(COALESCE(NULLIF(REPLACE(solde, ',', '.'), ''), '0') AS FLOAT) AS solde 
-            FROM fournisseur WHERE numero_fou = %s
-        """, (numero_four,))
-        fournisseur = cur.fetchone()
-        if not fournisseur:
-            logger.error(f"Fournisseur {numero_four} non trouvé")
-            return jsonify({"error": "Fournisseur non trouvé"}), 400
+    console.log("Plage de dates recherchée:", date_start, "à", date_end);
 
-        # Vérifier que la réception existe
-        cur.execute("SELECT numero_mouvement, numero_four FROM mouvement WHERE numero_mouvement = %s", 
-                    (numero_mouvement,))
-        mouvement = cur.fetchone()
-        if not mouvement:
-            logger.error(f"Réception {numero_mouvement} non trouvée")
-            return jsonify({"error": "Réception non trouvée"}), 404
+    let query = `
+      SELECT m.*, f.nom as fournisseur_nom, u.nom as utilisateur_nom,
+             a2.numero_item, a2.qtea, a2.nprix, a2.nqte, i.designation
+      FROM mouvement m
+      LEFT JOIN fournisseur f ON m.numero_four = f.numero_fou
+      LEFT JOIN utilisateur u ON m.numero_util = u.numero_util
+      JOIN attache2 a2 ON m.numero_mouvement = a2.numero_mouvement
+      JOIN item i ON a2.numero_item = i.numero_item
+      WHERE m.date_m BETWEEN ? AND ? AND m.nature = 'Bon de réception'
+    `;
 
-        # Récupérer les lignes précédentes de la réception (quantités et prix)
-        cur.execute("""
-            SELECT numero_item, qtea, CAST(COALESCE(NULLIF(REPLACE(nprix, ',', '.'), ''), '0') AS FLOAT) AS nprix
-            FROM attache2
-            WHERE numero_mouvement = %s
-        """, (numero_mouvement,))
-        old_lines = cur.fetchall()
-        old_lines_dict = {line['numero_item']: line for line in old_lines}
-        old_total_cost = sum(float(line['qtea']) * float(line['nprix']) for line in old_lines)
-        logger.info(f"Coût total réception précédente: {old_total_cost}")
+    const queryParams = [date_start, date_end];
 
-        # Restaurer le solde initial (annuler l'effet de la réception précédente)
-        current_solde = float(fournisseur['solde'] or 0)
-        restored_solde = current_solde + old_total_cost
-        logger.info(f"Solde restauré: {restored_solde}")
+    if (numero_util && numero_util !== '0') {
+      query += ' AND m.numero_util = ?';
+      queryParams.push(parseInt(numero_util));
+    }
 
-        # Récupérer les quantités actuelles des articles
-        item_ids = list(set([ligne.get('numero_item') for ligne in lignes] + list(old_lines_dict.keys())))
-        cur.execute("""
-            SELECT numero_item, qte, CAST(COALESCE(NULLIF(REPLACE(prixba, ',', '.'), ''), '0') AS FLOAT) AS prixba 
-            FROM item WHERE numero_item IN %s
-        """, (tuple(item_ids),))
-        items = {item['numero_item']: item for item in cur.fetchall()}
+    if (numero_four && numero_four !== '') {
+      query += ' AND m.numero_four = ?';
+      queryParams.push(numero_four);
+    }
 
-        # Calculer le nouveau coût total et préparer les mises à jour du stock
-        new_total_cost = 0.0
-        stock_updates = {}  # {numero_item: {old_qtea, new_qtea, prixbh}}
+    query += ' ORDER BY m.numero_mouvement DESC';
 
-        for ligne in lignes:
-            numero_item = ligne.get('numero_item')
-            new_qtea = to_dot_decimal(ligne.get('qtea', '0'))
-            prixbh = to_dot_decimal(ligne.get('prixbh', '0'))
+    console.log("Requête SQL:", query);
+    console.log("Paramètres:", queryParams);
 
-            if new_qtea < 0:
-                raise Exception("La quantité ajoutée ne peut pas être négative")
-            if prixbh < 0:
-                raise Exception("Le prix d'achat ne peut pas être négatif")
+    const stmt = db.prepare(query);
+    stmt.bind(queryParams);
 
-            # Vérifier l'article
-            item = items.get(numero_item)
-            if not item:
-                raise Exception(f"Article {numero_item} non trouvé")
+    const receptionsMap = {};
+    let total = 0;
+    let rowCount = 0;
 
-            current_qte = float(item['qte'] or 0)
-            old_qtea = float(old_lines_dict.get(numero_item, {}).get('qtea', 0))
+    while (stmt.step()) {
+      rowCount++;
+      const row = stmt.getAsObject();
+      console.log(`Ligne ${rowCount} brute:`, row);
 
-            # Calculer le coût de la ligne
-            new_total_cost += new_qtea * prixbh
+      // CORRECTION : SQL.js retourne les colonnes en MAJUSCULES
+      const numero_mouvement = row.NUMERO_MOUVEMENT || row.numero_mouvement;
+      
+      if (!numero_mouvement) {
+        console.warn("Ligne sans numero_mouvement, ignorée:", row);
+        continue;
+      }
 
-            # Stocker les informations pour la mise à jour du stock
-            stock_updates[numero_item] = {
-                'old_qtea': old_qtea,
-                'new_qtea': new_qtea,
-                'prixbh': prixbh,
-                'current_qte': current_qte,
-                'current_prixba': float(item['prixba'] or 0)
-            }
+      if (!receptionsMap[numero_mouvement]) {
+        receptionsMap[numero_mouvement] = {
+          numero_mouvement: numero_mouvement,
+          date_m: row.DATE_M || row.date_m,
+          nature: row.NATURE || row.nature,
+          fournisseur_nom: row.FOURNISSEUR_NOM || row.fournisseur_nom || 'N/A',
+          utilisateur_nom: row.UTILISATEUR_NOM || row.utilisateur_nom || 'N/A',
+          lignes: []
+        };
+      }
 
-        # Traiter les articles supprimés (présents dans old_lines mais absents dans lignes)
-        for numero_item, old_line in old_lines_dict.items():
-            if numero_item not in stock_updates:
-                item = items.get(numero_item)
-                current_qte = float(item['qte'] or 0) if item else 0
-                current_prixba = float(item['prixba'] or 0) if item else 0
-                stock_updates[numero_item] = {
-                    'old_qtea': float(old_line['qtea']),
-                    'new_qtea': 0,
-                    'prixbh': 0,
-                    'current_qte': current_qte,
-                    'current_prixba': current_prixba
-                }
+      // Calcul du total ligne avec gestion des erreurs
+      let total_ligne = 0;
+      try {
+        const nprix = toDotDecimal(row.NPRIX || row.nprix || "0");
+        const qtea = parseFloat(row.QTEA || row.qtea || 0);
+        total_ligne = nprix * qtea;
+      } catch (error) {
+        console.error("Erreur calcul total_ligne:", error, "pour la ligne:", row);
+        total_ligne = 0;
+      }
 
-        # Mettre à jour le solde du fournisseur
-        new_solde = restored_solde - new_total_cost
-        new_solde_str = to_comma_decimal(new_solde)
-        cur.execute("UPDATE fournisseur SET solde = %s WHERE numero_fou = %s", 
-                    (new_solde_str, numero_four))
-        logger.info(f"Solde fournisseur mis à jour: numero_fou={numero_four}, new_total_cost={new_total_cost}, new_solde={new_solde_str}")
+      receptionsMap[numero_mouvement].lignes.push({
+        numero_item: row.NUMERO_ITEM || row.numero_item,
+        designation: row.DESIGNATION || row.designation || 'N/A',
+        qtea: row.QTEA || row.qtea || 0,
+        nprix: row.NPRIX || row.nprix || "0,00",
+        total_ligne: toCommaDecimal(total_ligne)
+      });
 
-        # Supprimer les anciennes lignes de la réception
-        cur.execute("DELETE FROM attache2 WHERE numero_mouvement = %s", (numero_mouvement,))
+      total += total_ligne;
+    }
+    stmt.free();
 
-        # Insérer les nouvelles lignes et mettre à jour le stock
-        for numero_item, update_info in stock_updates.items():
-            old_qtea = update_info['old_qtea']
-            new_qtea = update_info['new_qtea']
-            prixbh = update_info['prixbh']
-            current_qte = update_info['current_qte']
-            current_prixba = update_info['current_prixba']
+    console.log(`Total lignes traitées: ${rowCount}`);
+    console.log(`Réceptions groupées: ${Object.keys(receptionsMap).length}`);
 
-            # Restaurer le stock initial (annuler l'ancienne quantité)
-            restored_qte = current_qte - old_qtea
-            # Appliquer la nouvelle quantité
-            new_qte = restored_qte + new_qtea
+    const receptions = Object.values(receptionsMap);
 
-            if new_qte < 0:
-                raise Exception(f"Stock négatif pour l'article {numero_item}: {new_qte}")
+    // Debug: Vérifier le contenu des réceptions
+    receptions.forEach((rec, index) => {
+      console.log(`Réception ${index + 1}:`, rec);
+    });
 
-            # Si l'article est dans les nouvelles lignes, insérer dans attache2
-            if new_qtea > 0:
-                prixbh_str = to_comma_decimal(prixbh)[:30]
-                cur.execute("""
-                    INSERT INTO attache2 (numero_item, numero_mouvement, qtea, nqte, nprix, pump, send)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """, (numero_item, numero_mouvement, new_qtea, new_qte, prixbh_str, prixbh_str, True))
+    return {
+      receptions,
+      total: toCommaDecimal(total),
+      status: 200
+    };
 
-            # Mettre à jour le stock et le prix d'achat
-            cur.execute("UPDATE item SET qte = %s, prixba = %s WHERE numero_item = %s", 
-                        (new_qte, to_comma_decimal(prixbh)[:30] if new_qtea > 0 else to_comma_decimal(current_prixba)[:30], 
-                         numero_item))
-            logger.info(f"Stock mis à jour: numero_item={numero_item}, old_qtea={old_qtea}, new_qtea={new_qtea}, new_qte={new_qte}")
+  } catch (error) {
+    console.error("Erreur receptionsJour:", error);
+    return { 
+      receptions: [], 
+      total: "0,00", 
+      erreur: error.message, 
+      status: 500 
+    };
+  }
+}
+export async function articlesPlusVendus(params = {}) {
+  try {
+    console.log("Exécution de articlesPlusVendus avec params:", params);
+    const db = await getDb();
 
-        # Mettre à jour le mouvement
-        cur.execute("""
-            UPDATE mouvement 
-            SET numero_four = %s, numero_util = %s, date_m = %s
-            WHERE numero_mouvement = %s
-        """, (numero_four, numero_util, datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0), numero_mouvement))
+    const { date, numero_clt, numero_util } = params;
+    let date_start, date_end;
 
-        conn.commit()
-        logger.info(f"Réception modifiée: numero_mouvement={numero_mouvement}, {len(lignes)} lignes")
-        return jsonify({
-            "numero_mouvement": numero_mouvement,
-            "total_cost": to_comma_decimal(new_total_cost),
-            "new_solde": new_solde_str
-        }), 200
+    if (date) {
+      date_start = `${date} 00:00:00`;
+      date_end = `${date} 23:59:59`;
+    } else {
+      const today = new Date().toISOString().split('T')[0];
+      date_start = `${today} 00:00:00`;
+      date_end = `${today} 23:59:59`;
+    }
 
-    except Exception as e:
-        if conn:
-            conn.rollback()
-        logger.error(f"Erreur modification réception: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-    finally:
-        if conn:
-            cur.close()
-            conn.close()
-# Endpoint: Liste des catégories
-@app.route('/liste_categories', methods=['GET'])
-def liste_categories():
-    try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT numer_categorie, description_c FROM categorie ORDER BY description_c")
-        categories = cur.fetchall()
-        cur.close()
-        conn.close()
-        logger.info(f"Récupération de {len(categories)} catégories")
-        return jsonify(categories), 200
-    except Exception as e:
-        logger.error(f"Erreur récupération catégories: {str(e)}")
-        return jsonify({'erreur': str(e)}), 500
+    console.log("Plage de dates:", date_start, "à", date_end);
 
-# Endpoint: Ajouter une catégorie
-@app.route('/ajouter_categorie', methods=['POST'])
-def ajouter_categorie():
-    data = request.get_json()
-    description_c = data.get('description_c')
-    if not description_c:
-        logger.error("Description requise pour ajouter une catégorie")
-        return jsonify({'erreur': 'Description requise'}), 400
+    let query = `
+      SELECT 
+        i.numero_item,
+        i.designation,
+        SUM(a.quantite) AS quantite,
+        SUM(CAST(COALESCE(NULLIF(REPLACE(a.prixt, ',', '.'), ''), '0') AS REAL)) AS total_vente
+      FROM comande c
+      JOIN attache a ON c.numero_comande = a.numero_comande
+      JOIN item i ON a.numero_item = i.numero_item
+      WHERE c.date_comande BETWEEN ? AND ?
+    `;
 
-    try:
-        conn = get_conn()
-        cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO categorie (description_c) VALUES (%s) RETURNING numer_categorie",
-            (description_c,)
-        )
-        category_id = cur.fetchone()[0]
-        conn.commit()
-        cur.close()
-        conn.close()
-        logger.info(f"Catégorie ajoutée: id={category_id}, description={description_c}")
-        return jsonify({'statut': 'Catégorie ajoutée', 'id': category_id}), 201
-    except Exception as e:
-        logger.error(f"Erreur ajout catégorie: {str(e)}")
-        return jsonify({'erreur': str(e)}), 500
+    const queryParams = [date_start, date_end];
 
-# Endpoint: Modifier une catégorie
-@app.route('/modifier_categorie/<int:numer_categorie>', methods=['PUT'])
-def modifier_categorie(numer_categorie):
-    data = request.get_json()
-    description_c = data.get('description_c')
-    if not description_c:
-        logger.error("Description requise pour modifier une catégorie")
-        return jsonify({'erreur': 'Description requise'}), 400
+    if (numero_clt && numero_clt !== '0') {
+      query += ' AND c.numero_table = ?';
+      queryParams.push(parseInt(numero_clt));
+    }
 
-    try:
-        conn = get_conn()
-        cur = conn.cursor()
-        cur.execute(
-            "UPDATE categorie SET description_c = %s WHERE numer_categorie = %s RETURNING numer_categorie",
-            (description_c, numer_categorie)
-        )
-        if cur.rowcount == 0:
-            cur.close()
-            conn.close()
-            logger.error(f"Catégorie {numer_categorie} non trouvée")
-            return jsonify({'erreur': 'Catégorie non trouvée'}), 404
-        conn.commit()
-        cur.close()
-        conn.close()
-        logger.info(f"Catégorie modifiée: numer_categorie={numer_categorie}")
-        return jsonify({'statut': 'Catégorie modifiée'}), 200
-    except Exception as e:
-        logger.error(f"Erreur modification catégorie: {str(e)}")
-        return jsonify({'erreur': str(e)}), 500
+    if (numero_util && numero_util !== '0') {
+      query += ' AND c.numero_util = ?';
+      queryParams.push(parseInt(numero_util));
+    }
 
-# Endpoint: Supprimer une catégorie
-@app.route('/supprimer_categorie/<int:numer_categorie>', methods=['DELETE'])
-def supprimer_categorie(numer_categorie):
-    try:
-        conn = get_conn()
-        cur = conn.cursor()
-        # Vérifier si la catégorie est utilisée par des produits
-        cur.execute("SELECT 1 FROM item WHERE numero_categorie = %s", (numer_categorie,))
-        if cur.fetchone():
-            cur.close()
-            conn.close()
-            logger.error(f"Catégorie {numer_categorie} utilisée par des produits")
-            return jsonify({'erreur': 'Catégorie utilisée par des produits'}), 400
-        cur.execute("DELETE FROM categorie WHERE numer_categorie = %s", (numer_categorie,))
-        if cur.rowcount == 0:
-            cur.close()
-            conn.close()
-            logger.error(f"Catégorie {numer_categorie} non trouvée")
-            return jsonify({'erreur': 'Catégorie non trouvée'}), 404
-        conn.commit()
-        cur.close()
-        conn.close()
-        logger.info(f"Catégorie supprimée: numer_categorie={numer_categorie}")
-        return jsonify({'statut': 'Catégorie supprimée'}), 200
-    except Exception as e:
-        logger.error(f"Erreur suppression catégorie: {str(e)}")
-        return jsonify({'erreur': str(e)}), 500
+    query += `
+      GROUP BY i.numero_item, i.designation
+      ORDER BY quantite DESC
+      LIMIT 10
+    `;
 
-# Endpoint: Assigner une catégorie à un produit
-@app.route('/assigner_categorie', methods=['POST'])
-def assigner_categorie():
-    try:
-        data = request.get_json()
-        if not data:
-            logger.error("Données JSON manquantes dans la requête")
-            return jsonify({'erreur': 'Données JSON requises'}), 400
+    console.log("Query articles plus vendus:", query);
+    console.log("Query params:", queryParams);
 
-        numero_item = data.get('numero_item')
-        numero_categorie = data.get('numer_categorie')
+    const stmt = db.prepare(query);
+    stmt.bind(queryParams);
 
-        logger.debug(f"Requête reçue: numero_item={numero_item}, numer_categorie={numero_categorie}")
+    const articles = [];
+    while (stmt.step()) {
+      const row = stmt.getAsObject();
+      console.log("Ligne brute récupérée:", row);
+      
+      // CORRECTION : SQL.js retourne les noms de colonnes exacts, pas les alias
+      // Utilisez get() pour obtenir les valeurs par index ou analysez la structure
+      const rowData = stmt.get();
+      console.log("Données brutes par index:", rowData);
+      
+      // Méthode 1: Par index (plus fiable)
+      const numero_item = rowData[0] !== null ? rowData[0] : '';
+      const designation = rowData[1] !== null ? rowData[1] : 'N/A';
+      const quantite = rowData[2] !== null ? parseInt(rowData[2]) : 0;
+      const total_vente = rowData[3] !== null ? parseFloat(rowData[3]) : 0;
 
-        if numero_item is None:
-            logger.error("numero_item manquant dans la requête")
-            return jsonify({'erreur': 'Numéro d\'article requis'}), 400
+      // Méthode alternative: Par nom de colonne (si SQL.js supporte les alias)
+      // const numero_item = row.numero_item || row.NUMERO_ITEM || '';
+      // const designation = row.designation || row.DESIGNATION || 'N/A';
+      // const quantite = parseInt(row.quantite || row.QUANTITE || 0);
+      // const total_vente = parseFloat(row.total_vente || row.TOTAL_VENTE || 0);
 
-        try:
-            numero_item = int(numero_item)
-        except (ValueError, TypeError) as e:
-            logger.error(f"numero_item invalide: {numero_item}, erreur: {str(e)}")
-            return jsonify({'erreur': 'Numéro d\'article doit être un entier'}), 400
+      articles.push({
+        numero_item: numero_item,
+        designation: designation,
+        quantite: quantite,
+        total_vente: toCommaDecimal(total_vente)
+      });
+    }
+    stmt.free();
 
-        if numero_categorie is not None:
-            try:
-                numero_categorie = int(numero_categorie)
-            except (ValueError, TypeError) as e:
-                logger.error(f"numero_categorie invalide: {numero_categorie}, erreur: {str(e)}")
-                return jsonify({'erreur': 'Numéro de catégorie doit être un entier'}), 400
+    console.log("Articles formatés:", articles);
+    return articles;
 
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+  } catch (error) {
+    console.error("Erreur articlesPlusVendus:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+export async function profitByDate(params = {}) {
+  try {
+    console.log("Exécution de profitByDate avec params:", params);
+    const db = await getDb();
 
-        cur.execute(
-            "SELECT numero_item, designation FROM item WHERE numero_item = %s",
-            (numero_item,)
-        )
-        item = cur.fetchone()
-        if not item:
-            logger.error(f"Article non trouvé: numero_item={numero_item}")
-            cur.close()
-            conn.close()
-            return jsonify({'erreur': f'Article {numero_item} non trouvé'}), 404
+    const { date, numero_clt, numero_util } = params;
+    let date_start, date_end;
 
-        if numero_categorie is not None:
-            cur.execute(
-                "SELECT numer_categorie, description_c FROM categorie WHERE numer_categorie = %s",
-                (numero_categorie,)
-            )
-            category = cur.fetchone()
-            if not category:
-                logger.error(f"Catégorie non trouvée: numer_categorie={numero_categorie}")
-                cur.close()
-                conn.close()
-                return jsonify({'erreur': f'Catégorie {numero_categorie} non trouvée'}), 404
+    if (date) {
+      // Si une date est fournie, utiliser cette date
+      date_start = new Date(`${date}T00:00:00`);
+      date_end = new Date(`${date}T23:59:59.999`);
+    } else {
+      // Par défaut, 30 derniers jours
+      date_end = new Date();
+      date_end.setHours(23, 59, 59, 999);
+      date_start = new Date(date_end);
+      date_start.setDate(date_start.getDate() - 30);
+      date_start.setHours(0, 0, 0, 0);
+    }
 
-        cur.execute(
-            "UPDATE item SET numero_categorie = %s WHERE numero_item = %s RETURNING numero_categorie",
-            (numero_categorie, numero_item)
-        )
-        updated = cur.fetchone()
-        if cur.rowcount == 0:
-            logger.error(f"Aucun article mis à jour: numero_item={numero_item}")
-            cur.close()
-            conn.close()
-            return jsonify({'erreur': 'Aucun article mis à jour, vérifiez les données'}), 404
+    // Formater les dates pour SQLite (format YYYY-MM-DD HH:MM:SS)
+    const formatDateForSQL = (dateObj) => {
+      return dateObj.toISOString().replace('T', ' ').slice(0, 19);
+    };
 
-        conn.commit()
-        cur.close()
-        conn.close()
-        logger.info(f"Catégorie assignée: numero_item={numero_item}, numer_categorie={numero_categorie}")
-        return jsonify({
-            'statut': 'Catégorie assignée',
-            'numero_item': numero_item,
-            'numer_categorie': numero_categorie
-        }), 200
+    const date_start_str = formatDateForSQL(date_start);
+    const date_end_str = formatDateForSQL(date_end);
 
-    except Exception as e:
-        logger.error(f"Erreur dans assigner_categorie: {str(e)}", exc_info=True)
-        if 'conn' in locals() and conn:
-            conn.rollback()
-            cur.close()
-            conn.close()
-        return jsonify({'erreur': f'Erreur serveur: {str(e)}'}), 500
+    console.log("Plage de dates:", date_start_str, "à", date_end_str);
 
-# Endpoint: Liste des produits par catégorie
-@app.route('/liste_produits_par_categorie', methods=['GET'])
-def liste_produits_par_categorie():
-    try:
-        numero_categorie = request.args.get('numero_categorie', type=int)
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        if numero_categorie is None and 'numero_categorie' in request.args:
-            cur.execute(
-                "SELECT numero_item, designation FROM item WHERE numero_categorie IS NULL"
-            )
-            produits = cur.fetchall()
-            cur.close()
-            conn.close()
-            logger.info(f"Récupération de {len(produits)} produits sans catégorie")
-            return jsonify({'produits': produits}), 200
-        else:
-            cur.execute("""
-                SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
-                FROM categorie c
-                LEFT JOIN item i ON c.numer_categorie = i.numero_categorie
-                WHERE c.numer_categorie = %s OR %s IS NULL
-            """, (numero_categorie, numero_categorie))
-            rows = cur.fetchall()
-            categories = {}
-            for row in rows:
-                cat_id = row['numer_categorie']
-                if cat_id not in categories:
-                    categories[cat_id] = {'numero_categorie': cat_id, 'description_c': row['description_c'], 'produits': []}
-                if row['numero_item']:
-                    categories[cat_id]['produits'].append({
-                        'numero_item': row['numero_item'],
-                        'designation': row['designation']
-                    })
-            cur.close()
-            conn.close()
-            logger.info(f"Récupération de {len(categories)} catégories avec produits")
-            return jsonify({'categories': list(categories.values())}), 200
-    except Exception as e:
-        logger.error(f"Erreur dans liste_produits_par_categorie: {str(e)}", exc_info=True)
-        if 'conn' in locals() and conn:
-            cur.close()
-            conn.close()
-        return jsonify({'erreur': str(e)}), 500
+    let query = `
+      SELECT
+        DATE(c.date_comande) AS date,
+        SUM(CAST(COALESCE(NULLIF(REPLACE(a.prixt, ',', '.'), ''), '0') AS REAL) -
+            (a.quantite * CAST(COALESCE(NULLIF(REPLACE(i.prixba, ',', '.'), ''), '0') AS REAL))) AS profit
+      FROM comande c
+      JOIN attache a ON c.numero_comande = a.numero_comande
+      JOIN item i ON a.numero_item = i.numero_item
+      WHERE c.date_comande BETWEEN ? AND ?
+    `;
 
-if __name__ == "__main__":
-    import sys
-    cli = sys.modules.get('flask.cli')
-    if cli:
-        cli.show_server_banner = lambda *args, **kwargs: None
-    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False, ssl_context=('cert.pem','key.pem'))
+    const queryParams = [date_start_str, date_end_str];
+
+    if (numero_clt && numero_clt !== '0') {
+      query += ' AND c.numero_table = ?';
+      queryParams.push(parseInt(numero_clt));
+    }
+
+    if (numero_util && numero_util !== '0') {
+      query += ' AND c.numero_util = ?';
+      queryParams.push(parseInt(numero_util));
+    }
+
+    query += `
+      GROUP BY DATE(c.date_comande)
+      ORDER BY DATE(c.date_comande) DESC
+    `;
+
+    console.log("Query profit:", query);
+    console.log("Query params:", queryParams);
+
+    const stmt = db.prepare(query);
+    stmt.bind(queryParams);
+
+    const profits = [];
+    while (stmt.step()) {
+      const row = stmt.getAsObject();
+      profits.push({
+        date: row.date,
+        profit: toCommaDecimal(parseFloat(row.profit || 0))
+      });
+    }
+    stmt.free();
+
+    console.log("Profits calculés:", profits);
+    return profits;
+
+  } catch (error) {
+    console.error("Erreur profitByDate:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+export async function stockValue() {
+  try {
+    console.log("Exécution de stockValue...");
+    const db = await getDb();
+
+    // Calculer la valeur du stock en excluant les articles avec qte négative
+    const stmt = db.prepare(`
+      SELECT 
+        SUM(COALESCE(CAST(NULLIF(REPLACE(prixb, ',', '.'), '') AS FLOAT), 0) * COALESCE(qte, 0)) AS valeur_achat,
+        SUM(COALESCE(CAST(NULLIF(REPLACE(prix, ',', '.'), '') AS FLOAT), 0) * COALESCE(qte, 0)) AS valeur_vente
+      FROM item
+      WHERE qte >= 0 AND GERE = 1
+    `);
+    
+    stmt.step();
+    const result = stmt.getAsObject();
+    stmt.free();
+
+    // Extraire les valeurs
+    const valeur_achat = parseFloat(result.valeur_achat || 0);
+    const valeur_vente = parseFloat(result.valeur_vente || 0);
+
+    // Calculer la zakat (2.5% de la valeur de vente)
+    const zakat = valeur_vente * 0.025;
+
+    return {
+      valeur_achat: toCommaDecimal(valeur_achat),
+      valeur_vente: toCommaDecimal(valeur_vente),
+      zakat: toCommaDecimal(zakat),
+      status: 200
+    };
+
+  } catch (error) {
+    console.error("Erreur stockValue:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+export async function annulerReception(data) {
+  try {
+    console.log("Exécution de annulerReception avec data:", data);
+    const db = await getDb();
+    
+    const { numero_mouvement, password2 } = data;
+
+    if (!numero_mouvement || !password2) {
+      return { erreur: "Données manquantes", status: 400 };
+    }
+
+    // Récupérer la réception
+    const stmtMouvement = db.prepare('SELECT numero_util, numero_four FROM mouvement WHERE numero_mouvement = ?');
+    stmtMouvement.bind([numero_mouvement]);
+    const mouvement = stmtMouvement.step() ? stmtMouvement.getAsObject() : null;
+    stmtMouvement.free();
+
+    if (!mouvement) {
+      return { erreur: "Réception non trouvée", status: 404 };
+    }
+
+    // Vérifier mot de passe
+    const stmtUser = db.prepare('SELECT password2 FROM utilisateur WHERE numero_util = ?');
+    stmtUser.bind([mouvement.numero_util]);
+    const user = stmtUser.step() ? stmtUser.getAsObject() : null;
+    stmtUser.free();
+
+    if (!user || user.password2 !== password2) {
+      return { erreur: "Mot de passe incorrect", status: 401 };
+    }
+
+    db.run('BEGIN TRANSACTION');
+
+    try {
+      // 1. Restaurer stock et solde fournisseur
+      await restaurerAncienneReception(numero_mouvement, db);
+
+      // 2. Supprimer la réception
+      const stmtDeleteAttache = db.prepare('DELETE FROM attache2 WHERE numero_mouvement = ?');
+      stmtDeleteAttache.run([numero_mouvement]);
+      stmtDeleteAttache.free();
+
+      const stmtDeleteMouvement = db.prepare('DELETE FROM mouvement WHERE numero_mouvement = ?');
+      stmtDeleteMouvement.run([numero_mouvement]);
+      stmtDeleteMouvement.free();
+
+      db.run('COMMIT');
+      saveDbToLocalStorage(db);
+
+      return { statut: "Réception annulée", status: 200 };
+
+    } catch (error) {
+      db.run('ROLLBACK');
+      throw error;
+    }
+
+  } catch (error) {
+    console.error("Erreur annulerReception:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+// Fonction utilitaire pour restaurer une réception annulée
+async function restaurerAncienneReception(numero_mouvement, db) {
+  // Récupérer les anciennes lignes de réception
+  const stmtLignes = db.prepare('SELECT numero_item, qtea, nprix FROM attache2 WHERE numero_mouvement = ?');
+  stmtLignes.bind([numero_mouvement]);
+  const lignes = [];
+  while (stmtLignes.step()) {
+    lignes.push(stmtLignes.getAsObject());
+  }
+  stmtLignes.free();
+
+  // Restaurer le stock
+  for (const ligne of lignes) {
+    const stmtRestore = db.prepare('UPDATE item SET qte = qte - ? WHERE numero_item = ?');
+    stmtRestore.run([ligne.qtea, ligne.numero_item]);
+    stmtRestore.free();
+  }
+
+  // Restaurer le solde fournisseur
+  const stmtMouvement = db.prepare('SELECT numero_four FROM mouvement WHERE numero_mouvement = ?');
+  stmtMouvement.bind([numero_mouvement]);
+  const mouvement = stmtMouvement.step() ? stmtMouvement.getAsObject() : null;
+  stmtMouvement.free();
+
+  if (mouvement && mouvement.numero_four) {
+    let total_cost = 0;
+    for (const ligne of lignes) {
+      total_cost += toDotDecimal(ligne.nprix) * parseFloat(ligne.qtea || 0);
+    }
+
+    const stmtFour = db.prepare('UPDATE fournisseur SET solde = solde + ? WHERE numero_fou = ?');
+    stmtFour.run([toCommaDecimal(total_cost), mouvement.numero_four]);
+    stmtFour.free();
+  }
+}
