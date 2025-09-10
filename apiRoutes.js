@@ -1690,22 +1690,25 @@ export async function annulerVente(data) {
     console.log("Exécution de annulerVente avec data:", data);
     const db = await getDb();
 
-    // 1. Validation des données
-    if (!data || !data.numero_comande || !data.numero_util || !data.password2) {
-      return { erreur: "Données manquantes (commande, utilisateur ou mot de passe)", status: 400 };
+    // 1. Validation des données - utilisation des mêmes clés que le frontend
+    if (!data || !data.numero_comande || !data.password2) {
+      return { erreur: "Données manquantes (commande ou mot de passe)", status: 400 };
     }
 
     const numero_comande = parseInt(data.numero_comande);
-    const numero_util = parseInt(data.numero_util);
     const password2 = data.password2;
 
-    if (isNaN(numero_comande) || isNaN(numero_util)) {
-      return { erreur: "Numéro de commande ou utilisateur invalide", status: 400 };
+    // Récupérer le userId depuis l'en-tête de la requête (envoyé par le frontend)
+    const userId = data.userId || (context && context.userId); // À adapter selon votre implémentation
+    
+    if (isNaN(numero_comande)) {
+      return { erreur: "Numéro de commande invalide", status: 400 };
     }
 
     // 2. Vérification de l'authentification
+    // Le frontend envoie le userId dans les headers, on le récupère ici
     const stmtUser = db.prepare("SELECT numero_util, password2 FROM utilisateur WHERE numero_util = ?");
-    stmtUser.bind([numero_util]);
+    stmtUser.bind([userId]);
     const user = stmtUser.step() ? stmtUser.getAsObject() : null;
     stmtUser.free();
 
