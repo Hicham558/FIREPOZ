@@ -28,7 +28,6 @@ const handlers = {
         const catId = numero_categorie ? parseInt(numero_categorie) : undefined;
         return listeProduitsParCategorie(catId);
       } catch (error) {
-        console.error('Erreur URL liste_produits_par_categorie:', error);
         return listeProduitsParCategorie(undefined);
       }
     },
@@ -38,7 +37,6 @@ const handlers = {
         const period = urlParams.get('period') || 'day';
         return dashboard(period);
       } catch (error) {
-        console.error('Erreur extraction paramètres dashboard:', error);
         return dashboard('day');
       }
     },
@@ -51,7 +49,6 @@ const handlers = {
         const numero_util = urlParams.get('numero_util');
         return ventesJour({ date, numero_clt, numero_util });
       } catch (error) {
-        console.error('Erreur extraction paramètres ventesJour:', error);
         return ventesJour();
       }
     },
@@ -60,7 +57,6 @@ const handlers = {
         const urlParams = new URL(url, window.location.origin).searchParams;
         const codebar = urlParams.get('codebar');
         if (!codebar) {
-          console.error('Paramètre codebar manquant');
           return {
             body: JSON.stringify({ erreur: 'Code-barres requis', status: 400 }),
             init: {
@@ -96,7 +92,6 @@ const handlers = {
           }
         };
       } catch (error) {
-        console.error('Erreur extraction paramètre codebar:', error);
         return {
           body: JSON.stringify({ erreur: error.message, message: 'Erreur serveur lors de la recherche', status: 500 }),
           init: {
@@ -176,23 +171,21 @@ window.fetch = async function(input, init = {}) {
           response = await matchedHandler(...matchParams, url);
         }
 
-        // Vérifier si la réponse est un objet avec body et init (pour rechercher_produit_codebar)
+        // Vérifier si la réponse est un objet avec body et init
         const responseBody = response.body || JSON.stringify(response);
         const responseInit = response.init || {
           status: response.status || 200,
           headers: { 'Content-Type': 'application/json' }
         };
-
+        
         return new Response(responseBody, responseInit);
       } else {
-        console.error('Aucun handler trouvé pour l\'endpoint:', endpoint);
         return new Response(JSON.stringify({ erreur: 'Endpoint inconnu', status: 404 }), {
           status: 404,
           headers: { 'Content-Type': 'application/json' }
         });
       }
     } catch (error) {
-      console.error('Erreur dans la gestion locale:', error);
       return new Response(JSON.stringify({ erreur: error.message, status: 500 }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
@@ -202,3 +195,8 @@ window.fetch = async function(input, init = {}) {
     return originalFetch(input, init);
   }
 };
+
+// Initialisation au chargement de la page
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('✅ Interception des fetch activée pour /api/');
+});
