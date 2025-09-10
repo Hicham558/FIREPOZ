@@ -2379,31 +2379,33 @@ export async function stockValue() {
   }
 }
 
-export async function annulerVente(data) {
+// ----------------- ANNULER VENTE -----------------
+export async function annulerVente(req, res) {
   try {
+    const data = req.body; // récupéré depuis le fetch
     console.log("Exécution de annulerVente avec data:", data);
     const db = await getDb();
 
-    // 1. Validation des données - mêmes clés que Flask (minuscules)
+    // 1. Validation des données
     if (!data || !data.numero_comande || !data.password2) {
-      return { error: "Numéro de commande ou mot de passe manquant", status: 400 };
+      return res.status(400).json({ error: "Numéro de commande ou mot de passe manquant" });
     }
 
     const numero_comande = parseInt(data.numero_comande);
     const password2 = data.password2;
 
     if (isNaN(numero_comande)) {
-      return { error: "Format invalide pour numero_comande", status: 400 };
+      return res.status(400).json({ error: "Format invalide pour numero_comande" });
     }
 
     if (typeof password2 !== 'string' || !password2.trim()) {
-      return { error: "Mot de passe invalide", status: 400 };
+      return res.status(400).json({ error: "Mot de passe invalide" });
     }
 
     db.run("BEGIN TRANSACTION");
 
     try {
-      // 2. Vérifier l'existence de la commande et récupérer le numero_util
+      // 2. Vérifier la commande
       const stmtComande = db.prepare(`
         SELECT numero_table, nature, numero_util 
         FROM comande 
@@ -2414,31 +2416,31 @@ export async function annulerVente(data) {
       stmtComande.free();
 
       if (!commande) {
-        return { error: "Commande non trouvée", status: 404 };
+        return res.status(404).json({ error: "Commande non trouvée" });
       }
 
-      // 3. Vérifier le mot de passe de l'utilisateur
+      // 3. Vérifier mot de passe utilisateur
       const stmtUser = db.prepare("SELECT password2 FROM utilisateur WHERE numero_util = ?");
       stmtUser.bind([commande.numero_util]);
       const utilisateur = stmtUser.step() ? stmtUser.getAsObject() : null;
       stmtUser.free();
 
       if (!utilisateur) {
-        return { error: "Utilisateur associé à la commande non trouvé", status: 400 };
+        return res.status(400).json({ error: "Utilisateur associé à la commande non trouvé" });
       }
 
       if (utilisateur.password2 !== password2) {
-        return { error: "Mot de passe incorrect", status: 401 };
+        return res.status(401).json({ error: "Mot de passe incorrect" });
       }
 
-      // 4. Récupérer les lignes de la vente
+      // 4. Récupérer les lignes de vente
       const stmtLignes = db.prepare(`
         SELECT numero_item, quantite, prixt
         FROM attache 
         WHERE numero_comande = ?
       `);
       stmtLignes.bind([numero_comande]);
-      
+
       let ligne;
       const lignes = [];
       while (stmtLignes.step()) {
@@ -2448,10 +2450,10 @@ export async function annulerVente(data) {
       stmtLignes.free();
 
       if (lignes.length === 0) {
-        return { error: "Aucune ligne de vente trouvée", status: 404 };
+        return res.status(404).json({ error: "Aucune ligne de vente trouvée" });
       }
 
-      // 5. Restaurer le stock dans item
+      // 5. Restaurer le stock
       for (const ligne of lignes) {
         const stmtItem = db.prepare("SELECT qte FROM item WHERE numero_item = ?");
         stmtItem.bind([ligne.numero_item]);
@@ -2466,10 +2468,10 @@ export async function annulerVente(data) {
         }
       }
 
-      // 6. Si vente à terme (numero_table != 0), ajuster le solde du client
+      // 6. Ajuster solde client si vente à terme
       if (commande.numero_table !== 0) {
         const totalVente = lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
-        
+
         const stmtClient = db.prepare("SELECT solde FROM client WHERE numero_clt = ?");
         stmtClient.bind([commande.numero_table]);
         const client = stmtClient.step() ? stmtClient.getAsObject() : null;
@@ -2485,17 +2487,17 @@ export async function annulerVente(data) {
           .free();
       }
 
-      // 7. Supprimer les enregistrements associés dans encaisse
+      // 7. Supprimer encaisse
       db.prepare("DELETE FROM encaisse WHERE numero_comande = ?")
         .run([numero_comande])
         .free();
 
-      // 8. Supprimer les lignes de attache
+      // 8. Supprimer attache
       db.prepare("DELETE FROM attache WHERE numero_comande = ?")
         .run([numero_comande])
         .free();
 
-      // 9. Supprimer la commande
+      // 9. Supprimer commande
       db.prepare("DELETE FROM comande WHERE numero_comande = ?")
         .run([numero_comande])
         .free();
@@ -2504,7 +2506,7 @@ export async function annulerVente(data) {
       saveDbToLocalStorage(db);
 
       console.log(`Vente annulée: numero_comande=${numero_comande}, ${lignes.length} lignes`);
-      return { statut: "Vente annulée", status: 200 };
+      return res.status(200).json({ statut: "Vente annulée" });
 
     } catch (error) {
       db.run("ROLLBACK");
@@ -2513,35 +2515,38 @@ export async function annulerVente(data) {
 
   } catch (error) {
     console.error("Erreur annulerVente:", error);
-    return { error: error.message || "Erreur lors de l'annulation de la vente", status: 500 };
+    return res.status(500).json({ error: error.message || "Erreur lors de l'annulation de la vente" });
   }
 }
 
-export async function annulerReception(data) {
+
+// ----------------- ANNULER RECEPTION -----------------
+export async function annulerReception(req, res) {
   try {
+    const data = req.body;
     console.log("Exécution de annulerReception avec data:", data);
     const db = await getDb();
 
-    // 1. Validation des données - mêmes clés que Flask (minuscules)
+    // 1. Validation
     if (!data || !data.numero_mouvement || !data.password2) {
-      return { error: "Numéro de mouvement ou mot de passe manquant", status: 400 };
+      return res.status(400).json({ error: "Numéro de mouvement ou mot de passe manquant" });
     }
 
     const numero_mouvement = parseInt(data.numero_mouvement);
     const password2 = data.password2;
 
     if (isNaN(numero_mouvement)) {
-      return { error: "Format invalide pour numero_mouvement", status: 400 };
+      return res.status(400).json({ error: "Format invalide pour numero_mouvement" });
     }
 
     if (typeof password2 !== 'string' || !password2.trim()) {
-      return { error: "Mot de passe invalide", status: 400 };
+      return res.status(400).json({ error: "Mot de passe invalide" });
     }
 
     db.run("BEGIN TRANSACTION");
 
     try {
-      // 2. Vérifier l'existence du mouvement et récupérer le numero_util
+      // 2. Vérifier mouvement
       const stmtMouvement = db.prepare(`
         SELECT numero_four, numero_util 
         FROM mouvement 
@@ -2552,31 +2557,31 @@ export async function annulerReception(data) {
       stmtMouvement.free();
 
       if (!mouvement) {
-        return { error: "Mouvement non trouvé", status: 404 };
+        return res.status(404).json({ error: "Mouvement non trouvé" });
       }
 
-      // 3. Vérifier le mot de passe de l'utilisateur
+      // 3. Vérifier mot de passe utilisateur
       const stmtUser = db.prepare("SELECT password2 FROM utilisateur WHERE numero_util = ?");
       stmtUser.bind([mouvement.numero_util]);
       const utilisateur = stmtUser.step() ? stmtUser.getAsObject() : null;
       stmtUser.free();
 
       if (!utilisateur) {
-        return { error: "Utilisateur associé au mouvement non trouvé", status: 400 };
+        return res.status(400).json({ error: "Utilisateur associé au mouvement non trouvé" });
       }
 
       if (utilisateur.password2 !== password2) {
-        return { error: "Mot de passe incorrect", status: 401 };
+        return res.status(401).json({ error: "Mot de passe incorrect" });
       }
 
-      // 4. Récupérer les lignes de la réception
+      // 4. Récupérer lignes réception
       const stmtLignes = db.prepare(`
         SELECT numero_item, qtea, nprix 
         FROM attache2 
         WHERE numero_mouvement = ?
       `);
       stmtLignes.bind([numero_mouvement]);
-      
+
       let ligne;
       const lignes = [];
       while (stmtLignes.step()) {
@@ -2586,15 +2591,15 @@ export async function annulerReception(data) {
       stmtLignes.free();
 
       if (lignes.length === 0) {
-        return { error: "Aucune ligne de réception trouvée", status: 404 };
+        return res.status(404).json({ error: "Aucune ligne de réception trouvée" });
       }
 
-      // 5. Calculer le coût total de la réception
+      // 5. Coût total réception
       const totalCout = lignes.reduce((sum, ligne) => {
         return sum + (parseFloat(ligne.qtea || 0) * parseFloat(ligne.nprix || 0));
       }, 0);
 
-      // 6. Restaurer le stock dans item
+      // 6. Restaurer stock
       for (const ligne of lignes) {
         const stmtItem = db.prepare("SELECT qte FROM item WHERE numero_item = ?");
         stmtItem.bind([ligne.numero_item]);
@@ -2609,7 +2614,7 @@ export async function annulerReception(data) {
         }
       }
 
-      // 7. Mettre à jour le solde du fournisseur
+      // 7. Mise à jour solde fournisseur
       const stmtFournisseur = db.prepare("SELECT solde FROM fournisseur WHERE numero_fou = ?");
       stmtFournisseur.bind([mouvement.numero_four]);
       const fournisseur = stmtFournisseur.step() ? stmtFournisseur.getAsObject() : null;
@@ -2624,12 +2629,12 @@ export async function annulerReception(data) {
         .run([nouveauSolde.toFixed(2), mouvement.numero_four])
         .free();
 
-      // 8. Supprimer les lignes de attache2
+      // 8. Supprimer attache2
       db.prepare("DELETE FROM attache2 WHERE numero_mouvement = ?")
         .run([numero_mouvement])
         .free();
 
-      // 9. Supprimer le mouvement
+      // 9. Supprimer mouvement
       db.prepare("DELETE FROM mouvement WHERE numero_mouvement = ?")
         .run([numero_mouvement])
         .free();
@@ -2638,7 +2643,7 @@ export async function annulerReception(data) {
       saveDbToLocalStorage(db);
 
       console.log(`Réception annulée: numero_mouvement=${numero_mouvement}, ${lignes.length} lignes`);
-      return { statut: "Réception annulée", status: 200 };
+      return res.status(200).json({ statut: "Réception annulée" });
 
     } catch (error) {
       db.run("ROLLBACK");
@@ -2647,6 +2652,6 @@ export async function annulerReception(data) {
 
   } catch (error) {
     console.error("Erreur annulerReception:", error);
-    return { error: error.message || "Erreur lors de l'annulation de la réception", status: 500 };
+    return res.status(500).json({ error: error.message || "Erreur lors de l'annulation de la réception" });
   }
 }
