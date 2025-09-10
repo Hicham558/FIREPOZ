@@ -1854,7 +1854,7 @@ export async function ventesJour(params = {}) {
     const { date, numero_clt, numero_util } = params;
     let date_start, date_end;
 
-    // Validation et formatage des dates
+    // Gestion des dates
     if (date) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
         return {
@@ -1868,13 +1868,14 @@ export async function ventesJour(params = {}) {
       date_start = `${date} 00:00:00`;
       date_end = `${date} 23:59:59`;
     } else {
-      const today = new Date().toISOString().split('T')[0];
+      const today = new Date().toISOString().split("T")[0];
       date_start = `${today} 00:00:00`;
       date_end = `${today} 23:59:59`;
     }
 
     console.log("Plage de dates recherchée:", date_start, "à", date_end);
 
+    // Requête SQL
     let query = `
       SELECT c.*, cl.nom as client_nom, u.nom as utilisateur_nom,
              a.numero_item, a.quantite, a.prixt, a.remarque, i.designation
@@ -1888,17 +1889,17 @@ export async function ventesJour(params = {}) {
 
     const queryParams = [date_start, date_end];
 
-    if (numero_clt && numero_clt !== '0') {
-      query += ' AND c.numero_table = ?';
+    if (numero_clt && numero_clt !== "0") {
+      query += " AND c.numero_table = ?";
       queryParams.push(parseInt(numero_clt));
     }
 
-    if (numero_util && numero_util !== '0') {
-      query += ' AND c.numero_util = ?';
+    if (numero_util && numero_util !== "0") {
+      query += " AND c.numero_util = ?";
       queryParams.push(parseInt(numero_util));
     }
 
-    query += ' ORDER BY c.numero_comande DESC';
+    query += " ORDER BY c.numero_comande DESC";
 
     console.log("Requête SQL:", query);
     console.log("Paramètres:", queryParams);
@@ -1915,57 +1916,52 @@ export async function ventesJour(params = {}) {
       const row = stmt.getAsObject();
       console.log(`Ligne ${rowCount} brute:`, row);
 
-      // Gestion des colonnes en majuscules
+      // Sécurisation colonnes (MAJUSCULES / minuscules)
       const numero_comande = row.NUMERO_COMANDE || row.numero_comande;
       if (!numero_comande) {
-        console.warn("Ligne sans numero_comande, ignorée:", row);
+        console.warn("Ligne ignorée, pas de numero_comande:", row);
         continue;
       }
 
+      const date_comande    = row.DATE_COMANDE || row.date_comande;
+      const nature          = row.NATURE || row.nature;
+      const numero_table    = row.NUMERO_TABLE || row.numero_table || 0;
+      const client_nom      = row.CLIENT_NOM || row.client_nom || "N/A";
+      const utilisateur_nom = row.UTILISATEUR_NOM || row.utilisateur_nom || "N/A";
+
       if (!ventesMap[numero_comande]) {
         ventesMap[numero_comande] = {
-          numero_comande: numero_comande,
-          date_comande: row.DATE_COMANDE || row.date_comande || 'N/A',
-          nature: row.NATURE || row.nature || 'N/A',
-          client_nom: (row.NUMERO_TABLE || row.numero_table) == 0 ? 'Comptoir' : (row.CLIENT_NOM || row.client_nom || 'N/A'),
-          utilisateur_nom: row.UTILISATEUR_NOM || row.utilisateur_nom || 'N/A',
+          numero_comande,
+          date_comande,
+          nature,
+          client_nom: numero_table == 0 ? "Comptoir" : client_nom,
+          utilisateur_nom,
           lignes: []
         };
       }
 
-      // Calcul du total ligne
-      let total_ligne = 0;
-      try {
-        const prixt = toDotDecimal(row.PRIXT || row.prixt || "0");
-        const quantite = parseFloat(row.QUANTITE || row.quantite || 0);
-        total_ligne = prixt * quantite;
-      } catch (error) {
-        console.error("Erreur calcul total_ligne:", error, "pour la ligne:", row);
-        total_ligne = 0;
-      }
-
+      // Ligne attachée
       ventesMap[numero_comande].lignes.push({
-        numero_item: row.NUMERO_ITEM || row.numero_item || 'N/A',
-        designation: row.DESIGNATION || row.designation || 'N/A',
+        numero_item: row.NUMERO_ITEM || row.numero_item,
+        designation: row.DESIGNATION || row.designation || "N/A",
         quantite: row.QUANTITE || row.quantite || 0,
         prixt: row.PRIXT || row.prixt || "0,00",
-        remarque: row.REMARQUE || row.remarque || '',
-        total_ligne: toCommaDecimal(total_ligne)
+        remarque: row.REMARQUE || row.remarque || ""
       });
 
-      total += total_ligne;
+      // Total (avec conversion sécurisée)
+      total += toDotDecimal(row.PRIXT || row.prixt || "0");
     }
     stmt.free();
 
     console.log(`Total lignes traitées: ${rowCount}`);
-    console.log(`Ventes groupées: ${Object.keys(ventesMap).length}`);
+    console.log(`Commandes groupées: ${Object.keys(ventesMap).length}`);
 
     const tickets = [];
     const bons = [];
 
     Object.values(ventesMap).forEach(vente => {
-      console.log(`Vente traitée:`, vente);
-      if (vente.nature === 'TICKET') {
+      if (vente.nature === "TICKET") {
         tickets.push(vente);
       } else {
         bons.push(vente);
