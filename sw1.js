@@ -6,7 +6,9 @@ import {
   validerVendeur, listeCategories, ajouterCategorie, modifierCategorie, 
   supprimerCategorie, assignerCategorie, listeProduitsParCategorie,
   clientSolde, validerVente, modifierVente, getVente, ventesJour, 
-  annulerVente, validerReception, rechercherProduitCodebar
+  annulerVente, validerReception, rechercherProduitCodebar,
+  // NOUVELLES FONCTIONS AJOUTÉES
+  receptionsJour, articlesPlusVendus, profitByDate, stockValue, annulerReception
 } from './apiRoutes.js';
 
 // Sauvegarde de la fonction fetch originale
@@ -52,6 +54,42 @@ const handlers = {
         return ventesJour();
       }
     },
+    // NOUVEAUX ENDPOINTS AJOUTÉS
+    'receptions_jour': (url) => {
+      try {
+        const urlParams = new URL(url, window.location.origin).searchParams;
+        const date = urlParams.get('date');
+        const numero_util = urlParams.get('numero_util');
+        const numero_four = urlParams.get('numero_four');
+        return receptionsJour({ date, numero_util, numero_four });
+      } catch (error) {
+        return receptionsJour();
+      }
+    },
+    'articles_plus_vendus': (url) => {
+      try {
+        const urlParams = new URL(url, window.location.origin).searchParams;
+        const date = urlParams.get('date');
+        const numero_clt = urlParams.get('numero_clt');
+        const numero_util = urlParams.get('numero_util');
+        return articlesPlusVendus({ date, numero_clt, numero_util });
+      } catch (error) {
+        return articlesPlusVendus();
+      }
+    },
+    'profit_by_date': (url) => {
+      try {
+        const urlParams = new URL(url, window.location.origin).searchParams;
+        const date = urlParams.get('date');
+        const numero_clt = urlParams.get('numero_clt');
+        const numero_util = urlParams.get('numero_util');
+        return profitByDate({ date, numero_clt, numero_util });
+      } catch (error) {
+        return profitByDate();
+      }
+    },
+    'stock_value': () => stockValue(),
+    
     'rechercher_produit_codebar': async (url) => {
       try {
         const urlParams = new URL(url, window.location.origin).searchParams;
@@ -110,7 +148,9 @@ const handlers = {
     'valider_vendeur': (body) => validerVendeur(body),
     'ajouter_categorie': (body) => ajouterCategorie(body),
     'valider_vente': (body) => validerVente(body),
-    'valider_reception': (body) => validerReception(body)
+    'valider_reception': (body) => validerReception(body),
+    // NOUVEL ENDPOINT AJOUTÉ
+    'annuler_reception': (body) => annulerReception(body)
   },
   PUT: {
     'modifier_client/(\\w+)': (id, body) => modifierClient(id, body),
