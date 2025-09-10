@@ -1685,30 +1685,38 @@ export async function modifierVente(numero_comande, data) {
   }
 }
 
-export async function annulerVente(data) {
+export async function annulerReception(data) {
   try {
-    console.log("Exécution de annulerVente avec data:", data);
+    console.log("Exécution de annulerReception avec data:", data);
     const db = await getDb();
 
-    // 1. Validation des données - utilisation des mêmes clés que le frontend
-    if (!data || !data.numero_comande || !data.password2) {
-      return { erreur: "Données manquantes (commande ou mot de passe)", status: 400 };
+    // Validation avec les clés du frontend
+    if (!data || !data.numero_mouvement || !data.password2) {
+      return { erreur: "Données manquantes (mouvement ou mot de passe)", status: 400 };
     }
 
-    const numero_comande = parseInt(data.numero_comande);
+    const numero_mouvement = parseInt(data.numero_mouvement);
     const password2 = data.password2;
 
-    // Récupérer le userId depuis l'en-tête de la requête (envoyé par le frontend)
-    const userId = data.userId || (context && context.userId); // À adapter selon votre implémentation
-    
-    if (isNaN(numero_comande)) {
-      return { erreur: "Numéro de commande invalide", status: 400 };
+    if (isNaN(numero_mouvement)) {
+      return { erreur: "Numéro de mouvement invalide", status: 400 };
     }
 
-    // 2. Vérification de l'authentification
-    // Le frontend envoie le userId dans les headers, on le récupère ici
+    // Récupérer le numero_util depuis la réception
+    const stmtReception = db.prepare("SELECT numero_util, nature FROM mouvements WHERE numero_mouvement = ?");
+    stmtReception.bind([numero_mouvement]);
+    const reception = stmtReception.step() ? stmtReception.getAsObject() : null;
+    stmtReception.free();
+
+    if (!reception) {
+      return { erreur: "Réception non trouvée", status: 404 };
+    }
+
+    const numero_util = reception.numero_util;
+
+    // Vérification de l'authentification
     const stmtUser = db.prepare("SELECT numero_util, password2 FROM utilisateur WHERE numero_util = ?");
-    stmtUser.bind([userId]);
+    stmtUser.bind([numero_util]);
     const user = stmtUser.step() ? stmtUser.getAsObject() : null;
     stmtUser.free();
 
@@ -1716,47 +1724,11 @@ export async function annulerVente(data) {
       return { erreur: "Authentification invalide", status: 401 };
     }
 
-    // 3. Vérifier l'existence de la commande
-    const stmtComande = db.prepare("SELECT numero_table, numero_util, nature FROM comande WHERE numero_comande = ?");
-    stmtComande.bind([numero_comande]);
-    const commande = stmtComande.step() ? stmtComande.getAsObject() : null;
-    stmtComande.free();
-
-    if (!commande) {
-      return { erreur: "Commande non trouvée", status: 404 };
-    }
-
-    console.log("Commande trouvée:", commande);
-
-    db.run("BEGIN TRANSACTION");
-
-    try {
-      // 4. Restaurer stock et solde client
-      await restaurerAncienneVente(numero_comande, db);
-
-      // 5. Supprimer la vente
-      db.prepare("DELETE FROM attache WHERE numero_comande = ?").run([numero_comande]).free();
-      db.prepare("DELETE FROM encaisse WHERE numero_comande = ?").run([numero_comande]).free();
-      db.prepare("DELETE FROM comande WHERE numero_comande = ?").run([numero_comande]).free();
-
-      db.run("COMMIT");
-      saveDbToLocalStorage(db);
-
-      return {
-        success: true,
-        numero_comande,
-        statut: "Vente annulée avec succès",
-        status: 200
-      };
-
-    } catch (error) {
-      db.run("ROLLBACK");
-      throw error;
-    }
+    // ... le reste de votre logique d'annulation de réception
 
   } catch (error) {
-    console.error("Erreur annulerVente:", error);
-    return { erreur: error.message || "Erreur lors de l'annulation de la vente", status: 500 };
+    console.error("Erreur annulerReception:", error);
+    return { erreur: error.message || "Erreur lors de l'annulation de la réception", status: 500 };
   }
 }
 
