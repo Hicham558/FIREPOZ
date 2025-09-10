@@ -1696,52 +1696,51 @@ export async function annulerVente(data) {
     }
 
     // Récupérer la commande
-    const stmtComande = db.prepare(
-      "SELECT numero_table, numero_util FROM comande WHERE numero_comande = ?"
-    );
+    const stmtComande = db.prepare('SELECT numero_table, numero_util FROM comande WHERE numero_comande = ?');
     stmtComande.bind([numero_comande]);
-    const rowCom = stmtComande.step() ? stmtComande.getAsObject() : null;
+    const commande = stmtComande.step() ? stmtComande.getAsObject() : null;
     stmtComande.free();
 
-    const numero_table = rowCom?.NUMERO_TABLE || rowCom?.numero_table;
-    const numero_util  = rowCom?.NUMERO_UTIL  || rowCom?.numero_util;
-
-    if (!rowCom) {
+    if (!commande) {
       return { erreur: "Commande non trouvée", status: 404 };
     }
 
-    // Vérifier mot de passe utilisateur
-    const stmtUser = db.prepare(
-      "SELECT password2 FROM utilisateur WHERE numero_util = ?"
-    );
-    stmtUser.bind([numero_util]);
-    const rowUser = stmtUser.step() ? stmtUser.getAsObject() : null;
+    // Vérifier mot de passe
+    const stmtUser = db.prepare('SELECT password2 FROM utilisateur WHERE numero_util = ?');
+    stmtUser.bind([commande.numero_util]);
+    const user = stmtUser.step() ? stmtUser.getAsObject() : null;
     stmtUser.free();
 
-    const mdp = rowUser?.PASSWORD2 || rowUser?.password2;
-
-    if (!rowUser || mdp !== password2) {
+    if (!user || user.password2 !== password2) {
       return { erreur: "Mot de passe incorrect", status: 401 };
     }
 
-    db.run("BEGIN TRANSACTION");
+    db.run('BEGIN TRANSACTION');
 
     try {
       // 1. Restaurer stock et solde client
       await restaurerAncienneVente(numero_comande, db);
 
       // 2. Supprimer la vente
-      db.run("DELETE FROM attache WHERE numero_comande = ?", [numero_comande]);
-      db.run("DELETE FROM encaisse WHERE numero_comande = ?", [numero_comande]);
-      db.run("DELETE FROM comande WHERE numero_comande = ?", [numero_comande]);
+      const stmtDeleteAttache = db.prepare('DELETE FROM attache WHERE numero_comande = ?');
+      stmtDeleteAttache.run([numero_comande]);
+      stmtDeleteAttache.free();
 
-      db.run("COMMIT");
+      const stmtDeleteEncaisse = db.prepare('DELETE FROM encaisse WHERE numero_comande = ?');
+      stmtDeleteEncaisse.run([numero_comande]);
+      stmtDeleteEncaisse.free();
+
+      const stmtDeleteComande = db.prepare('DELETE FROM comande WHERE numero_comande = ?');
+      stmtDeleteComande.run([numero_comande]);
+      stmtDeleteComande.free();
+
+      db.run('COMMIT');
       saveDbToLocalStorage(db);
 
       return { statut: "Vente annulée", status: 200 };
 
     } catch (error) {
-      db.run("ROLLBACK");
+      db.run('ROLLBACK');
       throw error;
     }
 
@@ -1750,61 +1749,46 @@ export async function annulerVente(data) {
     return { erreur: error.message, status: 500 };
   }
 }
-
 async function restaurerAncienneVente(numero_comande, db) {
   // Récupérer les anciennes lignes de vente
-  const stmtLignes = db.prepare(
-    "SELECT numero_item, quantite FROM attache WHERE numero_comande = ?"
-  );
+  const stmtLignes = db.prepare('SELECT numero_item, quantite FROM attache WHERE numero_comande = ?');
   stmtLignes.bind([numero_comande]);
   const lignes = [];
   while (stmtLignes.step()) {
-    const row = stmtLignes.getAsObject();
-    lignes.push({
-      numero_item: row.NUMERO_ITEM || row.numero_item,
-      quantite: row.QUANTITE || row.quantite || 0
-    });
+    lignes.push(stmtLignes.getAsObject());
   }
   stmtLignes.free();
 
   // Restaurer le stock
   for (const ligne of lignes) {
-    db.run("UPDATE item SET qte = qte + ? WHERE numero_item = ?", [
-      ligne.quantite,
-      ligne.numero_item
-    ]);
+    const stmtRestore = db.prepare('UPDATE item SET qte = qte + ? WHERE numero_item = ?');
+    stmtRestore.run([ligne.quantite, ligne.numero_item]);
+    stmtRestore.free();
   }
 
   // Restaurer le solde client
-  const stmtEncaisse = db.prepare(
-    "SELECT soldeR FROM encaisse WHERE numero_comande = ?"
-  );
+  const stmtEncaisse = db.prepare('SELECT soldeR FROM encaisse WHERE numero_comande = ?');
   stmtEncaisse.bind([numero_comande]);
-  const rowEnc = stmtEncaisse.step() ? stmtEncaisse.getAsObject() : null;
+  const encaisse = stmtEncaisse.step() ? stmtEncaisse.getAsObject() : null;
   stmtEncaisse.free();
 
-  const stmtComande = db.prepare(
-    "SELECT numero_table FROM comande WHERE numero_comande = ?"
-  );
+  const stmtComande = db.prepare('SELECT numero_table FROM comande WHERE numero_comande = ?');
   stmtComande.bind([numero_comande]);
-  const rowCom = stmtComande.step() ? stmtComande.getAsObject() : null;
+  const commande = stmtComande.step() ? stmtComande.getAsObject() : null;
   stmtComande.free();
 
-  const numero_table = rowCom?.NUMERO_TABLE || rowCom?.numero_table;
+  if (encaisse && commande && commande.numero_table != 0) {
+    const ancien_solde_restant = toDotDecimal(encaisse.soldeR || '0,00');
+    // si ancien_solde_restant = -100 → on fait +100 pour l'annuler
+    const correction = -ancien_solde_restant;
 
-  if (rowEnc && numero_table && numero_table != 0) {
-    const ancien_solde_restant = toDotDecimal(rowEnc.SOLDE_R || rowEnc.soldeR || "0");
-    const correction = -ancien_solde_restant; // annulation
-
-    db.run("UPDATE client SET solde = solde + ? WHERE numero_clt = ?", [
-      correction,
-      numero_table
-    ]);
+    const stmtClient = db.prepare('UPDATE client SET solde = solde + ? WHERE numero_clt = ?');
+    stmtClient.run([toCommaDecimal(correction), commande.numero_table]);
+    stmtClient.free();
 
     console.log(`✅ Solde client restauré: correction = ${correction}`);
   }
 }
-
 
 export async function getVente(numero_comande) {
   try {
