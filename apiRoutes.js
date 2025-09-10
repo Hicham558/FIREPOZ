@@ -1691,7 +1691,7 @@ export async function annulerVente(data) {
     console.log("Exécution de annulerVente avec data:", data);
     const db = await getDb();
 
-    // 1. Validation des données - mêmes clés que Flask
+    // 1. Validation des données - mêmes clés que Flask (minuscules)
     if (!data || !data.numero_comande || !data.password2) {
       return { error: "Numéro de commande ou mot de passe manquant", status: 400 };
     }
@@ -1829,7 +1829,7 @@ export async function annulerReception(data) {
     console.log("Exécution de annulerReception avec data:", data);
     const db = await getDb();
 
-    // 1. Validation des données - mêmes clés que Flask
+    // 1. Validation des données - mêmes clés que Flask (minuscules)
     if (!data || !data.numero_mouvement || !data.password2) {
       return { error: "Numéro de mouvement ou mot de passe manquant", status: 400 };
     }
