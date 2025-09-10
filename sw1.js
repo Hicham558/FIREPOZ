@@ -166,7 +166,6 @@ const handlers = {
     'supprimer_utilisateur/(\\w+)': (id) => supprimerUtilisateur(id),
     'supprimer_categorie/(\\w+)': (id) => supprimerCategorie(id),
     'annuler_vente': (body) => annulerVente(body),
-    // NOUVEL ENDPOINT AJOUTÉ
     'annuler_reception': (body) => annulerReception(body)
   }
 };
