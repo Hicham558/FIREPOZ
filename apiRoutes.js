@@ -2378,7 +2378,6 @@ export async function stockValue() {
     return { erreur: error.message, status: 500 };
   }
 }
-
 // ====================== ANNULER VENTE ======================
 export async function annulerVente(data) {
   console.log("Exécution de annulerVente avec data:", data);
@@ -2397,53 +2396,62 @@ export async function annulerVente(data) {
       FROM comande c
       WHERE c.numero_comande = ?
     `);
-    const commande = stmt.get([data.numero_comande]);
+    const row = stmt.get([data.numero_comande]);
     stmt.free();
 
-    if (!commande) throw new Error("Commande non trouvée");
+    if (!row) throw new Error("Commande non trouvée");
+
+    const commande = {
+      numero_table: row.NUMERO_TABLE || row.numero_table,
+      nature: row.NATURE || row.nature,
+      numero_util: row.NUMERO_UTIL || row.numero_util
+    };
 
     // Vérifier mot de passe utilisateur
-    stmt = db.prepare(`SELECT password2 FROM utilisateur WHERE numero_util = ?`);
-    const utilisateur = stmt.get([commande.numero_util]);
+    stmt = db.prepare(`SELECT password2, PASSWORD2 FROM utilisateur WHERE numero_util = ?`);
+    const rowUser = stmt.get([commande.numero_util]);
     stmt.free();
 
-    if (!utilisateur) throw new Error("Utilisateur associé non trouvé");
-    if (utilisateur.password2 !== data.password2) throw new Error("Mot de passe incorrect");
+    if (!rowUser) throw new Error("Utilisateur associé non trouvé");
+    const password_db = rowUser.PASSWORD2 || rowUser.password2;
+    if (password_db !== data.password2) throw new Error("Mot de passe incorrect");
 
     // Récupérer lignes
     stmt = db.prepare(`
-      SELECT numero_item, quantite, prixt
+      SELECT numero_item, NUMERO_ITEM, quantite, QUANTITE, prixt, PRIXT
       FROM attache
       WHERE numero_comande = ?
     `);
-    const lignes = stmt.all([data.numero_comande]);
+    const lignes = stmt.all([data.numero_comande]).map(l => ({
+      numero_item: l.NUMERO_ITEM || l.numero_item,
+      quantite: l.QUANTITE || l.quantite,
+      prixt: l.PRIXT || l.prixt
+    }));
     stmt.free();
 
     if (!lignes || lignes.length === 0) throw new Error("Aucune ligne de vente trouvée");
 
     // Restaurer stock
     for (const ligne of lignes) {
-      db.prepare(`
-        UPDATE item SET qte = qte + ? WHERE numero_item = ?
-      `).run([ligne.quantite, ligne.numero_item]);
+      db.prepare(`UPDATE item SET qte = qte + ? WHERE numero_item = ?`)
+        .run([ligne.quantite, ligne.numero_item]);
     }
 
     // Si vente à terme => mettre à jour solde client
     if (commande.numero_table !== 0) {
       const total_sale = lignes.reduce((sum, l) => sum + toDotDecimal(l.prixt || "0,00"), 0);
 
-      stmt = db.prepare("SELECT solde FROM client WHERE numero_clt = ?");
-      const client = stmt.get([commande.numero_table]);
+      stmt = db.prepare("SELECT solde, SOLDE FROM client WHERE numero_clt = ?");
+      const rowClient = stmt.get([commande.numero_table]);
       stmt.free();
 
-      if (!client) throw new Error("Client non trouvé");
+      if (!rowClient) throw new Error("Client non trouvé");
 
-      const current_solde = toDotDecimal(client.solde || "0,00");
+      const current_solde = toDotDecimal(rowClient.SOLDE || rowClient.solde || "0,00");
       const new_solde = current_solde - total_sale;
 
-      db.prepare(`
-        UPDATE client SET solde = ? WHERE numero_clt = ?
-      `).run([toCommaDecimal(new_solde), commande.numero_table]);
+      db.prepare(`UPDATE client SET solde = ? WHERE numero_clt = ?`)
+        .run([toCommaDecimal(new_solde), commande.numero_table]);
     }
 
     // Supprimer encaisse
@@ -2464,7 +2472,6 @@ export async function annulerVente(data) {
     throw err;
   }
 }
-
 // ====================== ANNULER RECEPTION ======================
 export async function annulerReception(data) {
   console.log("Exécution de annulerReception avec data:", data);
@@ -2479,30 +2486,40 @@ export async function annulerReception(data) {
   try {
     // Vérifier existence mouvement
     let stmt = db.prepare(`
-      SELECT m.numero_four, m.numero_util
+      SELECT m.numero_four, m.NUMERO_FOUR, m.numero_util, m.NUMERO_UTIL
       FROM mouvement m
-      WHERE m.numero_mouvement = ? AND m.nature = 'Bon de réception'
+      WHERE m.numero_mouvement = ? AND (m.nature = 'Bon de réception' OR m.NATURE = 'Bon de réception')
     `);
-    const mouvement = stmt.get([data.numero_mouvement]);
+    const row = stmt.get([data.numero_mouvement]);
     stmt.free();
 
-    if (!mouvement) throw new Error("Mouvement non trouvé");
+    if (!row) throw new Error("Mouvement non trouvé");
+
+    const mouvement = {
+      numero_four: row.NUMERO_FOUR || row.numero_four,
+      numero_util: row.NUMERO_UTIL || row.numero_util
+    };
 
     // Vérifier mot de passe utilisateur
-    stmt = db.prepare(`SELECT password2 FROM utilisateur WHERE numero_util = ?`);
-    const utilisateur = stmt.get([mouvement.numero_util]);
+    stmt = db.prepare(`SELECT password2, PASSWORD2 FROM utilisateur WHERE numero_util = ?`);
+    const rowUser = stmt.get([mouvement.numero_util]);
     stmt.free();
 
-    if (!utilisateur) throw new Error("Utilisateur associé non trouvé");
-    if (utilisateur.password2 !== data.password2) throw new Error("Mot de passe incorrect");
+    if (!rowUser) throw new Error("Utilisateur associé non trouvé");
+    const password_db = rowUser.PASSWORD2 || rowUser.password2;
+    if (password_db !== data.password2) throw new Error("Mot de passe incorrect");
 
     // Récupérer lignes réception
     stmt = db.prepare(`
-      SELECT numero_item, qtea, nprix
+      SELECT numero_item, NUMERO_ITEM, qtea, QTEA, nprix, NPRIX
       FROM attache2
       WHERE numero_mouvement = ?
     `);
-    const lignes = stmt.all([data.numero_mouvement]);
+    const lignes = stmt.all([data.numero_mouvement]).map(l => ({
+      numero_item: l.NUMERO_ITEM || l.numero_item,
+      qtea: l.QTEA || l.qtea,
+      nprix: l.NPRIX || l.nprix
+    }));
     stmt.free();
 
     if (!lignes || lignes.length === 0) throw new Error("Aucune ligne de réception trouvée");
@@ -2513,26 +2530,24 @@ export async function annulerReception(data) {
       0
     );
 
-    // Restaurer stock (retirer ce qui a été reçu)
+    // Restaurer stock
     for (const ligne of lignes) {
-      db.prepare(`
-        UPDATE item SET qte = qte - ? WHERE numero_item = ?
-      `).run([toDotDecimal(ligne.qtea), ligne.numero_item]);
+      db.prepare(`UPDATE item SET qte = qte - ? WHERE numero_item = ?`)
+        .run([toDotDecimal(ligne.qtea), ligne.numero_item]);
     }
 
     // Mettre à jour solde fournisseur
-    stmt = db.prepare("SELECT solde FROM fournisseur WHERE numero_fou = ?");
-    const fournisseur = stmt.get([mouvement.numero_four]);
+    stmt = db.prepare("SELECT solde, SOLDE FROM fournisseur WHERE numero_fou = ?");
+    const rowFour = stmt.get([mouvement.numero_four]);
     stmt.free();
 
-    if (!fournisseur) throw new Error("Fournisseur non trouvé");
+    if (!rowFour) throw new Error("Fournisseur non trouvé");
 
-    const current_solde = toDotDecimal(fournisseur.solde || "0,00");
+    const current_solde = toDotDecimal(rowFour.SOLDE || rowFour.solde || "0,00");
     const new_solde = current_solde + total_cost;
 
-    db.prepare(`
-      UPDATE fournisseur SET solde = ? WHERE numero_fou = ?
-    `).run([toCommaDecimal(new_solde), mouvement.numero_four]);
+    db.prepare(`UPDATE fournisseur SET solde = ? WHERE numero_fou = ?`)
+      .run([toCommaDecimal(new_solde), mouvement.numero_four]);
 
     // Supprimer attache2
     db.prepare("DELETE FROM attache2 WHERE numero_mouvement = ?").run([data.numero_mouvement]);
@@ -2549,3 +2564,4 @@ export async function annulerReception(data) {
     throw err;
   }
 }
+
