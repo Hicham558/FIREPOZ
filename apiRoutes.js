@@ -2381,6 +2381,7 @@ export async function stockValue() {
 export async function annulerVente(data) {
   console.log("📥 Exécution de annulerVente avec data:", data);
 
+  // Vérification des données d'entrée
   if (!data || !data.numero_comande || !data.password2) {
     console.error("❌ Erreur: Numéro de commande ou mot de passe manquant");
     return { erreur: "Numéro de commande ou mot de passe manquant", status: 400 };
@@ -2524,6 +2525,170 @@ export async function annulerVente(data) {
   } catch (err) {
     db.run("ROLLBACK");
     console.error("❌ Erreur annulation vente:", err);
+    return { erreur: err.message || "Erreur inconnue", status: 500 };
+  }
+}
+
+export async function annulerReception(data) {
+  console.log("📥 Exécution de annulerReception avec data:", data);
+
+  // Vérification des données d'entrée
+  if (!data || !data.numero_mouvement || !data.password2) {
+    console.error("❌ Erreur: Numéro de mouvement ou mot de passe manquant");
+    return { erreur: "Numéro de mouvement ou mot de passe manquant", status: 400 };
+  }
+
+  const db = await getDb();
+  db.run("BEGIN TRANSACTION");
+
+  try {
+    // Étape 1: Vérifier l'existence du mouvement
+    const stmtMouvement = db.prepare(`
+      SELECT numero_four, NUMERO_FOUR, numero_util, NUMERO_UTIL
+      FROM mouvement
+      WHERE numero_mouvement = ? AND (nature = 'Bon de réception' OR NATURE = 'Bon de réception')
+    `);
+    stmtMouvement.bind([data.numero_mouvement]);
+    const mouvement = stmtMouvement.step() ? stmtMouvement.getAsObject() : null;
+    stmtMouvement.free();
+
+    if (!mouvement) {
+      console.error(`❌ Mouvement non trouvé pour numero_mouvement: ${data.numero_mouvement}`);
+      throw new Error("Mouvement non trouvé");
+    }
+    console.log("✅ Mouvement trouvé:", mouvement);
+
+    const mouvementData = {
+      numero_four: mouvement.NUMERO_FOUR || mouvement.numero_four,
+      numero_util: mouvement.NUMERO_UTIL || mouvement.numero_util
+    };
+
+    // Étape 2: Vérifier le mot de passe utilisateur
+    const stmtUser = db.prepare(`SELECT password2, PASSWORD2 FROM utilisateur WHERE numero_util = ?`);
+    stmtUser.bind([mouvementData.numero_util]);
+    const user = stmtUser.step() ? stmtUser.getAsObject() : null;
+    stmtUser.free();
+
+    if (!user) {
+      console.error(`❌ Utilisateur non trouvé pour numero_util: ${mouvementData.numero_util}`);
+      throw new Error("Utilisateur associé non trouvé");
+    }
+
+    const password_db = user.PASSWORD2 || user.password2;
+    console.log("🔑 Mot de passe DB:", password_db);
+    if (password_db !== data.password2) {
+      console.error("❌ Mot de passe incorrect");
+      throw new Error("Mot de passe incorrect");
+    }
+
+    // Étape 3: Récupérer les lignes de réception
+    const stmtLignes = db.prepare(`
+      SELECT numero_item, NUMERO_ITEM, qtea, QTEA, nprix, NPRIX
+      FROM attache2
+      WHERE numero_mouvement = ?
+    `);
+    stmtLignes.bind([data.numero_mouvement]);
+    const lignes = [];
+    while (stmtLignes.step()) {
+      const ligne = stmtLignes.getAsObject();
+      lignes.push({
+        numero_item: ligne.NUMERO_ITEM || ligne.numero_item,
+        qtea: parseFloat(ligne.QTEA || ligne.qtea || 0),
+        nprix: ligne.NPRIX || ligne.nprix || "0,00"
+      });
+    }
+    stmtLignes.free();
+
+    if (!lignes.length) {
+      console.error("❌ Aucune ligne de réception trouvée pour numero_mouvement:", data.numero_mouvement);
+      throw new Error("Aucune ligne de réception trouvée");
+    }
+    console.log("📋 Lignes de réception:", lignes);
+
+    // Étape 4: Vérifier le stock avant restauration
+    for (const ligne of lignes) {
+      const stmtStock = db.prepare(`SELECT qte FROM item WHERE numero_item = ?`);
+      stmtStock.bind([ligne.numero_item]);
+      const item = stmtStock.step() ? stmtStock.getAsObject() : null;
+      stmtStock.free();
+
+      if (!item) {
+        console.error(`❌ Item non trouvé pour numero_item: ${ligne.numero_item}`);
+        throw new Error(`Item ${ligne.numero_item} non trouvé`);
+      }
+
+      const current_qte = parseFloat(item.qte || 0);
+      if (current_qte < ligne.qtea) {
+        console.error(`❌ Stock insuffisant pour item ${ligne.numero_item}: ${current_qte} < ${ligne.qtea}`);
+        throw new Error(`Stock insuffisant pour l'item ${ligne.numero_item}`);
+      }
+    }
+
+    // Étape 5: Restaurer le stock
+    for (const ligne of lignes) {
+      console.log(`📦 Restauration stock pour item ${ligne.numero_item}, quantité: ${ligne.qtea}`);
+      const stmtUpdateStock = db.prepare(`UPDATE item SET qte = qte - ? WHERE numero_item = ?`);
+      stmtUpdateStock.run([ligne.qtea, ligne.numero_item]);
+      const changes = db.getRowsModified();
+      stmtUpdateStock.free();
+
+      if (changes === 0) {
+        console.error(`❌ Item non mis à jour pour numero_item: ${ligne.numero_item}`);
+        throw new Error(`Item ${ligne.numero_item} non mis à jour`);
+      }
+    }
+
+    // Étape 6: Mettre à jour le solde fournisseur
+    const total_cost = lignes.reduce(
+      (sum, l) => sum + toDotDecimal(l.qtea) * toDotDecimal(l.nprix),
+      0
+    );
+    console.log("💰 Coût total:", total_cost);
+
+    const stmtFournisseur = db.prepare(`SELECT solde, SOLDE FROM fournisseur WHERE numero_fou = ?`);
+    stmtFournisseur.bind([mouvementData.numero_four]);
+    const fournisseur = stmtFournisseur.step() ? stmtFournisseur.getAsObject() : null;
+    stmtFournisseur.free();
+
+    if (!fournisseur) {
+      console.error(`❌ Fournisseur non trouvé pour numero_fou: ${mouvementData.numero_four}`);
+      throw new Error("Fournisseur non trouvé");
+    }
+
+    const current_solde = toDotDecimal(fournisseur.SOLDE || fournisseur.solde || "0,00");
+    const new_solde = current_solde + total_cost;
+    console.log(`🔄 Mise à jour solde fournisseur: ${current_solde} + ${total_cost} = ${new_solde}`);
+
+    const stmtUpdateFournisseur = db.prepare(`UPDATE fournisseur SET solde = ? WHERE numero_fou = ?`);
+    stmtUpdateFournisseur.run([toCommaDecimal(new_solde), mouvementData.numero_four]);
+    stmtUpdateFournisseur.free();
+
+    // Étape 7: Supprimer attache2
+    const stmtAttache2 = db.prepare(`DELETE FROM attache2 WHERE numero_mouvement = ?`);
+    stmtAttache2.run([data.numero_mouvement]);
+    stmtAttache2.free();
+    console.log("🗑️ Attache2 supprimé");
+
+    // Étape 8: Supprimer mouvement
+    const stmtMouvementDelete = db.prepare(`DELETE FROM mouvement WHERE numero_mouvement = ?`);
+    stmtMouvementDelete.run([data.numero_mouvement]);
+    const changes = db.getRowsModified();
+    stmtMouvementDelete.free();
+    console.log("🗑️ Mouvement supprimé, changements:", changes);
+
+    if (changes === 0) {
+      console.error("❌ Aucun mouvement supprimé");
+      throw new Error("Aucun mouvement supprimé");
+    }
+
+    db.run("COMMIT");
+    await saveDbToLocalStorage(db);
+    console.log("✅ Réception annulée avec succès");
+    return { statut: "Réception annulée", status: 200 };
+
+  } catch (err) {
+    db.run("ROLLBACK");
+    console.error("❌ Erreur annulation réception:", err);
     return { erreur: err.message || "Erreur inconnue", status: 500 };
   }
 }
