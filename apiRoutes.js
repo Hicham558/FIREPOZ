@@ -1691,19 +1691,31 @@ export async function annulerVente(data) {
     
     const { numero_comande, password2 } = data;
 
+    // Validation des données
     if (!numero_comande || !password2) {
-      return { erreur: "Données manquantes", status: 400 };
+      console.warn("Données manquantes:", { numero_comande, password2 });
+      return { erreur: "Numéro de commande ou mot de passe manquant", status: 400 };
+    }
+
+    // Vérifier que numero_comande est un entier valide
+    const numeroComandeInt = parseInt(numero_comande);
+    if (isNaN(numeroComandeInt)) {
+      console.warn("Numéro de commande invalide:", numero_comande);
+      return { erreur: "Numéro de commande invalide", status: 400 };
     }
 
     // Récupérer la commande
     const stmtComande = db.prepare('SELECT numero_table, numero_util FROM comande WHERE numero_comande = ?');
-    stmtComande.bind([numero_comande]);
+    stmtComande.bind([numeroComandeInt]);
     const commande = stmtComande.step() ? stmtComande.getAsObject() : null;
     stmtComande.free();
 
     if (!commande) {
+      console.warn("Commande non trouvée pour numero_comande:", numeroComandeInt);
       return { erreur: "Commande non trouvée", status: 404 };
     }
+
+    console.log("Commande trouvée:", commande);
 
     // Vérifier mot de passe
     const stmtUser = db.prepare('SELECT password2 FROM utilisateur WHERE numero_util = ?');
@@ -1712,6 +1724,7 @@ export async function annulerVente(data) {
     stmtUser.free();
 
     if (!user || user.password2 !== password2) {
+      console.warn("Échec authentification pour numero_util:", commande.numero_util);
       return { erreur: "Mot de passe incorrect", status: 401 };
     }
 
@@ -1719,37 +1732,45 @@ export async function annulerVente(data) {
 
     try {
       // 1. Restaurer stock et solde client
-      await restaurerAncienneVente(numero_comande, db);
+      await restaurerAncienneVente(numeroComandeInt, db);
 
       // 2. Supprimer la vente
       const stmtDeleteAttache = db.prepare('DELETE FROM attache WHERE numero_comande = ?');
-      stmtDeleteAttache.run([numero_comande]);
+      stmtDeleteAttache.run([numeroComandeInt]);
       stmtDeleteAttache.free();
+      console.log("Lignes supprimées de attache pour numero_comande:", numeroComandeInt);
 
       const stmtDeleteEncaisse = db.prepare('DELETE FROM encaisse WHERE numero_comande = ?');
-      stmtDeleteEncaisse.run([numero_comande]);
+      stmtDeleteEncaisse.run([numeroComandeInt]);
       stmtDeleteEncaisse.free();
+      console.log("Lignes supprimées de encaisse pour numero_comande:", numeroComandeInt);
 
       const stmtDeleteComande = db.prepare('DELETE FROM comande WHERE numero_comande = ?');
-      stmtDeleteComande.run([numero_comande]);
+      stmtDeleteComande.run([numeroComandeInt]);
       stmtDeleteComande.free();
+      console.log("Commande supprimée de comande pour numero_comande:", numeroComandeInt);
 
       db.run('COMMIT');
+      console.log("Transaction validée pour annulation de la vente:", numeroComandeInt);
       saveDbToLocalStorage(db);
 
       return { statut: "Vente annulée", status: 200 };
 
     } catch (error) {
       db.run('ROLLBACK');
+      console.error("Erreur dans la transaction pour numero_comande:", numeroComandeInt, error);
       throw error;
     }
 
   } catch (error) {
     console.error("Erreur annulerVente:", error);
-    return { erreur: error.message, status: 500 };
+    return { erreur: error.message || "Erreur lors de l'annulation de la vente", status: 500 };
   }
 }
+
 async function restaurerAncienneVente(numero_comande, db) {
+  console.log("Exécution de restaurerAncienneVente pour numero_comande:", numero_comande);
+
   // Récupérer les anciennes lignes de vente
   const stmtLignes = db.prepare('SELECT numero_item, quantite FROM attache WHERE numero_comande = ?');
   stmtLignes.bind([numero_comande]);
@@ -1758,12 +1779,17 @@ async function restaurerAncienneVente(numero_comande, db) {
     lignes.push(stmtLignes.getAsObject());
   }
   stmtLignes.free();
+  console.log("Lignes récupérées de attache:", lignes);
 
   // Restaurer le stock
   for (const ligne of lignes) {
-    const stmtRestore = db.prepare('UPDATE item SET qte = qte + ? WHERE numero_item = ?');
-    stmtRestore.run([ligne.quantite, ligne.numero_item]);
-    stmtRestore.free();
+    const quantite = parseFloat(ligne.quantite || 0);
+    if (quantite > 0) {
+      const stmtRestore = db.prepare('UPDATE item SET qte = qte + ? WHERE numero_item = ?');
+      stmtRestore.run([quantite, ligne.numero_item]);
+      stmtRestore.free();
+      console.log(`Stock restauré pour item ${ligne.numero_item}: +${quantite}`);
+    }
   }
 
   // Restaurer le solde client
@@ -1771,25 +1797,26 @@ async function restaurerAncienneVente(numero_comande, db) {
   stmtEncaisse.bind([numero_comande]);
   const encaisse = stmtEncaisse.step() ? stmtEncaisse.getAsObject() : null;
   stmtEncaisse.free();
+  console.log("Encaissement récupéré:", encaisse);
 
   const stmtComande = db.prepare('SELECT numero_table FROM comande WHERE numero_comande = ?');
   stmtComande.bind([numero_comande]);
   const commande = stmtComande.step() ? stmtComande.getAsObject() : null;
   stmtComande.free();
+  console.log("Commande pour restauration solde:", commande);
 
   if (encaisse && commande && commande.numero_table != 0) {
     const ancien_solde_restant = toDotDecimal(encaisse.soldeR || '0,00');
-    // si ancien_solde_restant = -100 → on fait +100 pour l'annuler
-    const correction = -ancien_solde_restant;
+    const correction = -ancien_solde_restant; // Inverser le solde restant
 
     const stmtClient = db.prepare('UPDATE client SET solde = solde + ? WHERE numero_clt = ?');
     stmtClient.run([toCommaDecimal(correction), commande.numero_table]);
     stmtClient.free();
-
-    console.log(`✅ Solde client restauré: correction = ${correction}`);
+    console.log(`Solde client restauré: correction = ${correction} pour client ${commande.numero_table}`);
+  } else {
+    console.log("Pas de restauration de solde client (encaisse ou commande absente, ou numero_table = 0)");
   }
 }
-
 export async function getVente(numero_comande) {
   try {
     console.log("Exécution de getVente:", numero_comande);
