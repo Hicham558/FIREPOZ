@@ -60,33 +60,14 @@ export async function rechercherProduitCodebar(codebar) {
       return { statut: "non trouvé", status: 404 };
     }
 
-    // Utilisez les champs en MAJUSCULES (comme retournés par SQL.js)
-    const prixFormatted = produit.PRIX !== null && produit.PRIX !== undefined && produit.PRIX !== ''
-      ? toCommaDecimal(parseFloat(toDotDecimal(produit.PRIX)).toFixed(2))
-      : '0,00';
-    
-    const prixbaFormatted = produit.PRIXBA !== null && produit.PRIXBA !== undefined && produit.PRIXBA !== ''
-      ? toCommaDecimal(parseFloat(toDotDecimal(produit.PRIXBA)).toFixed(2))
-      : '0,00';
-    
-    const qteInt = produit.QTE !== null && produit.QTE !== undefined && !isNaN(parseInt(produit.QTE))
-      ? parseInt(produit.QTE)
-      : 0;
-    
-    const numeroItem = produit.NUMERO_ITEM !== null && produit.NUMERO_ITEM !== undefined && produit.NUMERO_ITEM !== ''
-      ? produit.NUMERO_ITEM.toString()
-      : 'UNKNOWN_' + codebar;
-
-    // NORMALISATION DES DONNÉES - Retourner les champs en minuscules pour cohérence
+    // Conversion simple sans formatage complexe
     const produitFormate = {
-      numero_item: numeroItem,
-      bar: produit.BAR !== null && produit.BAR !== undefined ? produit.BAR.toString() : codebar,
-      designation: produit.DESIGNATION !== null && produit.DESIGNATION !== undefined && produit.DESIGNATION.trim() !== ''
-        ? produit.DESIGNATION.trim()
-        : 'Produit sans nom',
-      prix: prixFormatted,
-      prixba: prixbaFormatted,
-      qte: qteInt
+      numero_item: produit.NUMERO_ITEM?.toString() || 'UNKNOWN_' + codebar,
+      bar: produit.BAR?.toString() || codebar,
+      designation: produit.DESIGNATION?.trim() || 'Produit sans nom',
+      prix: produit.PRIX?.toString() || '0,00',
+      prixba: produit.PRIXBA?.toString() || '0,00',
+      qte: parseInt(produit.QTE) || 0
     };
 
     console.log("📤 Produit formaté normalisé:", produitFormate);
