@@ -2605,22 +2605,25 @@ export async function annulerReception(data) {
     }
     console.log("📋 Lignes de réception:", lignes);
 
-    // Étape 4: Vérifier le stock avant restauration
-    for (const ligne of lignes) {
-      const stmtStock = db.prepare(`SELECT qte FROM item WHERE numero_item = ?`);
-      stmtStock.bind([ligne.numero_item]);
-      const item = stmtStock.step() ? stmtStock.getAsObject() : null;
-      stmtStock.free();
+    // Étape 4: Vérifier le stock (optionnel)
+    const ALLOW_NEGATIVE_STOCK = false; // Définir à true pour permettre un stock négatif
+    if (!ALLOW_NEGATIVE_STOCK) {
+      for (const ligne of lignes) {
+        const stmtStock = db.prepare(`SELECT qte FROM item WHERE numero_item = ?`);
+        stmtStock.bind([ligne.numero_item]);
+        const item = stmtStock.step() ? stmtStock.getAsObject() : null;
+        stmtStock.free();
 
-      if (!item) {
-        console.error(`❌ Item non trouvé pour numero_item: ${ligne.numero_item}`);
-        throw new Error(`Item ${ligne.numero_item} non trouvé`);
-      }
+        if (!item) {
+          console.error(`❌ Item non trouvé pour numero_item: ${ligne.numero_item}`);
+          throw new Error(`Item ${ligne.numero_item} non trouvé`);
+        }
 
-      const current_qte = parseFloat(item.qte || 0);
-      if (current_qte < ligne.qtea) {
-        console.error(`❌ Stock insuffisant pour item ${ligne.numero_item}: ${current_qte} < ${ligne.qtea}`);
-        throw new Error(`Stock insuffisant pour l'item ${ligne.numero_item}`);
+        const current_qte = parseFloat(item.qte || 0);
+        if (current_qte < ligne.qtea) {
+          console.error(`❌ Stock insuffisant pour item ${ligne.numero_item}: ${current_qte} < ${ligne.qtea}`);
+          throw new Error(`Stock insuffisant pour l'item ${ligne.numero_item} (actuel: ${current_qte}, requis: ${ligne.qtea})`);
+        }
       }
     }
 
