@@ -2199,6 +2199,8 @@ export async function articlesPlusVendus(params = {}) {
       date_end = `${today} 23:59:59`;
     }
 
+    console.log("Plage de dates:", date_start, "à", date_end);
+
     let query = `
       SELECT 
         i.numero_item,
@@ -2229,21 +2231,33 @@ export async function articlesPlusVendus(params = {}) {
       LIMIT 10
     `;
 
+    console.log("Query articles plus vendus:", query);
+    console.log("Query params:", queryParams);
+
     const stmt = db.prepare(query);
     stmt.bind(queryParams);
 
     const articles = [];
     while (stmt.step()) {
       const row = stmt.getAsObject();
+      console.log("Ligne brute récupérée:", row);
+      
+      // CORRECTION ICI : SQL.js retourne les colonnes en MAJUSCULES
+      const numero_item = row.NUMERO_ITEM !== null && row.NUMERO_ITEM !== undefined ? row.NUMERO_ITEM : '';
+      const designation = row.DESIGNATION !== null && row.DESIGNATION !== undefined ? row.DESIGNATION : 'N/A';
+      const quantite = row.QUANTITE !== null && row.QUANTITE !== undefined ? parseInt(row.QUANTITE) : 0;
+      const total_vente = row.TOTAL_VENTE !== null && row.TOTAL_VENTE !== undefined ? parseFloat(row.TOTAL_VENTE) : 0;
+
       articles.push({
-        numero_item: row.numero_item,
-        designation: row.designation || 'N/A',
-        quantite: parseInt(row.quantite || 0),
-        total_vente: toCommaDecimal(parseFloat(row.total_vente || 0))
+        numero_item: numero_item,
+        designation: designation,
+        quantite: quantite,
+        total_vente: toCommaDecimal(total_vente)
       });
     }
     stmt.free();
 
+    console.log("Articles formatés:", articles);
     return articles;
 
   } catch (error) {
@@ -2261,8 +2275,9 @@ export async function profitByDate(params = {}) {
     let date_start, date_end;
 
     if (date) {
-      date_start = `${date} 00:00:00`;
-      date_end = `${date} 23:59:59`;
+      // Si une date est fournie, utiliser cette date
+      date_start = new Date(`${date}T00:00:00`);
+      date_end = new Date(`${date}T23:59:59.999`);
     } else {
       // Par défaut, 30 derniers jours
       date_end = new Date();
@@ -2271,6 +2286,16 @@ export async function profitByDate(params = {}) {
       date_start.setDate(date_start.getDate() - 30);
       date_start.setHours(0, 0, 0, 0);
     }
+
+    // Formater les dates pour SQLite (format YYYY-MM-DD HH:MM:SS)
+    const formatDateForSQL = (dateObj) => {
+      return dateObj.toISOString().replace('T', ' ').slice(0, 19);
+    };
+
+    const date_start_str = formatDateForSQL(date_start);
+    const date_end_str = formatDateForSQL(date_end);
+
+    console.log("Plage de dates:", date_start_str, "à", date_end_str);
 
     let query = `
       SELECT
@@ -2283,10 +2308,7 @@ export async function profitByDate(params = {}) {
       WHERE c.date_comande BETWEEN ? AND ?
     `;
 
-    const queryParams = [
-      date_start.toISOString().replace('T', ' ').slice(0, 19),
-      date_end.toISOString().replace('T', ' ').slice(0, 19)
-    ];
+    const queryParams = [date_start_str, date_end_str];
 
     if (numero_clt && numero_clt !== '0') {
       query += ' AND c.numero_table = ?';
@@ -2303,6 +2325,9 @@ export async function profitByDate(params = {}) {
       ORDER BY DATE(c.date_comande) DESC
     `;
 
+    console.log("Query profit:", query);
+    console.log("Query params:", queryParams);
+
     const stmt = db.prepare(query);
     stmt.bind(queryParams);
 
@@ -2316,6 +2341,7 @@ export async function profitByDate(params = {}) {
     }
     stmt.free();
 
+    console.log("Profits calculés:", profits);
     return profits;
 
   } catch (error) {
@@ -2323,7 +2349,6 @@ export async function profitByDate(params = {}) {
     return { erreur: error.message, status: 500 };
   }
 }
-
 export async function stockValue() {
   try {
     console.log("Exécution de stockValue...");
