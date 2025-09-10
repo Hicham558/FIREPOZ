@@ -2605,31 +2605,9 @@ export async function annulerReception(data) {
     }
     console.log("📋 Lignes de réception:", lignes);
 
-    // Étape 4: Vérifier le stock (optionnel)
-    const ALLOW_NEGATIVE_STOCK = false; // Définir à true pour permettre un stock négatif
-    if (!ALLOW_NEGATIVE_STOCK) {
-      for (const ligne of lignes) {
-        const stmtStock = db.prepare(`SELECT qte FROM item WHERE numero_item = ?`);
-        stmtStock.bind([ligne.numero_item]);
-        const item = stmtStock.step() ? stmtStock.getAsObject() : null;
-        stmtStock.free();
-
-        if (!item) {
-          console.error(`❌ Item non trouvé pour numero_item: ${ligne.numero_item}`);
-          throw new Error(`Item ${ligne.numero_item} non trouvé`);
-        }
-
-        const current_qte = parseFloat(item.qte || 0);
-        if (current_qte < ligne.qtea) {
-          console.error(`❌ Stock insuffisant pour item ${ligne.numero_item}: ${current_qte} < ${ligne.qtea}`);
-          throw new Error(`Stock insuffisant pour l'item ${ligne.numero_item} (actuel: ${current_qte}, requis: ${ligne.qtea})`);
-        }
-      }
-    }
-
-    // Étape 5: Restaurer le stock
+    // Étape 4: Mettre à jour le stock (sans vérification)
     for (const ligne of lignes) {
-      console.log(`📦 Restauration stock pour item ${ligne.numero_item}, quantité: ${ligne.qtea}`);
+      console.log(`📦 Mise à jour stock pour item ${ligne.numero_item}, quantité: ${ligne.qtea}`);
       const stmtUpdateStock = db.prepare(`UPDATE item SET qte = qte - ? WHERE numero_item = ?`);
       stmtUpdateStock.run([ligne.qtea, ligne.numero_item]);
       const changes = db.getRowsModified();
@@ -2641,7 +2619,7 @@ export async function annulerReception(data) {
       }
     }
 
-    // Étape 6: Mettre à jour le solde fournisseur
+    // Étape 5: Mettre à jour le solde fournisseur
     const total_cost = lignes.reduce(
       (sum, l) => sum + toDotDecimal(l.qtea) * toDotDecimal(l.nprix),
       0
@@ -2666,13 +2644,13 @@ export async function annulerReception(data) {
     stmtUpdateFournisseur.run([toCommaDecimal(new_solde), mouvementData.numero_four]);
     stmtUpdateFournisseur.free();
 
-    // Étape 7: Supprimer attache2
+    // Étape 6: Supprimer attache2
     const stmtAttache2 = db.prepare(`DELETE FROM attache2 WHERE numero_mouvement = ?`);
     stmtAttache2.run([data.numero_mouvement]);
     stmtAttache2.free();
     console.log("🗑️ Attache2 supprimé");
 
-    // Étape 8: Supprimer mouvement
+    // Étape 7: Supprimer mouvement
     const stmtMouvementDelete = db.prepare(`DELETE FROM mouvement WHERE numero_mouvement = ?`);
     stmtMouvementDelete.run([data.numero_mouvement]);
     const changes = db.getRowsModified();
