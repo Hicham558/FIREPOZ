@@ -51,6 +51,7 @@ export async function rechercherProduitCodebar(codebar) {
     let produit = null;
     if (stmt.step()) {
       produit = stmt.getAsObject();
+      console.log("📦 Produit brut récupéré:", produit);
     }
     stmt.free();
 
@@ -59,45 +60,33 @@ export async function rechercherProduitCodebar(codebar) {
       return { statut: "non trouvé", status: 404 };
     }
 
-    console.log("📦 Produit brut récupéré:", produit);
-
-    // Conversion et validation des valeurs
-    const prixFormatted = produit.prix !== null && produit.prix !== undefined && produit.prix !== ''
-      ? toCommaDecimal(parseFloat(toDotDecimal(produit.prix)).toFixed(2))
+    // Utilisez les champs en MAJUSCULES (comme retournés par SQL.js)
+    const prixFormatted = produit.PRIX !== null && produit.PRIX !== undefined && produit.PRIX !== ''
+      ? toCommaDecimal(parseFloat(toDotDecimal(produit.PRIX)).toFixed(2))
       : '0,00';
     
-    const prixbaFormatted = produit.prixba !== null && produit.prixba !== undefined && produit.prixba !== ''
-      ? toCommaDecimal(parseFloat(toDotDecimal(produit.prixba)).toFixed(2))
+    const prixbaFormatted = produit.PRIXBA !== null && produit.PRIXBA !== undefined && produit.PRIXBA !== ''
+      ? toCommaDecimal(parseFloat(toDotDecimal(produit.PRIXBA)).toFixed(2))
       : '0,00';
     
-    const qteInt = produit.qte !== null && produit.qte !== undefined && !isNaN(parseInt(produit.qte))
-      ? parseInt(produit.qte)
+    const qteInt = produit.QTE !== null && produit.QTE !== undefined && !isNaN(parseInt(produit.QTE))
+      ? parseInt(produit.QTE)
       : 0;
     
-    const numeroItem = produit.numero_item !== null && produit.numero_item !== undefined && produit.numero_item !== ''
-      ? produit.numero_item.toString()
+    const numeroItem = produit.NUMERO_ITEM !== null && produit.NUMERO_ITEM !== undefined && produit.NUMERO_ITEM !== ''
+      ? produit.NUMERO_ITEM.toString()
       : 'UNKNOWN_' + codebar;
 
-    // NORMALISATION DES DONNÉES - Toujours retourner les mêmes clés en minuscules
+    // NORMALISATION DES DONNÉES - Retourner les champs en minuscules pour cohérence
     const produitFormate = {
       numero_item: numeroItem,
-      bar: produit.bar !== null && produit.bar !== undefined ? produit.bar.toString() : codebar,
-      designation: produit.designation !== null && produit.designation !== undefined && produit.designation.trim() !== ''
-        ? produit.designation.trim()
+      bar: produit.BAR !== null && produit.BAR !== undefined ? produit.BAR.toString() : codebar,
+      designation: produit.DESIGNATION !== null && produit.DESIGNATION !== undefined && produit.DESIGNATION.trim() !== ''
+        ? produit.DESIGNATION.trim()
         : 'Produit sans nom',
       prix: prixFormatted,
       prixba: prixbaFormatted,
-      qte: qteInt,
-      
-      // Ajout des alias en majuscules pour compatibilité ascendante
-      NUMERO_ITEM: numeroItem,
-      BAR: produit.bar !== null && produit.bar !== undefined ? produit.bar.toString() : codebar,
-      DESIGNATION: produit.designation !== null && produit.designation !== undefined && produit.designation.trim() !== ''
-        ? produit.designation.trim()
-        : 'Produit sans nom',
-      PRIX: prixFormatted,
-      PRIXBA: prixbaFormatted,
-      QTE: qteInt
+      qte: qteInt
     };
 
     console.log("📤 Produit formaté normalisé:", produitFormate);
