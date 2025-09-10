@@ -2438,9 +2438,9 @@ export async function annulerReception(data) {
     const db = await getDb();
 
     // Vérification des données obligatoires
-    if (!data || !data.numero_util || !data.password2 || !data.numero_reception) {
+    if (!data || !data.numero_util || !data.password2 || !data.numero_mouvement) {
       return {
-        body: JSON.stringify({ erreur: "Données invalides (utilisateur, mot de passe ou numéro de réception manquant)" }),
+        body: JSON.stringify({ erreur: "Données invalides (utilisateur, mot de passe ou numéro de mouvement manquant)" }),
         init: { status: 400, headers: { "Content-Type": "application/json" } }
       };
     }
@@ -2457,21 +2457,21 @@ export async function annulerReception(data) {
       };
     }
 
-    // Vérifie que la réception existe
-    const reception = db.prepare(
-      "SELECT * FROM reception WHERE numero_reception = ?"
-    ).get(data.numero_reception);
+    // Vérifie que le mouvement existe
+    const mouvement = db.prepare(
+      "SELECT * FROM mouvement WHERE numero_mouvement = ?"
+    ).get(data.numero_mouvement);
 
-    if (!reception) {
+    if (!mouvement) {
       return {
-        body: JSON.stringify({ erreur: "Réception introuvable" }),
+        body: JSON.stringify({ erreur: "Mouvement introuvable" }),
         init: { status: 404, headers: { "Content-Type": "application/json" } }
       };
     }
 
-    // Annulation : supprime ou marque comme annulée
-    db.prepare("UPDATE reception SET statut = 'annulée' WHERE numero_reception = ?")
-      .run(data.numero_reception);
+    // Annulation : marque comme annulé
+    db.prepare("UPDATE mouvement SET statut = 'annulée' WHERE numero_mouvement = ?")
+      .run(data.numero_mouvement);
 
     return {
       body: JSON.stringify({ message: "Réception annulée avec succès" }),
