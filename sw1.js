@@ -148,7 +148,9 @@ const handlers = {
     'valider_vendeur': (body) => validerVendeur(body),
     'ajouter_categorie': (body) => ajouterCategorie(body),
     'valider_vente': (body) => validerVente(body),
-    'valider_reception': (body) => validerReception(body)
+    'valider_reception': (body) => validerReception(body),
+    'annuler_vente': (body) => annulerVente(body),
+    'annuler_reception': (body) => annulerReception(body)
   },
   PUT: {
     'modifier_client/(\\w+)': (id, body) => modifierClient(id, body),
@@ -164,9 +166,7 @@ const handlers = {
     'supprimer_fournisseur/(\\w+)': (id) => supprimerFournisseur(id),
     'supprimer_item/(\\w+)': (id) => supprimerItem(id),
     'supprimer_utilisateur/(\\w+)': (id) => supprimerUtilisateur(id),
-    'supprimer_categorie/(\\w+)': (id) => supprimerCategorie(id),
-    'annuler_vente': (body) => annulerVente(body),
-    'annuler_reception': (body) => annulerReception(body)
+    'supprimer_categorie/(\\w+)': (id) => supprimerCategorie(id)
   }
 };
 
