@@ -28,7 +28,7 @@ const handlers = {
         const catId = numero_categorie ? parseInt(numero_categorie) : undefined;
         return listeProduitsParCategorie(catId);
       } catch (error) {
-        console.error('❌ Erreur URL liste_produits_par_categorie:', error);
+        console.error('Erreur URL liste_produits_par_categorie:', error);
         return listeProduitsParCategorie(undefined);
       }
     },
@@ -38,7 +38,7 @@ const handlers = {
         const period = urlParams.get('period') || 'day';
         return dashboard(period);
       } catch (error) {
-        console.error('❌ Erreur extraction paramètres dashboard:', error);
+        console.error('Erreur extraction paramètres dashboard:', error);
         return dashboard('day');
       }
     },
@@ -51,7 +51,7 @@ const handlers = {
         const numero_util = urlParams.get('numero_util');
         return ventesJour({ date, numero_clt, numero_util });
       } catch (error) {
-        console.error('❌ Erreur extraction paramètres ventesJour:', error);
+        console.error('Erreur extraction paramètres ventesJour:', error);
         return ventesJour();
       }
     },
@@ -60,7 +60,7 @@ const handlers = {
         const urlParams = new URL(url, window.location.origin).searchParams;
         const codebar = urlParams.get('codebar');
         if (!codebar) {
-          console.error('❌ Paramètre codebar manquant');
+          console.error('Paramètre codebar manquant');
           return {
             body: JSON.stringify({ erreur: 'Code-barres requis', status: 400 }),
             init: {
@@ -70,7 +70,6 @@ const handlers = {
           };
         }
         const responseData = await rechercherProduitCodebar(codebar);
-        console.log('✅ Réponse de rechercherProduitCodebar:', responseData);
         
         // Gestion explicite du cas "non trouvé"
         if (responseData.statut === 'non trouvé') {
@@ -97,7 +96,7 @@ const handlers = {
           }
         };
       } catch (error) {
-        console.error('❌ Erreur extraction paramètre codebar:', error);
+        console.error('Erreur extraction paramètre codebar:', error);
         return {
           body: JSON.stringify({ erreur: error.message, message: 'Erreur serveur lors de la recherche', status: 500 }),
           init: {
@@ -146,15 +145,11 @@ window.fetch = async function(input, init = {}) {
   // Vérifier si la requête commence par /api/
   const isApiRequest = requestUrl.pathname.startsWith('/api/');
 
-  console.log('🔍 Requête interceptée:', url, 'isApiRequest:', isApiRequest);
-
   if (isApiRequest) {
     try {
       // Extraire l'endpoint après /api/
       const endpoint = requestUrl.pathname.replace('/api/', '');
       const methodHandlers = handlers[method] || {};
-
-      console.log('🔍 Endpoint extrait:', endpoint, 'Méthode:', method);
 
       // Recherche du gestionnaire correspondant
       let matchedHandler = null;
@@ -167,7 +162,6 @@ window.fetch = async function(input, init = {}) {
         if (match) {
           matchedHandler = handler;
           matchParams = match.slice(1);
-          console.log('✅ Handler trouvé pour le pattern:', pattern);
           break;
         }
       }
@@ -189,46 +183,22 @@ window.fetch = async function(input, init = {}) {
           headers: { 'Content-Type': 'application/json' }
         };
 
-        console.log('✅ Réponse locale pour', endpoint, ':', JSON.parse(responseBody));
-        
         return new Response(responseBody, responseInit);
       } else {
-        console.warn('❌ Aucun handler trouvé pour l\'endpoint:', endpoint);
+        console.error('Aucun handler trouvé pour l\'endpoint:', endpoint);
         return new Response(JSON.stringify({ erreur: 'Endpoint inconnu', status: 404 }), {
           status: 404,
           headers: { 'Content-Type': 'application/json' }
         });
       }
     } catch (error) {
-      console.error('❌ Erreur dans la gestion locale:', error);
+      console.error('Erreur dans la gestion locale:', error);
       return new Response(JSON.stringify({ erreur: error.message, status: 500 }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });
     }
   } else {
-    console.log('🌐 Requête non-API, transmise au réseau:', url);
     return originalFetch(input, init);
   }
 };
-
-// Initialisation au chargement de la page
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('✅ Interception des fetch activée pour /api/');
-  // Test automatique
-  setTimeout(() => {
-    console.log('🧪 Test automatique de l\'intercepteur...');
-    fetch('/api/liste_clients')
-      .then(response => response.json())
-      .then(data => console.log('✅ Test réussi - Données clients:', data))
-      .catch(error => console.error('❌ Test échoué:', error));
-    // Test supplémentaire pour rechercher_produit_codebar
-    setTimeout(() => {
-      console.log('🧪 Test automatique de rechercher_produit_codebar...');
-      fetch('/api/rechercher_produit_codebar?codebar=1234567890123')
-        .then(response => response.json())
-        .then(data => console.log('✅ Test réussi - Données produit:', data))
-        .catch(error => console.error('❌ Test échoué:', error));
-    }, 1500);
-  }, 1000);
-});
