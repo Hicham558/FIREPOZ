@@ -2379,279 +2379,109 @@ export async function stockValue() {
   }
 }
 
-// ----------------- ANNULER VENTE -----------------
-export async function annulerVente(req, res) {
+export async function annulerVente(data) {
   try {
-    const data = req.body; // récupéré depuis le fetch
     console.log("Exécution de annulerVente avec data:", data);
     const db = await getDb();
 
-    // 1. Validation des données
-    if (!data || !data.numero_comande || !data.password2) {
-      return res.status(400).json({ error: "Numéro de commande ou mot de passe manquant" });
+    // Vérification des données obligatoires
+    if (!data || !data.numero_util || !data.password2 || !data.numero_vente) {
+      return {
+        body: JSON.stringify({ erreur: "Données invalides (utilisateur, mot de passe ou numéro de vente manquant)" }),
+        init: { status: 400, headers: { "Content-Type": "application/json" } }
+      };
     }
 
-    const numero_comande = parseInt(data.numero_comande);
-    const password2 = data.password2;
+    // Vérifie utilisateur
+    const util = db.prepare(
+      "SELECT * FROM utilisateur WHERE numero_util = ? AND password2 = ?"
+    ).get(data.numero_util, data.password2);
 
-    if (isNaN(numero_comande)) {
-      return res.status(400).json({ error: "Format invalide pour numero_comande" });
+    if (!util) {
+      return {
+        body: JSON.stringify({ erreur: "Authentification échouée" }),
+        init: { status: 401, headers: { "Content-Type": "application/json" } }
+      };
     }
 
-    if (typeof password2 !== 'string' || !password2.trim()) {
-      return res.status(400).json({ error: "Mot de passe invalide" });
+    // Vérifie que la vente existe
+    const vente = db.prepare(
+      "SELECT * FROM vente WHERE numero_vente = ?"
+    ).get(data.numero_vente);
+
+    if (!vente) {
+      return {
+        body: JSON.stringify({ erreur: "Vente introuvable" }),
+        init: { status: 404, headers: { "Content-Type": "application/json" } }
+      };
     }
 
-    db.run("BEGIN TRANSACTION");
+    // Annulation : supprime ou marque comme annulée
+    db.prepare("UPDATE vente SET statut = 'annulée' WHERE numero_vente = ?")
+      .run(data.numero_vente);
 
-    try {
-      // 2. Vérifier la commande
-      const stmtComande = db.prepare(`
-        SELECT numero_table, nature, numero_util 
-        FROM comande 
-        WHERE numero_comande = ?
-      `);
-      stmtComande.bind([numero_comande]);
-      const commande = stmtComande.step() ? stmtComande.getAsObject() : null;
-      stmtComande.free();
-
-      if (!commande) {
-        return res.status(404).json({ error: "Commande non trouvée" });
-      }
-
-      // 3. Vérifier mot de passe utilisateur
-      const stmtUser = db.prepare("SELECT password2 FROM utilisateur WHERE numero_util = ?");
-      stmtUser.bind([commande.numero_util]);
-      const utilisateur = stmtUser.step() ? stmtUser.getAsObject() : null;
-      stmtUser.free();
-
-      if (!utilisateur) {
-        return res.status(400).json({ error: "Utilisateur associé à la commande non trouvé" });
-      }
-
-      if (utilisateur.password2 !== password2) {
-        return res.status(401).json({ error: "Mot de passe incorrect" });
-      }
-
-      // 4. Récupérer les lignes de vente
-      const stmtLignes = db.prepare(`
-        SELECT numero_item, quantite, prixt
-        FROM attache 
-        WHERE numero_comande = ?
-      `);
-      stmtLignes.bind([numero_comande]);
-
-      let ligne;
-      const lignes = [];
-      while (stmtLignes.step()) {
-        ligne = stmtLignes.getAsObject();
-        lignes.push(ligne);
-      }
-      stmtLignes.free();
-
-      if (lignes.length === 0) {
-        return res.status(404).json({ error: "Aucune ligne de vente trouvée" });
-      }
-
-      // 5. Restaurer le stock
-      for (const ligne of lignes) {
-        const stmtItem = db.prepare("SELECT qte FROM item WHERE numero_item = ?");
-        stmtItem.bind([ligne.numero_item]);
-        const item = stmtItem.step() ? stmtItem.getAsObject() : null;
-        stmtItem.free();
-
-        if (item) {
-          const nouvelleQte = parseInt(item.qte) + parseInt(ligne.quantite);
-          db.prepare("UPDATE item SET qte = ? WHERE numero_item = ?")
-            .run([nouvelleQte, ligne.numero_item])
-            .free();
-        }
-      }
-
-      // 6. Ajuster solde client si vente à terme
-      if (commande.numero_table !== 0) {
-        const totalVente = lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
-
-        const stmtClient = db.prepare("SELECT solde FROM client WHERE numero_clt = ?");
-        stmtClient.bind([commande.numero_table]);
-        const client = stmtClient.step() ? stmtClient.getAsObject() : null;
-        stmtClient.free();
-
-        if (!client) {
-          throw new Error(`Client ${commande.numero_table} non trouvé`);
-        }
-
-        const nouveauSolde = parseFloat(client.solde || 0) - totalVente;
-        db.prepare("UPDATE client SET solde = ? WHERE numero_clt = ?")
-          .run([nouveauSolde.toFixed(2), commande.numero_table])
-          .free();
-      }
-
-      // 7. Supprimer encaisse
-      db.prepare("DELETE FROM encaisse WHERE numero_comande = ?")
-        .run([numero_comande])
-        .free();
-
-      // 8. Supprimer attache
-      db.prepare("DELETE FROM attache WHERE numero_comande = ?")
-        .run([numero_comande])
-        .free();
-
-      // 9. Supprimer commande
-      db.prepare("DELETE FROM comande WHERE numero_comande = ?")
-        .run([numero_comande])
-        .free();
-
-      db.run("COMMIT");
-      saveDbToLocalStorage(db);
-
-      console.log(`Vente annulée: numero_comande=${numero_comande}, ${lignes.length} lignes`);
-      return res.status(200).json({ statut: "Vente annulée" });
-
-    } catch (error) {
-      db.run("ROLLBACK");
-      throw error;
-    }
-
+    return {
+      body: JSON.stringify({ message: "Vente annulée avec succès" }),
+      init: { status: 200, headers: { "Content-Type": "application/json" } }
+    };
   } catch (error) {
     console.error("Erreur annulerVente:", error);
-    return res.status(500).json({ error: error.message || "Erreur lors de l'annulation de la vente" });
+    return {
+      body: JSON.stringify({ erreur: error.message || "Erreur inconnue" }),
+      init: { status: 500, headers: { "Content-Type": "application/json" } }
+    };
   }
 }
-
-
-// ----------------- ANNULER RECEPTION -----------------
-export async function annulerReception(req, res) {
+export async function annulerReception(data) {
   try {
-    const data = req.body;
     console.log("Exécution de annulerReception avec data:", data);
     const db = await getDb();
 
-    // 1. Validation
-    if (!data || !data.numero_mouvement || !data.password2) {
-      return res.status(400).json({ error: "Numéro de mouvement ou mot de passe manquant" });
+    // Vérification des données obligatoires
+    if (!data || !data.numero_util || !data.password2 || !data.numero_reception) {
+      return {
+        body: JSON.stringify({ erreur: "Données invalides (utilisateur, mot de passe ou numéro de réception manquant)" }),
+        init: { status: 400, headers: { "Content-Type": "application/json" } }
+      };
     }
 
-    const numero_mouvement = parseInt(data.numero_mouvement);
-    const password2 = data.password2;
+    // Vérifie utilisateur
+    const util = db.prepare(
+      "SELECT * FROM utilisateur WHERE numero_util = ? AND password2 = ?"
+    ).get(data.numero_util, data.password2);
 
-    if (isNaN(numero_mouvement)) {
-      return res.status(400).json({ error: "Format invalide pour numero_mouvement" });
+    if (!util) {
+      return {
+        body: JSON.stringify({ erreur: "Authentification échouée" }),
+        init: { status: 401, headers: { "Content-Type": "application/json" } }
+      };
     }
 
-    if (typeof password2 !== 'string' || !password2.trim()) {
-      return res.status(400).json({ error: "Mot de passe invalide" });
+    // Vérifie que la réception existe
+    const reception = db.prepare(
+      "SELECT * FROM reception WHERE numero_reception = ?"
+    ).get(data.numero_reception);
+
+    if (!reception) {
+      return {
+        body: JSON.stringify({ erreur: "Réception introuvable" }),
+        init: { status: 404, headers: { "Content-Type": "application/json" } }
+      };
     }
 
-    db.run("BEGIN TRANSACTION");
+    // Annulation : supprime ou marque comme annulée
+    db.prepare("UPDATE reception SET statut = 'annulée' WHERE numero_reception = ?")
+      .run(data.numero_reception);
 
-    try {
-      // 2. Vérifier mouvement
-      const stmtMouvement = db.prepare(`
-        SELECT numero_four, numero_util 
-        FROM mouvement 
-        WHERE numero_mouvement = ? AND nature = 'Bon de réception'
-      `);
-      stmtMouvement.bind([numero_mouvement]);
-      const mouvement = stmtMouvement.step() ? stmtMouvement.getAsObject() : null;
-      stmtMouvement.free();
-
-      if (!mouvement) {
-        return res.status(404).json({ error: "Mouvement non trouvé" });
-      }
-
-      // 3. Vérifier mot de passe utilisateur
-      const stmtUser = db.prepare("SELECT password2 FROM utilisateur WHERE numero_util = ?");
-      stmtUser.bind([mouvement.numero_util]);
-      const utilisateur = stmtUser.step() ? stmtUser.getAsObject() : null;
-      stmtUser.free();
-
-      if (!utilisateur) {
-        return res.status(400).json({ error: "Utilisateur associé au mouvement non trouvé" });
-      }
-
-      if (utilisateur.password2 !== password2) {
-        return res.status(401).json({ error: "Mot de passe incorrect" });
-      }
-
-      // 4. Récupérer lignes réception
-      const stmtLignes = db.prepare(`
-        SELECT numero_item, qtea, nprix 
-        FROM attache2 
-        WHERE numero_mouvement = ?
-      `);
-      stmtLignes.bind([numero_mouvement]);
-
-      let ligne;
-      const lignes = [];
-      while (stmtLignes.step()) {
-        ligne = stmtLignes.getAsObject();
-        lignes.push(ligne);
-      }
-      stmtLignes.free();
-
-      if (lignes.length === 0) {
-        return res.status(404).json({ error: "Aucune ligne de réception trouvée" });
-      }
-
-      // 5. Coût total réception
-      const totalCout = lignes.reduce((sum, ligne) => {
-        return sum + (parseFloat(ligne.qtea || 0) * parseFloat(ligne.nprix || 0));
-      }, 0);
-
-      // 6. Restaurer stock
-      for (const ligne of lignes) {
-        const stmtItem = db.prepare("SELECT qte FROM item WHERE numero_item = ?");
-        stmtItem.bind([ligne.numero_item]);
-        const item = stmtItem.step() ? stmtItem.getAsObject() : null;
-        stmtItem.free();
-
-        if (item) {
-          const nouvelleQte = parseInt(item.qte) - parseInt(ligne.qtea);
-          db.prepare("UPDATE item SET qte = ? WHERE numero_item = ?")
-            .run([nouvelleQte, ligne.numero_item])
-            .free();
-        }
-      }
-
-      // 7. Mise à jour solde fournisseur
-      const stmtFournisseur = db.prepare("SELECT solde FROM fournisseur WHERE numero_fou = ?");
-      stmtFournisseur.bind([mouvement.numero_four]);
-      const fournisseur = stmtFournisseur.step() ? stmtFournisseur.getAsObject() : null;
-      stmtFournisseur.free();
-
-      if (!fournisseur) {
-        throw new Error(`Fournisseur ${mouvement.numero_four} non trouvé`);
-      }
-
-      const nouveauSolde = parseFloat(fournisseur.solde || 0) + totalCout;
-      db.prepare("UPDATE fournisseur SET solde = ? WHERE numero_fou = ?")
-        .run([nouveauSolde.toFixed(2), mouvement.numero_four])
-        .free();
-
-      // 8. Supprimer attache2
-      db.prepare("DELETE FROM attache2 WHERE numero_mouvement = ?")
-        .run([numero_mouvement])
-        .free();
-
-      // 9. Supprimer mouvement
-      db.prepare("DELETE FROM mouvement WHERE numero_mouvement = ?")
-        .run([numero_mouvement])
-        .free();
-
-      db.run("COMMIT");
-      saveDbToLocalStorage(db);
-
-      console.log(`Réception annulée: numero_mouvement=${numero_mouvement}, ${lignes.length} lignes`);
-      return res.status(200).json({ statut: "Réception annulée" });
-
-    } catch (error) {
-      db.run("ROLLBACK");
-      throw error;
-    }
-
+    return {
+      body: JSON.stringify({ message: "Réception annulée avec succès" }),
+      init: { status: 200, headers: { "Content-Type": "application/json" } }
+    };
   } catch (error) {
     console.error("Erreur annulerReception:", error);
-    return res.status(500).json({ error: error.message || "Erreur lors de l'annulation de la réception" });
+    return {
+      body: JSON.stringify({ erreur: error.message || "Erreur inconnue" }),
+      init: { status: 500, headers: { "Content-Type": "application/json" } }
+    };
   }
 }
