@@ -2242,11 +2242,22 @@ export async function articlesPlusVendus(params = {}) {
       const row = stmt.getAsObject();
       console.log("Ligne brute récupérée:", row);
       
-      // CORRECTION ICI : SQL.js retourne les colonnes en MAJUSCULES
-      const numero_item = row.NUMERO_ITEM !== null && row.NUMERO_ITEM !== undefined ? row.NUMERO_ITEM : '';
-      const designation = row.DESIGNATION !== null && row.DESIGNATION !== undefined ? row.DESIGNATION : 'N/A';
-      const quantite = row.QUANTITE !== null && row.QUANTITE !== undefined ? parseInt(row.QUANTITE) : 0;
-      const total_vente = row.TOTAL_VENTE !== null && row.TOTAL_VENTE !== undefined ? parseFloat(row.TOTAL_VENTE) : 0;
+      // CORRECTION : SQL.js retourne les noms de colonnes exacts, pas les alias
+      // Utilisez get() pour obtenir les valeurs par index ou analysez la structure
+      const rowData = stmt.get();
+      console.log("Données brutes par index:", rowData);
+      
+      // Méthode 1: Par index (plus fiable)
+      const numero_item = rowData[0] !== null ? rowData[0] : '';
+      const designation = rowData[1] !== null ? rowData[1] : 'N/A';
+      const quantite = rowData[2] !== null ? parseInt(rowData[2]) : 0;
+      const total_vente = rowData[3] !== null ? parseFloat(rowData[3]) : 0;
+
+      // Méthode alternative: Par nom de colonne (si SQL.js supporte les alias)
+      // const numero_item = row.numero_item || row.NUMERO_ITEM || '';
+      // const designation = row.designation || row.DESIGNATION || 'N/A';
+      // const quantite = parseInt(row.quantite || row.QUANTITE || 0);
+      // const total_vente = parseFloat(row.total_vente || row.TOTAL_VENTE || 0);
 
       articles.push({
         numero_item: numero_item,
@@ -2265,7 +2276,6 @@ export async function articlesPlusVendus(params = {}) {
     return { erreur: error.message, status: 500 };
   }
 }
-
 export async function profitByDate(params = {}) {
   try {
     console.log("Exécution de profitByDate avec params:", params);
