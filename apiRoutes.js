@@ -1854,7 +1854,17 @@ export async function ventesJour(params = {}) {
     const { date, numero_clt, numero_util } = params;
     let date_start, date_end;
 
+    // Validation et formatage des dates
     if (date) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return {
+          tickets: [],
+          bons: [],
+          total: "0,00",
+          status: 400,
+          erreur: "Format de date invalide. Utilisez YYYY-MM-DD"
+        };
+      }
       date_start = `${date} 00:00:00`;
       date_end = `${date} 23:59:59`;
     } else {
@@ -1862,6 +1872,8 @@ export async function ventesJour(params = {}) {
       date_start = `${today} 00:00:00`;
       date_end = `${today} 23:59:59`;
     }
+
+    console.log("Plage de dates recherchée:", date_start, "à", date_end);
 
     let query = `
       SELECT c.*, cl.nom as client_nom, u.nom as utilisateur_nom,
@@ -1888,43 +1900,71 @@ export async function ventesJour(params = {}) {
 
     query += ' ORDER BY c.numero_comande DESC';
 
+    console.log("Requête SQL:", query);
+    console.log("Paramètres:", queryParams);
+
     const stmt = db.prepare(query);
     stmt.bind(queryParams);
 
     const ventesMap = {};
     let total = 0;
+    let rowCount = 0;
 
     while (stmt.step()) {
+      rowCount++;
       const row = stmt.getAsObject();
-      const numero_comande = row.numero_comande;
+      console.log(`Ligne ${rowCount} brute:`, row);
+
+      // Gestion des colonnes en majuscules
+      const numero_comande = row.NUMERO_COMANDE || row.numero_comande;
+      if (!numero_comande) {
+        console.warn("Ligne sans numero_comande, ignorée:", row);
+        continue;
+      }
 
       if (!ventesMap[numero_comande]) {
         ventesMap[numero_comande] = {
-          numero_comande: row.numero_comande,
-          date_comande: row.date_comande,
-          nature: row.nature,
-          client_nom: row.numero_table == 0 ? 'Comptoir' : row.client_nom,
-          utilisateur_nom: row.utilisateur_nom,
+          numero_comande: numero_comande,
+          date_comande: row.DATE_COMANDE || row.date_comande || 'N/A',
+          nature: row.NATURE || row.nature || 'N/A',
+          client_nom: (row.NUMERO_TABLE || row.numero_table) == 0 ? 'Comptoir' : (row.CLIENT_NOM || row.client_nom || 'N/A'),
+          utilisateur_nom: row.UTILISATEUR_NOM || row.utilisateur_nom || 'N/A',
           lignes: []
         };
       }
 
+      // Calcul du total ligne
+      let total_ligne = 0;
+      try {
+        const prixt = toDotDecimal(row.PRIXT || row.prixt || "0");
+        const quantite = parseFloat(row.QUANTITE || row.quantite || 0);
+        total_ligne = prixt * quantite;
+      } catch (error) {
+        console.error("Erreur calcul total_ligne:", error, "pour la ligne:", row);
+        total_ligne = 0;
+      }
+
       ventesMap[numero_comande].lignes.push({
-        numero_item: row.numero_item,
-        designation: row.designation,
-        quantite: row.quantite,
-        prixt: row.prixt,
-        remarque: row.remarque
+        numero_item: row.NUMERO_ITEM || row.numero_item || 'N/A',
+        designation: row.DESIGNATION || row.designation || 'N/A',
+        quantite: row.QUANTITE || row.quantite || 0,
+        prixt: row.PRIXT || row.prixt || "0,00",
+        remarque: row.REMARQUE || row.remarque || '',
+        total_ligne: toCommaDecimal(total_ligne)
       });
 
-      total += toDotDecimal(row.prixt);
+      total += total_ligne;
     }
     stmt.free();
+
+    console.log(`Total lignes traitées: ${rowCount}`);
+    console.log(`Ventes groupées: ${Object.keys(ventesMap).length}`);
 
     const tickets = [];
     const bons = [];
 
     Object.values(ventesMap).forEach(vente => {
+      console.log(`Vente traitée:`, vente);
       if (vente.nature === 'TICKET') {
         tickets.push(vente);
       } else {
@@ -1941,10 +1981,15 @@ export async function ventesJour(params = {}) {
 
   } catch (error) {
     console.error("Erreur ventesJour:", error);
-    return { erreur: error.message, status: 500 };
+    return {
+      tickets: [],
+      bons: [],
+      total: "0,00",
+      erreur: error.message,
+      status: 500
+    };
   }
 }
-
 
 export async function validerReception(data) {
   try {
