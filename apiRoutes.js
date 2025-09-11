@@ -2097,89 +2097,75 @@ export async function getVente(numero_comande) {
   }
 }
 export async function getReception(numero_mouvement) {
-    console.log(`📥 Appel getReception pour numero_mouvement: ${numero_mouvement}`);
-    try {
-        const db = await getDb();
-        const numeroMouvementInt = parseInt(numero_mouvement, 10);
-        if (isNaN(numeroMouvementInt)) {
-            console.error('❌ Numéro de mouvement invalide:', numero_mouvement);
-            return { error: 'Numéro de mouvement invalide', status: 400 };
-        }
+  console.log(`📥 Exécution de getReception avec numero_mouvement: ${numero_mouvement}`);
+  const db = await getDb();
+  let conn = null;
+  
+  try {
+    // Récupérer les détails du mouvement
+    const stmtMouvement = db.prepare(`
+      SELECT m.numero_mouvement, m.numero_four, m.date_m, m.nature, m.numero_util,
+             f.nom AS fournisseur_nom, u.nom AS utilisateur_nom
+      FROM mouvement m
+      LEFT JOIN fournisseur f ON m.numero_four = f.numero_fou
+      LEFT JOIN utilisateur u ON m.numero_util = u.numero_util
+      WHERE m.numero_mouvement = ? AND m.nature = 'Bon de réception'
+    `);
+    stmtMouvement.bind([numero_mouvement]);
+    
+    const mouvement = stmtMouvement.step() ? stmtMouvement.getAsObject() : null;
+    stmtMouvement.free();
 
-        // Requête SQL avec alias explicites pour normaliser les clés en minuscules
-        const results = await db.exec({
-            sql: `
-                SELECT 
-                    m.numero_mouvement AS numero_mouvement,
-                    m.numero_four AS numero_four,
-                    m.numero_util AS numero_util,
-                    m.date_m AS date_m,
-                    m.nature AS nature,
-                    f.nom AS fournisseur_nom,
-                    u.nom AS utilisateur_nom,
-                    a.numero_item AS numero_item,
-                    i.designation AS designation,
-                    a.qtea AS qtea,
-                    a.nprix AS nprix,
-                    a.nqte AS nqte,
-                    a.pump AS pump
-                FROM mouvement m
-                LEFT JOIN fournisseur f ON m.numero_four = f.numero_fou
-                LEFT JOIN utilisateur u ON m.numero_util = u.numero_util
-                LEFT JOIN attache2 a ON m.numero_mouvement = a.numero_mouvement
-                LEFT JOIN item i ON a.numero_item = i.numero_item
-                WHERE m.numero_mouvement = ?
-            `,
-            bind: [numeroMouvementInt]
-        });
-
-        if (!results[0]?.values?.length) {
-            console.warn(`⚠️ Aucun mouvement trouvé pour numero_mouvement: ${numeroMouvementInt}`);
-            return {
-                numero_mouvement: numeroMouvementInt,
-                numero_four: 0,
-                date_m: new Date().toISOString(),
-                nature: 'Bon de réception',
-                fournisseur_nom: 'N/A',
-                utilisateur_nom: 'N/A',
-                lignes: [],
-                status: 200
-            };
-        }
-
-        // Grouper les lignes par mouvement
-        const mouvement = results[0].values[0];
-        const lignes = results[0].values
-            .filter(row => row[7] !== null) // Vérifier que numero_item n'est pas null
-            .map(row => ({
-                numero_item: parseInt(row[7]) || 0, // numero_item
-                designation: row[8] || 'N/A', // designation
-                qtea: parseFloat(row[9]) || 0, // qtea
-                nprix: row[10] ? row[10].toString() : '0.00', // nprix
-                nqte: parseFloat(row[11]) || 0, // nqte
-                pump: row[12] ? row[12].toString() : '0.00' // pump
-            }));
-
-        const response = {
-            numero_mouvement: parseInt(mouvement[0]) || 0, // numero_mouvement
-            numero_four: parseInt(mouvement[1]) || 0, // numero_four
-            date_m: mouvement[3] || new Date().toISOString(), // date_m
-            nature: mouvement[4] || 'Bon de réception', // nature
-            fournisseur_nom: mouvement[5] || 'N/A', // fournisseur_nom
-            utilisateur_nom: mouvement[6] || 'N/A', // utilisateur_nom
-            lignes,
-            status: 200
-        };
-
-        console.log(`✅ Réponse getReception:`, response);
-        return response;
-    } catch (error) {
-        console.error('❌ Erreur dans getReception:', error);
-        return {
-            error: error.message || 'Erreur serveur lors de la récupération de la réception',
-            status: 500
-        };
+    if (!mouvement) {
+      console.error(`❌ Mouvement ${numero_mouvement} non trouvé`);
+      return { error: "Mouvement non trouvé", status: 404 };
     }
+    console.log("✅ Mouvement trouvé:", mouvement);
+
+    // Récupérer les lignes du mouvement
+    const stmtLignes = db.prepare(`
+      SELECT a2.numero_item, a2.qtea, a2.nprix, a2.nqte, a2.pump, i.designation
+      FROM attache2 a2
+      JOIN item i ON a2.numero_item = i.numero_item
+      WHERE a2.numero_mouvement = ?
+    `);
+    stmtLignes.bind([numero_mouvement]);
+    
+    const lignes = [];
+    while (stmtLignes.step()) {
+      const ligne = stmtLignes.getAsObject();
+      lignes.push({
+        numero_item: ligne.numero_item || ligne.NUMERO_ITEM,
+        designation: ligne.designation || ligne.DESIGNATION || "N/A",
+        qtea: parseFloat(ligne.qtea || ligne.QTEA || 0),
+        nprix: parseFloat(ligne.nprix || ligne.NPRIX || 0).toFixed(2),
+        nqte: parseFloat(ligne.nqte || ligne.NQTE || 0),
+        pump: parseFloat(ligne.pump || ligne.PUMP || 0).toFixed(2)
+      });
+    }
+    stmtLignes.free();
+    console.log("📋 Lignes de réception:", lignes);
+
+    // Formater la réponse comme l'endpoint Flask
+    const response = {
+      numero_mouvement: mouvement.numero_mouvement || mouvement.NUMERO_MOUVEMENT,
+      numero_four: mouvement.numero_four || mouvement.NUMERO_FOUR || 0,
+      date_m: (mouvement.date_m || mouvement.DATE_M || new Date()).toISOString(),
+      nature: mouvement.nature || mouvement.NATURE || "",
+      fournisseur_nom: mouvement.fournisseur_nom || mouvement.FOURNISSEUR_NOM || "N/A",
+      utilisateur_nom: mouvement.utilisateur_nom || mouvement.UTILISATEUR_NOM || "N/A",
+      lignes: lignes
+    };
+
+    console.log(`✅ Réception récupérée: numero_mouvement=${numero_mouvement}`);
+    return response;
+
+  } catch (err) {
+    console.error("❌ Erreur récupération réception:", err);
+    return { error: err.message || "Erreur inconnue", status: 500 };
+  } finally {
+    await saveDbToLocalStorage(db);
+  }
 }
 export async function ventesJour(params = {}) {
   try {
