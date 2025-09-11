@@ -7,179 +7,253 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    .toast-in { animation: toastIn 0.5s both; }
+    .toast-out { animation: toastOut 0.5s both; }
+    @keyframes toastIn { from { opacity:0; transform:translateY(40px);} to { opacity:1; transform:translateY(0);} }
+    @keyframes toastOut { from { opacity:1; transform:translateY(0);} to { opacity:0; transform:translateY(40px);} }
+  </style>
 </head>
-<body class="bg-gray-100 p-4">
+<body class="bg-gray-100 min-h-screen">
+  <!-- Navbar -->
+  <nav class="bg-indigo-600 text-white p-4 shadow-md">
+    <div class="container mx-auto flex justify-between items-center">
+      <h1 class="text-2xl font-bold">
+        <i class="fas fa-database mr-2"></i>Gestion Base de Données
+      </h1>
+      <button onclick="goHome()" class="bg-white text-indigo-600 px-4 py-2 rounded-md hover:bg-gray-200">
+        <i class="fas fa-home mr-2"></i>Accueil
+      </button>
+    </div>
+  </nav>
 
-  <h1 class="text-2xl font-bold mb-4">Gestion Base de Données - FirePoz</h1>
+  <div class="container mx-auto px-4 py-8">
+    <!-- Gestion Base de Données -->
+    <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+      <h2 class="text-xl font-semibold mb-4">
+        <i class="fas fa-database mr-2 text-indigo-500"></i>Outils Base de Données
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Télécharger -->
+        <button onclick="downloadDatabase()" class="w-full bg-green-600 text-white px-4 py-3 rounded-md hover:bg-green-700 transition">
+          <i class="fas fa-file-download mr-2"></i>Télécharger gestion.db
+        </button>
+        <!-- Réinitialiser -->
+        <button onclick="resetDatabase()" class="w-full bg-red-600 text-white px-4 py-3 rounded-md hover:bg-red-700 transition">
+          <i class="fas fa-trash mr-2"></i>Réinitialiser la Base
+        </button>
+        <!-- Charger depuis Fichier -->
+        <label class="w-full bg-blue-600 text-white px-4 py-3 rounded-md hover:bg-blue-700 transition text-center cursor-pointer">
+          <i class="fas fa-upload mr-2"></i>Charger depuis fichier
+          <input type="file" id="uploadDb" accept=".db,.sqlite,.sqlite3" class="hidden" onchange="uploadDatabase(event)">
+        </label>
+        <!-- Nouvelle base -->
+        <button onclick="createNewDatabase()" class="w-full bg-indigo-600 text-white px-4 py-3 rounded-md hover:bg-indigo-700 transition">
+          <i class="fas fa-plus-circle mr-2"></i>Nouvelle Base (vierge)
+        </button>
+      </div>
+      <div class="mt-4 text-sm text-gray-600">
+        <p><i class="fas fa-info-circle mr-2"></i>La base de production est stockée dans le navigateur</p>
+        <p id="dbSize" class="mt-2">Taille: Calcul en cours...</p>
+      </div>
+    </div>
 
-  <!-- Boutons principaux -->
-  <div class="flex gap-2 mb-6">
-    <button id="homeBtn" class="px-4 py-2 bg-blue-500 text-white rounded shadow hover:bg-blue-600">
-      <i class="fa fa-home"></i> Accueil
-    </button>
-    <button id="downloadBtn" class="px-4 py-2 bg-green-500 text-white rounded shadow hover:bg-green-600">
-      <i class="fa fa-download"></i> Télécharger
-    </button>
-    <button id="resetBtn" class="px-4 py-2 bg-red-500 text-white rounded shadow hover:bg-red-600">
-      <i class="fa fa-rotate-left"></i> Réinitialiser
-    </button>
-    <button id="newBaseBtn" class="px-4 py-2 bg-purple-500 text-white rounded shadow hover:bg-purple-600">
-      <i class="fa fa-plus"></i> Nouvelle Base
-    </button>
-    <label class="px-4 py-2 bg-yellow-500 text-white rounded shadow hover:bg-yellow-600 cursor-pointer">
-      <i class="fa fa-folder-open"></i> Charger depuis fichier
-      <input type="file" id="dbFileInput" accept=".db,.sqlite,.sqlite3" class="hidden" />
-    </label>
+    <!-- Liste des bases sauvegardées -->
+    <div class="bg-white rounded-lg shadow-md p-6">
+      <h2 class="text-xl font-semibold mb-4">
+        <i class="fas fa-archive mr-2 text-indigo-500"></i>Bases Sauvegardées
+      </h2>
+      <ul id="dbList" class="space-y-3"></ul>
+    </div>
   </div>
 
-  <!-- Liste des bases sauvegardées -->
-  <h2 class="text-xl font-semibold mb-2">Bases sauvegardées</h2>
-  <ul id="savedBasesList" class="space-y-2"></ul>
-
-  <!-- Zone Toast -->
-  <div id="toast" class="hidden fixed bottom-4 right-4 px-4 py-2 bg-gray-800 text-white rounded shadow-lg"></div>
+  <!-- Toast -->
+  <div id="toast" class="fixed bottom-4 right-4 hidden">
+    <div class="flex items-center px-6 py-3 rounded-md shadow-lg">
+      <i id="toastIcon" class="mr-2"></i>
+      <span id="toastMessage"></span>
+    </div>
+  </div>
 
   <script>
-    let db = null;
-    let savedBases = JSON.parse(localStorage.getItem("gestion_db_list") || "[]");
-
-    // ========== Toast ==========
-    function showToast(msg, type="info") {
-      const toast = document.getElementById("toast");
-      toast.textContent = msg;
-      toast.className = "fixed bottom-4 right-4 px-4 py-2 rounded shadow-lg text-white";
-      toast.classList.add(type === "error" ? "bg-red-600" :
-                          type === "success" ? "bg-green-600" : "bg-gray-800");
-      toast.classList.remove("hidden");
-      setTimeout(() => toast.classList.add("hidden"), 2500);
+    // ===== Utils =====
+    function showToast(message, isError = false) {
+      const toast = document.getElementById('toast');
+      const toastMessage = document.getElementById('toastMessage');
+      const toastIcon = document.getElementById('toastIcon');
+      toast.className = isError
+        ? 'fixed bottom-4 right-4 flex items-center bg-red-500 text-white px-6 py-3 rounded-md shadow-lg toast-in'
+        : 'fixed bottom-4 right-4 flex items-center bg-green-500 text-white px-6 py-3 rounded-md shadow-lg toast-in';
+      toastIcon.className = isError ? 'fas fa-exclamation-circle mr-2' : 'fas fa-check-circle mr-2';
+      toastMessage.textContent = message;
+      toast.classList.remove('hidden');
+      setTimeout(() => {
+        toast.classList.remove('toast-in');
+        toast.classList.add('toast-out');
+        setTimeout(() => toast.classList.add('hidden'), 500);
+      }, 3000);
     }
 
-    // ========== Initialisation ==========
-    async function initDb() {
-      const SQL = await initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${f}` });
-      let u8;
-      if (localStorage.getItem("gestion_db")) {
-        u8 = Uint8Array.from(atob(localStorage.getItem("gestion_db")), c => c.charCodeAt(0));
-      } else {
-        const resp = await fetch("gestion.db");
-        u8 = new Uint8Array(await resp.arrayBuffer());
-        saveDbToStorage(u8, "gestion_db");
-      }
-      db = new SQL.Database(u8);
-      renderSavedBases();
+    function isDbFile(name) { return /\.(db|sqlite|sqlite3)$/i.test(name); }
+    function goHome() { window.location.href = "index.html"; }
+
+    function getDbList() {
+      return JSON.parse(localStorage.getItem("gestion_db_list") || "[]");
+    }
+    function saveDbList(list) {
+      localStorage.setItem("gestion_db_list", JSON.stringify(list));
+    }
+    function getActiveIndex() {
+      return parseInt(localStorage.getItem("gestion_db_active") || "-1");
+    }
+    function setActiveIndex(idx) {
+      localStorage.setItem("gestion_db_active", idx);
     }
 
-    function saveDbToStorage(u8, key="gestion_db") {
-      const base64 = btoa(String.fromCharCode(...u8));
-      localStorage.setItem(key, base64);
-    }
-
-    function exportDb() {
-      return db.export();
-    }
-
-    // ========== Boutons ==========
-    document.getElementById("downloadBtn").addEventListener("click", () => {
-      const blob = new Blob([exportDb()], { type: "application/x-sqlite3" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
+    // ===== Télécharger =====
+    async function downloadDatabase() {
+      const dbData = localStorage.getItem('gestion_db');
+      if (!dbData) return showToast("Aucune base trouvée", true);
+      const binaryString = atob(dbData);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+      const blob = new Blob([bytes], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
       a.download = "gestion.db";
-      a.click();
-      showToast("Base téléchargée", "success");
-    });
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast("Base téléchargée");
+    }
 
-    document.getElementById("resetBtn").addEventListener("click", async () => {
-      const resp = await fetch("gestion.db");
-      const u8 = new Uint8Array(await resp.arrayBuffer());
-      saveDbToStorage(u8, "gestion_db");
-      db = new (await initSqlJs()).Database(u8);
-      showToast("Base de production réinitialisée", "success");
-      renderSavedBases();
-    });
+    // ===== Réinitialiser =====
+    async function resetDatabase() {
+      if (!confirm("Réinitialiser la base de production ?")) return;
+      const response = await fetch("gestion.db");
+      const buffer = await response.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = "";
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+      localStorage.setItem("gestion_db", btoa(binary));
+      showToast("Base de production réinitialisée");
+      updateDBSize();
+    }
 
-    document.getElementById("newBaseBtn").addEventListener("click", async () => {
-      const resp = await fetch("gestion.db");
-      const u8 = new Uint8Array(await resp.arrayBuffer());
-      const base64 = btoa(String.fromCharCode(...u8));
-      const newName = "NouvelleBase_" + (savedBases.length + 1);
-      savedBases.push({ name: newName, data: base64 });
-      localStorage.setItem("gestion_db_list", JSON.stringify(savedBases));
-      showToast("Nouvelle base ajoutée", "success");
-      renderSavedBases();
-    });
-
-    document.getElementById("dbFileInput").addEventListener("change", async e => {
-      const file = e.target.files[0];
+    // ===== Importer un fichier =====
+    function uploadDatabase(event) {
+      const file = event.target.files[0];
       if (!file) return;
-      const u8 = new Uint8Array(await file.arrayBuffer());
-      const base64 = btoa(String.fromCharCode(...u8));
-      savedBases.push({ name: file.name, data: base64 });
-      localStorage.setItem("gestion_db_list", JSON.stringify(savedBases));
-      showToast("Base importée", "success");
-      renderSavedBases();
-    });
+      if (!isDbFile(file.name)) { showToast("Format non valide", true); return; }
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const bytes = new Uint8Array(e.target.result);
+        let binary = ""; for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        const base64 = btoa(binary);
+        localStorage.setItem("gestion_db", base64);
+        let list = getDbList();
+        list.push({id: Date.now(), name:file.name, data:base64});
+        saveDbList(list);
+        setActiveIndex(list.length - 1);
+        showToast("Nouvelle base importée");
+        renderDbList();
+        updateDBSize();
+      };
+      reader.readAsArrayBuffer(file);
+    }
 
-    // ========== Gestion des bases sauvegardées ==========
-    function renderSavedBases() {
-      const list = document.getElementById("savedBasesList");
-      list.innerHTML = "";
-      const current = localStorage.getItem("gestion_db");
-      savedBases.forEach((b, i) => {
+    // ===== Nouvelle base (vierge) =====
+    async function createNewDatabase() {
+      const response = await fetch("gestion.db");
+      const buffer = await response.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = ""; for (let i=0;i<bytes.length;i++) binary += String.fromCharCode(bytes[i]);
+      const base64 = btoa(binary);
+      let list = getDbList();
+      list.push({id: Date.now(), name:`NouvelleBase_${list.length+1}`, data:base64});
+      saveDbList(list);
+      showToast("Nouvelle base vierge ajoutée");
+      renderDbList();
+    }
+
+    // ===== Sauvegarder la base courante avant switch =====
+    function saveCurrentBeforeSwitch() {
+      const idx = getActiveIndex();
+      if (idx >= 0) {
+        let list = getDbList();
+        if (list[idx]) {
+          list[idx].data = localStorage.getItem("gestion_db") || "";
+          saveDbList(list);
+        }
+      }
+    }
+
+    // ===== Sélectionner une base =====
+    function selectDatabase(idx) {
+      saveCurrentBeforeSwitch();
+      let list = getDbList();
+      if (list[idx]) {
+        localStorage.setItem("gestion_db", list[idx].data);
+        setActiveIndex(idx);
+        showToast(`"${list[idx].name}" est maintenant la base de production`);
+        updateDBSize();
+        renderDbList();
+      }
+    }
+
+    // ===== Renommer =====
+    function renameDatabase(idx) {
+      let list = getDbList();
+      const newName = prompt("Nouveau nom:", list[idx].name);
+      if (newName) { list[idx].name = newName; saveDbList(list); renderDbList(); }
+    }
+
+    // ===== Supprimer =====
+    function deleteDatabase(idx) {
+      if (!confirm("Supprimer cette base sauvegardée ?")) return;
+      let list = getDbList();
+      list.splice(idx,1);
+      saveDbList(list);
+      if (idx === getActiveIndex()) { localStorage.removeItem("gestion_db"); setActiveIndex(-1); }
+      renderDbList();
+    }
+
+    // ===== Affichage =====
+    function renderDbList() {
+      const list = getDbList();
+      const active = getActiveIndex();
+      const ul = document.getElementById("dbList");
+      ul.innerHTML = "";
+      list.forEach((db, idx) => {
         const li = document.createElement("li");
-        li.className = "flex items-center gap-2 bg-white p-2 rounded shadow";
-
-        const radio = document.createElement("input");
-        radio.type = "radio";
-        radio.name = "activeBase";
-        radio.checked = (b.data === current);
-        radio.addEventListener("change", async () => {
-          // Sauvegarder l'actuelle dans sa case
-          const oldIndex = savedBases.findIndex(x => x.data === current);
-          if (oldIndex >= 0) {
-            savedBases[oldIndex].data = localStorage.getItem("gestion_db");
-          }
-          // Charger la nouvelle
-          localStorage.setItem("gestion_db", b.data);
-          localStorage.setItem("gestion_db_list", JSON.stringify(savedBases));
-          showToast(`Base "${b.name}" utilisée en production`, "success");
-          renderSavedBases();
-        });
-
-        const span = document.createElement("span");
-        span.textContent = b.name;
-
-        const renameBtn = document.createElement("button");
-        renameBtn.className = "text-blue-600 hover:underline ml-auto";
-        renameBtn.textContent = "Renommer";
-        renameBtn.onclick = () => {
-          const newName = prompt("Nouveau nom :", b.name);
-          if (newName) {
-            savedBases[i].name = newName;
-            localStorage.setItem("gestion_db_list", JSON.stringify(savedBases));
-            renderSavedBases();
-          }
-        };
-
-        const delBtn = document.createElement("button");
-        delBtn.className = "text-red-600 hover:underline";
-        delBtn.textContent = "Supprimer";
-        delBtn.onclick = () => {
-          if (confirm("Supprimer cette base ?")) {
-            savedBases.splice(i, 1);
-            localStorage.setItem("gestion_db_list", JSON.stringify(savedBases));
-            renderSavedBases();
-          }
-        };
-
-        li.appendChild(radio);
-        li.appendChild(span);
-        li.appendChild(renameBtn);
-        li.appendChild(delBtn);
-        list.appendChild(li);
+        li.className="flex items-center justify-between border rounded p-3";
+        li.innerHTML = `
+          <div class="flex items-center space-x-3">
+            <input type="radio" name="activeDb" ${idx===active?"checked":""} onchange="selectDatabase(${idx})">
+            <span class="font-medium">${db.name}</span>
+          </div>
+          <div class="space-x-2">
+            <button onclick="renameDatabase(${idx})" class="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600"><i class="fas fa-edit"></i></button>
+            <button onclick="deleteDatabase(${idx})" class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"><i class="fas fa-trash"></i></button>
+          </div>
+        `;
+        ul.appendChild(li);
       });
     }
 
-    initDb();
+    // ===== Taille de la base courante =====
+    function updateDBSize() {
+      const dbData = localStorage.getItem('gestion_db');
+      if (dbData) {
+        const sizeMB = (dbData.length/1024/1024).toFixed(2);
+        document.getElementById("dbSize").textContent = `Taille: ${sizeMB} MB`;
+      } else document.getElementById("dbSize").textContent = "Taille: 0 MB";
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      updateDBSize();
+      renderDbList();
+    });
   </script>
 </body>
 </html>
