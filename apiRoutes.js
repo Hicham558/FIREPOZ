@@ -1838,7 +1838,7 @@ export async function getVente(numero_comande) {
 export async function getReception(numero_mouvement) {
     console.log(`📥 Appel getReception pour numero_mouvement: ${numero_mouvement}`);
     try {
-        const db = await getDB();
+        const db = await getDb();
         const numeroMouvementInt = parseInt(numero_mouvement, 10);
         if (isNaN(numeroMouvementInt)) {
             console.error('❌ Numéro de mouvement invalide:', numero_mouvement);
