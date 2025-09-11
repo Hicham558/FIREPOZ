@@ -2456,6 +2456,250 @@ export async function validerReception(data) {
     return { erreur: error.message, status: 500 };
   }
 }
+
+export async function modifierReception(numero_mouvement, data) {
+  try {
+    console.log("Exécution de modifierReception avec data:", { numero_mouvement, data });
+    const db = await getDb();
+
+    // 1. Validation des données
+    if (!data || !data.lignes || !data.numero_four || !data.numero_util || !data.password2) {
+      return { erreur: "Données invalides (fournisseur, utilisateur ou mot de passe manquant)", status: 400 };
+    }
+
+    const numero_four = data.numero_four;
+    const numero_util = data.numero_util;
+    const password2 = data.password2;
+    const lignes = data.lignes;
+
+    // 2. Vérification de l'utilisateur
+    const stmtUser = db.prepare("SELECT numero_util, nom, password2 FROM utilisateur WHERE numero_util = ?");
+    stmtUser.bind([numero_util]);
+    let user = null;
+    if (stmtUser.step()) {
+      user = stmtUser.getAsObject();
+    }
+    stmtUser.free();
+
+    if (!user || user.PASSWORD2 !== password2) {
+      return { erreur: "Authentification invalide", status: 401 };
+    }
+
+    // 3. Vérification du fournisseur
+    const stmtFour = db.prepare("SELECT numero_fou, solde FROM fournisseur WHERE numero_fou = ?");
+    stmtFour.bind([numero_four]);
+    let fournisseur = null;
+    if (stmtFour.step()) {
+      fournisseur = stmtFour.getAsObject();
+    }
+    stmtFour.free();
+
+    if (!fournisseur) {
+      return { erreur: "Fournisseur non trouvé", status: 400 };
+    }
+
+    // 4. Vérifier que la réception existe
+    const stmtMouv = db.prepare("SELECT numero_mouvement, numero_four FROM mouvement WHERE numero_mouvement = ?");
+    stmtMouv.bind([numero_mouvement]);
+    let mouvement = null;
+    if (stmtMouv.step()) {
+      mouvement = stmtMouv.getAsObject();
+    }
+    stmtMouv.free();
+
+    if (!mouvement) {
+      return { erreur: "Réception non trouvée", status: 404 };
+    }
+
+    db.run("BEGIN TRANSACTION");
+
+    try {
+      // 5. Récupérer les lignes précédentes de la réception
+      const stmtOldLines = db.prepare(`
+        SELECT numero_item, qtea, nprix 
+        FROM attache2 
+        WHERE numero_mouvement = ?
+      `);
+      stmtOldLines.bind([numero_mouvement]);
+      
+      const old_lines = [];
+      while (stmtOldLines.step()) {
+        const line = stmtOldLines.getAsObject();
+        old_lines.push({
+          numero_item: line.numero_item,
+          qtea: parseFloat(line.qtea || 0),
+          nprix: parseFloat(toDotDecimal(line.nprix || "0"))
+        });
+      }
+      stmtOldLines.free();
+
+      const old_lines_dict = {};
+      let old_total_cost = 0;
+      for (const line of old_lines) {
+        old_lines_dict[line.numero_item] = line;
+        old_total_cost += line.qtea * line.nprix;
+      }
+      console.log(`Coût total réception précédente: ${old_total_cost}`);
+
+      // 6. Calculer le solde restauré
+      const current_solde = parseFloat(toDotDecimal(fournisseur.solde || "0"));
+      const restored_solde = current_solde + old_total_cost;
+      console.log(`Solde restauré: ${restored_solde}`);
+
+      // 7. Récupérer les articles concernés
+      const item_ids = [...new Set([...lignes.map(l => l.numero_item), ...Object.keys(old_lines_dict).map(Number)])];
+      const items = {};
+      
+      if (item_ids.length > 0) {
+        const placeholders = item_ids.map(() => '?').join(',');
+        const stmtItems = db.prepare(`
+          SELECT numero_item, qte, prixba 
+          FROM item 
+          WHERE numero_item IN (${placeholders})
+        `);
+        stmtItems.bind(item_ids);
+        
+        while (stmtItems.step()) {
+          const item = stmtItems.getAsObject();
+          items[item.numero_item] = {
+            qte: parseFloat(item.qte || 0),
+            prixba: parseFloat(toDotDecimal(item.prixba || "0"))
+          };
+        }
+        stmtItems.free();
+      }
+
+      // 8. Calculer le nouveau coût total et préparer les mises à jour
+      let new_total_cost = 0;
+      const stock_updates = {};
+
+      for (const ligne of lignes) {
+        const numero_item = ligne.numero_item;
+        const new_qtea = parseFloat(toDotDecimal(ligne.qtea || "0"));
+        const prixbh = parseFloat(toDotDecimal(ligne.prixbh || "0"));
+
+        if (new_qtea < 0) throw new Error("La quantité ajoutée ne peut pas être négative");
+        if (prixbh < 0) throw new Error("Le prix d'achat ne peut pas être négatif");
+
+        const item = items[numero_item];
+        if (!item) throw new Error(`Article ${numero_item} non trouvé`);
+
+        const current_qte = item.qte;
+        const old_qtea = old_lines_dict[numero_item] ? old_lines_dict[numero_item].qtea : 0;
+
+        new_total_cost += new_qtea * prixbh;
+
+        stock_updates[numero_item] = {
+          old_qtea: old_qtea,
+          new_qtea: new_qtea,
+          prixbh: prixbh,
+          current_qte: current_qte,
+          current_prixba: item.prixba
+        };
+      }
+
+      // 9. Traiter les articles supprimés
+      for (const numero_item in old_lines_dict) {
+        if (!stock_updates[numero_item]) {
+          const item = items[numero_item];
+          if (item) {
+            stock_updates[numero_item] = {
+              old_qtea: old_lines_dict[numero_item].qtea,
+              new_qtea: 0,
+              prixbh: 0,
+              current_qte: item.qte,
+              current_prixba: item.prixba
+            };
+          }
+        }
+      }
+
+      // 10. Mettre à jour le solde du fournisseur
+      const new_solde = restored_solde - new_total_cost;
+      const new_solde_str = toCommaDecimal(new_solde);
+      
+      const stmtUpdateFour = db.prepare("UPDATE fournisseur SET solde = ? WHERE numero_fou = ?");
+      stmtUpdateFour.run([new_solde_str, numero_four]);
+      stmtUpdateFour.free();
+      console.log(`Solde fournisseur mis à jour: numero_fou=${numero_four}, new_total_cost=${new_total_cost}, new_solde=${new_solde_str}`);
+
+      // 11. Supprimer les anciennes lignes
+      const stmtDeleteLines = db.prepare("DELETE FROM attache2 WHERE numero_mouvement = ?");
+      stmtDeleteLines.run([numero_mouvement]);
+      stmtDeleteLines.free();
+
+      // 12. Insérer les nouvelles lignes et mettre à jour le stock
+      for (const numero_item in stock_updates) {
+        const update = stock_updates[numero_item];
+        const old_qtea = update.old_qtea;
+        const new_qtea = update.new_qtea;
+        const prixbh = update.prixbh;
+        const current_qte = update.current_qte;
+        const current_prixba = update.current_prixba;
+
+        // Restaurer le stock initial et appliquer la nouvelle quantité
+        const restored_qte = current_qte - old_qtea;
+        const new_qte = restored_qte + new_qtea;
+
+        if (new_qte < 0) {
+          throw new Error(`Stock négatif pour l'article ${numero_item}: ${new_qte}`);
+        }
+
+        // Insérer dans attache2 si nouvelle quantité > 0
+        if (new_qtea > 0) {
+          const prixbh_str = toCommaDecimal(prixbh);
+          const stmtAtt = db.prepare(`
+            INSERT INTO attache2 (numero_item, numero_mouvement, qtea, nqte, nprix, pump, send)
+            VALUES (?, ?, ?, ?, ?, ?, 1)
+          `);
+          stmtAtt.run([numero_item, numero_mouvement, new_qtea, new_qte, prixbh_str, prixbh_str]);
+          stmtAtt.free();
+        }
+
+        // Mettre à jour le stock et le prix d'achat
+        const new_prixba = new_qtea > 0 ? toCommaDecimal(prixbh) : toCommaDecimal(current_prixba);
+        const stmtUpdateItem = db.prepare("UPDATE item SET qte = ?, prixba = ? WHERE numero_item = ?");
+        stmtUpdateItem.run([new_qte, new_prixba, numero_item]);
+        stmtUpdateItem.free();
+        
+        console.log(`Stock mis à jour: numero_item=${numero_item}, old_qtea=${old_qtea}, new_qtea=${new_qtea}, new_qte=${new_qte}`);
+      }
+
+      // 13. Mettre à jour le mouvement
+      const currentDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
+      const stmtUpdateMouv = db.prepare(`
+        UPDATE mouvement 
+        SET numero_four = ?, numero_util = ?, date_m = ?
+        WHERE numero_mouvement = ?
+      `);
+      stmtUpdateMouv.run([numero_four, numero_util, currentDate, numero_mouvement]);
+      stmtUpdateMouv.free();
+
+      db.run("COMMIT");
+      await saveDbToLocalStorage(db);
+
+      return {
+        success: true,
+        numero_mouvement: numero_mouvement,
+        total_cost: toCommaDecimal(new_total_cost),
+        new_solde: new_solde_str,
+        status: 200
+      };
+
+    } catch (err) {
+      db.run("ROLLBACK");
+      console.error("Erreur modifierReception transaction:", err);
+      throw err;
+    }
+
+  } catch (error) {
+    console.error("Erreur modifierReception:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+
+
 export async function receptionsJour(params = {}) {
   try {
     console.log("Exécution de receptionsJour avec params:", params);
