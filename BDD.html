@@ -44,7 +44,12 @@
                 <!-- Charger depuis Fichier -->
                 <label class="w-full bg-blue-600 text-white px-4 py-3 rounded-md hover:bg-blue-700 transition text-center cursor-pointer">
                     <i class="fas fa-upload mr-2"></i>Charger depuis fichier
-                    <input type="file" id="uploadDb" accept=".db" class="hidden" onchange="uploadDatabase(event)">
+                    <input 
+                        type="file" 
+                        id="uploadDb" 
+                        accept=".db,.sqlite,.sqlite3" 
+                        class="hidden" 
+                        onchange="uploadDatabase(event)">
                 </label>
             </div>
             <div class="mt-4 text-sm text-gray-600">
@@ -63,7 +68,7 @@
     </div>
 
     <script>
-        // Notification
+        // ===== Notification =====
         function showToast(message, isError = false) {
             const toast = document.getElementById('toast');
             const toastMessage = document.getElementById('toastMessage');
@@ -84,12 +89,17 @@
             }, 3000);
         }
 
-        // Accueil
+        // ===== Vérification extension =====
+        function isDbFile(name) {
+            return /\.(db|sqlite|sqlite3)$/i.test(name);
+        }
+
+        // ===== Accueil =====
         function goHome() {
             window.location.href = "index.html";
         }
 
-        // Télécharger la base
+        // ===== Télécharger la base =====
         async function downloadDatabase() {
             try {
                 const dbData = localStorage.getItem('gestion_db');
@@ -97,6 +107,14 @@
                     showToast('Aucune base trouvée', true);
                     return;
                 }
+
+                // Vérification de l'extension du nom par défaut
+                let filename = "gestion.db";
+                if (!isDbFile(filename)) {
+                    showToast("Le fichier généré n'a pas une extension valide", true);
+                    return;
+                }
+
                 const binaryString = atob(dbData);
                 const bytes = new Uint8Array(binaryString.length);
                 for (let i = 0; i < binaryString.length; i++) {
@@ -106,7 +124,7 @@
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'gestion.db';
+                a.download = filename;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -117,7 +135,7 @@
             }
         }
 
-        // Réinitialiser (télécharger puis effacer)
+        // ===== Réinitialiser =====
         async function resetDatabase() {
             const dbData = localStorage.getItem('gestion_db');
             if (!dbData) {
@@ -131,10 +149,18 @@
             setTimeout(() => location.reload(), 1000);
         }
 
-        // Charger une base depuis fichier
+        // ===== Charger depuis fichier =====
         function uploadDatabase(event) {
             const file = event.target.files[0];
             if (!file) return;
+
+            // Vérification extension
+            if (!isDbFile(file.name)) {
+                showToast("Fichier non valide. Seuls .db, .sqlite ou .sqlite3 sont acceptés.", true);
+                event.target.value = ""; // reset input
+                return;
+            }
+
             const reader = new FileReader();
             reader.onload = function(e) {
                 const bytes = new Uint8Array(e.target.result);
@@ -151,7 +177,7 @@
             reader.readAsArrayBuffer(file);
         }
 
-        // Taille de la base
+        // ===== Taille de la base =====
         function updateDBSize() {
             const dbData = localStorage.getItem('gestion_db');
             if (dbData) {
