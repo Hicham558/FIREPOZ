@@ -1778,9 +1778,9 @@ export async function getReception(numero_mouvement) {
         numero_item: ligne.numero_item || ligne.NUMERO_ITEM,
         designation: ligne.designation || ligne.DESIGNATION || "N/A",
         qtea: parseFloat(ligne.qtea || ligne.QTEA || 0),
-        nprix: parseFloat(ligne.nprix || ligne.NPRIX || 0).toFixed(2), // Convertir en chaîne avec point décimal
+        nprix: parseFloat(ligne.nprix || ligne.NPRIX || 0).toFixed(2), // Chaîne avec point décimal
         nqte: parseFloat(ligne.nqte || ligne.NQTE || 0),
-        pump: parseFloat(ligne.pump || ligne.PUMP || 0).toFixed(2) // Convertir en chaîne avec point décimal
+        pump: parseFloat(ligne.pump || ligne.PUMP || 0).toFixed(2) // Chaîne avec point décimal
       });
     }
     stmtLignes.free();
@@ -1797,7 +1797,7 @@ export async function getReception(numero_mouvement) {
     };
 
     console.log(`✅ Réception récupérée: numero_mouvement=${numero_mouvement}`);
-    return response; // Retourner directement l'objet, sans { data: ..., status: ... }
+    return { data: response, status: 200 };
   } catch (err) {
     console.error("❌ Erreur récupération réception:", err);
     return { error: err.message || "Erreur inconnue", status: 500 };
