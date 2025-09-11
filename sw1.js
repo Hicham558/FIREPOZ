@@ -8,7 +8,7 @@ import {
   clientSolde, validerVente, modifierVente, getVente, ventesJour, 
   annulerVente, validerReception, rechercherProduitCodebar,
   receptionsJour, articlesPlusVendus, profitByDate, stockValue, annulerReception,
-  getReception
+  getReception,listeCodebarLies,ajouterCodebarLie,supprimerCodebarLie
 } from './apiRoutes.js';
 
 // Sauvegarde de la fonction fetch originale
@@ -97,6 +97,15 @@ const handlers = {
         return receptionsJour();
       }
     },
+    'liste_codebar_lies': (url) => {
+  try {
+    const urlParams = new URL(url, window.location.origin).searchParams;
+    const numero_item = urlParams.get('numero_item');
+    return listeCodebarLies({ numero_item });
+  } catch (error) {
+    return { erreur: error.message, status: 500 };
+  }
+},
     'articles_plus_vendus': (url) => {
       try {
         const urlParams = new URL(url, window.location.origin).searchParams;
@@ -213,7 +222,9 @@ const handlers = {
     'valider_vente': (body) => validerVente(body),
     'valider_reception': (body) => validerReception(body),
     'annuler_vente': (body) => annulerVente(body),
-    'annuler_reception': (body) => annulerReception(body)
+    'annuler_reception': (body) => annulerReception(body),
+    'ajouter_codebar_lie': (body) => ajouterCodebarLie(body),
+    'supprimer_codebar_lie': (body) => supprimerCodebarLie(body)
   },
   PUT: {
     'modifier_client/(\\w+)': (id, body) => modifierClient(id, body),
