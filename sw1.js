@@ -7,7 +7,6 @@ import {
   supprimerCategorie, assignerCategorie, listeProduitsParCategorie,
   clientSolde, validerVente, modifierVente, getVente, ventesJour, 
   annulerVente, validerReception, rechercherProduitCodebar,
-  // NOUVELLES FONCTIONS AJOUTÉES
   receptionsJour, articlesPlusVendus, profitByDate, stockValue, annulerReception,
   getReception
 } from './apiRoutes.js';
@@ -55,7 +54,6 @@ const handlers = {
         return ventesJour();
       }
     },
-    // NOUVEAUX ENDPOINTS AJOUTÉS
     'receptions_jour': (url) => {
       try {
         const urlParams = new URL(url, window.location.origin).searchParams;
@@ -145,23 +143,31 @@ const handlers = {
         const numero_mouvement = parseInt(params.numero_mouvement, 10);
         if (isNaN(numero_mouvement)) {
           console.error('❌ Numéro de mouvement invalide:', params.numero_mouvement);
-          return {
-            body: JSON.stringify({ erreur: 'Numéro de mouvement invalide', status: 400 }),
-            init: { status: 400, headers: { 'Content-Type': 'application/json' } }
-          };
+          return new Response(JSON.stringify({ error: 'Numéro de mouvement invalide' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' }
+          });
         }
         const result = await getReception(numero_mouvement);
         console.log(`✅ Réponse getReception:`, result);
-        return {
-          body: JSON.stringify(result),
-          init: { status: result.status || 200, headers: { 'Content-Type': 'application/json' } }
-        };
+        // Vérifier si la réponse contient un champ error
+        if (result.error) {
+          return new Response(JSON.stringify({ error: result.error }), {
+            status: result.status || 500,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        // Retourner la réponse plate comme Flask
+        return new Response(JSON.stringify(result), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
       } catch (error) {
         console.error('❌ Erreur get_reception:', error);
-        return {
-          body: JSON.stringify({ erreur: error.message || 'Erreur inconnue', status: 500 }),
-          init: { status: 500, headers: { 'Content-Type': 'application/json' } }
-        };
+        return new Response(JSON.stringify({ error: error.message || 'Erreur inconnue' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        });
       }
     }
   },
