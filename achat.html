@@ -343,57 +343,82 @@
             };
         }
 
-        async function loadReceptionData(numeroMouvement) {
-            console.log('Chargement des données de la réception:', numeroMouvement);
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour charger la réception', true);
-                redirectToAchat();
-                return;
-            }
-            if (!numeroMouvement || isNaN(parseInt(numeroMouvement))) {
-                showToast('Numéro de réception invalide', true);
-                redirectToAchat();
-                return;
-            }
-            try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000);
-                const response = await fetch(`${API_BASE_URL}/reception/${encodeURIComponent(numeroMouvement)}`, {
-                    headers: { 'X-User-ID': userId },
-                    signal: controller.signal
-                });
-                clearTimeout(timeoutId);
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Erreur ${response.status}: ${errorText || 'Réponse serveur non valide'}`);
-                }
-                const receptionData = await response.json();
-                if (!receptionData || !Array.isArray(receptionData.lignes) || receptionData.lignes.length === 0) {
-                    throw new Error('Données de réception vides ou invalides');
-                }
-                tempReceptionLines = receptionData.lignes.map(ligne => {
-                    const prixbh = parseFloat(ligne.nprix || 0);
-                    if (prixbh <= 0) {
-                        console.warn(`Prix d'achat nul pour l'article ${ligne.numero_item}`);
-                    }
-                    return {
-                        numero_item: parseInt(ligne.numero_item) || 0,
-                        designation: ligne.designation || 'N/A',
-                        qtea: parseFloat(ligne.qtea || 0).toFixed(2),
-                        prixbh: prixbh.toFixed(2)
-                    };
-                });
-                document.getElementById('receptionFournisseurId').value = receptionData.numero_four ? String(receptionData.numero_four) : '0';
-                updateTempReceptionTable();
-                showToast('Réception chargée avec succès');
-            } catch (error) {
-                console.error('Erreur chargement réception:', error);
-                showToast(`Erreur lors du chargement: ${error.message}`, true);
-                redirectToAchat();
-            }
+     async function loadReceptionData(numeroMouvement) {
+    console.log('Chargement des données de la réception:', numeroMouvement);
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour charger la réception', true);
+        document.getElementById('pageTitle').textContent = `Modifier la Réception #${numeroMouvement} (Connexion requise)`;
+        return;
+    }
+    if (!numeroMouvement || isNaN(parseInt(numeroMouvement))) {
+        showToast('Numéro de réception invalide', true);
+        document.getElementById('pageTitle').textContent = `Modifier la Réception #${numeroMouvement} (Numéro invalide)`;
+        return;
+    }
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const response = await fetch(`${API_BASE_URL}/reception/${encodeURIComponent(numeroMouvement)}`, {
+            headers: { 'X-User-ID': userId },
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            const errorMessage = errorData.error || errorData.erreur || `Erreur serveur ${response.status}`;
+            throw new Error(`Erreur ${response.status}: ${errorMessage}`);
         }
-
+        let receptionData = await response.json();
+        // Normaliser les clés pour gérer les différences de casse
+        receptionData = normalizeKeys(receptionData);
+        // Vérifier que receptionData est valide
+        if (!receptionData || typeof receptionData !== 'object') {
+            throw new Error('Données de réception invalides');
+        }
+        // Gérer le cas où lignes est vide
+        if (!Array.isArray(receptionData.lignes)) {
+            receptionData.lignes = [];
+        }
+        tempReceptionLines = receptionData.lignes.map(ligne => {
+            const normalizedLigne = normalizeKeys(ligne);
+            const prixbh = parseFloat(normalizedLigne.nprix || normalizedLigne.prixbh || 0);
+            if (prixbh <= 0) {
+                console.warn(`Prix d'achat nul pour l'article ${normalizedLigne.numero_item || normalizedLigne.NUMERO_ITEM}`);
+            }
+            return {
+                numero_item: parseInt(normalizedLigne.numero_item || normalizedLigne.NUMERO_ITEM || 0),
+                designation: normalizedLigne.designation || normalizedLigne.DESIGNATION || 'N/A',
+                qtea: parseFloat(normalizedLigne.qtea || normalizedLigne.QTEA || 0).toFixed(2),
+                prixbh: prixbh.toFixed(2)
+            };
+        });
+        const numero_four = parseInt(receptionData.numero_four || receptionData.NUMERO_FOUR || 0);
+        const fournisseurSelect = document.getElementById('receptionFournisseurId');
+        const optionExists = Array.from(fournisseurSelect.options).some(option => option.value === String(numero_four));
+        if (optionExists) {
+            fournisseurSelect.value = String(numero_four);
+        } else {
+            console.warn(`Fournisseur ${numero_four} non trouvé dans la liste`);
+            fournisseurSelect.value = '0';
+            showToast(`Fournisseur ${numero_four} non trouvé, sélectionnez un fournisseur`, true);
+        }
+        updateTempReceptionTable();
+        document.getElementById('pageTitle').textContent = `Modifier la Réception #${numeroMouvement}`;
+        document.getElementById('validateReceptionButton').innerHTML = '<i class="fas fa-check mr-2"></i>Modifier la réception';
+        document.getElementById('pendingButtonsContainer').classList.add('hidden');
+        showToast(receptionData.lignes.length > 0 ? 'Réception chargée avec succès' : 'Réception chargée (aucune ligne)');
+    } catch (error) {
+        console.error('Erreur chargement réception:', error);
+        showToast(`Erreur lors du chargement: ${error.message}`, true);
+        document.getElementById('pageTitle').textContent = `Modifier la Réception #${numeroMouvement}`;
+        document.getElementById('validateReceptionButton').innerHTML = '<i class="fas fa-check mr-2"></i>Modifier la réception';
+        document.getElementById('pendingButtonsContainer').classList.add('hidden');
+        // Ne pas rediriger, rester en mode édition
+        tempReceptionLines = [];
+        updateTempReceptionTable();
+    }
+}
         function redirectToAchat() {
             window.location.replace('achat.html');
         }
