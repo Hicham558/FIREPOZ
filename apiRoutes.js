@@ -2546,10 +2546,17 @@ export async function modifierReception(numero_mouvement, data) {
       const restored_solde = current_solde + old_total_cost;
       console.log(`Solde restauré: ${restored_solde}`);
 
-      // 7. Récupérer les articles concernés
-      const item_ids = [...new Set([...lignes.map(l => l.numero_item), ...Object.keys(old_lines_dict).map(Number)])];
+      // 7. Récupérer les articles concernés avec vérification
+      const item_ids = [...new Set([
+        ...lignes.map(l => parseInt(l.numero_item)), 
+        ...Object.keys(old_lines_dict).map(Number)
+      ])].filter(id => !isNaN(id));
+
+      console.log("IDs d'articles à vérifier:", item_ids);
+
       const items = {};
-      
+      const missing_items = [];
+
       if (item_ids.length > 0) {
         const placeholders = item_ids.map(() => '?').join(',');
         const stmtItems = db.prepare(`
@@ -2567,6 +2574,17 @@ export async function modifierReception(numero_mouvement, data) {
           };
         }
         stmtItems.free();
+
+        // Vérifier quels articles sont manquants
+        for (const id of item_ids) {
+          if (!items[id]) {
+            missing_items.push(id);
+          }
+        }
+      }
+
+      if (missing_items.length > 0) {
+        throw new Error(`Articles non trouvés: ${missing_items.join(', ')}`);
       }
 
       // 8. Calculer le nouveau coût total et préparer les mises à jour
@@ -2574,7 +2592,11 @@ export async function modifierReception(numero_mouvement, data) {
       const stock_updates = {};
 
       for (const ligne of lignes) {
-        const numero_item = ligne.numero_item;
+        const numero_item = parseInt(ligne.numero_item);
+        if (isNaN(numero_item)) {
+          throw new Error(`Numéro d'article invalide: ${ligne.numero_item}`);
+        }
+
         const new_qtea = parseFloat(toDotDecimal(ligne.qtea || "0"));
         const prixbh = parseFloat(toDotDecimal(ligne.prixbh || "0"));
 
@@ -2600,10 +2622,11 @@ export async function modifierReception(numero_mouvement, data) {
 
       // 9. Traiter les articles supprimés
       for (const numero_item in old_lines_dict) {
-        if (!stock_updates[numero_item]) {
-          const item = items[numero_item];
+        const num_item = parseInt(numero_item);
+        if (!stock_updates[num_item]) {
+          const item = items[num_item];
           if (item) {
-            stock_updates[numero_item] = {
+            stock_updates[num_item] = {
               old_qtea: old_lines_dict[numero_item].qtea,
               new_qtea: 0,
               prixbh: 0,
