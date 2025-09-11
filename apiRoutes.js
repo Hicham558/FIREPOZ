@@ -1868,24 +1868,24 @@ export async function getReception(numero_mouvement) {
     while (stmtLignes.step()) {
       const ligne = stmtLignes.getAsObject();
       lignes.push({
-        numero_item: ligne.numero_item || ligne.NUMERO_ITEM,
-        designation: ligne.designation || ligne.DESIGNATION || "N/A",
-        qtea: parseFloat(ligne.qtea || ligne.QTEA || 0),
-        nprix: parseFloat(ligne.nprix || ligne.NPRIX || 0).toFixed(2), // Chaîne avec point décimal
-        nqte: parseFloat(ligne.nqte || ligne.NQTE || 0),
-        pump: parseFloat(ligne.pump || ligne.PUMP || 0).toFixed(2) // Chaîne avec point décimal
+        numero_item: ligne.NUMERO_ITEM || ligne.numero_item,
+        designation: ligne.DESIGNATION || ligne.designation || "N/A",
+        qtea: parseFloat(ligne.QTEA || ligne.qtea || 0),
+        nprix: parseFloat(ligne.NPRIX || ligne.nprix || 0).toFixed(2),
+        nqte: parseFloat(ligne.NQTE || ligne.nqte || 0),
+        pump: parseFloat(ligne.PUMP || ligne.pump || 0).toFixed(2)
       });
     }
     stmtLignes.free();
     console.log("📋 Lignes de réception:", lignes);
 
     const response = {
-      numero_mouvement: mouvement.numero_mouvement || mouvement.NUMERO_MOUVEMENT,
-      numero_four: mouvement.numero_four || mouvement.NUMERO_FOUR || 0,
-      date_m: mouvement.date_m || mouvement.DATE_M || new Date().toISOString(),
-      nature: mouvement.nature || mouvement.NATURE || "Bon de réception",
-      fournisseur_nom: mouvement.fournisseur_nom || mouvement.FOURNISSEUR_NOM || "N/A",
-      utilisateur_nom: mouvement.utilisateur_nom || mouvement.UTILISATEUR_NOM || "N/A",
+      numero_mouvement: mouvement.NUMERO_MOUVEMENT || mouvement.numero_mouvement,
+      numero_four: mouvement.NUMERO_FOUR || mouvement.numero_four || 0,
+      date_m: mouvement.DATE_M || mouvement.date_m || new Date().toISOString(),
+      nature: mouvement.NATURE || mouvement.nature || "Bon de réception",
+      fournisseur_nom: mouvement.FOURNISSEUR_NOM || mouvement.fournisseur_nom || "N/A",
+      utilisateur_nom: mouvement.UTILISATEUR_NOM || mouvement.utilisateur_nom || "N/A",
       lignes: lignes
     };
 
@@ -1898,7 +1898,6 @@ export async function getReception(numero_mouvement) {
     await saveDbToLocalStorage(db);
   }
 }
-
 export async function ventesJour(params = {}) {
   try {
     console.log("Exécution de ventesJour avec params:", params);
