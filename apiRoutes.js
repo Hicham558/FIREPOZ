@@ -260,8 +260,8 @@ export async function rechercherProduitCodebar(codebar) {
       return { erreur: "Code-barres requis", status: 400 };
     }
 
-    // Requête pour chercher le produit par code-barres
-    const stmt = db.prepare(`
+    // Première recherche directe dans la table item
+    let stmt = db.prepare(`
       SELECT numero_item, bar, designation, prix, prixba, qte
       FROM item
       WHERE bar = ?
@@ -269,35 +269,76 @@ export async function rechercherProduitCodebar(codebar) {
     stmt.bind([codebar]);
 
     let produit = null;
+    let columns = ['numero_item', 'bar', 'designation', 'prix', 'prixba', 'qte'];
+    
     if (stmt.step()) {
-      produit = stmt.getAsObject();
-      console.log("📦 Produit brut récupéré:", produit);
+      const row = stmt.get();
+      produit = {};
+      for (let i = 0; i < columns.length; i++) {
+        produit[columns[i]] = row[i];
+      }
+      console.log("📦 Produit principal trouvé:", produit);
+      
+      stmt.free();
+      return {
+        statut: 'trouvé',
+        type: 'principal',
+        produit: {
+          numero_item: produit.numero_item?.toString() || '',
+          bar: produit.bar?.toString() || '',
+          designation: produit.designation?.toString() || '',
+          prix: toCommaDecimal(toDotDecimal(produit.prix?.toString() || '0')),
+          prixba: toCommaDecimal(toDotDecimal(produit.prixba?.toString() || '0')),
+          qte: toCommaDecimal(produit.qte?.toString() || '0')
+        },
+        status: 200
+      };
     }
     stmt.free();
 
-    if (!produit) {
-      console.log("🔍 Produit non trouvé pour codebar:", codebar);
-      return { statut: "non trouvé", status: 404 };
+    // Deuxième recherche dans la table codebar pour les codes liés
+    stmt = db.prepare(`
+      SELECT i.numero_item, i.bar, i.designation, i.prix, i.prixba, i.qte
+      FROM codebar c
+      JOIN item i ON CAST(c.bar AS VARCHAR(50)) = CAST(i.numero_item AS VARCHAR(50))
+      WHERE c.bar2 = ?
+    `);
+    stmt.bind([codebar]);
+
+    if (stmt.step()) {
+      const row = stmt.get();
+      produit = {};
+      for (let i = 0; i < columns.length; i++) {
+        produit[columns[i]] = row[i];
+      }
+      console.log("📦 Produit lié trouvé:", produit);
+      
+      stmt.free();
+      return {
+        statut: 'trouvé',
+        type: 'lié',
+        produit: {
+          numero_item: produit.numero_item?.toString() || '',
+          bar: produit.bar?.toString() || '',
+          designation: produit.designation?.toString() || '',
+          prix: toCommaDecimal(toDotDecimal(produit.prix?.toString() || '0')),
+          prixba: toCommaDecimal(toDotDecimal(produit.prixba?.toString() || '0')),
+          qte: toCommaDecimal(produit.qte?.toString() || '0')
+        },
+        status: 200
+      };
     }
+    stmt.free();
 
-    // Conversion simple sans formatage complexe
-    const produitFormate = {
-      numero_item: produit.NUMERO_ITEM?.toString() || 'UNKNOWN_' + codebar,
-      bar: produit.BAR?.toString() || codebar,
-      designation: produit.DESIGNATION?.trim() || 'Produit sans nom',
-      prix: produit.PRIX?.toString() || '0,00',
-      prixba: produit.PRIXBA?.toString() || '0,00',
-      qte: parseInt(produit.QTE) || 0
-    };
-
-    console.log("📤 Produit formaté normalisé:", produitFormate);
-    return { statut: "trouvé", produit: produitFormate, status: 200 };
+    console.log("🔍 Produit non trouvé pour codebar:", codebar);
+    return { erreur: "Produit non trouvé", status: 404 };
 
   } catch (error) {
     console.error("❌ Erreur rechercherProduitCodebar:", error);
     return { erreur: error.message, status: 500 };
   }
 }
+
 export async function listeTables() {
   try {
     console.log("Exécution de listeTables...");
