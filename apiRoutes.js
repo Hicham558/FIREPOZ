@@ -1599,8 +1599,16 @@ export async function restaurerAncienneVente(numero_comande, db) {
     stmtLignes.free();
 
     for (const ligne of lignes) {
+      // Validation des valeurs
+      const quantite = ligne.quantite != null ? toDotDecimal(ligne.quantite.toString() || '0') : 0;
+      const numero_item = ligne.numero_item || 0;
+      if (numero_item === 0 || isNaN(quantite)) {
+        console.warn(`⚠️ Ligne ignorée: numero_item=${numero_item}, quantite=${quantite}`);
+        continue;
+      }
+
       const stmtUpdateStock = db.prepare('UPDATE item SET qte = qte + ? WHERE numero_item = ?');
-      stmtUpdateStock.run([toDotDecimal(ligne.quantite || '0'), ligne.numero_item]);
+      stmtUpdateStock.run([quantite, numero_item]);
       stmtUpdateStock.free();
     }
 
@@ -1617,7 +1625,7 @@ export async function restaurerAncienneVente(numero_comande, db) {
       stmtCommande.free();
 
       if (commande && commande.numero_table !== 0) {
-        const ancienSoldeRestant = toDotDecimal(encaisse.soldeR || '0,00');
+        const ancienSoldeRestant = encaisse.soldeR != null ? toDotDecimal(encaisse.soldeR || '0,00') : 0;
         const stmtUpdateClient = db.prepare('UPDATE client SET solde = solde - ? WHERE numero_clt = ?');
         stmtUpdateClient.run([ancienSoldeRestant, commande.numero_table]);
         stmtUpdateClient.free();
@@ -1766,7 +1774,6 @@ export async function modifierVente(numero_comande, data) {
     return { error: error.message || "Erreur inconnue", status: 500 };
   }
 }
-
 export async function getVente(numero_comande) {
   console.log(`📥 Exécution de getVente avec numero_comande: ${numero_comande}`);
   const db = await getDb();
