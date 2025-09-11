@@ -169,12 +169,12 @@ const handlers = {
         };
       }
     },
-    'reception/:numero_mouvement': async (params) => {
-      console.log(`📥 Interception GET /api/reception/${params.numero_mouvement}`);
+    'reception/(\\d+)': async (params) => {
+      console.log(`📥 Interception GET /api/reception/${params}`);
       try {
-        const numero_mouvement = parseInt(params.numero_mouvement, 10);
+        const numero_mouvement = parseInt(params, 10);
         if (isNaN(numero_mouvement)) {
-          console.error('❌ Numéro de mouvement invalide:', params.numero_mouvement);
+          console.error('❌ Numéro de mouvement invalide:', params);
           return new Response(JSON.stringify({ error: 'Numéro de mouvement invalide' }), {
             status: 400,
             headers: { 'Content-Type': 'application/json' }
