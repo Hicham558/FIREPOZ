@@ -1564,90 +1564,6 @@ export async function validerVente(data) {
   }
 }
 
-export async function getAncienEncaisse(numero_comande, db) {
-  console.log(`📋 Récupération de l'ancien encaisse pour numero_comande: ${numero_comande}`);
-  try {
-    const stmtEncaisse = db.prepare(`
-      SELECT apaye, reglement, tva, ht, soldeR
-      FROM encaisse
-      WHERE numero_comande = ?
-    `);
-    stmtEncaisse.bind([numero_comande]);
-    const encaisse = stmtEncaisse.step() ? stmtEncaisse.getAsObject() : null;
-    stmtEncaisse.free();
-    return encaisse;
-  } catch (error) {
-    console.error(`❌ Erreur récupération ancien encaisse: ${error}`);
-    throw error;
-  }
-}
-
-export async function restaurerAncienneVente(numero_comande, db) {
-  console.log(`🔄 Restauration de l'ancienne vente pour numero_comande: ${numero_comande}`);
-  try {
-    // 1. Restaurer le stock
-    const stmtLignes = db.prepare(`
-      SELECT numero_item, quantite
-      FROM attache
-      WHERE numero_comande = ?
-    `);
-    stmtLignes.bind([numero_comande]);
-    const lignes = [];
-    while (stmtLignes.step()) {
-      lignes.push(stmtLignes.getAsObject());
-    }
-    stmtLignes.free();
-
-    for (const ligne of lignes) {
-      // Validation des valeurs
-      const quantite = ligne.quantite != null ? toDotDecimal(ligne.quantite.toString() || '0') : 0;
-      const numero_item = ligne.numero_item || 0;
-      if (numero_item === 0 || isNaN(quantite)) {
-        console.warn(`⚠️ Ligne ignorée: numero_item=${numero_item}, quantite=${quantite}`);
-        continue;
-      }
-
-      const stmtUpdateStock = db.prepare('UPDATE item SET qte = qte + ? WHERE numero_item = ?');
-      stmtUpdateStock.run([quantite, numero_item]);
-      stmtUpdateStock.free();
-    }
-
-    // 2. Restaurer le solde client
-    const stmtEncaisse = db.prepare('SELECT soldeR, origine FROM encaisse WHERE numero_comande = ?');
-    stmtEncaisse.bind([numero_comande]);
-    const encaisse = stmtEncaisse.step() ? stmtEncaisse.getAsObject() : null;
-    stmtEncaisse.free();
-
-    if (encaisse && encaisse.origine !== 'TICKET') {
-      const stmtCommande = db.prepare('SELECT numero_table FROM comande WHERE numero_comande = ?');
-      stmtCommande.bind([numero_comande]);
-      const commande = stmtCommande.step() ? stmtCommande.getAsObject() : null;
-      stmtCommande.free();
-
-      if (commande && commande.numero_table !== 0) {
-        const ancienSoldeRestant = encaisse.soldeR != null ? toDotDecimal(encaisse.soldeR || '0,00') : 0;
-        const stmtUpdateClient = db.prepare('UPDATE client SET solde = solde - ? WHERE numero_clt = ?');
-        stmtUpdateClient.run([ancienSoldeRestant, commande.numero_table]);
-        stmtUpdateClient.free();
-      }
-    }
-
-    // 3. Supprimer les anciennes lignes et l'encaisse
-    const stmtDeleteAttache = db.prepare('DELETE FROM attache WHERE numero_comande = ?');
-    stmtDeleteAttache.run([numero_comande]);
-    stmtDeleteAttache.free();
-
-    const stmtDeleteEncaisse = db.prepare('DELETE FROM encaisse WHERE numero_comande = ?');
-    stmtDeleteEncaisse.run([numero_comande]);
-    stmtDeleteEncaisse.free();
-
-    console.log(`✅ Ancienne vente restaurée pour numero_comande: ${numero_comande}`);
-  } catch (error) {
-    console.error(`❌ Erreur restauration ancienne vente: ${error}`);
-    throw error;
-  }
-}
-
 export async function modifierVente(numero_comande, data) {
   try {
     console.log("Exécution de modifierVente:", numero_comande, data);
@@ -1677,12 +1593,66 @@ export async function modifierVente(numero_comande, data) {
     db.run('BEGIN TRANSACTION');
 
     try {
-      // 3. Sauvegarder l'ancien état avant modification
-      const ancienEncaisse = await getAncienEncaisse(numero_comande, db);
+      // 3. Récupérer l'ancien encaisse
+      const stmtEncaisse = db.prepare(`
+        SELECT apaye, reglement, tva, ht, soldeR, origine
+        FROM encaisse
+        WHERE numero_comande = ?
+      `);
+      stmtEncaisse.bind([numero_comande]);
+      const ancienEncaisse = stmtEncaisse.step() ? stmtEncaisse.getAsObject() : null;
+      stmtEncaisse.free();
       const ancienSoldeRestant = ancienEncaisse ? toDotDecimal(ancienEncaisse.soldeR || '0,00') : 0;
 
       // 4. Restaurer l'ancien état (stock et solde client)
-      await restaurerAncienneVente(numero_comande, db);
+      // Restaurer le stock
+      const stmtLignes = db.prepare(`
+        SELECT numero_item, quantite
+        FROM attache
+        WHERE numero_comande = ?
+      `);
+      stmtLignes.bind([numero_comande]);
+      const lignesAnciennes = [];
+      while (stmtLignes.step()) {
+        lignesAnciennes.push(stmtLignes.getAsObject());
+      }
+      stmtLignes.free();
+
+      for (const ligne of lignesAnciennes) {
+        const quantite = ligne.quantite != null ? toDotDecimal(ligne.quantite.toString() || '0') : 0;
+        const numero_item = ligne.numero_item || 0;
+        if (numero_item === 0 || isNaN(quantite)) {
+          console.warn(`⚠️ Ligne ignorée: numero_item=${numero_item}, quantite=${quantite}`);
+          continue;
+        }
+
+        const stmtUpdateStock = db.prepare('UPDATE item SET qte = qte + ? WHERE numero_item = ?');
+        stmtUpdateStock.run([quantite, numero_item]);
+        stmtUpdateStock.free();
+      }
+
+      // Restaurer le solde client
+      if (ancienEncaisse && ancienEncaisse.origine !== 'TICKET') {
+        const stmtCommande = db.prepare('SELECT numero_table FROM comande WHERE numero_comande = ?');
+        stmtCommande.bind([numero_comande]);
+        const commande = stmtCommande.step() ? stmtCommande.getAsObject() : null;
+        stmtCommande.free();
+
+        if (commande && commande.numero_table !== 0) {
+          const stmtUpdateClient = db.prepare('UPDATE client SET solde = solde - ? WHERE numero_clt = ?');
+          stmtUpdateClient.run([ancienSoldeRestant, commande.numero_table]);
+          stmtUpdateClient.free();
+        }
+      }
+
+      // Supprimer les anciennes lignes et l'encaisse
+      const stmtDeleteAttache = db.prepare('DELETE FROM attache WHERE numero_comande = ?');
+      stmtDeleteAttache.run([numero_comande]);
+      stmtDeleteAttache.free();
+
+      const stmtDeleteEncaisse = db.prepare('DELETE FROM encaisse WHERE numero_comande = ?');
+      stmtDeleteEncaisse.run([numero_comande]);
+      stmtDeleteEncaisse.free();
 
       // 5. Mettre à jour la commande
       const nature = numero_table === 0 ? "TICKET" : "BON DE L.";
@@ -1732,14 +1702,16 @@ export async function modifierVente(numero_comande, data) {
 
       // 8. Mettre à jour l'encaisse
       const stmtEncaisse = db.prepare(`
-        UPDATE encaisse SET apaye = ?, reglement = ?, ht = ?, soldeR = ? WHERE numero_comande = ?
+        INSERT INTO encaisse (apaye, reglement, tva, ht, numero_comande, origine, soldeR)
+        VALUES (?, ?, '0,00', ?, ?, ?, ?)
       `);
       stmtEncaisse.run([
         total_vente_str,
         montant_reglement_str,
         total_vente_str,
-        nouveau_solde_restant_str,
-        numero_comande
+        numero_comande,
+        nature,
+        nouveau_solde_restant_str
       ]);
       stmtEncaisse.free();
 
