@@ -1839,6 +1839,13 @@ export async function getReception(numero_mouvement) {
   console.log(`📥 Exécution de getReception avec numero_mouvement: ${numero_mouvement}`);
   const db = await getDb();
   try {
+    // Validation du numéro de mouvement
+    if (!numero_mouvement || isNaN(parseInt(numero_mouvement))) {
+      console.error(`❌ numero_mouvement invalide: ${numero_mouvement}`);
+      return { error: "Numéro de mouvement invalide", status: 400 };
+    }
+
+    // Récupérer les détails du mouvement
     const stmtMouvement = db.prepare(`
       SELECT m.numero_mouvement, m.numero_four, m.date_m, m.nature, m.numero_util,
              f.nom AS fournisseur_nom, u.nom AS utilisateur_nom
@@ -1847,7 +1854,7 @@ export async function getReception(numero_mouvement) {
       LEFT JOIN utilisateur u ON m.numero_util = u.numero_util
       WHERE m.numero_mouvement = ? AND m.nature = 'Bon de réception'
     `);
-    stmtMouvement.bind([numero_mouvement]);
+    stmtMouvement.bind([parseInt(numero_mouvement)]);
     const mouvement = stmtMouvement.step() ? stmtMouvement.getAsObject() : null;
     stmtMouvement.free();
 
@@ -1857,36 +1864,38 @@ export async function getReception(numero_mouvement) {
     }
     console.log("✅ Mouvement trouvé:", mouvement);
 
+    // Récupérer les lignes du mouvement
     const stmtLignes = db.prepare(`
       SELECT a2.numero_item, a2.qtea, a2.nprix, a2.nqte, a2.pump, i.designation
       FROM attache2 a2
       JOIN item i ON a2.numero_item = i.numero_item
       WHERE a2.numero_mouvement = ?
     `);
-    stmtLignes.bind([numero_mouvement]);
+    stmtLignes.bind([parseInt(numero_mouvement)]);
     const lignes = [];
     while (stmtLignes.step()) {
       const ligne = stmtLignes.getAsObject();
       lignes.push({
-        numero_item: ligne.NUMERO_ITEM || ligne.numero_item,
-        designation: ligne.DESIGNATION || ligne.designation || "N/A",
-        qtea: parseFloat(ligne.QTEA || ligne.qtea || 0),
-        nprix: parseFloat(ligne.NPRIX || ligne.nprix || 0).toFixed(2),
-        nqte: parseFloat(ligne.NQTE || ligne.nqte || 0),
-        pump: parseFloat(ligne.PUMP || ligne.pump || 0).toFixed(2)
+        numero_item: parseInt(ligne.numero_item) || 0,
+        designation: ligne.designation || "N/A",
+        qtea: parseFloat(ligne.qtea || 0),
+        nprix: toCommaDecimal(parseFloat(ligne.nprix || 0)),
+        nqte: parseFloat(ligne.nqte || 0),
+        pump: toCommaDecimal(parseFloat(ligne.pump || 0))
       });
     }
     stmtLignes.free();
     console.log("📋 Lignes de réception:", lignes);
 
+    // Formater la réponse pour correspondre à Flask
     const response = {
-      numero_mouvement: mouvement.NUMERO_MOUVEMENT || mouvement.numero_mouvement,
-      numero_four: mouvement.NUMERO_FOUR || mouvement.numero_four || 0,
-      date_m: mouvement.DATE_M || mouvement.date_m || new Date().toISOString(),
-      nature: mouvement.NATURE || mouvement.nature || "Bon de réception",
-      fournisseur_nom: mouvement.FOURNISSEUR_NOM || mouvement.fournisseur_nom || "N/A",
-      utilisateur_nom: mouvement.UTILISATEUR_NOM || mouvement.utilisateur_nom || "N/A",
-      lignes: lignes
+      numero_mouvement: parseInt(mouvement.numero_mouvement) || 0,
+      numero_four: parseInt(mouvement.numero_four) || 0,
+      date_m: mouvement.date_m || new Date().toISOString(),
+      nature: mouvement.nature || "Bon de réception",
+      fournisseur_nom: mouvement.fournisseur_nom || "N/A",
+      utilisateur_nom: mouvement.utilisateur_nom || "N/A",
+      lignes
     };
 
     console.log(`✅ Réception récupérée: numero_mouvement=${numero_mouvement}`);
