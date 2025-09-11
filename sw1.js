@@ -42,8 +42,8 @@ const handlers = {
         return dashboard('day');
       }
     },
-    'get_vente/(\\w+)': async (params) => {
-      console.log(`📥 Interception GET /api/get_vente/${params}`);
+    'vente/(\\w+)': async (params) => {
+      console.log(`📥 Interception GET /api/vente/${params}`);
       try {
         const numero_comande = parseInt(params, 10);
         if (isNaN(numero_comande)) {
