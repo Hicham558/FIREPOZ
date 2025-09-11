@@ -1744,16 +1744,15 @@ export async function getVente(numero_comande) {
 
 export async function getReception(numero_mouvement) {
   console.log(`📥 Exécution de getReception avec numero_mouvement: ${numero_mouvement}`);
-
-  const db = await getDb(); // Chargement de la base
-
+  const db = await getDb();
   try {
-    // Étape 1: Vérifier l'existence du mouvement
     const stmtMouvement = db.prepare(`
-      SELECT numero_mouvement, numero_four, date_m, nature, numero_util
-      FROM mouvement 
-      WHERE numero_mouvement = ? 
-      AND (nature = 'Bon de réception' OR NATURE = 'Bon de réception')
+      SELECT m.numero_mouvement, m.numero_four, m.date_m, m.nature, m.numero_util,
+             f.nom AS fournisseur_nom, u.nom AS utilisateur_nom
+      FROM mouvement m
+      LEFT JOIN fournisseur f ON m.numero_four = f.numero_fou
+      LEFT JOIN utilisateur u ON m.numero_util = u.numero_util
+      WHERE m.numero_mouvement = ? AND m.nature = 'Bon de réception'
     `);
     stmtMouvement.bind([numero_mouvement]);
     const mouvement = stmtMouvement.step() ? stmtMouvement.getAsObject() : null;
@@ -1761,28 +1760,17 @@ export async function getReception(numero_mouvement) {
 
     if (!mouvement) {
       console.error(`❌ Mouvement non trouvé pour numero_mouvement: ${numero_mouvement}`);
-      return { erreur: "Mouvement non trouvé", status: 404 };
+      return { error: "Mouvement non trouvé", status: 404 };
     }
+    console.log("✅ Mouvement trouvé:", mouvement);
 
-    // Récupérer les noms du fournisseur et de l'utilisateur
-    const stmtFournisseur = db.prepare("SELECT nom FROM fournisseur WHERE numero_fou = ?");
-    stmtFournisseur.bind([mouvement.numero_four || mouvement.NUMERO_FOUR]);
-    const fournisseur = stmtFournisseur.step() ? stmtFournisseur.getAsObject() : { nom: "N/A" };
-    stmtFournisseur.free();
-
-    const stmtUtilisateur = db.prepare("SELECT nom FROM utilisateur WHERE numero_util = ?");
-    stmtUtilisateur.bind([mouvement.numero_util || mouvement.NUMERO_UTIL]);
-    const utilisateur = stmtUtilisateur.step() ? stmtUtilisateur.getAsObject() : { nom: "N/A" };
-    stmtUtilisateur.free();
-
-    // Étape 2: Récupérer les lignes du mouvement
     const stmtLignes = db.prepare(`
-      SELECT numero_item, qtea, nprix, designation
-      FROM attache2 
-      WHERE numero_mouvement = ?
+      SELECT a2.numero_item, a2.qtea, a2.nprix, a2.nqte, a2.pump, i.designation
+      FROM attache2 a2
+      JOIN item i ON a2.numero_item = i.numero_item
+      WHERE a2.numero_mouvement = ?
     `);
     stmtLignes.bind([numero_mouvement]);
-    
     const lignes = [];
     while (stmtLignes.step()) {
       const ligne = stmtLignes.getAsObject();
@@ -1790,35 +1778,32 @@ export async function getReception(numero_mouvement) {
         numero_item: ligne.numero_item || ligne.NUMERO_ITEM,
         designation: ligne.designation || ligne.DESIGNATION || "N/A",
         qtea: parseFloat(ligne.qtea || ligne.QTEA || 0),
-        nprix: parseFloat(ligne.nprix || ligne.NPRIX || 0).toFixed(2)
+        nprix: parseFloat(ligne.nprix || ligne.NPRIX || 0).toFixed(2), // Convertir en chaîne avec point décimal
+        nqte: parseFloat(ligne.nqte || ligne.NQTE || 0),
+        pump: parseFloat(ligne.pump || ligne.PUMP || 0).toFixed(2) // Convertir en chaîne avec point décimal
       });
     }
     stmtLignes.free();
-    
-    if (lignes.length === 0) {
-      console.error(`❌ Aucune ligne trouvée pour le mouvement: ${numero_mouvement}`);
-      return { erreur: "Aucune ligne de réception trouvée", status: 404 };
-    }
+    console.log("📋 Lignes de réception:", lignes);
 
-    // Étape 3: Formater la réponse
     const response = {
       numero_mouvement: mouvement.numero_mouvement || mouvement.NUMERO_MOUVEMENT,
       numero_four: mouvement.numero_four || mouvement.NUMERO_FOUR || 0,
       date_m: mouvement.date_m || mouvement.DATE_M || new Date().toISOString(),
       nature: mouvement.nature || mouvement.NATURE || "Bon de réception",
-      fournisseur_nom: fournisseur.nom || fournisseur.NOM || "N/A",
-      utilisateur_nom: utilisateur.nom || utilisateur.NOM || "N/A",
+      fournisseur_nom: mouvement.fournisseur_nom || mouvement.FOURNISSEUR_NOM || "N/A",
+      utilisateur_nom: mouvement.utilisateur_nom || mouvement.UTILISATEUR_NOM || "N/A",
       lignes: lignes
     };
 
     console.log(`✅ Réception récupérée: numero_mouvement=${numero_mouvement}`);
-    return { data: response, status: 200 };
-
+    return response; // Retourner directement l'objet, sans { data: ..., status: ... }
   } catch (err) {
     console.error("❌ Erreur récupération réception:", err);
-    return { erreur: err.message || "Erreur inconnue", status: 500 };
+    return { error: err.message || "Erreur inconnue", status: 500 };
+  } finally {
+    await saveDbToLocalStorage(db);
   }
- 
 }
 
 export async function ventesJour(params = {}) {
