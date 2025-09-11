@@ -1569,14 +1569,20 @@ export async function modifierVente(numero_comande, data) {
   try {
     console.log("Exécution de modifierVente:", numero_comande, data);
     const db = await getDb();
-    
+
     // 1. Validation des données
+    if (!numero_comande || isNaN(parseInt(numero_comande))) {
+      return { error: "numero_comande invalide", status: 400 };
+    }
     const { lignes, numero_util, password2, numero_table = 0, payment_mode = 'espece', amount_paid = '0,00' } = data;
-    if (!lignes || !numero_util || !password2) {
-      return { error: "Données manquantes", status: 400 };
+    if (!lignes || !Array.isArray(lignes) || lignes.length === 0 || !numero_util || !password2) {
+      return { error: "Données manquantes ou lignes invalides", status: 400 };
     }
 
-    const amount_paid_num = toDotDecimal(amount_paid);
+    const amount_paid_num = toDotDecimal(amount_paid || '0,00');
+    if (isNaN(amount_paid_num)) {
+      return { error: "Montant payé invalide", status: 400 };
+    }
 
     // 2. Vérification de l'authentification (alignée sur validerVente)
     const stmtUser = db.prepare("SELECT numero_util, nom, password2 FROM utilisateur WHERE numero_util = ?");
@@ -1623,7 +1629,7 @@ export async function modifierVente(numero_comande, data) {
         const quantite = ligne.quantite != null ? toDotDecimal(ligne.quantite.toString() || '0') : 0;
         const numero_item = ligne.numero_item || 0;
         if (numero_item === 0 || isNaN(quantite)) {
-          console.warn(`⚠️ Ligne ignorée: numero_item=${numero_item}, quantite=${quantite}`);
+          console.warn(`⚠️ Ligne ignorée (restauration): numero_item=${numero_item}, quantite=${quantite}`);
           continue;
         }
 
@@ -1668,6 +1674,12 @@ export async function modifierVente(numero_comande, data) {
       for (const ligne of lignes) {
         const quantite = toDotDecimal(ligne.quantite || '1');
         const prix_unitaire = toDotDecimal(ligne.remarque || '0,00');
+        const numero_item = ligne.numero_item || 0;
+        if (numero_item === 0 || isNaN(quantite) || isNaN(prix_unitaire)) {
+          console.warn(`⚠️ Ligne ignorée (nouvelle): numero_item=${numero_item}, quantite=${quantite}, prix_unitaire=${prix_unitaire}`);
+          continue;
+        }
+
         const prixt = quantite * prix_unitaire;
         total_vente += prixt;
 
@@ -1680,7 +1692,7 @@ export async function modifierVente(numero_comande, data) {
         `);
         stmtAttache.run([
           numero_comande,
-          ligne.numero_item,
+          numero_item,
           quantite,
           prixt_str,
           ligne.remarque || '',
@@ -1689,8 +1701,12 @@ export async function modifierVente(numero_comande, data) {
         stmtAttache.free();
 
         const stmtUpdateStock = db.prepare('UPDATE item SET qte = qte - ? WHERE numero_item = ?');
-        stmtUpdateStock.run([quantite, ligne.numero_item]);
+        stmtUpdateStock.run([quantite, numero_item]);
         stmtUpdateStock.free();
+      }
+
+      if (isNaN(total_vente)) {
+        throw new Error("Total vente invalide");
       }
 
       // 7. Calcul du reste dû
@@ -1706,14 +1722,18 @@ export async function modifierVente(numero_comande, data) {
         INSERT INTO encaisse (apaye, reglement, tva, ht, numero_comande, origine, soldeR)
         VALUES (?, ?, '0,00', ?, ?, ?, ?)
       `);
-      stmtEncaisse.run([
+      const encaisseParams = [
         total_vente_str,
         montant_reglement_str,
         total_vente_str,
         numero_comande,
         nature,
         nouveau_solde_restant_str
-      ]);
+      ];
+      if (encaisseParams.some(param => param === undefined || param === null)) {
+        throw new Error(`Paramètre d'encaisse non défini: ${JSON.stringify(encaisseParams)}`);
+      }
+      stmtEncaisse.run(encaisseParams);
       stmtEncaisse.free();
 
       // 9. Mise à jour du solde client (cumule négatif)
