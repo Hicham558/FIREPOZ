@@ -2546,21 +2546,21 @@ export async function modifierReception(numero_mouvement, data) {
       const restored_solde = current_solde + old_total_cost;
       console.log(`Solde restauré: ${restored_solde}`);
 
-      // 7. Récupérer les articles concernés avec vérification
+      // 7. RÉCUPÉRATION DES ARTICLES - APPROCHE CORRIGÉE
       const item_ids = [...new Set([
         ...lignes.map(l => parseInt(l.numero_item)), 
         ...Object.keys(old_lines_dict).map(Number)
-      ])].filter(id => !isNaN(id));
+      ])].filter(id => !isNaN(id) && id > 0);
 
-      console.log("IDs d'articles à vérifier:", item_ids);
+      console.log("IDs d'articles à traiter:", item_ids);
 
       const items = {};
-      const missing_items = [];
+      const articles_manquants = [];
 
       if (item_ids.length > 0) {
         const placeholders = item_ids.map(() => '?').join(',');
         const stmtItems = db.prepare(`
-          SELECT numero_item, qte, prixba 
+          SELECT numero_item, qte, prixba, designation 
           FROM item 
           WHERE numero_item IN (${placeholders})
         `);
@@ -2570,21 +2570,30 @@ export async function modifierReception(numero_mouvement, data) {
           const item = stmtItems.getAsObject();
           items[item.numero_item] = {
             qte: parseFloat(item.qte || 0),
-            prixba: parseFloat(toDotDecimal(item.prixba || "0"))
+            prixba: parseFloat(toDotDecimal(item.prixba || "0")),
+            designation: item.designation || 'Article inconnu'
           };
         }
         stmtItems.free();
 
-        // Vérifier quels articles sont manquants
+        // Gestion souple des articles manquants
         for (const id of item_ids) {
           if (!items[id]) {
-            missing_items.push(id);
+            articles_manquants.push(id);
+            console.warn(`Article ${id} non trouvé dans la base, création d'entrée temporaire`);
+            
+            // Créer une entrée temporaire pour éviter l'erreur
+            items[id] = {
+              qte: 0,
+              prixba: 0,
+              designation: `Article ${id} (supprimé)`
+            };
           }
         }
       }
 
-      if (missing_items.length > 0) {
-        throw new Error(`Articles non trouvés: ${missing_items.join(', ')}`);
+      if (articles_manquants.length > 0) {
+        console.warn(`Articles non trouvés mais traités: ${articles_manquants.join(', ')}`);
       }
 
       // 8. Calculer le nouveau coût total et préparer les mises à jour
@@ -2604,9 +2613,16 @@ export async function modifierReception(numero_mouvement, data) {
         if (prixbh < 0) throw new Error("Le prix d'achat ne peut pas être négatif");
 
         const item = items[numero_item];
-        if (!item) throw new Error(`Article ${numero_item} non trouvé`);
+        if (!item) {
+          console.warn(`Article ${numero_item} non trouvé, création d'entrée temporaire`);
+          items[numero_item] = {
+            qte: 0,
+            prixba: 0,
+            designation: `Article ${numero_item} (supprimé)`
+          };
+        }
 
-        const current_qte = item.qte;
+        const current_qte = items[numero_item].qte;
         const old_qtea = old_lines_dict[numero_item] ? old_lines_dict[numero_item].qtea : 0;
 
         new_total_cost += new_qtea * prixbh;
@@ -2616,24 +2632,29 @@ export async function modifierReception(numero_mouvement, data) {
           new_qtea: new_qtea,
           prixbh: prixbh,
           current_qte: current_qte,
-          current_prixba: item.prixba
+          current_prixba: items[numero_item].prixba,
+          designation: items[numero_item].designation
         };
       }
 
-      // 9. Traiter les articles supprimés
+      // 9. Traiter les articles supprimés de l'ancienne réception
       for (const numero_item in old_lines_dict) {
         const num_item = parseInt(numero_item);
         if (!stock_updates[num_item]) {
-          const item = items[num_item];
-          if (item) {
-            stock_updates[num_item] = {
-              old_qtea: old_lines_dict[numero_item].qtea,
-              new_qtea: 0,
-              prixbh: 0,
-              current_qte: item.qte,
-              current_prixba: item.prixba
-            };
-          }
+          const item = items[num_item] || {
+            qte: 0,
+            prixba: 0,
+            designation: `Article ${num_item} (supprimé)`
+          };
+          
+          stock_updates[num_item] = {
+            old_qtea: old_lines_dict[numero_item].qtea,
+            new_qtea: 0,
+            prixbh: 0,
+            current_qte: item.qte,
+            current_prixba: item.prixba,
+            designation: item.designation
+          };
         }
       }
 
@@ -2665,7 +2686,7 @@ export async function modifierReception(numero_mouvement, data) {
         const new_qte = restored_qte + new_qtea;
 
         if (new_qte < 0) {
-          throw new Error(`Stock négatif pour l'article ${numero_item}: ${new_qte}`);
+          throw new Error(`Stock négatif pour l'article ${numero_item} (${update.designation}): ${new_qte}`);
         }
 
         // Insérer dans attache2 si nouvelle quantité > 0
@@ -2685,7 +2706,7 @@ export async function modifierReception(numero_mouvement, data) {
         stmtUpdateItem.run([new_qte, new_prixba, numero_item]);
         stmtUpdateItem.free();
         
-        console.log(`Stock mis à jour: numero_item=${numero_item}, old_qtea=${old_qtea}, new_qtea=${new_qtea}, new_qte=${new_qte}`);
+        console.log(`Stock mis à jour: ${update.designation}, old_qtea=${old_qtea}, new_qtea=${new_qtea}, new_qte=${new_qte}`);
       }
 
       // 13. Mettre à jour le mouvement
@@ -2706,6 +2727,7 @@ export async function modifierReception(numero_mouvement, data) {
         numero_mouvement: numero_mouvement,
         total_cost: toCommaDecimal(new_total_cost),
         new_solde: new_solde_str,
+        articles_manquants: articles_manquants,
         status: 200
       };
 
@@ -2720,9 +2742,6 @@ export async function modifierReception(numero_mouvement, data) {
     return { erreur: error.message, status: 500 };
   }
 }
-
-
-
 export async function receptionsJour(params = {}) {
   try {
     console.log("Exécution de receptionsJour avec params:", params);
