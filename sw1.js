@@ -6,7 +6,7 @@ import {
   validerVendeur, listeCategories, ajouterCategorie, modifierCategorie, 
   supprimerCategorie, assignerCategorie, listeProduitsParCategorie,
   clientSolde, validerVente, modifierVente, getVente, ventesJour, 
-  annulerVente, validerReception, modifierReception rechercherProduitCodebar,
+  annulerVente, validerReception, modifierReception, rechercherProduitCodebar,
   receptionsJour, articlesPlusVendus, profitByDate, stockValue, annulerReception,
   getReception,listeCodebarLies,ajouterCodebarLie,supprimerCodebarLie
 } from './apiRoutes.js';
