@@ -2099,7 +2099,6 @@ export async function getVente(numero_comande) {
 export async function getReception(numero_mouvement) {
   console.log(`📥 Exécution de getReception avec numero_mouvement: ${numero_mouvement}`);
   const db = await getDb();
-  let conn = null;
   
   try {
     // Récupérer les détails du mouvement
@@ -2146,11 +2145,15 @@ export async function getReception(numero_mouvement) {
     stmtLignes.free();
     console.log("📋 Lignes de réception:", lignes);
 
+    // CORRECTION: Convertir la date en objet Date avant d'appeler toISOString()
+    const dateValue = mouvement.date_m || mouvement.DATE_M;
+    const dateObject = dateValue ? new Date(dateValue) : new Date();
+    
     // Formater la réponse comme l'endpoint Flask
     const response = {
       numero_mouvement: mouvement.numero_mouvement || mouvement.NUMERO_MOUVEMENT,
       numero_four: mouvement.numero_four || mouvement.NUMERO_FOUR || 0,
-      date_m: (mouvement.date_m || mouvement.DATE_M || new Date()).toISOString(),
+      date_m: dateObject.toISOString(), // ← CORRIGÉ ICI
       nature: mouvement.nature || mouvement.NATURE || "",
       fournisseur_nom: mouvement.fournisseur_nom || mouvement.FOURNISSEUR_NOM || "N/A",
       utilisateur_nom: mouvement.utilisateur_nom || mouvement.UTILISATEUR_NOM || "N/A",
