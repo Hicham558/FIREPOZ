@@ -1564,6 +1564,7 @@ export async function validerVente(data) {
   }
 }
 
+
 export async function modifierVente(numero_comande, data) {
   try {
     console.log("Exécution de modifierVente:", numero_comande, data);
@@ -1594,14 +1595,14 @@ export async function modifierVente(numero_comande, data) {
 
     try {
       // 3. Récupérer l'ancien encaisse
-      const stmtEncaisse = db.prepare(`
+      const stmtAncienEncaisse = db.prepare(`
         SELECT apaye, reglement, tva, ht, soldeR, origine
         FROM encaisse
         WHERE numero_comande = ?
       `);
-      stmtEncaisse.bind([numero_comande]);
-      const ancienEncaisse = stmtEncaisse.step() ? stmtEncaisse.getAsObject() : null;
-      stmtEncaisse.free();
+      stmtAncienEncaisse.bind([numero_comande]);
+      const ancienEncaisse = stmtAncienEncaisse.step() ? stmtAncienEncaisse.getAsObject() : null;
+      stmtAncienEncaisse.free();
       const ancienSoldeRestant = ancienEncaisse ? toDotDecimal(ancienEncaisse.soldeR || '0,00') : 0;
 
       // 4. Restaurer l'ancien état (stock et solde client)
