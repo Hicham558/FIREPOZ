@@ -6,7 +6,7 @@ import {
   validerVendeur, listeCategories, ajouterCategorie, modifierCategorie, 
   supprimerCategorie, assignerCategorie, listeProduitsParCategorie,
   clientSolde, validerVente, modifierVente, getVente, ventesJour, 
-  annulerVente, validerReception, rechercherProduitCodebar,
+  annulerVente, validerReception, modifierReception rechercherProduitCodebar,
   receptionsJour, articlesPlusVendus, profitByDate, stockValue, annulerReception,
   getReception,listeCodebarLies,ajouterCodebarLie,supprimerCodebarLie
 } from './apiRoutes.js';
@@ -233,6 +233,7 @@ const handlers = {
     'modifier_utilisateur/(\\w+)': (id, body) => modifierUtilisateur(id, body),
     'modifier_categorie/(\\w+)': (id, body) => modifierCategorie(id, body),
     'modifier_vente/(\\w+)': (id, body) => modifierVente(id, body),
+    'modifier_reception/(\\w+)': (id, body) => modifierReception(id, body),
     'assigner_categorie': (body) => assignerCategorie(body)
   },
   DELETE: {
