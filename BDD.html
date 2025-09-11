@@ -2,158 +2,134 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Gestion Base de Données - FirePoz</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <title>Gestion des bases SQLite</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1 { color: #333; }
+    .btn {
+      padding: 8px 12px;
+      margin: 4px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      background: #007bff;
+      color: white;
+    }
+    .btn:hover { background: #0056b3; }
+    .danger { background: #dc3545; }
+    .danger:hover { background: #a71d2a; }
+    .db-list {
+      margin-top: 20px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .db-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 5px 0;
+      padding: 6px;
+      border-bottom: 1px solid #eee;
+    }
+    .db-name { font-weight: bold; }
+  </style>
 </head>
-<body class="bg-gray-100 min-h-screen">
-  <nav class="bg-indigo-600 text-white p-4 shadow-md">
-    <div class="container mx-auto flex justify-between items-center">
-      <h1 class="text-2xl font-bold">
-        <i class="fas fa-database mr-2"></i>Gestion Base de Données
-      </h1>
-      <button onclick="goHome()" class="bg-white text-indigo-600 px-4 py-2 rounded-md hover:bg-gray-200">
-        <i class="fas fa-home mr-2"></i>Accueil
-      </button>
-    </div>
-  </nav>
+<body>
+  <h1>Gestion des bases SQLite</h1>
 
-  <div class="container mx-auto px-4 py-8">
-    <div class="bg-white rounded-lg shadow-md p-6 mb-8">
-      <h2 class="text-xl font-semibold mb-4">
-        <i class="fas fa-database mr-2 text-indigo-500"></i>Outils Base de Données
-      </h2>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <!-- Importer -->
-        <label class="w-full bg-blue-600 text-white px-4 py-3 rounded-md hover:bg-blue-700 transition text-center cursor-pointer">
-          <i class="fas fa-upload mr-2"></i>Importer une base
-          <input type="file" id="uploadDb" accept=".db,.sqlite,.sqlite3" class="hidden" onchange="uploadDatabase(event)">
-        </label>
-      </div>
+  <!-- Import fichier -->
+  <input type="file" id="dbFileInput" accept=".db,.sqlite,.sqlite3" />
+  <button class="btn" onclick="resetProductionDb()">Réinitialiser la base de production</button>
 
-      <!-- Liste des bases -->
-      <h3 class="text-lg font-semibold mt-6">Bases sauvegardées</h3>
-      <ul id="dbList" class="mt-2 space-y-2"></ul>
-    </div>
+  <div class="db-list">
+    <h2>Bases sauvegardées</h2>
+    <div id="dbList"></div>
   </div>
 
   <script>
-    // =========================
-    // Utils
-    // =========================
-    function showToast(msg) { alert(msg); }
-    function isDbFile(name) { return /\.(db|sqlite|sqlite3)$/i.test(name); }
-    function getAllDbs() {
-      return JSON.parse(localStorage.getItem("gestion_dbs") || "[]");
-    }
-    function saveAllDbs(list) {
-      localStorage.setItem("gestion_dbs", JSON.stringify(list));
-    }
-
-    // =========================
-    // Importer une base
-    // =========================
-    function uploadDatabase(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-      if (!isDbFile(file.name)) {
-        showToast("Fichier non valide (.db, .sqlite, .sqlite3 uniquement)");
-        event.target.value = "";
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const bytes = new Uint8Array(e.target.result);
-        let binary = "";
-        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-        const base64 = btoa(binary);
-
-        let list = getAllDbs();
-        list.push({ name: file.name, data: base64, date: new Date().toISOString() });
-        saveAllDbs(list);
-
-        showToast("Base importée avec succès");
-        renderDbList();
-      };
-      reader.readAsArrayBuffer(file);
-    }
-
-    // =========================
-    // Télécharger une base
-    // =========================
-    function downloadDatabase(name) {
-      const list = getAllDbs();
-      const db = list.find(x => x.name === name);
-      if (!db) return showToast("Base introuvable");
-
-      const binaryString = atob(db.data);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
-
-      const blob = new Blob([bytes], { type: "application/octet-stream" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = name;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
-
-    // =========================
-    // Supprimer une base
-    // =========================
-    function deleteDatabase(name) {
-      if (!confirm("Supprimer la base " + name + " ?")) return;
-      let list = getAllDbs().filter(x => x.name !== name);
-      saveAllDbs(list);
-      renderDbList();
-    }
-
-    // =========================
-    // Afficher la liste
-    // =========================
-    function renderDbList() {
-      const list = getAllDbs();
-      const ul = document.getElementById("dbList");
-      ul.innerHTML = "";
-
-      if (list.length === 0) {
-        ul.innerHTML = "<li class='text-gray-500'>Aucune base sauvegardée</li>";
-        return;
-      }
-
-      list.forEach(db => {
-        const li = document.createElement("li");
-        li.className = "flex justify-between items-center bg-gray-100 p-3 rounded";
-
-        li.innerHTML = `
-          <span><i class="fas fa-database text-indigo-500 mr-2"></i>${db.name}</span>
-          <div class="space-x-2">
-            <button onclick="downloadDatabase('${db.name}')" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700">
-              <i class="fas fa-download"></i>
-            </button>
-            <button onclick="deleteDatabase('${db.name}')" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700">
-              <i class="fas fa-trash"></i>
-            </button>
-          </div>
-        `;
-        ul.appendChild(li);
+    // Lire fichier et convertir en base64
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = error => reject(error);
+        reader.readAsDataURL(file);
       });
     }
 
-    // =========================
-    // Accueil
-    // =========================
-    function goHome() {
-      window.location.href = "index.html";
+    // Sauvegarder dans l'historique
+    function saveDbToHistory(name, dataBase64) {
+      let dbList = JSON.parse(localStorage.getItem("gestion_db_list") || "[]");
+      dbList.push({
+        id: Date.now(),
+        name: name || `Base_${dbList.length + 1}`,
+        data: dataBase64
+      });
+      localStorage.setItem("gestion_db_list", JSON.stringify(dbList));
+      renderDbList();
     }
 
-    document.addEventListener("DOMContentLoaded", renderDbList);
+    // Charger une base depuis l’historique et la mettre en prod
+    function setProductionDb(id) {
+      let dbList = JSON.parse(localStorage.getItem("gestion_db_list") || "[]");
+      let dbItem = dbList.find(d => d.id === id);
+      if (dbItem) {
+        localStorage.setItem("gestion_db", dbItem.data); // ⚡ remplace prod
+        alert(`La base "${dbItem.name}" est maintenant la base de production.`);
+      }
+    }
+
+    // Réinitialiser la base de prod
+    function resetProductionDb() {
+      localStorage.removeItem("gestion_db");
+      alert("La base de production a été réinitialisée !");
+    }
+
+    // Renommer une base dans l’historique
+    function renameDb(id) {
+      let newName = prompt("Nouveau nom de la base :");
+      if (!newName) return;
+      let dbList = JSON.parse(localStorage.getItem("gestion_db_list") || "[]");
+      let dbItem = dbList.find(d => d.id === id);
+      if (dbItem) {
+        dbItem.name = newName;
+        localStorage.setItem("gestion_db_list", JSON.stringify(dbList));
+        renderDbList();
+      }
+    }
+
+    // Afficher la liste
+    function renderDbList() {
+      let dbList = JSON.parse(localStorage.getItem("gestion_db_list") || "[]");
+      const container = document.getElementById("dbList");
+      container.innerHTML = "";
+      dbList.forEach(db => {
+        const div = document.createElement("div");
+        div.className = "db-item";
+        div.innerHTML = `
+          <span class="db-name">${db.name}</span>
+          <div>
+            <button class="btn" onclick="setProductionDb(${db.id})">Utiliser en production</button>
+            <button class="btn" onclick="renameDb(${db.id})">Renommer</button>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    // Charger fichier sélectionné
+    document.getElementById("dbFileInput").addEventListener("change", async function (evt) {
+      const file = evt.target.files[0];
+      if (!file) return;
+      const base64 = await fileToBase64(file);
+      localStorage.setItem("gestion_db", base64); // active directement
+      saveDbToHistory(file.name, base64);
+      alert(`La base "${file.name}" a été importée et activée en production.`);
+    });
+
+    // Initialiser liste au chargement
+    renderDbList();
   </script>
 </body>
 </html>
