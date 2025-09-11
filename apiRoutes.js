@@ -1569,43 +1569,46 @@ export async function modifierVente(numero_comande, data) {
     console.log("Exécution de modifierVente:", numero_comande, data);
     const db = await getDb();
     
+    // 1. Validation des données
     const { lignes, numero_util, password2, numero_table = 0, payment_mode = 'espece', amount_paid = '0,00' } = data;
-
     if (!lignes || !numero_util || !password2) {
-      return { erreur: "Données manquantes", status: 400 };
+      return { error: "Données manquantes", status: 400 };
     }
 
     const amount_paid_num = toDotDecimal(amount_paid);
 
-    // Vérification de l'authentification
-    const stmtUser = db.prepare('SELECT password2 FROM utilisateur WHERE numero_util = ?');
+    // 2. Vérification de l'authentification (alignée sur validerVente)
+    const stmtUser = db.prepare("SELECT numero_util, nom, password2 FROM utilisateur WHERE numero_util = ?");
     stmtUser.bind([numero_util]);
-    const user = stmtUser.step() ? stmtUser.getAsObject() : null;
+    let user = null;
+    if (stmtUser.step()) {
+      user = stmtUser.getAsObject();
+    }
     stmtUser.free();
 
-    if (!user || user.password2 !== password2) {
-      return { erreur: "Authentification invalide", status: 401 };
+    if (!user || user.PASSWORD2 !== password2) {
+      return { error: "Authentification invalide", status: 401 };
     }
 
     db.run('BEGIN TRANSACTION');
 
     try {
-      // Sauvegarder l'ancien état avant modification
+      // 3. Sauvegarder l'ancien état avant modification
       const ancienEncaisse = await getAncienEncaisse(numero_comande, db);
       const ancienSoldeRestant = ancienEncaisse ? toDotDecimal(ancienEncaisse.soldeR || '0,00') : 0;
-      
-      // Restaurer l'ancien état (stock et solde client)
+
+      // 4. Restaurer l'ancien état (stock et solde client)
       await restaurerAncienneVente(numero_comande, db);
 
-      // Mettre à jour la commande
-      const nature = numero_table == 0 ? "TICKET" : "BON DE L.";
+      // 5. Mettre à jour la commande
+      const nature = numero_table === 0 ? "TICKET" : "BON DE L.";
       const stmtUpdate = db.prepare(`
         UPDATE comande SET numero_table = ?, nature = ?, numero_util = ? WHERE numero_comande = ?
       `);
       stmtUpdate.run([numero_table, nature, numero_util, numero_comande]);
       stmtUpdate.free();
 
-      // Traiter les nouvelles lignes
+      // 6. Traiter les nouvelles lignes
       let total_vente = 0;
       for (const ligne of lignes) {
         const quantite = toDotDecimal(ligne.quantite || '1');
@@ -1635,7 +1638,7 @@ export async function modifierVente(numero_comande, data) {
         stmtUpdateStock.free();
       }
 
-      // Calcul du reste dû
+      // 7. Calcul du reste dû
       const reste = total_vente - amount_paid_num; // positif si dette
       const nouveau_solde_restant = payment_mode === 'a_terme' ? -reste : 0;
 
@@ -1643,7 +1646,7 @@ export async function modifierVente(numero_comande, data) {
       const montant_reglement_str = toCommaDecimal(payment_mode === 'espece' ? total_vente : amount_paid_num);
       const nouveau_solde_restant_str = toCommaDecimal(nouveau_solde_restant);
 
-      // Mettre à jour l'encaisse
+      // 8. Mettre à jour l'encaisse
       const stmtEncaisse = db.prepare(`
         UPDATE encaisse SET apaye = ?, reglement = ?, ht = ?, soldeR = ? WHERE numero_comande = ?
       `);
@@ -1656,8 +1659,8 @@ export async function modifierVente(numero_comande, data) {
       ]);
       stmtEncaisse.free();
 
-      // Mise à jour du solde client (cumule négatif)
-      if (payment_mode === 'a_terme' && numero_table != 0) {
+      // 9. Mise à jour du solde client (cumule négatif)
+      if (payment_mode === 'a_terme' && numero_table !== 0) {
         const difference_solde = nouveau_solde_restant - ancienSoldeRestant;
         const stmtClient = db.prepare('UPDATE client SET solde = solde + ? WHERE numero_clt = ?');
         stmtClient.run([toCommaDecimal(difference_solde), numero_table]);
@@ -1665,12 +1668,15 @@ export async function modifierVente(numero_comande, data) {
       }
 
       db.run('COMMIT');
-      saveDbToLocalStorage(db);
+      await saveDbToLocalStorage(db);
 
       return {
-        statut: "Vente modifiée",
+        success: true,
         numero_comande,
         total_vente: total_vente_str,
+        montant_verse: amount_paid,
+        reglement: montant_reglement_str,
+        solde_restant: payment_mode === 'a_terme' ? toCommaDecimal(nouveau_solde_restant) : "0,00",
         status: 200
       };
 
@@ -1681,7 +1687,7 @@ export async function modifierVente(numero_comande, data) {
 
   } catch (error) {
     console.error("Erreur modifierVente:", error);
-    return { erreur: error.message, status: 500 };
+    return { error: error.message || "Erreur inconnue", status: 500 };
   }
 }
 
