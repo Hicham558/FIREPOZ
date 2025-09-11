@@ -1,194 +1,159 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion Base de Données - FirePoz</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        .toast-in { animation: toastIn 0.5s both; }
-        .toast-out { animation: toastOut 0.5s both; }
-        @keyframes toastIn { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes toastOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(40px); } }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestion Base de Données - FirePoz</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body class="bg-gray-100 min-h-screen">
-    <nav class="bg-indigo-600 text-white p-4 shadow-md">
-        <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-2xl font-bold">
-                <i class="fas fa-database mr-2"></i>Gestion Base de Données
-            </h1>
-            <button onclick="goHome()" class="bg-white text-indigo-600 px-4 py-2 rounded-md hover:bg-gray-200">
-                <i class="fas fa-home mr-2"></i>Accueil
+  <nav class="bg-indigo-600 text-white p-4 shadow-md">
+    <div class="container mx-auto flex justify-between items-center">
+      <h1 class="text-2xl font-bold">
+        <i class="fas fa-database mr-2"></i>Gestion Base de Données
+      </h1>
+      <button onclick="goHome()" class="bg-white text-indigo-600 px-4 py-2 rounded-md hover:bg-gray-200">
+        <i class="fas fa-home mr-2"></i>Accueil
+      </button>
+    </div>
+  </nav>
+
+  <div class="container mx-auto px-4 py-8">
+    <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+      <h2 class="text-xl font-semibold mb-4">
+        <i class="fas fa-database mr-2 text-indigo-500"></i>Outils Base de Données
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Importer -->
+        <label class="w-full bg-blue-600 text-white px-4 py-3 rounded-md hover:bg-blue-700 transition text-center cursor-pointer">
+          <i class="fas fa-upload mr-2"></i>Importer une base
+          <input type="file" id="uploadDb" accept=".db,.sqlite,.sqlite3" class="hidden" onchange="uploadDatabase(event)">
+        </label>
+      </div>
+
+      <!-- Liste des bases -->
+      <h3 class="text-lg font-semibold mt-6">Bases sauvegardées</h3>
+      <ul id="dbList" class="mt-2 space-y-2"></ul>
+    </div>
+  </div>
+
+  <script>
+    // =========================
+    // Utils
+    // =========================
+    function showToast(msg) { alert(msg); }
+    function isDbFile(name) { return /\.(db|sqlite|sqlite3)$/i.test(name); }
+    function getAllDbs() {
+      return JSON.parse(localStorage.getItem("gestion_dbs") || "[]");
+    }
+    function saveAllDbs(list) {
+      localStorage.setItem("gestion_dbs", JSON.stringify(list));
+    }
+
+    // =========================
+    // Importer une base
+    // =========================
+    function uploadDatabase(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      if (!isDbFile(file.name)) {
+        showToast("Fichier non valide (.db, .sqlite, .sqlite3 uniquement)");
+        event.target.value = "";
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const bytes = new Uint8Array(e.target.result);
+        let binary = "";
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        const base64 = btoa(binary);
+
+        let list = getAllDbs();
+        list.push({ name: file.name, data: base64, date: new Date().toISOString() });
+        saveAllDbs(list);
+
+        showToast("Base importée avec succès");
+        renderDbList();
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    // =========================
+    // Télécharger une base
+    // =========================
+    function downloadDatabase(name) {
+      const list = getAllDbs();
+      const db = list.find(x => x.name === name);
+      if (!db) return showToast("Base introuvable");
+
+      const binaryString = atob(db.data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+
+      const blob = new Blob([bytes], { type: "application/octet-stream" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // =========================
+    // Supprimer une base
+    // =========================
+    function deleteDatabase(name) {
+      if (!confirm("Supprimer la base " + name + " ?")) return;
+      let list = getAllDbs().filter(x => x.name !== name);
+      saveAllDbs(list);
+      renderDbList();
+    }
+
+    // =========================
+    // Afficher la liste
+    // =========================
+    function renderDbList() {
+      const list = getAllDbs();
+      const ul = document.getElementById("dbList");
+      ul.innerHTML = "";
+
+      if (list.length === 0) {
+        ul.innerHTML = "<li class='text-gray-500'>Aucune base sauvegardée</li>";
+        return;
+      }
+
+      list.forEach(db => {
+        const li = document.createElement("li");
+        li.className = "flex justify-between items-center bg-gray-100 p-3 rounded";
+
+        li.innerHTML = `
+          <span><i class="fas fa-database text-indigo-500 mr-2"></i>${db.name}</span>
+          <div class="space-x-2">
+            <button onclick="downloadDatabase('${db.name}')" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700">
+              <i class="fas fa-download"></i>
             </button>
-        </div>
-    </nav>
+            <button onclick="deleteDatabase('${db.name}')" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        `;
+        ul.appendChild(li);
+      });
+    }
 
-    <div class="container mx-auto px-4 py-8">
-        <!-- Gestion Base de Données -->
-        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
-            <h2 class="text-xl font-semibold mb-4">
-                <i class="fas fa-database mr-2 text-indigo-500"></i>Outils Base de Données
-            </h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <!-- Télécharger -->
-                <button onclick="downloadDatabase()" class="w-full bg-green-600 text-white px-4 py-3 rounded-md hover:bg-green-700 transition">
-                    <i class="fas fa-file-download mr-2"></i>Télécharger gestion.db
-                </button>
-                <!-- Réinitialiser -->
-                <button onclick="resetDatabase()" class="w-full bg-red-600 text-white px-4 py-3 rounded-md hover:bg-red-700 transition">
-                    <i class="fas fa-trash mr-2"></i>Réinitialiser la Base
-                </button>
-                <!-- Charger depuis Fichier -->
-                <label class="w-full bg-blue-600 text-white px-4 py-3 rounded-md hover:bg-blue-700 transition text-center cursor-pointer">
-                    <i class="fas fa-upload mr-2"></i>Charger depuis fichier
-                    <input 
-                        type="file" 
-                        id="uploadDb" 
-                        accept=".db,.sqlite,.sqlite3" 
-                        class="hidden" 
-                        onchange="uploadDatabase(event)">
-                </label>
-            </div>
-            <div class="mt-4 text-sm text-gray-600">
-                <p><i class="fas fa-info-circle mr-2"></i>La base est stockée dans le navigateur</p>
-                <p id="dbSize" class="mt-2">Taille: Calcul en cours...</p>
-            </div>
-        </div>
-    </div>
+    // =========================
+    // Accueil
+    // =========================
+    function goHome() {
+      window.location.href = "index.html";
+    }
 
-    <!-- Toast -->
-    <div id="toast" class="fixed bottom-4 right-4 hidden">
-        <div class="flex items-center px-6 py-3 rounded-md shadow-lg">
-            <i id="toastIcon" class="mr-2"></i>
-            <span id="toastMessage"></span>
-        </div>
-    </div>
-
-    <script>
-        // ===== Notification =====
-        function showToast(message, isError = false) {
-            const toast = document.getElementById('toast');
-            const toastMessage = document.getElementById('toastMessage');
-            const toastIcon = document.getElementById('toastIcon');
-            
-            toast.className = isError 
-                ? 'fixed bottom-4 right-4 flex items-center bg-red-500 text-white px-6 py-3 rounded-md shadow-lg toast-in'
-                : 'fixed bottom-4 right-4 flex items-center bg-green-500 text-white px-6 py-3 rounded-md shadow-lg toast-in';
-            
-            toastIcon.className = isError ? 'fas fa-exclamation-circle mr-2' : 'fas fa-check-circle mr-2';
-            toastMessage.textContent = message;
-            toast.classList.remove('hidden');
-            
-            setTimeout(() => {
-                toast.classList.remove('toast-in');
-                toast.classList.add('toast-out');
-                setTimeout(() => toast.classList.add('hidden'), 500);
-            }, 3000);
-        }
-
-        // ===== Vérification extension =====
-        function isDbFile(name) {
-            return /\.(db|sqlite|sqlite3)$/i.test(name);
-        }
-
-        // ===== Accueil =====
-        function goHome() {
-            window.location.href = "index.html";
-        }
-
-        // ===== Télécharger la base =====
-        async function downloadDatabase() {
-            try {
-                const dbData = localStorage.getItem('gestion_db');
-                if (!dbData) {
-                    showToast('Aucune base trouvée', true);
-                    return;
-                }
-
-                // Vérification de l'extension du nom par défaut
-                let filename = "gestion.db";
-                if (!isDbFile(filename)) {
-                    showToast("Le fichier généré n'a pas une extension valide", true);
-                    return;
-                }
-
-                const binaryString = atob(dbData);
-                const bytes = new Uint8Array(binaryString.length);
-                for (let i = 0; i < binaryString.length; i++) {
-                    bytes[i] = binaryString.charCodeAt(i);
-                }
-                const blob = new Blob([bytes], { type: 'application/octet-stream' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                showToast('Base téléchargée avec succès');
-            } catch (error) {
-                showToast('Erreur: ' + error.message, true);
-            }
-        }
-
-        // ===== Réinitialiser =====
-        async function resetDatabase() {
-            const dbData = localStorage.getItem('gestion_db');
-            if (!dbData) {
-                showToast('Aucune base à réinitialiser', true);
-                return;
-            }
-            if (!confirm('Réinitialiser la base ? Elle sera téléchargée avant suppression.')) return;
-            await downloadDatabase();
-            localStorage.removeItem('gestion_db');
-            showToast('Base réinitialisée');
-            setTimeout(() => location.reload(), 1000);
-        }
-
-        // ===== Charger depuis fichier =====
-        function uploadDatabase(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            // Vérification extension
-            if (!isDbFile(file.name)) {
-                showToast("Fichier non valide. Seuls .db, .sqlite ou .sqlite3 sont acceptés.", true);
-                event.target.value = ""; // reset input
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const bytes = new Uint8Array(e.target.result);
-                let binary = "";
-                for (let i = 0; i < bytes.length; i++) {
-                    binary += String.fromCharCode(bytes[i]);
-                }
-                const base64 = btoa(binary);
-                // Sauvegarde dans localStorage
-                localStorage.setItem('gestion_db', base64);
-                showToast('Nouvelle base importée avec succès');
-                updateDBSize();
-            };
-            reader.readAsArrayBuffer(file);
-        }
-
-        // ===== Taille de la base =====
-        function updateDBSize() {
-            const dbData = localStorage.getItem('gestion_db');
-            if (dbData) {
-                const sizeMB = (dbData.length / 1024 / 1024).toFixed(2);
-                document.getElementById('dbSize').textContent = `Taille: ${sizeMB} MB`;
-            } else {
-                document.getElementById('dbSize').textContent = 'Taille: 0 MB';
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', updateDBSize);
-    </script>
+    document.addEventListener("DOMContentLoaded", renderDbList);
+  </script>
 </body>
 </html>
