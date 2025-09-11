@@ -1686,27 +1686,29 @@ export async function modifierVente(numero_comande, data) {
 }
 
 export async function getVente(numero_comande) {
+  console.log(`📥 Exécution de getVente avec numero_comande: ${numero_comande}`);
+  const db = await getDb();
   try {
-    console.log("Exécution de getVente:", numero_comande);
-    const db = await getDb();
-
-    const stmtComande = db.prepare(`
-      SELECT c.*, cl.nom as client_nom, u.nom as utilisateur_nom 
+    const stmtCommande = db.prepare(`
+      SELECT c.numero_comande, c.numero_table, c.date_comande, c.nature, c.numero_util,
+             cl.nom AS client_nom, u.nom AS utilisateur_nom
       FROM comande c
       LEFT JOIN client cl ON c.numero_table = cl.numero_clt
       LEFT JOIN utilisateur u ON c.numero_util = u.numero_util
       WHERE c.numero_comande = ?
     `);
-    stmtComande.bind([numero_comande]);
-    const commande = stmtComande.step() ? stmtComande.getAsObject() : null;
-    stmtComande.free();
+    stmtCommande.bind([numero_comande]);
+    const commande = stmtCommande.step() ? stmtCommande.getAsObject() : null;
+    stmtCommande.free();
 
     if (!commande) {
-      return { erreur: "Commande non trouvée", status: 404 };
+      console.error(`❌ Commande non trouvée pour numero_comande: ${numero_comande}`);
+      return { error: "Commande non trouvée", status: 404 };
     }
+    console.log("✅ Commande trouvée:", commande);
 
     const stmtLignes = db.prepare(`
-      SELECT a.*, i.designation 
+      SELECT a.numero_item, a.quantite, a.prixt, a.remarque, a.prixbh, i.designation
       FROM attache a
       JOIN item i ON a.numero_item = i.numero_item
       WHERE a.numero_comande = ?
@@ -1714,34 +1716,38 @@ export async function getVente(numero_comande) {
     stmtLignes.bind([numero_comande]);
     const lignes = [];
     while (stmtLignes.step()) {
-      lignes.push(stmtLignes.getAsObject());
+      const ligne = stmtLignes.getAsObject();
+      lignes.push({
+        numero_item: ligne.numero_item || ligne.NUMERO_ITEM,
+        designation: ligne.designation || ligne.DESIGNATION || "N/A",
+        quantite: parseFloat(ligne.quantite || ligne.QUANTITE || 0),
+        prixt: parseFloat(ligne.prixt || ligne.PRIXT || 0).toFixed(2), // Chaîne avec point décimal
+        remarque: ligne.remarque || ligne.REMARQUE || "",
+        prixbh: parseFloat(ligne.prixbh || ligne.PRIXBH || 0).toFixed(2) // Chaîne avec point décimal
+      });
     }
     stmtLignes.free();
+    console.log("📋 Lignes de commande:", lignes);
 
-    return {
-      numero_comande: commande.numero_comande,
-      numero_table: commande.numero_table,
-      date_comande: commande.date_comande,
-      nature: commande.nature,
-      client_nom: commande.client_nom || 'Comptoir',
-      utilisateur_nom: commande.utilisateur_nom,
-      lignes: lignes.map(ligne => ({
-        numero_item: ligne.numero_item,
-        designation: ligne.designation,
-        quantite: ligne.quantite,
-        prixt: ligne.prixt,
-        remarque: ligne.remarque,
-        prixbh: ligne.prixbh
-      })),
-      status: 200
+    const response = {
+      numero_comande: commande.numero_comande || commande.NUMERO_COMANDE,
+      numero_table: commande.numero_table || commande.NUMERO_TABLE || 0,
+      date_comande: commande.date_comande || commande.DATE_COMANDE || new Date().toISOString(),
+      nature: commande.nature || commande.NATURE || "",
+      client_nom: commande.client_nom || commande.CLIENT_NOM || "Comptoir",
+      utilisateur_nom: commande.utilisateur_nom || commande.UTILISATEUR_NOM || "N/A",
+      lignes: lignes
     };
 
-  } catch (error) {
-    console.error("Erreur getVente:", error);
-    return { erreur: error.message, status: 500 };
+    console.log(`✅ Vente récupérée: numero_comande=${numero_comande}`);
+    return response;
+  } catch (err) {
+    console.error("❌ Erreur récupération vente:", err);
+    return { error: err.message || "Erreur inconnue", status: 500 };
+  } finally {
+    await saveDbToLocalStorage(db);
   }
 }
-
 export async function getReception(numero_mouvement) {
   console.log(`📥 Exécution de getReception avec numero_mouvement: ${numero_mouvement}`);
   const db = await getDb();
