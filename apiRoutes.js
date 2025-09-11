@@ -29,7 +29,227 @@ function toCommaDecimal(value) {
   }
 }
 
+// Fonction pour calculer le chiffre de contrôle EAN-13
+function calculateEAN13CheckDigit(code12) {
+  if (code12.length !== 12) return '0';
+  
+  let sum = 0;
+  for (let i = 0; i < 12; i++) {
+    const digit = parseInt(code12[i]);
+    sum += (i % 2 === 0) ? digit : digit * 3;
+  }
+  
+  const checkDigit = (10 - (sum % 10)) % 10;
+  return checkDigit.toString();
+}
 
+// GET /liste_codebar_lies
+export async function listeCodebarLies(params) {
+  try {
+    console.log('Exécution de listeCodebarLies avec params:', params);
+    const db = await getDb();
+    
+    const { numero_item } = params;
+    
+    if (!numero_item) {
+      return { erreur: 'numero_item est requis', status: 400 };
+    }
+
+    // Vérifier si l'item existe
+    const stmtCheckItem = db.prepare('SELECT 1 FROM item WHERE numero_item = ?');
+    stmtCheckItem.bind([numero_item]);
+    const itemExists = stmtCheckItem.step() && stmtCheckItem.get();
+    stmtCheckItem.free();
+    
+    if (!itemExists) {
+      return { erreur: 'Produit non trouvé', status: 404 };
+    }
+
+    // Récupérer les codes-barres liés
+    const stmt = db.prepare('SELECT bar2 FROM codebar WHERE bar = ? ORDER BY n');
+    stmt.bind([numero_item]);
+    
+    const linkedBarcodes = [];
+    while (stmt.step()) {
+      const row = stmt.get();
+      if (row[0]) {
+        linkedBarcodes.push(row[0].toString());
+      }
+    }
+    stmt.free();
+
+    console.log('Codes-barres liés trouvés:', linkedBarcodes);
+    return { linked_barcodes: linkedBarcodes, status: 200 };
+
+  } catch (error) {
+    console.error('Erreur listeCodebarLies:', error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+// POST /ajouter_codebar_lie
+export async function ajouterCodebarLie(data) {
+  try {
+    console.log('Exécution de ajouterCodebarLie avec data:', data);
+    const db = await getDb();
+    
+    const { numero_item, barcode } = data;
+    
+    if (!numero_item) {
+      return { erreur: 'numero_item est requis', status: 400 };
+    }
+
+    // Vérifier si l'item existe
+    const stmtCheckItem = db.prepare('SELECT 1 FROM item WHERE numero_item = ?');
+    stmtCheckItem.bind([numero_item]);
+    const itemExists = stmtCheckItem.step() && stmtCheckItem.get();
+    stmtCheckItem.free();
+    
+    if (!itemExists) {
+      return { erreur: 'Produit non trouvé', status: 404 };
+    }
+
+    let finalBarcode = barcode;
+    
+    // Si aucun code-barres fourni, générer un EAN-13
+    if (!finalBarcode) {
+      // Récupérer tous les codes-barres existants
+      const stmtAllBarcodes = db.prepare('SELECT bar2 FROM codebar');
+      const existingBarcodes = [];
+      while (stmtAllBarcodes.step()) {
+        const row = stmtAllBarcodes.get();
+        if (row[0]) {
+          existingBarcodes.push(row[0].toString());
+        }
+      }
+      stmtAllBarcodes.free();
+
+      // Trouver le prochain numéro disponible
+      let nextNumber = 1;
+      const usedNumbers = [];
+      
+      for (const code of existingBarcodes) {
+        if (code.startsWith('1') && code.length === 13) {
+          const numericPart = code.substring(1, 12);
+          if (/^\d{11}$/.test(numericPart)) {
+            usedNumbers.push(parseInt(numericPart));
+          }
+        }
+      }
+      
+      usedNumbers.sort((a, b) => a - b);
+      
+      for (const num of usedNumbers) {
+        if (num === nextNumber) {
+          nextNumber++;
+        } else if (num > nextNumber) {
+          break;
+        }
+      }
+      
+      // Générer le code EAN-13
+      const code12 = `1${nextNumber.toString().padStart(11, '0')}`;
+      const checkDigit = calculateEAN13CheckDigit(code12);
+      finalBarcode = `${code12}${checkDigit}`;
+      
+      // Vérifier que le code généré n'existe pas déjà
+      const stmtCheckBarcode = db.prepare('SELECT 1 FROM codebar WHERE bar2 = ?');
+      stmtCheckBarcode.bind([finalBarcode]);
+      const barcodeExists = stmtCheckBarcode.step() && stmtCheckBarcode.get();
+      stmtCheckBarcode.free();
+      
+      if (barcodeExists) {
+        return { erreur: 'Le code EAN-13 généré existe déjà', status: 409 };
+      }
+    } else {
+      // Vérifier que le code-barres fourni n'existe pas déjà
+      const stmtCheckBarcode = db.prepare('SELECT 1 FROM codebar WHERE bar2 = ?');
+      stmtCheckBarcode.bind([finalBarcode]);
+      const barcodeExists = stmtCheckBarcode.step() && stmtCheckBarcode.get();
+      stmtCheckBarcode.free();
+      
+      if (barcodeExists) {
+        return { erreur: 'Ce code-barres lié existe déjà', status: 409 };
+      }
+    }
+
+    // Insérer le nouveau code-barres lié
+    const stmtInsert = db.prepare('INSERT INTO codebar (bar2, bar) VALUES (?, ?)');
+    stmtInsert.run([finalBarcode, numero_item]);
+    const changes = db.getRowsModified();
+    stmtInsert.free();
+
+    if (changes === 0) {
+      return { erreur: 'Échec de l\'ajout du code-barres lié', status: 500 };
+    }
+
+    // Récupérer l'ID inséré
+    const idStmt = db.prepare('SELECT last_insert_rowid() AS id');
+    idStmt.step();
+    const { id } = idStmt.getAsObject();
+    idStmt.free();
+
+    saveDbToLocalStorage(db);
+    console.log('Code-barres lié ajouté avec succès:', { id, bar2: finalBarcode });
+    
+    return { 
+      statut: 'Code-barres lié ajouté', 
+      id, 
+      bar2: finalBarcode, 
+      status: 201 
+    };
+
+  } catch (error) {
+    console.error('Erreur ajouterCodebarLie:', error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+// POST /supprimer_codebar_lie
+export async function supprimerCodebarLie(data) {
+  try {
+    console.log('Exécution de supprimerCodebarLie avec data:', data);
+    const db = await getDb();
+    
+    const { numero_item, bar2 } = data;
+    
+    if (!numero_item || !bar2) {
+      return { erreur: 'numero_item et bar2 sont requis', status: 400 };
+    }
+
+    // Vérifier que le code-barres lié existe pour cet item
+    const stmtCheck = db.prepare('SELECT 1 FROM codebar WHERE bar2 = ? AND bar = ?');
+    stmtCheck.bind([bar2, numero_item]);
+    const exists = stmtCheck.step() && stmtCheck.get();
+    stmtCheck.free();
+    
+    if (!exists) {
+      return { erreur: 'Code-barres lié non trouvé pour ce produit', status: 404 };
+    }
+
+    // Supprimer le code-barres lié
+    const stmtDelete = db.prepare('DELETE FROM codebar WHERE bar2 = ? AND bar = ?');
+    stmtDelete.run([bar2, numero_item]);
+    const changes = db.getRowsModified();
+    stmtDelete.free();
+
+    if (changes === 0) {
+      return { erreur: 'Échec de la suppression du code-barres lié', status: 500 };
+    }
+
+    saveDbToLocalStorage(db);
+    console.log('Code-barres lié supprimé avec succès:', { bar2 });
+    
+    return { 
+      statut: 'Code-barres lié supprimé', 
+      status: 200 
+    };
+
+  } catch (error) {
+    console.error('Erreur supprimerCodebarLie:', error);
+    return { erreur: error.message, status: 500 };
+  }
+}
 export async function rechercherProduitCodebar(codebar) {
   try {
     console.log("📥 Exécution de rechercherProduitCodebar avec codebar:", codebar);
