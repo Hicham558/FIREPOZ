@@ -42,7 +42,39 @@ const handlers = {
         return dashboard('day');
       }
     },
-    'get_vente/(\\w+)': (id) => getVente(id),
+    'get_vente/(\\w+)': async (params) => {
+      console.log(`📥 Interception GET /api/get_vente/${params}`);
+      try {
+        const numero_comande = parseInt(params, 10);
+        if (isNaN(numero_comande)) {
+          console.error('❌ Numéro de commande invalide:', params);
+          return new Response(JSON.stringify({ error: 'Numéro de commande invalide' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        const result = await getVente(numero_comande);
+        console.log(`✅ Réponse getVente:`, result);
+        // Vérifier si la réponse contient un champ error
+        if (result.error) {
+          return new Response(JSON.stringify({ error: result.error }), {
+            status: result.status || 500,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        // Retourner la réponse plate comme Flask
+        return new Response(JSON.stringify(result), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (error) {
+        console.error('❌ Erreur get_vente:', error);
+        return new Response(JSON.stringify({ error: error.message || 'Erreur inconnue' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    },
     'ventes_jour': (url) => {
       try {
         const urlParams = new URL(url, window.location.origin).searchParams;
