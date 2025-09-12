@@ -46,8 +46,8 @@ const handlers = {
         console.error('❌ Erreur extraction paramètres situation_versements:', error);
         return situationVersements();
       }
-    }
-  }, 
+    },
+  
      'liste_produits_par_categorie': (url) => {
       try {
         const urlObj = new URL(url, window.location.origin);
