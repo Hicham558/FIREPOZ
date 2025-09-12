@@ -1601,13 +1601,13 @@ export async function assignerCategorie(data) {
 
 
 
-export async function listeProduitsParCategorie(numero_categorie, headers = {}) {
+export async function listeProduitsParCategorie(numero_categorie) {
   try {
     console.log('🔍 Exécution de listeProduitsParCategorie avec paramètre:', numero_categorie);
-    console.log('📋 Headers reçus:', headers);
     const db = await getDb();
 
-    if (numero_categorie === undefined || numero_categorie === null) {
+    // Cas spécial pour produits sans catégorie (paramètre vide)
+    if (numero_categorie === undefined || numero_categorie === null || numero_categorie === 'empty') {
       console.log('📦 Récupération des produits SANS catégorie');
       const stmt = db.prepare('SELECT numero_item, designation FROM item WHERE numero_categorie IS NULL');
       const produits = [];
@@ -1621,20 +1621,57 @@ export async function listeProduitsParCategorie(numero_categorie, headers = {}) 
       }
       stmt.free();
       console.log('✅ Produits sans catégorie trouvés:', produits);
-      
-      // Retourner la même structure que Flask
-      return {
-        body: JSON.stringify({ produits }),
-        init: {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      };
+      return { produits };
       
     } else {
       const numCat = Number(numero_categorie);
       console.log('🔍 Recherche pour catégorie ID:', numCat);
       
+      // Cas où numero_categorie est NaN (pas un nombre valide)
+      if (isNaN(numCat)) {
+        console.log('📦 Paramètre non numérique, récupération TOUTES les catégories');
+        
+        // Requête pour toutes les catégories
+        const query = `
+          SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
+          FROM categorie c
+          LEFT JOIN item i ON c.numer_categorie = i.numero_categorie
+          ORDER BY c.numer_categorie
+        `;
+        
+        const stmt = db.prepare(query);
+        const categories = {};
+        
+        while (stmt.step()) {
+          const row = stmt.getAsObject();
+          const numer_categorie = row.NUMER_CATEGORIE || row.numer_categorie || '';
+          const description_c = row.DESCRIPTION_C || row.description_c || '';
+          const numero_item = row.NUMERO_ITEM || row.numero_item || '';
+          const designation = row.DESIGNATION || row.designation || '';
+
+          if (!categories[numer_categorie]) {
+            categories[numer_categorie] = {
+              numero_categorie: numer_categorie,
+              description_c: description_c,
+              produits: []
+            };
+          }
+
+          if (numero_item) {
+            categories[numer_categorie].produits.push({
+              numero_item: numero_item,
+              designation: designation
+            });
+          }
+        }
+        stmt.free();
+        
+        const resultArray = Object.values(categories);
+        console.log('✅ Toutes les catégories:', resultArray);
+        return { categories: resultArray };
+      }
+      
+      // Cas normal : recherche d'une catégorie spécifique
       // Vérification que la catégorie existe
       const stmtCheckCat = db.prepare('SELECT numer_categorie, description_c FROM categorie WHERE numer_categorie = ?');
       stmtCheckCat.bind([numCat]);
@@ -1646,16 +1683,10 @@ export async function listeProduitsParCategorie(numero_categorie, headers = {}) 
       
       if (!categorieExists) {
         console.error('❌ Catégorie non trouvée:', numCat);
-        return {
-          body: JSON.stringify({ erreur: 'Catégorie non trouvée' }),
-          init: {
-            status: 404,
-            headers: { 'Content-Type': 'application/json' }
-          }
-        };
+        return { erreur: 'Catégorie non trouvée', status: 404 };
       }
 
-      // Requête principale
+      // Requête principale pour une catégorie spécifique
       console.log('🔍 Exécution requête produits pour catégorie:', numCat);
       const query = `
         SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
@@ -1676,7 +1707,6 @@ export async function listeProduitsParCategorie(numero_categorie, headers = {}) 
         const row = stmt.getAsObject();
         console.log('📊 Ligne brute', rowCount, ':', row);
         
-        // Essayer différents formats de noms de colonnes
         const numer_categorie = row.NUMER_CATEGORIE || row.numer_categorie || '';
         const description_c = row.DESCRIPTION_C || row.description_c || '';
         const numero_item = row.NUMERO_ITEM || row.numero_item || '';
@@ -1705,24 +1735,11 @@ export async function listeProduitsParCategorie(numero_categorie, headers = {}) 
       const resultArray = Object.values(categories);
       console.log('✅ Résultat final:', resultArray);
       
-      // Retourner la même structure que Flask
-      return {
-        body: JSON.stringify({ categories: resultArray }),
-        init: {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      };
+      return { categories: resultArray };
     }
   } catch (error) {
     console.error('❌ Erreur listeProduitsParCategorie:', error);
-    return {
-      body: JSON.stringify({ erreur: error.message }),
-      init: {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      }
-    };
+    return { erreur: error.message, status: 500 };
   }
 }
 export async function clientSolde() {
