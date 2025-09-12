@@ -46,6 +46,7 @@ function calculateEAN13CheckDigit(code12) {
 // apiRoutes.js - Nouvelles fonctions pour les versements
 
 // Fonction pour ajouter un versement
+
 export async function ajouterVersement(data) {
   try {
     console.log("Exécution de ajouterVersement avec data:", data);
@@ -70,7 +71,7 @@ export async function ajouterVersement(data) {
     db.run('BEGIN TRANSACTION');
 
     try {
-      // Vérification de l'utilisateur et du mot de passe - CORRIGÉ
+      // Vérification de l'utilisateur et du mot de passe - CORRECTION ICI
       const stmtUser = db.prepare("SELECT Password2 FROM utilisateur WHERE numero_util = ?");
       stmtUser.bind([numero_util]);
       const utilisateur = stmtUser.step() ? stmtUser.getAsObject() : null;
