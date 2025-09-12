@@ -52,12 +52,12 @@ export async function ajouterVersement(data) {
     console.log("Exécution de ajouterVersement avec data:", data);
     const db = await getDb();
     
-    // Validation des données
-    const { type, numero_cf, montant, justificatif = '', numero_util, password2 } = data;
-    
-    if (!type || !numero_cf || !montant || !numero_util || !password2) {
+    // 1. Validation des données
+    if (!data || !data.type || !data.numero_cf || !data.montant || !data.numero_util || !data.password2) {
       return { error: "Type, numéro client/fournisseur, montant, utilisateur ou mot de passe manquant", status: 400 };
     }
+
+    const { type, numero_cf, montant, justificatif = '', numero_util, password2 } = data;
 
     if (type !== 'C' && type !== 'F') {
       return { error: "Type invalide (doit être 'C' ou 'F')", status: 400 };
@@ -68,22 +68,23 @@ export async function ajouterVersement(data) {
       return { error: "Le montant ne peut pas être zéro", status: 400 };
     }
 
+    // 2. Vérification de l'authentification
+    const stmtUser = db.prepare("SELECT numero_util, nom, password2 FROM utilisateur WHERE numero_util = ?");
+    stmtUser.bind([numero_util]);
+    let user = null;
+    if (stmtUser.step()) {
+      user = stmtUser.getAsObject();
+    }
+    stmtUser.free();
+
+    if (!user || user.PASSWORD2 !== password2) {
+      return { error: "Authentification invalide", status: 401 };
+    }
+
     db.run('BEGIN TRANSACTION');
 
     try {
-      // Vérification de l'utilisateur et du mot de passe - CORRECTION ICI
-      const stmtUser = db.prepare("SELECT Password2 FROM utilisateur WHERE numero_util = ?");
-      stmtUser.bind([numero_util]);
-      const utilisateur = stmtUser.step() ? stmtUser.getAsObject() : null;
-      stmtUser.free();
-
-      // CORRIGÉ - utilisation de Password2 (avec majuscule)
-      if (!utilisateur || utilisateur.Password2 !== password2) {
-        db.run('ROLLBACK');
-        return { error: "Utilisateur non trouvé ou mot de passe incorrect", status: 401 };
-      }
-
-      // Vérification et mise à jour du solde
+      // 3. Vérification de l'entité (client ou fournisseur)
       let table, id_column, origine;
       if (type === 'C') {
         table = 'client';
@@ -95,6 +96,7 @@ export async function ajouterVersement(data) {
         origine = 'VERSEMENT F';
       }
 
+      // Vérifier si l'entité existe
       const stmtEntity = db.prepare(`SELECT solde FROM ${table} WHERE ${id_column} = ?`);
       stmtEntity.bind([numero_cf]);
       const entity = stmtEntity.step() ? stmtEntity.getAsObject() : null;
@@ -105,20 +107,20 @@ export async function ajouterVersement(data) {
         return { error: `${type === 'C' ? 'Client' : 'Fournisseur'} non trouvé`, status: 400 };
       }
 
-      // Calcul du nouveau solde
+      // 4. Calcul du nouveau solde
       const current_solde = toDotDecimal(entity.solde || '0,00');
       const new_solde = current_solde + montant_decimal;
       const new_solde_str = toCommaDecimal(new_solde);
 
-      // Mise à jour du solde
+      // 5. Mise à jour du solde
       const stmtUpdate = db.prepare(`UPDATE ${table} SET solde = ? WHERE ${id_column} = ?`);
       stmtUpdate.run([new_solde_str, numero_cf]);
       stmtUpdate.free();
 
-      // Enregistrement du mouvement dans MOUVEMENTC
+      // 6. Enregistrement du mouvement dans MOUVEMENTC
       const now = new Date();
       const date_mc = now.toISOString().split('T')[0]; // YYYY-MM-DD
-      const time_mc = formatDateForSQLite(now); // YYYY-MM-DD HH:MM:SS
+      const time_mc = now.toISOString().replace('T', ' ').slice(0, 19); // YYYY-MM-DD HH:MM:SS
 
       const stmtMouvement = db.prepare(`
         INSERT INTO mouvementc (date_mc, time_mc, montant, justificatif, numero_util, origine, cf, numero_cf)
@@ -136,7 +138,7 @@ export async function ajouterVersement(data) {
       ]);
       stmtMouvement.free();
 
-      // Récupérer l'ID du mouvement créé
+      // 7. Récupérer l'ID du mouvement créé
       const idStmt = db.prepare('SELECT last_insert_rowid() AS numero_mc');
       idStmt.step();
       const { numero_mc } = idStmt.getAsObject();
@@ -146,10 +148,18 @@ export async function ajouterVersement(data) {
       saveDbToLocalStorage(db);
 
       console.log(`Versement ajouté: numero_mc=${numero_mc}, type=${type}, montant=${toCommaDecimal(montant_decimal)}`);
-      return { numero_mc, statut: "Versement ajouté", status: 201 };
+      
+      return {
+        success: true,
+        numero_mc,
+        statut: "Versement ajouté",
+        new_solde: new_solde_str,
+        status: 201
+      };
 
     } catch (error) {
       db.run('ROLLBACK');
+      console.error("Erreur dans la transaction:", error);
       throw error;
     }
 
