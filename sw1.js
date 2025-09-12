@@ -8,7 +8,9 @@ import {
   clientSolde, validerVente, modifierVente, getVente, ventesJour, 
   annulerVente, validerReception, modifierReception, rechercherProduitCodebar,
   receptionsJour, articlesPlusVendus, profitByDate, stockValue, annulerReception,
-  getReception,listeCodebarLies,ajouterCodebarLie,supprimerCodebarLie
+  getReception,listeCodebarLies,ajouterCodebarLie,supprimerCodebarLie,  
+  ajouterVersement, historiqueVersements, situationVersements, 
+  modifierVersement, annulerVersement
 } from './apiRoutes.js';
 
 // Sauvegarde de la fonction fetch originale
@@ -23,6 +25,29 @@ const handlers = {
     'liste_utilisateurs': () => listeUtilisateurs(),
     'liste_categories': () => listeCategories(),
     'client_solde': () => clientSolde(),
+    'historique_versements': (url) => {
+      try {
+        const urlParams = new URL(url, window.location.origin).searchParams;
+        const date = urlParams.get('date');
+        const type = urlParams.get('type');
+        return historiqueVersements({ date, type });
+      } catch (error) {
+        console.error('❌ Erreur extraction paramètres historique_versements:', error);
+        return historiqueVersements();
+      }
+    },
+    'situation_versements': (url) => {
+      try {
+        const urlParams = new URL(url, window.location.origin).searchParams;
+        const type = urlParams.get('type');
+        const numero_cf = urlParams.get('numero_cf');
+        return situationVersements({ type, numero_cf });
+      } catch (error) {
+        console.error('❌ Erreur extraction paramètres situation_versements:', error);
+        return situationVersements();
+      }
+    }
+  }, 
      'liste_produits_par_categorie': (url) => {
       try {
         const urlObj = new URL(url, window.location.origin);
@@ -245,7 +270,8 @@ const handlers = {
     'annuler_reception': (body) => annulerReception(body),
     'ajouter_codebar_lie': (body) => ajouterCodebarLie(body),
     'supprimer_codebar_lie': (body) => supprimerCodebarLie(body),
-    'assigner_categorie': (body) => assignerCategorie(body)
+    'assigner_categorie': (body) => assignerCategorie(body),
+    'ajouter_versement': (body) => ajouterVersement(body)
   },
   PUT: {
     'modifier_client/(\\w+)': (id, body) => modifierClient(id, body),
@@ -254,14 +280,16 @@ const handlers = {
     'modifier_utilisateur/(\\w+)': (id, body) => modifierUtilisateur(id, body),
     'modifier_categorie/(\\w+)': (id, body) => modifierCategorie(id, body),
     'modifier_vente/(\\w+)': (id, body) => modifierVente(id, body),
-    'modifier_reception/(\\w+)': (id, body) => modifierReception(id, body)
+    'modifier_reception/(\\w+)': (id, body) => modifierReception(id, body),
+    'modifier_versement': (body) => modifierVersement(body)
 },
   DELETE: {
     'supprimer_client/(\\w+)': (id) => supprimerClient(id),
     'supprimer_fournisseur/(\\w+)': (id) => supprimerFournisseur(id),
     'supprimer_item/(\\w+)': (id) => supprimerItem(id),
     'supprimer_utilisateur/(\\w+)': (id) => supprimerUtilisateur(id),
-    'supprimer_categorie/(\\w+)': (id) => supprimerCategorie(id)
+    'supprimer_categorie/(\\w+)': (id) => supprimerCategorie(id),
+     'annuler_versement': (body) => annulerVersement(body)
   }
 };
 
