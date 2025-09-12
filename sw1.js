@@ -23,7 +23,7 @@ const handlers = {
     'liste_utilisateurs': () => listeUtilisateurs(),
     'liste_categories': () => listeCategories(),
     'client_solde': () => clientSolde(),
-   '/liste_produits_par_categorie': {
+   'liste_produits_par_categorie': {
   method: 'GET',
   handler: async (request) => {
     try {
