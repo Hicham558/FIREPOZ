@@ -1603,6 +1603,8 @@ export async function assignerCategorie(data) {
 
 export async function listeProduitsParCategorie(numero_categorie) {
   let numCat = null;
+  
+  // Gestion robuste du paramètre
   if (numero_categorie !== undefined && numero_categorie !== null) {
     numCat = Number(numero_categorie);
     if (isNaN(numCat)) {
@@ -1612,54 +1614,51 @@ export async function listeProduitsParCategorie(numero_categorie) {
   }
 
   try {
-    console.log('Exécution de listeProduitsParCategorie. Paramètre original:', numero_categorie, 'Traité comme:', numCat);
+    console.log('Exécution de listeProduitsParCategorie. Paramètre:', numero_categorie, 'Traité comme:', numCat);
     const db = await getDb();
 
-    if (numCat === null) {
-      // Produits sans catégorie - utiliser les bons noms de colonnes
+    // Cas spécial pour les produits sans catégorie (comme dans Flask)
+    if (numero_categorie === undefined || numero_categorie === null) {
+      console.log('Récupération des produits sans catégorie');
       const stmt = db.prepare('SELECT numero_item, designation FROM item WHERE numero_categorie IS NULL');
       const produits = [];
       while (stmt.step()) {
         const row = stmt.getAsObject();
-        console.log('Produit sans catégorie brut:', row);
-        
         produits.push({
           numero_item: row.NUMERO_ITEM || '',
           designation: row.DESIGNATION || ''
         });
       }
       stmt.free();
-      console.log('Produits sans catégorie:', produits);
+      console.log('Produits sans catégorie trouvés:', produits.length);
       return { produits };
       
     } else {
-      // Vérification de l'existence de la catégorie avec les BONS NOMS DE COLONNES
-      const stmtCheckCat = db.prepare('SELECT COUNT(*) as count FROM categorie WHERE NUMER_CATEGORIE = ?');
+      // Vérification de l'existence de la catégorie
+      const stmtCheckCat = db.prepare('SELECT COUNT(*) as count FROM categorie WHERE numer_categorie = ?');
       stmtCheckCat.bind([numCat]);
       const result = stmtCheckCat.getAsObject();
       const exists = result && result.COUNT > 0;
       stmtCheckCat.free();
 
       if (!exists) {
-        console.error('Erreur: Catégorie non trouvée pour NUMER_CATEGORIE:', numCat);
+        console.error('Erreur: Catégorie non trouvée pour numer_categorie:', numCat);
         return { erreur: 'Catégorie non trouvée', status: 404 };
       }
 
-      // Produits par catégorie avec les BONS NOMS DE COLONNES
+      // Produits par catégorie (correspond à la requête Flask)
       const stmt = db.prepare(`
-        SELECT c.NUMER_CATEGORIE, c.DESCRIPTION_C, i.numero_item, i.designation
+        SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
         FROM categorie c
-        LEFT JOIN item i ON c.NUMER_CATEGORIE = i.numero_categorie
-        WHERE c.NUMER_CATEGORIE = ?
+        LEFT JOIN item i ON c.numer_categorie = i.numero_categorie
+        WHERE c.numer_categorie = ?
       `);
       stmt.bind([numCat]);
 
       const categories = {};
       while (stmt.step()) {
         const row = stmt.getAsObject();
-        console.log('Données brutes pour catégorie:', row);
-
-        // Utiliser les VRAIS noms de colonnes de la base de données
+        
         const numer_categorie = row.NUMER_CATEGORIE || '';
         const description_c = row.DESCRIPTION_C || '';
         const numero_item = row.NUMERO_ITEM || '';
@@ -1667,7 +1666,7 @@ export async function listeProduitsParCategorie(numero_categorie) {
 
         if (!categories[numer_categorie]) {
           categories[numer_categorie] = {
-            numer_categorie: numer_categorie,
+            numero_categorie: numer_categorie, // Note: Flask utilise ce nom
             description_c: description_c,
             produits: []
           };
@@ -1683,7 +1682,7 @@ export async function listeProduitsParCategorie(numero_categorie) {
       stmt.free();
 
       const resultArray = Object.values(categories);
-      console.log('Catégories avec produits:', resultArray);
+      console.log('Catégories avec produits trouvées:', resultArray.length);
       
       return { categories: resultArray };
     }
