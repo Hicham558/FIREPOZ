@@ -23,88 +23,31 @@ const handlers = {
     'liste_utilisateurs': () => listeUtilisateurs(),
     'liste_categories': () => listeCategories(),
     'client_solde': () => clientSolde(),
-   'liste_produits_par_categorie': async (request) => {
-  try {
-    let numero_categorie = null;
+    
+  'liste_produits_par_categorie': async (requestUrl) => {
+    try {
+      // Extraire numero_categorie depuis l'URL
+      const url = new URL(requestUrl, window.location.origin);
+      const numero_categorieParam = url.searchParams.get('numero_categorie');
+      const numero_categorie = numero_categorieParam ? parseInt(numero_categorieParam) : undefined;
 
-    if (request && request.url) {
-      const urlParams = new URL(request.url, window.location.origin).searchParams;
-      const param = urlParams.get('numero_categorie');
-      if (param !== null) {
-        numero_categorie = param !== '' ? parseInt(param, 10) : null;
-        if (param !== '' && isNaN(numero_categorie)) {
-          return {
-            body: JSON.stringify({ erreur: 'Numéro de catégorie doit être un entier', status: 400 }),
-            init: { status: 400, headers: { 'Content-Type': 'application/json' } }
-          };
-        }
-      }
-    }
-
-    const db = await getDb();
-
-    if (numero_categorie === null && request.url.includes('numero_categorie')) {
-      // Produits sans catégorie
-      const stmt = db.prepare('SELECT numero_item, designation FROM item WHERE numero_categorie IS NULL');
-      const produits = [];
-      while (stmt.step()) {
-        const row = stmt.getAsObject();
-        produits.push({
-          numero_item: row.numero_item,
-          designation: row.designation
-        });
-      }
-      stmt.free();
-      return {
-        body: JSON.stringify({ produits }),
-        init: { status: 200, headers: { 'Content-Type': 'application/json' } }
-      };
-    } else {
-      // Produits avec catégorie
-      const stmt = db.prepare(`
-        SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
-        FROM categorie c
-        LEFT JOIN item i ON c.numer_categorie = i.numero_categorie
-        WHERE c.numer_categorie = :num OR :num IS NULL
-      `);
-      stmt.bind({ ':num': numero_categorie });
-      const rows = [];
-      while (stmt.step()) {
-        rows.push(stmt.getAsObject());
-      }
-      stmt.free();
-
-      const categories = {};
-      rows.forEach(row => {
-        const cat_id = row.numer_categorie;
-        if (!categories[cat_id]) {
-          categories[cat_id] = {
-            numero_categorie: cat_id,
-            description_c: row.description_c,
-            produits: []
-          };
-        }
-        if (row.numero_item !== null) {
-          categories[cat_id].produits.push({
-            numero_item: row.numero_item,
-            designation: row.designation
-          });
-        }
-      });
+      // Appeler la fonction API avec le bon argument
+      const result = await listeProduitsParCategorie({ numero_categorie });
 
       return {
-        body: JSON.stringify({ categories: Object.values(categories) }),
-        init: { status: 200, headers: { 'Content-Type': 'application/json' } }
+        body: JSON.stringify(result),
+        init: { 
+          status: result.erreur ? 500 : 200, 
+          headers: { 'Content-Type': 'application/json' } 
+        }
+      };
+    } catch (error) {
+      return {
+        body: JSON.stringify({ erreur: error.message }),
+        init: { status: 500, headers: { 'Content-Type': 'application/json' } }
       };
     }
-  } catch (error) {
-    console.error('Erreur listeProduitsParCategorie:', error);
-    return {
-      body: JSON.stringify({ erreur: error.message, status: 500 }),
-      init: { status: 500, headers: { 'Content-Type': 'application/json' } }
-    };
-  }
-}
+  },
 
 
     'dashboard': (url) => {
