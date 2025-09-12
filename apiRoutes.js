@@ -43,6 +43,491 @@ function calculateEAN13CheckDigit(code12) {
   return checkDigit.toString();
 }
 
+// apiRoutes.js - Nouvelles fonctions pour les versements
+
+// Fonction pour ajouter un versement
+export async function ajouterVersement(data) {
+  try {
+    console.log("Exécution de ajouterVersement avec data:", data);
+    const db = await getDb();
+    
+    // Validation des données
+    const { type, numero_cf, montant, justificatif = '', numero_util, password2 } = data;
+    
+    if (!type || !numero_cf || !montant || !numero_util || !password2) {
+      return { error: "Type, numéro client/fournisseur, montant, utilisateur ou mot de passe manquant", status: 400 };
+    }
+
+    if (type !== 'C' && type !== 'F') {
+      return { error: "Type invalide (doit être 'C' ou 'F')", status: 400 };
+    }
+
+    const montant_decimal = toDotDecimal(montant);
+    if (montant_decimal === 0) {
+      return { error: "Le montant ne peut pas être zéro", status: 400 };
+    }
+
+    db.run('BEGIN TRANSACTION');
+
+    try {
+      // Vérification de l'utilisateur et du mot de passe
+      const stmtUser = db.prepare("SELECT password2 FROM utilisateur WHERE numero_util = ?");
+      stmtUser.bind([numero_util]);
+      const utilisateur = stmtUser.step() ? stmtUser.getAsObject() : null;
+      stmtUser.free();
+
+      if (!utilisateur || utilisateur.password2 !== password2) {
+        db.run('ROLLBACK');
+        return { error: "Utilisateur non trouvé ou mot de passe incorrect", status: 401 };
+      }
+
+      // Vérification et mise à jour du solde
+      let table, id_column, origine;
+      if (type === 'C') {
+        table = 'client';
+        id_column = 'numero_clt';
+        origine = 'VERSEMENT C';
+      } else {
+        table = 'fournisseur';
+        id_column = 'numero_fou';
+        origine = 'VERSEMENT F';
+      }
+
+      const stmtEntity = db.prepare(`SELECT solde FROM ${table} WHERE ${id_column} = ?`);
+      stmtEntity.bind([numero_cf]);
+      const entity = stmtEntity.step() ? stmtEntity.getAsObject() : null;
+      stmtEntity.free();
+
+      if (!entity) {
+        db.run('ROLLBACK');
+        return { error: `${type === 'C' ? 'Client' : 'Fournisseur'} non trouvé`, status: 400 };
+      }
+
+      // Calcul du nouveau solde
+      const current_solde = toDotDecimal(entity.solde || '0,00');
+      const new_solde = current_solde + montant_decimal;
+      const new_solde_str = toCommaDecimal(new_solde);
+
+      // Mise à jour du solde
+      const stmtUpdate = db.prepare(`UPDATE ${table} SET solde = ? WHERE ${id_column} = ?`);
+      stmtUpdate.run([new_solde_str, numero_cf]);
+      stmtUpdate.free();
+
+      // Enregistrement du mouvement dans MOUVEMENTC
+      const now = new Date();
+      const date_mc = now.toISOString().split('T')[0]; // YYYY-MM-DD
+      const time_mc = formatDateForSQLite(now); // YYYY-MM-DD HH:MM:SS
+
+      const stmtMouvement = db.prepare(`
+        INSERT INTO mouvementc (date_mc, time_mc, montant, justificatif, numero_util, origine, cf, numero_cf)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      stmtMouvement.run([
+        date_mc,
+        time_mc,
+        toCommaDecimal(montant_decimal),
+        justificatif,
+        numero_util,
+        origine,
+        type,
+        numero_cf
+      ]);
+      stmtMouvement.free();
+
+      // Récupérer l'ID du mouvement créé
+      const idStmt = db.prepare('SELECT last_insert_rowid() AS numero_mc');
+      idStmt.step();
+      const { numero_mc } = idStmt.getAsObject();
+      idStmt.free();
+
+      db.run('COMMIT');
+      saveDbToLocalStorage(db);
+
+      console.log(`Versement ajouté: numero_mc=${numero_mc}, type=${type}, montant=${toCommaDecimal(montant_decimal)}`);
+      return { numero_mc, statut: "Versement ajouté", status: 201 };
+
+    } catch (error) {
+      db.run('ROLLBACK');
+      throw error;
+    }
+
+  } catch (error) {
+    console.error("Erreur ajouterVersement:", error);
+    return { error: error.message, status: 500 };
+  }
+}
+
+// Fonction pour récupérer l'historique des versements
+export async function historiqueVersements(params = {}) {
+  try {
+    console.log("Exécution de historiqueVersements avec params:", params);
+    const db = await getDb();
+
+    const { date, type } = params;
+    let date_start, date_end;
+
+    if (date) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return { erreur: 'Format de date invalide (attendu: YYYY-MM-DD)', status: 400 };
+      }
+      date_start = `${date} 00:00:00`;
+      date_end = `${date} 23:59:59`;
+    } else {
+      const today = new Date().toISOString().split('T')[0];
+      date_start = `${today} 00:00:00`;
+      date_end = `${today} 23:59:59`;
+    }
+
+    let query = `
+      SELECT 
+        mc.numero_mc,
+        mc.date_mc,
+        mc.montant,
+        mc.justificatif,
+        mc.cf,
+        mc.numero_cf,
+        mc.numero_util,
+        COALESCE(cl.nom, f.nom) AS nom_cf,
+        u.nom AS utilisateur_nom
+      FROM mouvementc mc
+      LEFT JOIN client cl ON mc.cf = 'C' AND mc.numero_cf = cl.numero_clt
+      LEFT JOIN fournisseur f ON mc.cf = 'F' AND mc.numero_cf = f.numero_fou
+      LEFT JOIN utilisateur u ON mc.numero_util = u.numero_util
+      WHERE mc.time_mc BETWEEN ? AND ?
+      AND mc.origine IN ('VERSEMENT C', 'VERSEMENT F')
+    `;
+
+    const params_query = [date_start, date_end];
+
+    if (type && (type === 'C' || type === 'F')) {
+      query += " AND mc.cf = ?";
+      params_query.push(type);
+    }
+
+    query += " ORDER BY mc.date_mc DESC, mc.time_mc DESC";
+
+    const stmt = db.prepare(query);
+    stmt.bind(params_query);
+
+    const versements = [];
+    while (stmt.step()) {
+      const row = stmt.getAsObject();
+      versements.push({
+        numero_mc: row.numero_mc,
+        date_mc: row.date_mc,
+        montant: row.montant ? row.montant.toString() : '0,00',
+        justificatif: row.justificatif || '',
+        type: row.cf === 'C' ? 'Client' : 'Fournisseur',
+        numero_cf: row.numero_cf,
+        nom_cf: row.nom_cf || 'N/A',
+        utilisateur_nom: row.utilisateur_nom || 'N/A'
+      });
+    }
+    stmt.free();
+
+    return versements;
+
+  } catch (error) {
+    console.error("Erreur historiqueVersements:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+// Fonction pour récupérer la situation des versements
+export async function situationVersements(params = {}) {
+  try {
+    console.log("Exécution de situationVersements avec params:", params);
+    const db = await getDb();
+
+    const { type, numero_cf } = params;
+
+    if (!type || (type !== 'C' && type !== 'F')) {
+      return { erreur: "Paramètre 'type' requis et doit être 'C' ou 'F'", status: 400 };
+    }
+    if (!numero_cf) {
+      return { erreur: "Paramètre 'numero_cf' requis", status: 400 };
+    }
+
+    const query = `
+      SELECT 
+        mc.numero_mc,
+        mc.date_mc,
+        mc.montant,
+        mc.justificatif,
+        mc.cf,
+        mc.numero_cf,
+        mc.numero_util,
+        COALESCE(cl.nom, f.nom) AS nom_cf,
+        u.nom AS utilisateur_nom
+      FROM mouvementc mc
+      LEFT JOIN client cl ON mc.cf = 'C' AND mc.numero_cf = cl.numero_clt
+      LEFT JOIN fournisseur f ON mc.cf = 'F' AND mc.numero_cf = f.numero_fou
+      LEFT JOIN utilisateur u ON mc.numero_util = u.numero_util
+      WHERE mc.origine IN ('VERSEMENT C', 'VERSEMENT F')
+      AND mc.cf = ?
+      AND mc.numero_cf = ?
+      ORDER BY mc.date_mc DESC, mc.time_mc DESC
+    `;
+
+    const stmt = db.prepare(query);
+    stmt.bind([type, numero_cf]);
+
+    const versements = [];
+    while (stmt.step()) {
+      const row = stmt.getAsObject();
+      versements.push({
+        numero_mc: row.numero_mc,
+        date_mc: row.date_mc,
+        montant: row.montant ? row.montant.toString() : '0,00',
+        justificatif: row.justificatif || '',
+        cf: row.cf,
+        numero_cf: row.numero_cf,
+        nom_cf: row.nom_cf || 'N/A',
+        utilisateur_nom: row.utilisateur_nom || 'N/A'
+      });
+    }
+    stmt.free();
+
+    console.log(`Situation versements: type=${type}, numero_cf=${numero_cf}, ${versements.length} versements`);
+    return versements;
+
+  } catch (error) {
+    console.error("Erreur situationVersements:", error);
+    return { erreur: error.message, status: 500 };
+  }
+}
+
+// Fonction pour modifier un versement
+export async function modifierVersement(data) {
+  try {
+    console.log("Exécution de modifierVersement avec data:", data);
+    const db = await getDb();
+
+    const { numero_mc, type, numero_cf, montant, justificatif = '', numero_util, password2 } = data;
+
+    if (!numero_mc || !type || !numero_cf || !montant || !numero_util || !password2) {
+      return { error: "Numéro de versement, type, numéro client/fournisseur, montant, utilisateur ou mot de passe manquant", status: 400 };
+    }
+
+    if (type !== 'C' && type !== 'F') {
+      return { error: "Type invalide (doit être 'C' ou 'F')", status: 400 };
+    }
+
+    const montant_decimal = toDotDecimal(montant);
+    if (montant_decimal === 0) {
+      return { error: "Le montant ne peut pas être zéro", status: 400 };
+    }
+
+    db.run('BEGIN TRANSACTION');
+
+    try {
+      // Vérification de l'utilisateur et du mot de passe
+      const stmtUser = db.prepare("SELECT password2 FROM utilisateur WHERE numero_util = ?");
+      stmtUser.bind([numero_util]);
+      const utilisateur = stmtUser.step() ? stmtUser.getAsObject() : null;
+      stmtUser.free();
+
+      if (!utilisateur || utilisateur.password2 !== password2) {
+        db.run('ROLLBACK');
+        return { error: "Utilisateur non trouvé ou mot de passe incorrect", status: 401 };
+      }
+
+      // Vérification du versement existant
+      const stmtVersement = db.prepare("SELECT montant, cf, numero_cf FROM mouvementc WHERE numero_mc = ? AND origine IN ('VERSEMENT C', 'VERSEMENT F')");
+      stmtVersement.bind([numero_mc]);
+      const versement = stmtVersement.step() ? stmtVersement.getAsObject() : null;
+      stmtVersement.free();
+
+      if (!versement) {
+        db.run('ROLLBACK');
+        return { error: "Versement non trouvé", status: 404 };
+      }
+
+      // Détermination de la table
+      let table, id_column, origine;
+      if (versement.cf === 'C') {
+        table = 'client';
+        id_column = 'numero_clt';
+        origine = 'VERSEMENT C';
+      } else {
+        table = 'fournisseur';
+        id_column = 'numero_fou';
+        origine = 'VERSEMENT F';
+      }
+
+      // Vérification de l'entité (client ou fournisseur)
+      const stmtEntity = db.prepare(`SELECT solde FROM ${table} WHERE ${id_column} = ?`);
+      stmtEntity.bind([numero_cf]);
+      const entity = stmtEntity.step() ? stmtEntity.getAsObject() : null;
+      stmtEntity.free();
+
+      if (!entity) {
+        db.run('ROLLBACK');
+        return { error: `${versement.cf === 'C' ? 'Client' : 'Fournisseur'} non trouvé`, status: 400 };
+      }
+
+      // Calcul du nouveau solde
+      const old_montant = toDotDecimal(versement.montant);
+      const current_solde = toDotDecimal(entity.solde || '0,00');
+      const solde_change = -old_montant + montant_decimal;
+      const new_solde = current_solde + solde_change;
+      const new_solde_str = toCommaDecimal(new_solde);
+
+      // Mise à jour du solde
+      const stmtUpdate = db.prepare(`UPDATE ${table} SET solde = ? WHERE ${id_column} = ?`);
+      stmtUpdate.run([new_solde_str, numero_cf]);
+      stmtUpdate.free();
+
+      // Mise à jour du versement dans mouvementc
+      const now = new Date();
+      const date_mc = now.toISOString().split('T')[0];
+      const time_mc = formatDateForSQLite(now);
+
+      const stmtUpdateVersement = db.prepare(`
+        UPDATE mouvementc 
+        SET montant = ?, justificatif = ?, date_mc = ?, time_mc = ?
+        WHERE numero_mc = ? AND origine = ?
+      `);
+      stmtUpdateVersement.run([
+        toCommaDecimal(montant_decimal),
+        justificatif,
+        date_mc,
+        time_mc,
+        numero_mc,
+        origine
+      ]);
+      const changes = db.getRowsModified();
+      stmtUpdateVersement.free();
+
+      if (changes === 0) {
+        db.run('ROLLBACK');
+        return { error: "Versement non modifié", status: 500 };
+      }
+
+      db.run('COMMIT');
+      saveDbToLocalStorage(db);
+
+      console.log(`Versement modifié: numero_mc=${numero_mc}, type=${type}, montant=${toCommaDecimal(montant_decimal)}, justificatif=${justificatif}`);
+      return { statut: "Versement modifié", numero_mc, status: 200 };
+
+    } catch (error) {
+      db.run('ROLLBACK');
+      throw error;
+    }
+
+  } catch (error) {
+    console.error("Erreur modifierVersement:", error);
+    return { error: error.message, status: 500 };
+  }
+}
+
+// Fonction pour annuler un versement
+export async function annulerVersement(data) {
+  try {
+    console.log("Exécution de annulerVersement avec data:", data);
+    const db = await getDb();
+
+    const { numero_mc, type, numero_cf, numero_util, password2 } = data;
+
+    if (!numero_mc || !type || !numero_cf || !numero_util || !password2) {
+      return { error: "Numéro de versement, type, numéro client/fournisseur, utilisateur ou mot de passe manquant", status: 400 };
+    }
+
+    if (type !== 'C' && type !== 'F') {
+      return { error: "Type invalide (doit être 'C' ou 'F')", status: 400 };
+    }
+
+    db.run('BEGIN TRANSACTION');
+
+    try {
+      // Vérification de l'utilisateur et du mot de passe
+      const stmtUser = db.prepare("SELECT password2 FROM utilisateur WHERE numero_util = ?");
+      stmtUser.bind([numero_util]);
+      const utilisateur = stmtUser.step() ? stmtUser.getAsObject() : null;
+      stmtUser.free();
+
+      if (!utilisateur || utilisateur.password2 !== password2) {
+        db.run('ROLLBACK');
+        return { error: "Utilisateur non trouvé ou mot de passe incorrect", status: 401 };
+      }
+
+      // Vérification du versement existant
+      const stmtVersement = db.prepare("SELECT montant, cf, numero_cf FROM mouvementc WHERE numero_mc = ? AND origine IN ('VERSEMENT C', 'VERSEMENT F')");
+      stmtVersement.bind([numero_mc]);
+      const versement = stmtVersement.step() ? stmtVersement.getAsObject() : null;
+      stmtVersement.free();
+
+      if (!versement) {
+        db.run('ROLLBACK');
+        return { error: "Versement non trouvé", status: 404 };
+      }
+
+      // Vérification de la cohérence du type
+      if (type !== versement.cf) {
+        db.run('ROLLBACK');
+        return { error: "Type ne correspond pas au versement", status: 400 };
+      }
+
+      // Détermination de la table
+      let table, id_column;
+      if (versement.cf === 'C') {
+        table = 'client';
+        id_column = 'numero_clt';
+      } else {
+        table = 'fournisseur';
+        id_column = 'numero_fou';
+      }
+
+      // Vérification de l'entité (client ou fournisseur)
+      const stmtEntity = db.prepare(`SELECT solde FROM ${table} WHERE ${id_column} = ?`);
+      stmtEntity.bind([numero_cf]);
+      const entity = stmtEntity.step() ? stmtEntity.getAsObject() : null;
+      stmtEntity.free();
+
+      if (!entity) {
+        db.run('ROLLBACK');
+        return { error: `${versement.cf === 'C' ? 'Client' : 'Fournisseur'} non trouvé`, status: 400 };
+      }
+
+      // Calcul du nouveau solde
+      const montant = toDotDecimal(versement.montant);
+      const current_solde = toDotDecimal(entity.solde || '0,00');
+      const new_solde = current_solde - montant;
+      const new_solde_str = toCommaDecimal(new_solde);
+
+      // Mise à jour du solde
+      const stmtUpdate = db.prepare(`UPDATE ${table} SET solde = ? WHERE ${id_column} = ?`);
+      stmtUpdate.run([new_solde_str, numero_cf]);
+      stmtUpdate.free();
+
+      // Suppression du versement
+      const stmtDelete = db.prepare("DELETE FROM mouvementc WHERE numero_mc = ?");
+      stmtDelete.run([numero_mc]);
+      const changes = db.getRowsModified();
+      stmtDelete.free();
+
+      if (changes === 0) {
+        db.run('ROLLBACK');
+        return { error: "Versement non supprimé", status: 500 };
+      }
+
+      db.run('COMMIT');
+      saveDbToLocalStorage(db);
+
+      console.log(`Versement annulé: numero_mc=${numero_mc}, type=${type}, montant=${toCommaDecimal(montant)}`);
+      return { statut: "Versement annulé", numero_mc, status: 200 };
+
+    } catch (error) {
+      db.run('ROLLBACK');
+      throw error;
+    }
+
+  } catch (error) {
+    console.error("Erreur annulerVersement:", error);
+    return { error: error.message, status: 500 };
+  }
+}
+
 // GET /liste_codebar_lies
 export async function listeCodebarLies(params) {
   try {
