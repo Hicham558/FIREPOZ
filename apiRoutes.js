@@ -1599,7 +1599,7 @@ export async function assignerCategorie(data) {
   }
 }
 
-import { getDb } from './database.js'; // Assurez-vous que le chemin est correct
+
 
 export async function listeProduitsParCategorie(numero_categorie) {
   // Conversion robuste du paramètre
