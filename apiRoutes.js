@@ -1603,12 +1603,17 @@ export async function assignerCategorie(data) {
 export async function listeProduitsParCategorie(request) {
   try {
     const db = await getDb();
-    const url = new URL(request.url);
+
+    // ✅ corrige le bug "Invalid URL"
+    const url = new URL(request.url, self.location.origin);
+
     const numeroCategorieParam = url.searchParams.get("numero_categorie");
 
-    // Si aucun numéro passé → on retourne les produits non assignés
+    // Si aucun numéro passé → produits sans catégorie
     if (!numeroCategorieParam) {
-      const stmt = db.prepare("SELECT * FROM produit WHERE numer_categorie IS NULL OR numer_categorie = ''");
+      const stmt = db.prepare(
+        "SELECT * FROM produit WHERE numer_categorie IS NULL OR numer_categorie = ''"
+      );
       const produits = [];
       while (stmt.step()) {
         produits.push(stmt.getAsObject());
@@ -1637,7 +1642,6 @@ export async function listeProduitsParCategorie(request) {
     return { erreur: error.message, status: 500 };
   }
 }
-
 
 export async function clientSolde() {
   try {
