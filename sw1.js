@@ -26,30 +26,31 @@ const handlers = {
      'liste_produits_par_categorie': (url) => {
       try {
         const urlObj = new URL(url, window.location.origin);
-        const numero_categorie_param = urlObj.searchParams.get('numero_categorie');
+        const hasNumeroCategorie = urlObj.searchParams.has('numero_categorie');
+        const numeroCategorie = urlObj.searchParams.get('numero_categorie');
         
-        console.log('🔍 Paramètre brut numero_categorie:', numero_categorie_param);
-        console.log('🔍 URL complète:', url);
-        console.log('🔍 SearchParams:', Object.fromEntries(urlObj.searchParams));
+        console.log('🔍 URL:', url);
+        console.log('🔍 Has numero_categorie param:', hasNumeroCategorie);
+        console.log('🔍 Valeur numero_categorie:', numeroCategorie);
         
-        // Gérer les différents cas :
-        let catId;
-        if (numero_categorie_param === null) {
-          // Pas de paramètre du tout
-          catId = undefined;
-        } else if (numero_categorie_param === '' || numero_categorie_param === undefined) {
-          // Paramètre vide ou undefined - cas spécial pour produits sans catégorie
-          catId = 'empty';
+        // Reproduire exactement la logique Flask :
+        if (hasNumeroCategorie && numeroCategorie === '') {
+          // Cas: ?numero_categorie (paramètre vide) → produits sans catégorie
+          console.log('🎯 Cas Flask: paramètre vide → produits sans catégorie');
+          return listeProduitsParCategorie('SANS_CATEGORIE');
+        } else if (!hasNumeroCategorie) {
+          // Cas: pas de paramètre → toutes les catégories
+          console.log('🎯 Cas Flask: pas de paramètre → toutes les catégories');
+          return listeProduitsParCategorie('TOUTES_CATEGORIES');
         } else {
-          // Paramètre avec une valeur
-          catId = parseInt(numero_categorie_param);
+          // Cas: ?numero_categorie=X → catégorie spécifique
+          const catId = parseInt(numeroCategorie);
+          console.log('🎯 Cas Flask: catégorie spécifique →', catId);
+          return listeProduitsParCategorie(catId);
         }
-        
-        console.log('🔍 CatId final:', catId);
-        return listeProduitsParCategorie(catId);
       } catch (error) {
         console.error('❌ Erreur parsing URL:', error);
-        return listeProduitsParCategorie(undefined);
+        return listeProduitsParCategorie('TOUTES_CATEGORIES');
       }
     },
     'dashboard': (url) => {
