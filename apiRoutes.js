@@ -1599,7 +1599,7 @@ export async function assignerCategorie(data) {
   }
 }
 
-export async function liste_produits_par_categorie(params) {
+export async function listeProduitsParCategorie(params) {
   try {
     const numero_categorie = params?.numero_categorie ?? null;
 
