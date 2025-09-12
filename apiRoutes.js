@@ -1602,11 +1602,9 @@ export async function assignerCategorie(data) {
 
 
 export async function listeProduitsParCategorie(numero_categorie) {
-  // Conversion robuste du paramètre
   let numCat = null;
   if (numero_categorie !== undefined && numero_categorie !== null) {
     numCat = Number(numero_categorie);
-    // Gestion de NaN si la conversion échoue
     if (isNaN(numCat)) {
       console.error('Erreur: Le paramètre numero_categorie doit être un nombre. Reçu:', numero_categorie);
       return { erreur: 'Paramètre invalide. Un numéro de catégorie est requis.', status: 400 };
@@ -1618,7 +1616,7 @@ export async function listeProduitsParCategorie(numero_categorie) {
     const db = await getDb();
 
     if (numCat === null) {
-      // Produits sans catégorie
+      // Produits sans catégorie - utiliser les bons noms de colonnes
       const stmt = db.prepare('SELECT numero_item, designation FROM item WHERE numero_categorie IS NULL');
       const produits = [];
       while (stmt.step()) {
@@ -1635,24 +1633,24 @@ export async function listeProduitsParCategorie(numero_categorie) {
       return { produits };
       
     } else {
-      // Vérification de l'existence de la catégorie
-      const stmtCheckCat = db.prepare('SELECT COUNT(*) as count FROM categorie WHERE numero_categorie = ?');
+      // Vérification de l'existence de la catégorie avec les BONS NOMS DE COLONNES
+      const stmtCheckCat = db.prepare('SELECT COUNT(*) as count FROM categorie WHERE NUMER_CATEGORIE = ?');
       stmtCheckCat.bind([numCat]);
       const result = stmtCheckCat.getAsObject();
       const exists = result && result.COUNT > 0;
       stmtCheckCat.free();
 
       if (!exists) {
-        console.error('Erreur: Catégorie non trouvée pour numero_categorie:', numCat);
+        console.error('Erreur: Catégorie non trouvée pour NUMER_CATEGORIE:', numCat);
         return { erreur: 'Catégorie non trouvée', status: 404 };
       }
 
-      // Produits par catégorie
+      // Produits par catégorie avec les BONS NOMS DE COLONNES
       const stmt = db.prepare(`
-        SELECT c.numero_categorie, c.description_c, i.numero_item, i.designation
+        SELECT c.NUMER_CATEGORIE, c.DESCRIPTION_C, i.numero_item, i.designation
         FROM categorie c
-        LEFT JOIN item i ON c.numero_categorie = i.numero_categorie
-        WHERE c.numero_categorie = ?
+        LEFT JOIN item i ON c.NUMER_CATEGORIE = i.numero_categorie
+        WHERE c.NUMER_CATEGORIE = ?
       `);
       stmt.bind([numCat]);
 
@@ -1661,22 +1659,22 @@ export async function listeProduitsParCategorie(numero_categorie) {
         const row = stmt.getAsObject();
         console.log('Données brutes pour catégorie:', row);
 
-        // Utilisation des noms de colonnes corrects
-        const numero_categorie = row.NUMERO_CATEGORIE || '';
+        // Utiliser les VRAIS noms de colonnes de la base de données
+        const numer_categorie = row.NUMER_CATEGORIE || '';
         const description_c = row.DESCRIPTION_C || '';
         const numero_item = row.NUMERO_ITEM || '';
         const designation = row.DESIGNATION || '';
 
-        if (!categories[numero_categorie]) {
-          categories[numero_categorie] = {
-            numero_categorie: numero_categorie,
+        if (!categories[numer_categorie]) {
+          categories[numer_categorie] = {
+            numer_categorie: numer_categorie,
             description_c: description_c,
             produits: []
           };
         }
 
         if (numero_item) {
-          categories[numero_categorie].produits.push({
+          categories[numer_categorie].produits.push({
             numero_item: numero_item,
             designation: designation
           });
