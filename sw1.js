@@ -234,8 +234,42 @@ const handlers = {
     'modifier_categorie/(\\w+)': (id, body) => modifierCategorie(id, body),
     'modifier_vente/(\\w+)': (id, body) => modifierVente(id, body),
     'modifier_reception/(\\w+)': (id, body) => modifierReception(id, body),
-    'assigner_categorie': (body) => assignerCategorie(body)
-  },
+    'assigner_categorie': async (body) => {
+    console.log('📤 Interception PUT /api/assigner_categorie avec body:', body);
+    try {
+      // Vérification que body est bien un objet (comme Flask)
+      if (typeof body !== 'object' || body === null) {
+        return {
+          body: JSON.stringify({ erreur: 'Données JSON requises' }),
+          init: { status: 400, headers: { 'Content-Type': 'application/json' } }
+        };
+      }
+
+      const result = await assignerCategorie(body);
+      
+      // Retourner exactement le même format que Flask
+      return {
+        body: JSON.stringify(result),
+        init: { 
+          status: result.status || 200, 
+          headers: { 'Content-Type': 'application/json' } 
+        }
+      };
+    } catch (error) {
+      console.error('❌ Erreur assigner_categorie:', error);
+      return {
+        body: JSON.stringify({ 
+          erreur: `Erreur serveur: ${error.message}`,
+          status: 500 
+        }),
+        init: {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      };
+    }
+  }
+},
   DELETE: {
     'supprimer_client/(\\w+)': (id) => supprimerClient(id),
     'supprimer_fournisseur/(\\w+)': (id) => supprimerFournisseur(id),
