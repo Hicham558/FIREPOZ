@@ -715,13 +715,13 @@
             }
         }
 
-async function chargerProduits() {
+
     const userId = localStorage.getItem('userId');
     if (!userId) {
         showToast('Veuillez vous connecter pour voir les produits', true);
         return;
     }
-    try {
+    try {async function chargerProduits() {
         const [productsResponse, productsByCategoryResponse] = await Promise.all([
             fetch(`${API_BASE_URL}/liste_produits`, { headers: { 'X-User-ID': userId } }),
             fetch(`${API_BASE_URL}/liste_produits_par_categorie`, { headers: { 'X-User-Id': userId } })
@@ -1437,42 +1437,61 @@ async function loadCategoryList() {
         showToast('Veuillez vous connecter pour gérer les catégories', true);
         return;
     }
+
     try {
+        // 🔹 Récupération simultanée des catégories et produits
         const [categoriesResponse, productsResponse, productsByCategoryResponse] = await Promise.all([
             fetch(`${API_BASE_URL}/liste_categories`, { headers: { 'X-User-ID': userId } }),
             fetch(`${API_BASE_URL}/liste_produits`, { headers: { 'X-User-ID': userId } }),
             fetch(`${API_BASE_URL}/liste_produits_par_categorie`, { headers: { 'X-User-ID': userId } })
         ]);
+
         if (!categoriesResponse.ok || !productsResponse.ok || !productsByCategoryResponse.ok) {
             throw new Error(`Erreur: ${await (categoriesResponse.ok ? productsResponse.ok ? productsByCategoryResponse : productsResponse : categoriesResponse).text()}`);
         }
+
+        // 🔹 Données brutes
         const categories = await categoriesResponse.json();
         const products = await productsResponse.json();
         const productsByCategoryData = await productsByCategoryResponse.json();
         const productsByCategory = productsByCategoryData.categories || [];
-        console.log('Categories:', categories);
-        console.log('Products:', products);
-        console.log('Products by Category:', productsByCategory);
 
+        console.log('Categories brutes:', categories);
+        console.log('Products bruts:', products);
+        console.log('Products by Category bruts:', productsByCategory);
+
+        // 🔹 Normalisation des produits par catégorie
+        const normalizedProductsByCategory = productsByCategory.map(cat => ({
+            numero_categorie: cat.numero_categorie ?? cat.NUMER_CATEGORIE,
+            description_c: cat.description_c ?? cat.DESCRIPTION_C,
+            produits: (cat.produits || []).map(p => ({
+                numero_item: p.numero_item ?? p.NUMERO_ITEM,
+                designation: p.designation ?? p.DESIGNATION
+            }))
+        }));
+
+        // 🔹 Produits non assignés
         const unassignedResponse = await fetch(`${API_BASE_URL}/liste_produits_par_categorie?numero_categorie`, {
             headers: { 'X-User-ID': userId }
         });
+
         if (!unassignedResponse.ok) {
             throw new Error(`Erreur: ${await unassignedResponse.text()}`);
         }
-        const { produits: unassignedProducts } = await unassignedResponse.json();
-        console.log('Unassigned Products:', unassignedProducts);
 
+        const { produits: unassignedProducts } = await unassignedResponse.json();
+        const normalizedUnassigned = (unassignedProducts || []).map(p => ({
+            numero_item: p.numero_item ?? p.NUMERO_ITEM,
+            designation: p.designation ?? p.DESIGNATION
+        }));
+
+        console.log('Produits non assignés normalisés:', normalizedUnassigned);
+
+        // 🔹 Préparation de l'affichage
         const categoryList = document.getElementById('categoryList');
         categoryList.innerHTML = '';
 
-        const normalizedProducts = products.map(p => ({
-            ...p,
-            numer_categorie: null,
-            numero_item: parseInt(p.numero_item || p.NUMERO_ITEM),
-            designation: p.designation || p.DESIGNATION || 'N/A'
-        }));
-
+        // 🔹 Section produits non assignés
         const unassignedDiv = document.createElement('div');
         unassignedDiv.className = 'mb-4';
         unassignedDiv.innerHTML = `
@@ -1480,9 +1499,9 @@ async function loadCategoryList() {
                 <span class="font-bold">Non assignés</span>
             </div>
             <div class="pl-4">
-                ${unassignedProducts.length ? unassignedProducts.map(product => `
+                ${normalizedUnassigned.length ? normalizedUnassigned.map(product => `
                     <div class="flex justify-between items-center mb-1">
-                        <span>${product.designation || 'N/A'}</span>
+                        <span>${product.designation}</span>
                         <select onchange="assignCategory(${product.numero_item}, this.value)" class="border p-1 rounded w-40">
                             <option value="">Assigner à...</option>
                             ${categories.map(cat => `<option value="${cat.numer_categorie}">${cat.description_c}</option>`).join('')}
@@ -1493,38 +1512,42 @@ async function loadCategoryList() {
         `;
         categoryList.appendChild(unassignedDiv);
 
+        // 🔹 Sections catégories
         categories.forEach(category => {
-            const categoryData = productsByCategory.find(cat => cat.numero_categorie === category.numer_categorie) || { produits: [] };
+            const categoryData = normalizedProductsByCategory.find(c => c.numero_categorie === category.numer_categorie) || { produits: [] };
             const categoryProducts = categoryData.produits || [];
-            console.log(`Produits pour catégorie ${category.numer_categorie}:`, categoryProducts);
+
+            console.log(`Produits pour catégorie ${category.numer_categorie} (${category.description_c}):`, categoryProducts);
 
             const div = document.createElement('div');
             div.className = 'mb-4';
             div.innerHTML = `
-    <div class="flex justify-between items-center mb-2">
-        <span class="font-bold">${category.description_c}</span>
-        <div class="space-x-2">
-            <button onclick="editCategoryModal(${category.numer_categorie}, '${category.description_c.replace(/'/g, "\\'")}')" class="bg-yellow-600 text-white p-1 rounded-md hover:bg-yellow-700 transition" title="Modifier">
-                <i class="fas fa-edit"></i>
-            </button>
-            <button onclick="deleteCategory(${category.numer_categorie})" class="bg-red-600 text-white p-1 rounded-md hover:bg-red-700 transition" title="Supprimer">
-                <i class="fas fa-trash"></i>
-            </button>
-        </div>
-    </div>
-    <div class="pl-4">
-        ${categoryProducts.length ? categoryProducts.map(product => `
-            <div class="flex justify-between items-center mb-1">
-                <span>${product.designation || 'N/A'}</span>
-                <button onclick="removeCategoryFromProduct(${product.numero_item}, ${category.numer_categorie})" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
-                    <i class="fas fa-times"></i> 
-                </button>
-            </div>
-        `).join('') : '<p class="text-gray-500">Aucun produit dans cette catégorie</p>'}
-    </div>
-`;
+                <div class="flex justify-between items-center mb-2">
+                    <span class="font-bold">${category.description_c}</span>
+                    <div class="space-x-2">
+                        <button onclick="editCategoryModal(${category.numer_categorie}, '${category.description_c.replace(/'/g, "\\'")}')" class="bg-yellow-600 text-white p-1 rounded-md hover:bg-yellow-700 transition" title="Modifier">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button onclick="deleteCategory(${category.numer_categorie})" class="bg-red-600 text-white p-1 rounded-md hover:bg-red-700 transition" title="Supprimer">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="pl-4">
+                    ${categoryProducts.length ? categoryProducts.map(product => `
+                        <div class="flex justify-between items-center mb-1">
+                            <span>${product.designation}</span>
+                            <button onclick="removeCategoryFromProduct(${product.numero_item}, ${category.numer_categorie})" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
+                                <i class="fas fa-times"></i> 
+                            </button>
+                        </div>
+                    `).join('') : '<p class="text-gray-500">Aucun produit dans cette catégorie</p>'}
+                </div>
+            `;
             categoryList.appendChild(div);
         });
+
+        console.log('✅ Liste des catégories et produits chargée avec succès.');
     } catch (error) {
         console.error('Erreur chargement catégories:', error);
         showToast(`Erreur chargement catégories: ${error.message}`, true);
