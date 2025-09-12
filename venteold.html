@@ -715,7 +715,7 @@
             }
         }
 
-       async function chargerProduits() {
+async function chargerProduits() {
     const userId = localStorage.getItem('userId');
     if (!userId) {
         showToast('Veuillez vous connecter pour voir les produits', true);
@@ -726,26 +726,39 @@
             fetch(`${API_BASE_URL}/liste_produits`, { headers: { 'X-User-ID': userId } }),
             fetch(`${API_BASE_URL}/liste_produits_par_categorie`, { headers: { 'X-User-Id': userId } })
         ]);
+        
         if (!productsResponse.ok || !productsByCategoryResponse.ok) {
             throw new Error(`Erreur: ${await (productsResponse.ok ? productsByCategoryResponse : productsResponse).text()}`);
         }
+        
         const products = await productsResponse.json();
-        console.log('Données brutes API /liste_produits:', products); // Log données brutes
+        console.log('Données brutes API /liste_produits:', products);
+        
         const productsByCategoryData = await productsByCategoryResponse.json();
-        const productsByCategory = productsByCategoryData.categories || [];
-        console.log('Données brutes API /liste_produits_par_categorie:', productsByCategoryData); // Log catégories
+        console.log('Données brutes API /liste_produits_par_categorie:', productsByCategoryData);
 
         const categoryMap = new Map();
-        productsByCategory.forEach(category => {
-            category.produits.forEach(product => {
-                categoryMap.set(product.numero_item, category.numero_categorie);
+        
+        // Gestion des DEUX formats de réponse possibles
+        if (productsByCategoryData.categories) {
+            // Format: {categories: [...]}
+            productsByCategoryData.categories.forEach(category => {
+                category.produits.forEach(product => {
+                    categoryMap.set(product.numero_item, category.numero_categorie);
+                });
             });
-        });
+        } else if (productsByCategoryData.produits) {
+            // Format: {produits: [...]} - produits sans catégorie
+            productsByCategoryData.produits.forEach(product => {
+                categoryMap.set(product.numero_item, null);
+            });
+        }
 
         produitsCache = products.map(produit => {
-            const rawQte = produit.qte ?? produit.QTE ?? 0; // Gérer qte ou QTE
-            const parsedQte = parseFloat(rawQte) || 0; // Parsing robuste
-            console.log(`Produit: ${produit.designation || produit.DESIGNATION}, qte brut: ${rawQte}, qte parsé: ${parsedQte}`); // Log par produit
+            const rawQte = produit.qte ?? produit.QTE ?? 0;
+            const parsedQte = parseFloat(rawQte) || 0;
+            console.log(`Produit: ${produit.designation || produit.DESIGNATION}, qte brut: ${rawQte}, qte parsé: ${parsedQte}`);
+            
             return {
                 numero_item: parseInt(produit.numero_item || produit.NUMERO_ITEM) || 0,
                 designation: produit.designation || produit.DESIGNATION || 'N/A',
@@ -755,8 +768,10 @@
                 numer_categorie: categoryMap.get(parseInt(produit.numero_item || produit.NUMERO_ITEM)) || null
             };
         });
-        console.log('produitsCache final:', produitsCache); // Log cache complet
+        
+        console.log('produitsCache final:', produitsCache);
         filterProducts();
+        
     } catch (error) {
         document.getElementById('productsList').innerHTML = `
             <tr>
