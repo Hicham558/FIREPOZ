@@ -1426,33 +1426,38 @@ async function loadCategoryList() {
         const [categoriesResponse, productsResponse, productsByCategoryResponse] = await Promise.all([
             fetch(`${API_BASE_URL}/liste_categories`, { headers: { 'X-User-ID': userId } }),
             fetch(`${API_BASE_URL}/liste_produits`, { headers: { 'X-User-ID': userId } }),
-            // ✅ Une seule requête : sans paramètre → Charge TOUTES les catégories avec produits
             fetch(`${API_BASE_URL}/liste_produits_par_categorie`, { headers: { 'X-User-ID': userId } })
         ]);
         if (!categoriesResponse.ok || !productsResponse.ok || !productsByCategoryResponse.ok) {
             throw new Error(`Erreur: ${await (categoriesResponse.ok ? productsResponse.ok ? productsByCategoryResponse : productsResponse : categoriesResponse).text()}`);
         }
         const categories = await categoriesResponse.json();
-        const allProducts = await productsResponse.json();  // Pour filtrer les non assignés
+        const products = await productsResponse.json();
         const productsByCategoryData = await productsByCategoryResponse.json();
-        const productsByCategory = productsByCategoryData.categories || [];  // Toutes les catégories chargées !
+        const productsByCategory = productsByCategoryData.categories || [];
         console.log('Categories:', categories);
-        console.log('All Products:', allProducts);
-        console.log('Products by Category (toutes):', productsByCategory);
+        console.log('Products:', products);
+        console.log('Products by Category:', productsByCategory);
+
+        const unassignedResponse = await fetch(`${API_BASE_URL}/liste_produits_par_categorie?numero_categorie`, {
+            headers: { 'X-User-ID': userId }
+        });
+        if (!unassignedResponse.ok) {
+            throw new Error(`Erreur: ${await unassignedResponse.text()}`);
+        }
+        const { produits: unassignedProducts } = await unassignedResponse.json();
+        console.log('Unassigned Products:', unassignedProducts);
 
         const categoryList = document.getElementById('categoryList');
         categoryList.innerHTML = '';
 
-        // ✅ Non assignés : Filtrer depuis allProducts (pas besoin de requête séparée)
-        const unassignedProducts = allProducts.filter(p => 
-            !p.numero_categorie && !p.NUMER_CATEGORIE  // Sans catégorie (null/undefined)
-        ).map(p => ({
+        const normalizedProducts = products.map(p => ({
+            ...p,
+            numer_categorie: null,
             numero_item: parseInt(p.numero_item || p.NUMERO_ITEM),
             designation: p.designation || p.DESIGNATION || 'N/A'
         }));
-        console.log('Unassigned Products (filtré):', unassignedProducts);
 
-        // Section "Non assignés"
         const unassignedDiv = document.createElement('div');
         unassignedDiv.className = 'mb-4';
         unassignedDiv.innerHTML = `
@@ -1473,7 +1478,6 @@ async function loadCategoryList() {
         `;
         categoryList.appendChild(unassignedDiv);
 
-        // ✅ Sections par catégorie : Utilise productsByCategory (toutes les cats)
         categories.forEach(category => {
             const categoryData = productsByCategory.find(cat => cat.numero_categorie === category.numer_categorie) || { produits: [] };
             const categoryProducts = categoryData.produits || [];
@@ -1482,28 +1486,28 @@ async function loadCategoryList() {
             const div = document.createElement('div');
             div.className = 'mb-4';
             div.innerHTML = `
-                <div class="flex justify-between items-center mb-2">
-                    <span class="font-bold">${category.description_c}</span>
-                    <div class="space-x-2">
-                        <button onclick="editCategoryModal(${category.numer_categorie}, '${category.description_c.replace(/'/g, "\\'")}')" class="bg-yellow-600 text-white p-1 rounded-md hover:bg-yellow-700 transition" title="Modifier">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button onclick="deleteCategory(${category.numer_categorie})" class="bg-red-600 text-white p-1 rounded-md hover:bg-red-700 transition" title="Supprimer">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="pl-4">
-                    ${categoryProducts.length ? categoryProducts.map(product => `
-                        <div class="flex justify-between items-center mb-1">
-                            <span>${product.designation || 'N/A'}</span>
-                            <button onclick="removeCategoryFromProduct(${product.numero_item}, ${category.numer_categorie})" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
-                                <i class="fas fa-times"></i> 
-                            </button>
-                        </div>
-                    `).join('') : '<p class="text-gray-500">Aucun produit dans cette catégorie</p>'}
-                </div>
-            `;
+    <div class="flex justify-between items-center mb-2">
+        <span class="font-bold">${category.description_c}</span>
+        <div class="space-x-2">
+            <button onclick="editCategoryModal(${category.numer_categorie}, '${category.description_c.replace(/'/g, "\\'")}')" class="bg-yellow-600 text-white p-1 rounded-md hover:bg-yellow-700 transition" title="Modifier">
+                <i class="fas fa-edit"></i>
+            </button>
+            <button onclick="deleteCategory(${category.numer_categorie})" class="bg-red-600 text-white p-1 rounded-md hover:bg-red-700 transition" title="Supprimer">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    </div>
+    <div class="pl-4">
+        ${categoryProducts.length ? categoryProducts.map(product => `
+            <div class="flex justify-between items-center mb-1">
+                <span>${product.designation || 'N/A'}</span>
+                <button onclick="removeCategoryFromProduct(${product.numero_item}, ${category.numer_categorie})" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
+                    <i class="fas fa-times"></i> 
+                </button>
+            </div>
+        `).join('') : '<p class="text-gray-500">Aucun produit dans cette catégorie</p>'}
+    </div>
+`;
             categoryList.appendChild(div);
         });
     } catch (error) {
