@@ -23,27 +23,26 @@ const handlers = {
     'liste_utilisateurs': () => listeUtilisateurs(),
     'liste_categories': () => listeCategories(),
     'client_solde': () => clientSolde(),
-   'liste_produits_par_categorie': {
-  method: 'GET',
-  handler: async (request) => {
-    try {
-      const result = await listeProduitsParCategorie(request);
+   'liste_produits_par_categorie': async (url) => {
+  try {
+    const fakeRequest = { url }; // On simule un objet Request avec juste l’URL
+    const result = await listeProduitsParCategorie(fakeRequest);
 
-      return {
-        body: JSON.stringify(result),
-        init: {
-          status: result.erreur ? 500 : 200,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      };
-    } catch (error) {
-      return {
-        body: JSON.stringify({ erreur: error.message }),
-        init: { status: 500, headers: { 'Content-Type': 'application/json' } }
-      };
-    }
+    return {
+      body: JSON.stringify(result),
+      init: {
+        status: result.erreur ? 500 : 200,
+        headers: { 'Content-Type': 'application/json' }
+      }
+    };
+  } catch (error) {
+    return {
+      body: JSON.stringify({ erreur: error.message }),
+      init: { status: 500, headers: { 'Content-Type': 'application/json' } }
+    };
   }
 },
+
 
     'dashboard': (url) => {
       try {
