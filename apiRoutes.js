@@ -1599,132 +1599,72 @@ export async function assignerCategorie(data) {
   }
 }
 
-export async function listeProduitsParCategorie(numero_categorie) {
+export async function liste_produits_par_categorie(params) {
   try {
-    console.log('Exécution de listeProduitsParCategorie avec numero_categorie:', numero_categorie);
-    const db = await getDb();
+    const numero_categorie = params?.numero_categorie ?? null;
 
-    // Conversion sécurisée comme Flask
-    let catId = undefined;
-    if (numero_categorie !== undefined && numero_categorie !== null) {
-      try {
-        catId = parseInt(numero_categorie);
-        if (isNaN(catId)) {
-          console.error('numero_categorie invalide:', numero_categorie);
-          return { 
-            erreur: 'Numéro de catégorie doit être un entier', 
-            status: 400 
-          };
-        }
-      } catch (e) {
-        console.error('Erreur conversion numero_categorie:', e);
-        return { 
-          erreur: 'Numéro de catégorie invalide', 
-          status: 400 
-        };
-      }
-    }
+    let produits = [];
+    let categories = [];
 
-    // Logique identique à Flask
-    if (catId === undefined || catId === null) {
-      // Cas: Récupérer les produits sans catégorie (comme Flask quand 'numero_categorie' est dans request.args mais null)
-      console.log('Récupération des produits sans catégorie');
-      
-      const stmt = db.prepare(`
-        SELECT numero_item, designation 
-        FROM item 
-        WHERE numero_categorie IS NULL
-      `);
-      
-      const produits = [];
+    if (params && "numero_categorie" in params && numero_categorie === null) {
+      // Produits sans catégorie
+      const stmt = db.prepare(
+        "SELECT numero_item, designation FROM item WHERE numero_categorie IS NULL"
+      );
       while (stmt.step()) {
         const row = stmt.getAsObject();
         produits.push({
           numero_item: row.numero_item,
-          designation: row.designation
+          designation: row.designation,
         });
       }
       stmt.free();
-
-      console.log(`Récupération de ${produits.length} produits sans catégorie`);
-      return { 
-        produits: produits,
-        status: 200
-      };
-
+      console.info(`Récupération de ${produits.length} produits sans catégorie`);
+      return { produits };
     } else {
-      // Cas: Récupérer par catégorie spécifique (comme Flask)
-      console.log(`Récupération des produits pour la catégorie: ${catId}`);
-      
-      // Vérifier d'abord si la catégorie existe (comme Flask)
-      const stmtCheckCat = db.prepare(`
-        SELECT numer_categorie, description_c 
-        FROM categorie 
-        WHERE numer_categorie = ?
-      `);
-      stmtCheckCat.bind([catId]);
-      
-      if (!stmtCheckCat.step()) {
-        stmtCheckCat.free();
-        console.error(`Catégorie non trouvée: ${catId}`);
-        return { 
-          erreur: `Catégorie ${catId} non trouvée`, 
-          status: 404 
-        };
-      }
-      stmtCheckCat.free();
+      // Produits groupés par catégorie
+      const stmt = db.prepare(
+        `SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
+         FROM categorie c
+         LEFT JOIN item i ON c.numer_categorie = i.numero_categorie
+         WHERE c.numer_categorie = ? OR ? IS NULL`
+      );
 
-      // Requête principale identique à Flask
-      const stmt = db.prepare(`
-        SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
-        FROM categorie c
-        LEFT JOIN item i ON c.numer_categorie = i.numero_categorie
-        WHERE c.numer_categorie = ?
-      `);
-      stmt.bind([catId]);
-      
-      const categories = {};
+      stmt.bind([numero_categorie, numero_categorie]);
+
+      const mapCategories = {};
       while (stmt.step()) {
         const row = stmt.getAsObject();
         const cat_id = row.numer_categorie;
-        
-        if (cat_id !== null) {
-          if (!categories[cat_id]) {
-            categories[cat_id] = {
-              numero_categorie: cat_id,
-              description_c: row.description_c,
-              produits: []
-            };
-          }
-          
-          if (row.numero_item) {
-            categories[cat_id].produits.push({
-              numero_item: row.numero_item,
-              designation: row.designation
-            });
-          }
+
+        if (!mapCategories[cat_id]) {
+          mapCategories[cat_id] = {
+            numero_categorie: cat_id,
+            description_c: row.description_c,
+            produits: [],
+          };
+        }
+        if (row.numero_item) {
+          mapCategories[cat_id].produits.push({
+            numero_item: row.numero_item,
+            designation: row.designation,
+          });
         }
       }
       stmt.free();
 
-      const categoriesList = Object.values(categories);
-      console.log(`Récupération de ${categoriesList.length} catégories avec produits`);
-      
-      // Format de réponse identique à Flask
-      return {
-        categories: categoriesList,
-        status: 200
-      };
+      categories = Object.values(mapCategories);
+      console.info(
+        `Récupération de ${categories.length} catégories avec produits`
+      );
+      return { categories };
     }
-
-  } catch (error) {
-    console.error('Erreur listeProduitsParCategorie:', error);
-    return { 
-      erreur: `Erreur serveur: ${error.message}`,
-      status: 500 
-    };
+  } catch (e) {
+    console.error("Erreur dans liste_produits_par_categorie:", e);
+    return { erreur: e.message };
   }
 }
+
 export async function clientSolde() {
   try {
     console.log("Exécution de clientSolde...");
