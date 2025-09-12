@@ -23,16 +23,16 @@ const handlers = {
     'liste_utilisateurs': () => listeUtilisateurs(),
     'liste_categories': () => listeCategories(),
     'client_solde': () => clientSolde(),
-    'liste_produits_par_categorie': (url) => {
-      try {
+    'liste_produits_par_categorie': (url, headers) => {
+    try {
         const urlObj = new URL(url, window.location.origin);
         const numero_categorie = urlObj.searchParams.get('numero_categorie');
         const catId = numero_categorie ? parseInt(numero_categorie) : undefined;
-        return listeProduitsParCategorie(catId);
-      } catch (error) {
-        return listeProduitsParCategorie(undefined);
-      }
-    },
+        return listeProduitsParCategorie(catId, headers);
+    } catch (error) {
+        return listeProduitsParCategorie(undefined, headers);
+    }
+},
     'dashboard': (url) => {
       try {
         const urlParams = new URL(url, window.location.origin).searchParams;
