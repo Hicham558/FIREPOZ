@@ -1603,12 +1603,12 @@ export async function assignerCategorie(data) {
 
 export async function listeProduitsParCategorie(numero_categorie) {
   try {
-    console.log('🔍 Exécution de listeProduitsParCategorie avec paramètre:', numero_categorie);
+    console.log('🔍 Exécution listeProduitsParCategorie avec paramètre:', numero_categorie);
     const db = await getDb();
 
-    // Cas spécial pour produits sans catégorie (paramètre vide)
-    if (numero_categorie === undefined || numero_categorie === null || numero_categorie === 'empty') {
-      console.log('📦 Récupération des produits SANS catégorie');
+    // CAS 1: Produits sans catégorie (Flask: numero_categorie is None and 'numero_categorie' in request.args)
+    if (numero_categorie === 'SANS_CATEGORIE') {
+      console.log('📦 FLASK MODE: Récupération des produits SANS catégorie');
       const stmt = db.prepare('SELECT numero_item, designation FROM item WHERE numero_categorie IS NULL');
       const produits = [];
       while (stmt.step()) {
@@ -1623,78 +1623,76 @@ export async function listeProduitsParCategorie(numero_categorie) {
       console.log('✅ Produits sans catégorie trouvés:', produits);
       return { produits };
       
-    } else {
-      const numCat = Number(numero_categorie);
-      console.log('🔍 Recherche pour catégorie ID:', numCat);
+    } 
+    // CAS 2: Toutes les catégories (Flask: pas de paramètre du tout)
+    else if (numero_categorie === 'TOUTES_CATEGORIES') {
+      console.log('📂 FLASK MODE: Récupération de TOUTES les catégories avec leurs produits');
       
-      // Cas où numero_categorie est NaN (pas un nombre valide)
-      if (isNaN(numCat)) {
-        console.log('📦 Paramètre non numérique, récupération TOUTES les catégories');
+      // Reproduire la requête Flask: WHERE c.numer_categorie = %s OR %s IS NULL avec NULL
+      const query = `
+        SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
+        FROM categorie c
+        LEFT JOIN item i ON c.numer_categorie = i.numero_categorie
+        ORDER BY c.numer_categorie
+      `;
+      
+      const stmt = db.prepare(query);
+      const categories = {};
+      let rowCount = 0;
+      
+      while (stmt.step()) {
+        rowCount++;
+        const row = stmt.getAsObject();
+        console.log('📊 Ligne brute', rowCount, ':', row);
         
-        // Requête pour toutes les catégories
-        const query = `
-          SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
-          FROM categorie c
-          LEFT JOIN item i ON c.numer_categorie = i.numero_categorie
-          ORDER BY c.numer_categorie
-        `;
-        
-        const stmt = db.prepare(query);
-        const categories = {};
-        
-        while (stmt.step()) {
-          const row = stmt.getAsObject();
-          const numer_categorie = row.NUMER_CATEGORIE || row.numer_categorie || '';
-          const description_c = row.DESCRIPTION_C || row.description_c || '';
-          const numero_item = row.NUMERO_ITEM || row.numero_item || '';
-          const designation = row.DESIGNATION || row.designation || '';
+        const numer_categorie = row.NUMER_CATEGORIE || row.numer_categorie || '';
+        const description_c = row.DESCRIPTION_C || row.description_c || '';
+        const numero_item = row.NUMERO_ITEM || row.numero_item || '';
+        const designation = row.DESIGNATION || row.designation || '';
 
-          if (!categories[numer_categorie]) {
-            categories[numer_categorie] = {
-              numero_categorie: numer_categorie,
-              description_c: description_c,
-              produits: []
-            };
-          }
+        console.log('🔍 Données extraites:', { numer_categorie, description_c, numero_item, designation });
 
-          if (numero_item) {
-            categories[numer_categorie].produits.push({
-              numero_item: numero_item,
-              designation: designation
-            });
-          }
+        if (!categories[numer_categorie]) {
+          categories[numer_categorie] = {
+            numero_categorie: numer_categorie,
+            description_c: description_c,
+            produits: []
+          };
         }
-        stmt.free();
-        
-        const resultArray = Object.values(categories);
-        console.log('✅ Toutes les catégories:', resultArray);
-        return { categories: resultArray };
-      }
-      
-      // Cas normal : recherche d'une catégorie spécifique
-      // Vérification que la catégorie existe
-      const stmtCheckCat = db.prepare('SELECT numer_categorie, description_c FROM categorie WHERE numer_categorie = ?');
-      stmtCheckCat.bind([numCat]);
-      const categorieExists = stmtCheckCat.step();
-      const categorieData = stmtCheckCat.getAsObject();
-      stmtCheckCat.free();
-      
-      console.log('✅ Catégorie existe:', categorieExists, 'Données:', categorieData);
-      
-      if (!categorieExists) {
-        console.error('❌ Catégorie non trouvée:', numCat);
-        return { erreur: 'Catégorie non trouvée', status: 404 };
-      }
 
-      // Requête principale pour une catégorie spécifique
-      console.log('🔍 Exécution requête produits pour catégorie:', numCat);
+        if (numero_item) {
+          categories[numer_categorie].produits.push({
+            numero_item: numero_item,
+            designation: designation
+          });
+        }
+      }
+      stmt.free();
+      
+      const resultArray = Object.values(categories);
+      console.log('✅ Toutes les catégories (Flask mode):', resultArray);
+      console.log('📊 Nombre total de lignes traitées:', rowCount);
+      return { categories: resultArray };
+      
+    } 
+    // CAS 3: Catégorie spécifique (Flask: numero_categorie a une valeur)
+    else {
+      const numCat = Number(numero_categorie);
+      console.log('🔍 FLASK MODE: Recherche pour catégorie ID:', numCat);
+      
+      if (isNaN(numCat)) {
+        console.error('❌ Paramètre de catégorie invalide:', numero_categorie);
+        return { erreur: 'Paramètre de catégorie invalide', status: 400 };
+      }
+      
+      // Reproduire exactement la requête Flask
       const query = `
         SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
         FROM categorie c
         LEFT JOIN item i ON c.numer_categorie = i.numero_categorie
         WHERE c.numer_categorie = ?
       `;
-      console.log('📝 Requête SQL:', query);
+      console.log('📝 Requête SQL (Flask style):', query);
       
       const stmt = db.prepare(query);
       stmt.bind([numCat]);
@@ -1733,7 +1731,7 @@ export async function listeProduitsParCategorie(numero_categorie) {
 
       console.log('📊 Nombre total de lignes traitées:', rowCount);
       const resultArray = Object.values(categories);
-      console.log('✅ Résultat final:', resultArray);
+      console.log('✅ Résultat final (Flask mode):', resultArray);
       
       return { categories: resultArray };
     }
