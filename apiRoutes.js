@@ -1481,86 +1481,121 @@ export async function assignerCategorie(data) {
   try {
     console.log('Exécution de assignerCategorie avec data:', data);
     const db = await getDb();
-    const { numero_item, numer_categorie } = data;
 
-    if (numero_item === undefined || numero_item === null || isNaN(parseInt(numero_item))) {
-      console.error('Erreur: Numéro d\'article requis et doit être un entier');
-      return { erreur: 'Numéro d\'article requis et doit être un entier', status: 400 };
+    // Validation des données (identique à Flask)
+    if (!data || typeof data !== 'object') {
+      console.error('Données JSON manquantes dans la requête');
+      return { erreur: 'Données JSON requises', status: 400 };
     }
 
-    // Vérifier le contenu des tables avant modification
-    console.log('Vérification du contenu des tables avant assignation...');
-    const produitsAvant = await listeProduits();
-    const categoriesAvant = await listeCategories();
-    console.log('Produits avant assignation:', produitsAvant);
-    console.log('Catégories avant assignation:', categoriesAvant);
+    const numero_item = data.numero_item;
+    let numero_categorie = data.numer_categorie; // Note: 'numer_categorie' comme dans Flask
 
-    db.run('BEGIN TRANSACTION');
+    console.log(`Requête reçue: numero_item=${numero_item}, numer_categorie=${numero_categorie}`);
+
+    // Validation numero_item (identique à Flask)
+    if (numero_item === undefined || numero_item === null) {
+      console.error('numero_item manquant dans la requête');
+      return { erreur: 'Numéro d\'article requis', status: 400 };
+    }
+
+    // Conversion sécurisée (identique à Flask)
+    let itemId;
+    try {
+      itemId = parseInt(numero_item);
+      if (isNaN(itemId)) throw new Error('NaN');
+    } catch (e) {
+      console.error(`numero_item invalide: ${numero_item}, erreur: ${e}`);
+      return { erreur: 'Numéro d\'article doit être un entier', status: 400 };
+    }
+
+    // Conversion sécurisée numero_categorie (identique à Flask)
+    let catId = null;
+    if (numero_categorie !== undefined && numero_categorie !== null) {
+      try {
+        catId = parseInt(numero_categorie);
+        if (isNaN(catId)) throw new Error('NaN');
+      } catch (e) {
+        console.error(`numero_categorie invalide: ${numero_categorie}, erreur: ${e}`);
+        return { erreur: 'Numéro de catégorie doit être un entier', status: 400 };
+      }
+    }
+
+    db.run("BEGIN TRANSACTION");
 
     try {
-      // Vérifier si l'article existe
-      const stmtCheckItem = db.prepare('SELECT numero_item FROM item WHERE numero_item = ?');
-      stmtCheckItem.bind([numero_item]);
-      const itemExists = stmtCheckItem.step() && stmtCheckItem.get();
+      // Vérifier si l'article existe (identique à Flask)
+      const stmtCheckItem = db.prepare('SELECT numero_item, designation FROM item WHERE numero_item = ?');
+      stmtCheckItem.bind([itemId]);
+      const itemExists = stmtCheckItem.step();
+      const item = stmtCheckItem.getAsObject();
       stmtCheckItem.free();
-      console.log('Vérification article - existe:', !!itemExists, 'détails:', itemExists);
+
       if (!itemExists) {
         db.run('ROLLBACK');
-        console.error('Erreur: Article non trouvé pour numero_item:', numero_item);
-        return { erreur: 'Article non trouvé', status: 404 };
+        console.error(`Article non trouvé: numero_item=${itemId}`);
+        return { erreur: `Article ${itemId} non trouvé`, status: 404 };
       }
 
-      // Vérifier si la catégorie existe (si fournie)
-      if (numer_categorie !== null && numer_categorie !== undefined) {
-        const stmtCheckCat = db.prepare('SELECT numer_categorie FROM categorie WHERE numer_categorie = ?');
-        stmtCheckCat.bind([numer_categorie]);
-        const catExists = stmtCheckCat.step() && stmtCheckCat.get();
+      // Vérifier si la catégorie existe (si fournie) (identique à Flask)
+      if (catId !== null) {
+        const stmtCheckCat = db.prepare('SELECT numer_categorie, description_c FROM categorie WHERE numer_categorie = ?');
+        stmtCheckCat.bind([catId]);
+        const catExists = stmtCheckCat.step();
+        const category = stmtCheckCat.getAsObject();
         stmtCheckCat.free();
-        console.log('Vérification catégorie - existe:', !!catExists, 'détails:', catExists);
+
         if (!catExists) {
           db.run('ROLLBACK');
-          console.error('Erreur: Catégorie non trouvée pour numer_categorie:', numer_categorie);
-          return { erreur: 'Catégorie non trouvée', status: 404 };
+          console.error(`Catégorie non trouvée: numer_categorie=${catId}`);
+          return { erreur: `Catégorie ${catId} non trouvée`, status: 404 };
         }
       }
 
-      // Mettre à jour la catégorie de l'article
-      const stmt = db.prepare('UPDATE item SET numero_categorie = ? WHERE numero_item = ?');
-      console.log('Exécution UPDATE avec:', { numer_categorie, numero_item });
-      stmt.run([numer_categorie === undefined || numer_categorie === null ? null : numer_categorie, numero_item]);
+      // Mettre à jour la catégorie (identique à Flask)
+      const stmtUpdate = db.prepare('UPDATE item SET numero_categorie = ? WHERE numero_item = ?');
+      stmtUpdate.run([catId, itemId]);
       const changes = db.getRowsModified();
-      stmt.free();
-      console.log('Résultat UPDATE - changements:', changes);
+      stmtUpdate.free();
 
       if (changes === 0) {
         db.run('ROLLBACK');
-        console.error('Erreur: Aucun article mis à jour pour numero_item:', numero_item);
-        return { erreur: 'Aucun article mis à jour', status: 404 };
+        console.error(`Aucun article mis à jour: numero_item=${itemId}`);
+        return { erreur: 'Aucun article mis à jour, vérifiez les données', status: 404 };
       }
+
+      // Récupérer la valeur mise à jour (similaire au RETURNING de PostgreSQL)
+      const stmtGetUpdated = db.prepare('SELECT numero_categorie FROM item WHERE numero_item = ?');
+      stmtGetUpdated.bind([itemId]);
+      stmtGetUpdated.step();
+      const updated = stmtGetUpdated.getAsObject();
+      stmtGetUpdated.free();
 
       db.run('COMMIT');
       await saveDbToLocalStorage(db);
 
-      // Vérifier après assignation
-      console.log('Vérification du contenu des tables après assignation...');
-      const produitsApres = await listeProduits();
-      console.log('Produits après assignation:', produitsApres);
-
-      console.log('Catégorie assignée:', { numero_item, numer_categorie });
+      console.log(`Catégorie assignée: numero_item=${itemId}, numer_categorie=${catId}`);
+      
+      // Réponse identique à Flask
       return {
         statut: 'Catégorie assignée',
-        numero_item: numero_item,
-        numer_categorie: numer_categorie === undefined || numer_categorie === null ? null : numer_categorie,
+        numero_item: itemId,
+        numer_categorie: catId,
         status: 200
       };
+
     } catch (error) {
       db.run('ROLLBACK');
       console.error('Erreur dans la transaction:', error);
       throw error;
     }
+
   } catch (error) {
     console.error('Erreur assignerCategorie:', error);
-    return { erreur: error.message, status: 500 };
+    return { 
+      erreur: `Erreur serveur: ${error.message}`,
+      status: 500 
+    };
   }
 }
 
