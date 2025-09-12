@@ -30,18 +30,18 @@ const handlers = {
 
     let params = {};
     if (numero_categorie !== null) {
-      const catId = parseInt(numero_categorie);
-      if (isNaN(catId)) {
-        return {
-          body: JSON.stringify({ erreur: 'Numéro de catégorie doit être un entier' }),
-          init: { status: 400, headers: { 'Content-Type': 'application/json' } }
-        };
-      }
-      params.numero_categorie = catId;
-    } else {
-      // clé présente mais vide → produits sans catégorie
-      if (urlObj.searchParams.has('numero_categorie')) {
+      if (numero_categorie.toLowerCase() === "null") {
+        // Forcer produits sans catégorie
         params.numero_categorie = null;
+      } else {
+        const catId = parseInt(numero_categorie);
+        if (isNaN(catId)) {
+          return {
+            body: JSON.stringify({ erreur: 'Numéro de catégorie doit être un entier' }),
+            init: { status: 400, headers: { 'Content-Type': 'application/json' } }
+          };
+        }
+        params.numero_categorie = catId;
       }
     }
 
@@ -61,6 +61,7 @@ const handlers = {
     };
   }
 },
+
 
     'dashboard': (url) => {
       try {
