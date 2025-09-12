@@ -1601,9 +1601,10 @@ export async function assignerCategorie(data) {
 
 
 
-export async function listeProduitsParCategorie(numero_categorie) {
+export async function listeProduitsParCategorie(numero_categorie, headers = {}) {
   try {
     console.log('🔍 Exécution de listeProduitsParCategorie avec paramètre:', numero_categorie);
+    console.log('📋 Headers reçus:', headers);
     const db = await getDb();
 
     if (numero_categorie === undefined || numero_categorie === null) {
@@ -1620,7 +1621,15 @@ export async function listeProduitsParCategorie(numero_categorie) {
       }
       stmt.free();
       console.log('✅ Produits sans catégorie trouvés:', produits);
-      return { produits };
+      
+      // Retourner la même structure que Flask
+      return {
+        body: JSON.stringify({ produits }),
+        init: {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      };
       
     } else {
       const numCat = Number(numero_categorie);
@@ -1637,10 +1646,16 @@ export async function listeProduitsParCategorie(numero_categorie) {
       
       if (!categorieExists) {
         console.error('❌ Catégorie non trouvée:', numCat);
-        return { erreur: 'Catégorie non trouvée', status: 404 };
+        return {
+          body: JSON.stringify({ erreur: 'Catégorie non trouvée' }),
+          init: {
+            status: 404,
+            headers: { 'Content-Type': 'application/json' }
+          }
+        };
       }
 
-      // Requête principale - version DEBUG
+      // Requête principale
       console.log('🔍 Exécution requête produits pour catégorie:', numCat);
       const query = `
         SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
@@ -1690,11 +1705,24 @@ export async function listeProduitsParCategorie(numero_categorie) {
       const resultArray = Object.values(categories);
       console.log('✅ Résultat final:', resultArray);
       
-      return { categories: resultArray };
+      // Retourner la même structure que Flask
+      return {
+        body: JSON.stringify({ categories: resultArray }),
+        init: {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      };
     }
   } catch (error) {
     console.error('❌ Erreur listeProduitsParCategorie:', error);
-    return { erreur: error.message, status: 500 };
+    return {
+      body: JSON.stringify({ erreur: error.message }),
+      init: {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      }
+    };
   }
 }
 export async function clientSolde() {
