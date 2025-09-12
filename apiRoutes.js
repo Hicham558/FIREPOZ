@@ -1604,15 +1604,14 @@ export async function listeProduitsParCategorie(request) {
   try {
     const db = await getDb();
 
-    // ✅ corrige le bug "Invalid URL"
+    // toujours donner une base pour éviter "Invalid URL"
     const url = new URL(request.url, self.location.origin);
-
     const numeroCategorieParam = url.searchParams.get("numero_categorie");
 
-    // Si aucun numéro passé → produits sans catégorie
-    if (!numeroCategorieParam) {
+    // ✅ Cas 1 : clé présente mais sans valeur → produits sans catégorie
+    if (numeroCategorieParam === "") {
       const stmt = db.prepare(
-        "SELECT * FROM produit WHERE numer_categorie IS NULL OR numer_categorie = ''"
+        "SELECT numero_item, designation FROM item WHERE numero_categorie IS NULL"
       );
       const produits = [];
       while (stmt.step()) {
@@ -1622,26 +1621,64 @@ export async function listeProduitsParCategorie(request) {
       return { produits };
     }
 
-    const numeroCategorie = parseInt(numeroCategorieParam, 10);
-    if (isNaN(numeroCategorie)) {
-      return { erreur: "Numéro de catégorie doit être un entier" };
+    // ✅ Cas 2 : toutes les catégories ou une catégorie spécifique
+    let rows = [];
+    if (numeroCategorieParam === null) {
+      // aucune clé → toutes les catégories avec produits
+      const stmt = db.prepare(`
+        SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
+        FROM categorie c
+        LEFT JOIN item i ON c.numer_categorie = i.numero_categorie
+      `);
+      while (stmt.step()) {
+        rows.push(stmt.getAsObject());
+      }
+      stmt.free();
+    } else {
+      // clé avec valeur → filtrer par catégorie
+      const numeroCategorie = parseInt(numeroCategorieParam, 10);
+      if (isNaN(numeroCategorie)) {
+        return { erreur: "Numéro de catégorie doit être un entier" };
+      }
+      const stmt = db.prepare(`
+        SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
+        FROM categorie c
+        LEFT JOIN item i ON c.numer_categorie = i.numero_categorie
+        WHERE c.numer_categorie = ?
+      `);
+      stmt.bind([numeroCategorie]);
+      while (stmt.step()) {
+        rows.push(stmt.getAsObject());
+      }
+      stmt.free();
     }
 
-    const stmt = db.prepare("SELECT * FROM produit WHERE numer_categorie = ?");
-    stmt.bind([numeroCategorie]);
+    // ✅ Regrouper par catégorie comme en Flask
+    const categories = {};
+    rows.forEach(row => {
+      const catId = row.numer_categorie;
+      if (!categories[catId]) {
+        categories[catId] = {
+          numero_categorie: catId,
+          description_c: row.description_c,
+          produits: []
+        };
+      }
+      if (row.numero_item) {
+        categories[catId].produits.push({
+          numero_item: row.numero_item,
+          designation: row.designation
+        });
+      }
+    });
 
-    const produits = [];
-    while (stmt.step()) {
-      produits.push(stmt.getAsObject());
-    }
-    stmt.free();
-
-    return { produits };
+    return { categories: Object.values(categories) };
   } catch (error) {
     console.error("Erreur listeProduitsParCategorie:", error);
     return { erreur: error.message, status: 500 };
   }
 }
+
 
 export async function clientSolde() {
   try {
