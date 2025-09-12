@@ -24,15 +24,37 @@ const handlers = {
     'liste_categories': () => listeCategories(),
     'client_solde': () => clientSolde(),
     'liste_produits_par_categorie': (url) => {
+  try {
+    const urlObj = new URL(url, window.location.origin);
+    const numero_categorie = urlObj.searchParams.get('numero_categorie');
+    
+    // Gestion identique à Flask
+    let catId = undefined;
+    if (numero_categorie !== null && numero_categorie !== '') {
       try {
-        const urlObj = new URL(url, window.location.origin);
-        const numero_categorie = urlObj.searchParams.get('numero_categorie');
-        const catId = numero_categorie ? parseInt(numero_categorie) : undefined;
-        return listeProduitsParCategorie(catId);
-      } catch (error) {
-        return listeProduitsParCategorie(undefined);
+        catId = parseInt(numero_categorie);
+        if (isNaN(catId)) {
+          return {
+            body: JSON.stringify({ erreur: 'Numéro de catégorie doit être un entier' }),
+            init: { status: 400, headers: { 'Content-Type': 'application/json' } }
+          };
+        }
+      } catch (e) {
+        return {
+          body: JSON.stringify({ erreur: 'Numéro de catégorie invalide' }),
+          init: { status: 400, headers: { 'Content-Type': 'application/json' } }
+        };
       }
-    },
+    }
+    
+    return listeProduitsParCategorie(catId);
+  } catch (error) {
+    return {
+      body: JSON.stringify({ erreur: error.message }),
+      init: { status: 500, headers: { 'Content-Type': 'application/json' } }
+    };
+  }
+},
     'dashboard': (url) => {
       try {
         const urlParams = new URL(url, window.location.origin).searchParams;
