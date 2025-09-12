@@ -1599,81 +1599,95 @@ export async function assignerCategorie(data) {
   }
 }
 
+import { getDb } from './database.js'; // Assurez-vous que le chemin est correct
+
 export async function listeProduitsParCategorie(numero_categorie) {
+  // Conversion robuste du paramètre
+  let numCat = null;
+  if (numero_categorie !== undefined && numero_categorie !== null) {
+    numCat = Number(numero_categorie);
+    // Gestion de NaN si la conversion échoue
+    if (isNaN(numCat)) {
+      console.error('Erreur: Le paramètre numero_categorie doit être un nombre. Reçu:', numero_categorie);
+      return { erreur: 'Paramètre invalide. Un numéro de catégorie est requis.', status: 400 };
+    }
+  }
+
   try {
-    console.log('Exécution de listeProduitsParCategorie:', numero_categorie);
+    console.log('Exécution de listeProduitsParCategorie. Paramètre original:', numero_categorie, 'Traité comme:', numCat);
     const db = await getDb();
 
-    if (numero_categorie === undefined || numero_categorie === null) {
-      // Produits sans catégorie - AVEC CLÉS MINUSCULES
+    if (numCat === null) {
+      // Produits sans catégorie
       const stmt = db.prepare('SELECT numero_item, designation FROM item WHERE numero_categorie IS NULL');
       const produits = [];
       while (stmt.step()) {
         const row = stmt.getAsObject();
         console.log('Produit sans catégorie brut:', row);
-
-        // Conversion des clés majuscules en minuscules
-        const numero_item = row.NUMERO_ITEM !== null && row.NUMERO_ITEM !== undefined ? row.NUMERO_ITEM : '';
-        const designation = row.DESIGNATION !== null && row.DESIGNATION !== undefined ? row.DESIGNATION : '';
-
+        
         produits.push({
-          numero_item: numero_item, // clé en minuscule
-          designation: designation  // clé en minuscule
+          numero_item: row.NUMERO_ITEM || '',
+          designation: row.DESIGNATION || ''
         });
       }
       stmt.free();
       console.log('Produits sans catégorie:', produits);
       return { produits };
+      
     } else {
-      // Vérifier si la catégorie existe
-      const stmtCheckCat = db.prepare('SELECT 1 FROM categorie WHERE numer_categorie = ?');
-      stmtCheckCat.bind([numero_categorie]);
-      const exists = stmtCheckCat.step();
+      // Vérification de l'existence de la catégorie
+      const stmtCheckCat = db.prepare('SELECT COUNT(*) as count FROM categorie WHERE numero_categorie = ?');
+      stmtCheckCat.bind([numCat]);
+      const result = stmtCheckCat.getAsObject();
+      const exists = result && result.COUNT > 0;
       stmtCheckCat.free();
+
       if (!exists) {
-        console.error('Erreur: Catégorie non trouvée pour numer_categorie:', numero_categorie);
+        console.error('Erreur: Catégorie non trouvée pour numero_categorie:', numCat);
         return { erreur: 'Catégorie non trouvée', status: 404 };
       }
 
-      // Produits par catégorie - AVEC CLÉS MINUSCULES
+      // Produits par catégorie
       const stmt = db.prepare(`
-        SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
+        SELECT c.numero_categorie, c.description_c, i.numero_item, i.designation
         FROM categorie c
-        LEFT JOIN item i ON c.numer_categorie = i.numero_categorie
-        WHERE c.numer_categorie = ?
+        LEFT JOIN item i ON c.numero_categorie = i.numero_categorie
+        WHERE c.numero_categorie = ?
       `);
-      stmt.bind([numero_categorie]);
+      stmt.bind([numCat]);
 
       const categories = {};
       while (stmt.step()) {
         const row = stmt.getAsObject();
         console.log('Données brutes pour catégorie:', row);
 
-        // Conversion des clés majuscules en minuscules
-        const numer_categorie = row.NUMER_CATEGORIE !== null && row.NUMER_CATEGORIE !== undefined ? row.NUMER_CATEGORIE : '';
-        const description_c = row.DESCRIPTION_C !== null && row.DESCRIPTION_C !== undefined ? row.DESCRIPTION_C : '';
-        const numero_item = row.NUMERO_ITEM !== null && row.NUMERO_ITEM !== undefined ? row.NUMERO_ITEM : '';
-        const designation = row.DESIGNATION !== null && row.DESIGNATION !== undefined ? row.DESIGNATION : '';
+        // Utilisation des noms de colonnes corrects
+        const numero_categorie = row.NUMERO_CATEGORIE || '';
+        const description_c = row.DESCRIPTION_C || '';
+        const numero_item = row.NUMERO_ITEM || '';
+        const designation = row.DESIGNATION || '';
 
-        if (!categories[numer_categorie]) {
-          categories[numer_categorie] = {
-            numer_categorie: numer_categorie, // clé en minuscule
-            description_c: description_c,     // clé en minuscule
-            produits: []                      // clé en minuscule
+        if (!categories[numero_categorie]) {
+          categories[numero_categorie] = {
+            numero_categorie: numero_categorie,
+            description_c: description_c,
+            produits: []
           };
         }
 
         if (numero_item) {
-          categories[numer_categorie].produits.push({
-            numero_item: numero_item,    // clé en minuscule
-            designation: designation     // clé en minuscule
+          categories[numero_categorie].produits.push({
+            numero_item: numero_item,
+            designation: designation
           });
         }
       }
       stmt.free();
 
-      console.log('Catégories avec produits:', Object.values(categories));
-      return { categories: Object.values(categories) };
+      const resultArray = Object.values(categories);
+      console.log('Catégories avec produits:', resultArray);
+      
+      return { categories: resultArray };
     }
   } catch (error) {
     console.error('Erreur listeProduitsParCategorie:', error);
