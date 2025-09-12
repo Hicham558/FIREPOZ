@@ -180,7 +180,7 @@ export async function ajouterVersement(data) {
   }
 }
 // Fonction pour récupérer l'historique des versements
-export async function historiqueVersements(params = {}) {
+
 export async function historiqueVersements(params = {}) {
   try {
     console.log("Exécution de historiqueVersements avec params:", params);
