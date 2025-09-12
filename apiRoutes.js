@@ -1602,24 +1602,12 @@ export async function assignerCategorie(data) {
 
 
 export async function listeProduitsParCategorie(numero_categorie) {
-  let numCat = null;
-  
-  // Gestion robuste du paramètre
-  if (numero_categorie !== undefined && numero_categorie !== null) {
-    numCat = Number(numero_categorie);
-    if (isNaN(numCat)) {
-      console.error('Erreur: Le paramètre numero_categorie doit être un nombre. Reçu:', numero_categorie);
-      return { erreur: 'Paramètre invalide. Un numéro de catégorie est requis.', status: 400 };
-    }
-  }
-
   try {
-    console.log('Exécution de listeProduitsParCategorie. Paramètre:', numero_categorie, 'Traité comme:', numCat);
+    console.log('Exécution de listeProduitsParCategorie:', numero_categorie);
     const db = await getDb();
 
-    // Cas spécial pour les produits sans catégorie (comme dans Flask)
     if (numero_categorie === undefined || numero_categorie === null) {
-      console.log('Récupération des produits sans catégorie');
+      // Produits sans catégorie
       const stmt = db.prepare('SELECT numero_item, designation FROM item WHERE numero_categorie IS NULL');
       const produits = [];
       while (stmt.step()) {
@@ -1630,23 +1618,10 @@ export async function listeProduitsParCategorie(numero_categorie) {
         });
       }
       stmt.free();
-      console.log('Produits sans catégorie trouvés:', produits.length);
       return { produits };
-      
     } else {
-      // Vérification de l'existence de la catégorie
-      const stmtCheckCat = db.prepare('SELECT COUNT(*) as count FROM categorie WHERE numer_categorie = ?');
-      stmtCheckCat.bind([numCat]);
-      const result = stmtCheckCat.getAsObject();
-      const exists = result && result.COUNT > 0;
-      stmtCheckCat.free();
-
-      if (!exists) {
-        console.error('Erreur: Catégorie non trouvée pour numer_categorie:', numCat);
-        return { erreur: 'Catégorie non trouvée', status: 404 };
-      }
-
-      // Produits par catégorie (correspond à la requête Flask)
+      // Produits par catégorie
+      const numCat = Number(numero_categorie);
       const stmt = db.prepare(`
         SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
         FROM categorie c
@@ -1658,33 +1633,26 @@ export async function listeProduitsParCategorie(numero_categorie) {
       const categories = {};
       while (stmt.step()) {
         const row = stmt.getAsObject();
+        const catId = row.NUMER_CATEGORIE || '';
         
-        const numer_categorie = row.NUMER_CATEGORIE || '';
-        const description_c = row.DESCRIPTION_C || '';
-        const numero_item = row.NUMERO_ITEM || '';
-        const designation = row.DESIGNATION || '';
-
-        if (!categories[numer_categorie]) {
-          categories[numer_categorie] = {
-            numero_categorie: numer_categorie, // Note: Flask utilise ce nom
-            description_c: description_c,
+        if (!categories[catId]) {
+          categories[catId] = {
+            numero_categorie: catId,
+            description_c: row.DESCRIPTION_C || '',
             produits: []
           };
         }
 
-        if (numero_item) {
-          categories[numer_categorie].produits.push({
-            numero_item: numero_item,
-            designation: designation
+        if (row.NUMERO_ITEM) {
+          categories[catId].produits.push({
+            numero_item: row.NUMERO_ITEM || '',
+            designation: row.DESIGNATION || ''
           });
         }
       }
       stmt.free();
 
-      const resultArray = Object.values(categories);
-      console.log('Catégories avec produits trouvées:', resultArray.length);
-      
-      return { categories: resultArray };
+      return { categories: Object.values(categories) };
     }
   } catch (error) {
     console.error('Erreur listeProduitsParCategorie:', error);
