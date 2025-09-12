@@ -1603,94 +1603,100 @@ export async function assignerCategorie(data) {
 
 export async function listeProduitsParCategorie(numero_categorie) {
   try {
-    console.log('Exécution de listeProduitsParCategorie:', numero_categorie);
+    console.log('🔍 Exécution de listeProduitsParCategorie avec paramètre:', numero_categorie);
     const db = await getDb();
 
     if (numero_categorie === undefined || numero_categorie === null) {
-      // Produits sans catégorie
+      console.log('📦 Récupération des produits SANS catégorie');
       const stmt = db.prepare('SELECT numero_item, designation FROM item WHERE numero_categorie IS NULL');
       const produits = [];
       while (stmt.step()) {
         const row = stmt.getAsObject();
+        console.log('📦 Produit sans catégorie:', row);
         produits.push({
-          numero_item: row.NUMERO_ITEM || '',
-          designation: row.DESIGNATION || ''
+          numero_item: row.NUMERO_ITEM || row.numero_item || '',
+          designation: row.DESIGNATION || row.designation || ''
         });
       }
       stmt.free();
+      console.log('✅ Produits sans catégorie trouvés:', produits);
       return { produits };
+      
     } else {
-      // Produits par catégorie
       const numCat = Number(numero_categorie);
-      const stmt = db.prepare(`
+      console.log('🔍 Recherche pour catégorie ID:', numCat);
+      
+      // Vérification que la catégorie existe
+      const stmtCheckCat = db.prepare('SELECT numer_categorie, description_c FROM categorie WHERE numer_categorie = ?');
+      stmtCheckCat.bind([numCat]);
+      const categorieExists = stmtCheckCat.step();
+      const categorieData = stmtCheckCat.getAsObject();
+      stmtCheckCat.free();
+      
+      console.log('✅ Catégorie existe:', categorieExists, 'Données:', categorieData);
+      
+      if (!categorieExists) {
+        console.error('❌ Catégorie non trouvée:', numCat);
+        return { erreur: 'Catégorie non trouvée', status: 404 };
+      }
+
+      // Requête principale - version DEBUG
+      console.log('🔍 Exécution requête produits pour catégorie:', numCat);
+      const query = `
         SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
         FROM categorie c
         LEFT JOIN item i ON c.numer_categorie = i.numero_categorie
         WHERE c.numer_categorie = ?
-      `);
+      `;
+      console.log('📝 Requête SQL:', query);
+      
+      const stmt = db.prepare(query);
       stmt.bind([numCat]);
 
       const categories = {};
+      let rowCount = 0;
+      
       while (stmt.step()) {
+        rowCount++;
         const row = stmt.getAsObject();
-        const catId = row.NUMER_CATEGORIE || '';
+        console.log('📊 Ligne brute', rowCount, ':', row);
         
-        if (!categories[catId]) {
-          categories[catId] = {
-            numero_categorie: catId,
-            description_c: row.DESCRIPTION_C || '',
+        // Essayer différents formats de noms de colonnes
+        const numer_categorie = row.NUMER_CATEGORIE || row.numer_categorie || '';
+        const description_c = row.DESCRIPTION_C || row.description_c || '';
+        const numero_item = row.NUMERO_ITEM || row.numero_item || '';
+        const designation = row.DESIGNATION || row.designation || '';
+
+        console.log('🔍 Données extraites:', { numer_categorie, description_c, numero_item, designation });
+
+        if (!categories[numer_categorie]) {
+          categories[numer_categorie] = {
+            numero_categorie: numer_categorie,
+            description_c: description_c,
             produits: []
           };
         }
 
-        if (row.NUMERO_ITEM) {
-          categories[catId].produits.push({
-            numero_item: row.NUMERO_ITEM || '',
-            designation: row.DESIGNATION || ''
+        if (numero_item) {
+          categories[numer_categorie].produits.push({
+            numero_item: numero_item,
+            designation: designation
           });
         }
       }
       stmt.free();
 
-      return { categories: Object.values(categories) };
-    }
-  } catch (error) {
-    console.error('Erreur listeProduitsParCategorie:', error);
-    return { erreur: error.message, status: 500 };
-  }
-}
-export async function clientSolde() {
-  try {
-    console.log("Exécution de clientSolde...");
-    const db = await getDb();
-    
-    const stmt = db.prepare('SELECT numero_clt, solde FROM client');
-    const soldes = [];
-    
-    while (stmt.step()) {
-      const row = stmt.get();
-      console.log("Solde client brut récupéré:", row);
+      console.log('📊 Nombre total de lignes traitées:', rowCount);
+      const resultArray = Object.values(categories);
+      console.log('✅ Résultat final:', resultArray);
       
-      soldes.push({
-        numero_clt: row[0] !== null ? row[0] : '',
-        solde: row[1] !== null ? row[1] : '0,00'
-      });
+      return { categories: resultArray };
     }
-    stmt.free();
-    
-    console.log("Soldes clients formatés retournés:", soldes);
-    return soldes;
   } catch (error) {
-    console.error("Erreur clientSolde:", error);
+    console.error('❌ Erreur listeProduitsParCategorie:', error);
     return { erreur: error.message, status: 500 };
   }
 }
-
-
-
-
-// apiRoutes.js (ajouts aux fonctions existantes)
-
 export async function validerVente(data) {
   try {
     console.log("Exécution de validerVente avec data:", data);
