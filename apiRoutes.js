@@ -46,12 +46,11 @@ function calculateEAN13CheckDigit(code12) {
 // apiRoutes.js - Nouvelles fonctions pour les versements
 
 // Fonction pour ajouter un versement
-
 export async function ajouterVersement(data) {
   try {
     console.log("Exécution de ajouterVersement avec data:", data);
     const db = await getDb();
-    
+
     // 1. Validation des données
     if (!data || !data.type || !data.numero_cf || !data.montant || !data.numero_util || !data.password2) {
       return { error: "Type, numéro client/fournisseur, montant, utilisateur ou mot de passe manquant", status: 400 };
@@ -96,7 +95,7 @@ export async function ajouterVersement(data) {
         origine = 'VERSEMENT F';
       }
 
-      // Vérifier si l'entité existe
+      // Vérifier si l'entité existe et récupérer le solde actuel
       const stmtEntity = db.prepare(`SELECT solde FROM ${table} WHERE ${id_column} = ?`);
       stmtEntity.bind([numero_cf]);
       const entity = stmtEntity.step() ? stmtEntity.getAsObject() : null;
@@ -107,12 +106,14 @@ export async function ajouterVersement(data) {
         return { error: `${type === 'C' ? 'Client' : 'Fournisseur'} non trouvé`, status: 400 };
       }
 
-      // 4. Calcul du nouveau solde
+      // 4. Calcul du nouveau solde (CUMUL)
       const current_solde = toDotDecimal(entity.solde || '0,00');
       const new_solde = current_solde + montant_decimal;
       const new_solde_str = toCommaDecimal(new_solde);
 
-      // 5. Mise à jour du solde
+      console.log(`Calcul solde: ${current_solde} (ancien) + ${montant_decimal} (versement) = ${new_solde} (nouveau)`);
+
+      // 5. Mise à jour du solde (CUMUL)
       const stmtUpdate = db.prepare(`UPDATE ${table} SET solde = ? WHERE ${id_column} = ?`);
       stmtUpdate.run([new_solde_str, numero_cf]);
       stmtUpdate.free();
@@ -147,13 +148,14 @@ export async function ajouterVersement(data) {
       db.run('COMMIT');
       saveDbToLocalStorage(db);
 
-      console.log(`Versement ajouté: numero_mc=${numero_mc}, type=${type}, montant=${toCommaDecimal(montant_decimal)}`);
-      
+      console.log(`Versement ajouté: numero_mc=${numero_mc}, type=${type}, montant=${toCommaDecimal(montant_decimal)}, ancien_solde=${toCommaDecimal(current_solde)}, nouveau_solde=${new_solde_str}`);
+
       return {
         success: true,
         numero_mc,
         statut: "Versement ajouté",
-        new_solde: new_solde_str,
+        ancien_solde: toCommaDecimal(current_solde),
+        nouveau_solde: new_solde_str,
         status: 201
       };
 
