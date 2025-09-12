@@ -30,7 +30,7 @@ const handlers = {
     
     // Gestion identique à Flask
     let catId = undefined;
-    if (numero_categorie !== null && numero_categorie !== '') {
+    if (numero_categorie !== null) {
       try {
         catId = parseInt(numero_categorie);
         if (isNaN(catId)) {
