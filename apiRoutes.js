@@ -1601,83 +1601,128 @@ export async function assignerCategorie(data) {
 
 export async function listeProduitsParCategorie(numero_categorie) {
   try {
-    console.log('Exécution de listeProduitsParCategorie:', numero_categorie);
+    console.log('Exécution de listeProduitsParCategorie avec numero_categorie:', numero_categorie);
     const db = await getDb();
 
-    if (numero_categorie === undefined || numero_categorie === null) {
-      // Produits sans catégorie - AVEC CLÉS MINUSCULES
-      const stmt = db.prepare('SELECT numero_item, designation FROM item WHERE numero_categorie IS NULL');
+    // Conversion sécurisée comme Flask
+    let catId = undefined;
+    if (numero_categorie !== undefined && numero_categorie !== null) {
+      try {
+        catId = parseInt(numero_categorie);
+        if (isNaN(catId)) {
+          console.error('numero_categorie invalide:', numero_categorie);
+          return { 
+            erreur: 'Numéro de catégorie doit être un entier', 
+            status: 400 
+          };
+        }
+      } catch (e) {
+        console.error('Erreur conversion numero_categorie:', e);
+        return { 
+          erreur: 'Numéro de catégorie invalide', 
+          status: 400 
+        };
+      }
+    }
+
+    // Logique identique à Flask
+    if (catId === undefined || catId === null) {
+      // Cas: Récupérer les produits sans catégorie (comme Flask quand 'numero_categorie' est dans request.args mais null)
+      console.log('Récupération des produits sans catégorie');
+      
+      const stmt = db.prepare(`
+        SELECT numero_item, designation 
+        FROM item 
+        WHERE numero_categorie IS NULL
+      `);
+      
       const produits = [];
       while (stmt.step()) {
         const row = stmt.getAsObject();
-        console.log('Produit sans catégorie brut:', row);
-
-        // Conversion des clés majuscules en minuscules
-        const numero_item = row.NUMERO_ITEM !== null && row.NUMERO_ITEM !== undefined ? row.NUMERO_ITEM : '';
-        const designation = row.DESIGNATION !== null && row.DESIGNATION !== undefined ? row.DESIGNATION : '';
-
         produits.push({
-          numero_item: numero_item, // clé en minuscule
-          designation: designation  // clé en minuscule
+          numero_item: row.numero_item,
+          designation: row.designation
         });
       }
       stmt.free();
-      console.log('Produits sans catégorie:', produits);
-      return { produits };
-    } else {
-      // Vérifier si la catégorie existe
-      const stmtCheckCat = db.prepare('SELECT 1 FROM categorie WHERE numer_categorie = ?');
-      stmtCheckCat.bind([numero_categorie]);
-      const exists = stmtCheckCat.step();
-      stmtCheckCat.free();
-      if (!exists) {
-        console.error('Erreur: Catégorie non trouvée pour numer_categorie:', numero_categorie);
-        return { erreur: 'Catégorie non trouvée', status: 404 };
-      }
 
-      // Produits par catégorie - AVEC CLÉS MINUSCULES
+      console.log(`Récupération de ${produits.length} produits sans catégorie`);
+      return { 
+        produits: produits,
+        status: 200
+      };
+
+    } else {
+      // Cas: Récupérer par catégorie spécifique (comme Flask)
+      console.log(`Récupération des produits pour la catégorie: ${catId}`);
+      
+      // Vérifier d'abord si la catégorie existe (comme Flask)
+      const stmtCheckCat = db.prepare(`
+        SELECT numer_categorie, description_c 
+        FROM categorie 
+        WHERE numer_categorie = ?
+      `);
+      stmtCheckCat.bind([catId]);
+      
+      if (!stmtCheckCat.step()) {
+        stmtCheckCat.free();
+        console.error(`Catégorie non trouvée: ${catId}`);
+        return { 
+          erreur: `Catégorie ${catId} non trouvée`, 
+          status: 404 
+        };
+      }
+      stmtCheckCat.free();
+
+      // Requête principale identique à Flask
       const stmt = db.prepare(`
         SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
         FROM categorie c
         LEFT JOIN item i ON c.numer_categorie = i.numero_categorie
         WHERE c.numer_categorie = ?
       `);
-      stmt.bind([numero_categorie]);
-
+      stmt.bind([catId]);
+      
       const categories = {};
       while (stmt.step()) {
         const row = stmt.getAsObject();
-        console.log('Données brutes pour catégorie:', row);
-
-        // Conversion des clés majuscules en minuscules
-        const numer_categorie = row.NUMER_CATEGORIE !== null && row.NUMER_CATEGORIE !== undefined ? row.NUMER_CATEGORIE : '';
-        const description_c = row.DESCRIPTION_C !== null && row.DESCRIPTION_C !== undefined ? row.DESCRIPTION_C : '';
-        const numero_item = row.NUMERO_ITEM !== null && row.NUMERO_ITEM !== undefined ? row.NUMERO_ITEM : '';
-        const designation = row.DESIGNATION !== null && row.DESIGNATION !== undefined ? row.DESIGNATION : '';
-
-        if (!categories[numer_categorie]) {
-          categories[numer_categorie] = {
-            numer_categorie: numer_categorie, // clé en minuscule
-            description_c: description_c,     // clé en minuscule
-            produits: []                      // clé en minuscule
-          };
-        }
-
-        if (numero_item) {
-          categories[numer_categorie].produits.push({
-            numero_item: numero_item,    // clé en minuscule
-            designation: designation     // clé en minuscule
-          });
+        const cat_id = row.numer_categorie;
+        
+        if (cat_id !== null) {
+          if (!categories[cat_id]) {
+            categories[cat_id] = {
+              numero_categorie: cat_id,
+              description_c: row.description_c,
+              produits: []
+            };
+          }
+          
+          if (row.numero_item) {
+            categories[cat_id].produits.push({
+              numero_item: row.numero_item,
+              designation: row.designation
+            });
+          }
         }
       }
       stmt.free();
 
-      console.log('Catégories avec produits:', Object.values(categories));
-      return { categories: Object.values(categories) };
+      const categoriesList = Object.values(categories);
+      console.log(`Récupération de ${categoriesList.length} catégories avec produits`);
+      
+      // Format de réponse identique à Flask
+      return {
+        categories: categoriesList,
+        status: 200
+      };
     }
+
   } catch (error) {
     console.error('Erreur listeProduitsParCategorie:', error);
-    return { erreur: error.message, status: 500 };
+    return { 
+      erreur: `Erreur serveur: ${error.message}`,
+      status: 500 
+    };
   }
 }
 export async function clientSolde() {
