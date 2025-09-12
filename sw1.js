@@ -23,16 +23,35 @@ const handlers = {
     'liste_utilisateurs': () => listeUtilisateurs(),
     'liste_categories': () => listeCategories(),
     'client_solde': () => clientSolde(),
-    'liste_produits_par_categorie': (url, headers) => {
-    try {
+     'liste_produits_par_categorie': (url) => {
+      try {
         const urlObj = new URL(url, window.location.origin);
-        const numero_categorie = urlObj.searchParams.get('numero_categorie');
-        const catId = numero_categorie ? parseInt(numero_categorie) : undefined;
-        return listeProduitsParCategorie(catId, headers);
-    } catch (error) {
-        return listeProduitsParCategorie(undefined, headers);
-    }
-},
+        const numero_categorie_param = urlObj.searchParams.get('numero_categorie');
+        
+        console.log('🔍 Paramètre brut numero_categorie:', numero_categorie_param);
+        console.log('🔍 URL complète:', url);
+        console.log('🔍 SearchParams:', Object.fromEntries(urlObj.searchParams));
+        
+        // Gérer les différents cas :
+        let catId;
+        if (numero_categorie_param === null) {
+          // Pas de paramètre du tout
+          catId = undefined;
+        } else if (numero_categorie_param === '' || numero_categorie_param === undefined) {
+          // Paramètre vide ou undefined - cas spécial pour produits sans catégorie
+          catId = 'empty';
+        } else {
+          // Paramètre avec une valeur
+          catId = parseInt(numero_categorie_param);
+        }
+        
+        console.log('🔍 CatId final:', catId);
+        return listeProduitsParCategorie(catId);
+      } catch (error) {
+        console.error('❌ Erreur parsing URL:', error);
+        return listeProduitsParCategorie(undefined);
+      }
+    },
     'dashboard': (url) => {
       try {
         const urlParams = new URL(url, window.location.origin).searchParams;
