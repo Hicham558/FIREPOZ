@@ -23,45 +23,27 @@ const handlers = {
     'liste_utilisateurs': () => listeUtilisateurs(),
     'liste_categories': () => listeCategories(),
     'client_solde': () => clientSolde(),
-    'liste_produits_par_categorie': async (url) => {
-  try {
-    const urlObj = new URL(url, window.location.origin);
-    const numero_categorie = urlObj.searchParams.get('numero_categorie');
+   '/liste_produits_par_categorie': {
+  method: 'GET',
+  handler: async (request) => {
+    try {
+      const result = await listeProduitsParCategorie(request);
 
-    let params = {};
-    if (numero_categorie !== null) {
-      if (numero_categorie.toLowerCase() === "null") {
-        // Forcer produits sans catégorie
-        params.numero_categorie = null;
-      } else {
-        const catId = parseInt(numero_categorie);
-        if (isNaN(catId)) {
-          return {
-            body: JSON.stringify({ erreur: 'Numéro de catégorie doit être un entier' }),
-            init: { status: 400, headers: { 'Content-Type': 'application/json' } }
-          };
+      return {
+        body: JSON.stringify(result),
+        init: {
+          status: result.erreur ? 500 : 200,
+          headers: { 'Content-Type': 'application/json' }
         }
-        params.numero_categorie = catId;
-      }
+      };
+    } catch (error) {
+      return {
+        body: JSON.stringify({ erreur: error.message }),
+        init: { status: 500, headers: { 'Content-Type': 'application/json' } }
+      };
     }
-
-    const result = await listeProduitsParCategorie(params);
-
-    return {
-      body: JSON.stringify(result),
-      init: {
-        status: result.erreur ? 500 : 200,
-        headers: { 'Content-Type': 'application/json' }
-      }
-    };
-  } catch (error) {
-    return {
-      body: JSON.stringify({ erreur: error.message }),
-      init: { status: 500, headers: { 'Content-Type': 'application/json' } }
-    };
   }
 },
-
 
     'dashboard': (url) => {
       try {
