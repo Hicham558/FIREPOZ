@@ -181,6 +181,7 @@ export async function ajouterVersement(data) {
 }
 // Fonction pour récupérer l'historique des versements
 export async function historiqueVersements(params = {}) {
+export async function historiqueVersements(params = {}) {
   try {
     console.log("Exécution de historiqueVersements avec params:", params);
     const db = await getDb();
@@ -204,6 +205,7 @@ export async function historiqueVersements(params = {}) {
       SELECT 
         mc.numero_mc,
         mc.date_mc,
+        mc.time_mc,  -- AJOUTÉ pour le debugging
         mc.montant,
         mc.justificatif,
         mc.cf,
@@ -234,19 +236,34 @@ export async function historiqueVersements(params = {}) {
     const versements = [];
     while (stmt.step()) {
       const row = stmt.getAsObject();
+      console.log("Ligne brute de la base:", row); // DEBUG
+      
+      // CORRECTION: Utiliser les noms de colonnes corrects (SQL.js retourne les noms exacts)
+      const numero_mc = row.numero_mc || row.NUMERO_MC;
+      const date_mc = row.date_mc || row.DATE_MC;
+      const montant = row.montant || row.MONTANT;
+      const justificatif = row.justificatif || row.JUSTIFICATIF;
+      const cf = row.cf || row.CF;
+      const numero_cf = row.numero_cf || row.NUMERO_CF;
+      const numero_util = row.numero_util || row.NUMERO_UTIL;
+      const nom_cf = row.nom_cf || row.NOM_CF;
+      const utilisateur_nom = row.utilisateur_nom || row.UTILISATEUR_NOM;
+
       versements.push({
-        numero_mc: row.numero_mc,
-        date_mc: row.date_mc,
-        montant: row.montant ? row.montant.toString() : '0,00',
-        justificatif: row.justificatif || '',
-        type: row.cf === 'C' ? 'Client' : 'Fournisseur',
-        numero_cf: row.numero_cf,
-        nom_cf: row.nom_cf || 'N/A',
-        utilisateur_nom: row.utilisateur_nom || 'N/A'
+        numero_mc: numero_mc,
+        date_mc: date_mc || 'N/A',
+        montant: montant ? montant.toString() : '0,00',
+        justificatif: justificatif || '',
+        cf: cf,
+        numero_cf: numero_cf,
+        numero_util: numero_util,
+        nom_cf: nom_cf || 'N/A',
+        utilisateur_nom: utilisateur_nom || 'N/A'
       });
     }
     stmt.free();
 
+    console.log("Versements formatés:", versements); // DEBUG
     return versements;
 
   } catch (error) {
