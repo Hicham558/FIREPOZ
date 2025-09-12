@@ -70,13 +70,14 @@ export async function ajouterVersement(data) {
     db.run('BEGIN TRANSACTION');
 
     try {
-      // Vérification de l'utilisateur et du mot de passe
-      const stmtUser = db.prepare("SELECT password2 FROM utilisateur WHERE numero_util = ?");
+      // Vérification de l'utilisateur et du mot de passe - CORRIGÉ
+      const stmtUser = db.prepare("SELECT Password2 FROM utilisateur WHERE numero_util = ?");
       stmtUser.bind([numero_util]);
       const utilisateur = stmtUser.step() ? stmtUser.getAsObject() : null;
       stmtUser.free();
 
-      if (!utilisateur || utilisateur.password2 !== password2) {
+      // CORRIGÉ - utilisation de Password2 (avec majuscule)
+      if (!utilisateur || utilisateur.Password2 !== password2) {
         db.run('ROLLBACK');
         return { error: "Utilisateur non trouvé ou mot de passe incorrect", status: 401 };
       }
@@ -156,7 +157,6 @@ export async function ajouterVersement(data) {
     return { error: error.message, status: 500 };
   }
 }
-
 // Fonction pour récupérer l'historique des versements
 export async function historiqueVersements(params = {}) {
   try {
