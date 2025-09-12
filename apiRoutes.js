@@ -1602,79 +1602,71 @@ export async function assignerCategorie(data) {
 
 export async function listeProduitsParCategorie(request) {
   try {
-    const db = await getDb();
+    // Extraire le paramètre numero_categorie depuis l'URL
+    let numero_categorie = null;
+    if (request && request.url) {
+      const urlParams = new URL(request.url, window.location.origin).searchParams;
+      const param = urlParams.get('numero_categorie');
+      if (param !== null) {
+        numero_categorie = param !== '' ? parseInt(param, 10) : null;
+        if (param !== '' && isNaN(numero_categorie)) {
+          throw new Error('Numéro de catégorie doit être un entier');
+        }
+      }
+    }
 
-    // toujours donner une base pour éviter "Invalid URL"
-    const url = new URL(request.url, self.location.origin);
-    const numeroCategorieParam = url.searchParams.get("numero_categorie");
+    const db = await getDb(); // ta fonction pour obtenir la DB
 
-    // ✅ Cas 1 : clé présente mais sans valeur → produits sans catégorie
-    if (numeroCategorieParam === "") {
-      const stmt = db.prepare(
-        "SELECT numero_item, designation FROM item WHERE numero_categorie IS NULL"
-      );
+    if (numero_categorie === null && request.url.includes('numero_categorie')) {
+      // Produits sans catégorie
+      const stmt = db.prepare('SELECT numero_item, designation FROM item WHERE numero_categorie IS NULL');
       const produits = [];
       while (stmt.step()) {
-        produits.push(stmt.getAsObject());
-      }
-      stmt.free();
-      return { produits };
-    }
-
-    // ✅ Cas 2 : toutes les catégories ou une catégorie spécifique
-    let rows = [];
-    if (numeroCategorieParam === null) {
-      // aucune clé → toutes les catégories avec produits
-      const stmt = db.prepare(`
-        SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
-        FROM categorie c
-        LEFT JOIN item i ON c.numer_categorie = i.numero_categorie
-      `);
-      while (stmt.step()) {
-        rows.push(stmt.getAsObject());
-      }
-      stmt.free();
-    } else {
-      // clé avec valeur → filtrer par catégorie
-      const numeroCategorie = parseInt(numeroCategorieParam, 10);
-      if (isNaN(numeroCategorie)) {
-        return { erreur: "Numéro de catégorie doit être un entier" };
-      }
-      const stmt = db.prepare(`
-        SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
-        FROM categorie c
-        LEFT JOIN item i ON c.numer_categorie = i.numero_categorie
-        WHERE c.numer_categorie = ?
-      `);
-      stmt.bind([numeroCategorie]);
-      while (stmt.step()) {
-        rows.push(stmt.getAsObject());
-      }
-      stmt.free();
-    }
-
-    // ✅ Regrouper par catégorie comme en Flask
-    const categories = {};
-    rows.forEach(row => {
-      const catId = row.numer_categorie;
-      if (!categories[catId]) {
-        categories[catId] = {
-          numero_categorie: catId,
-          description_c: row.description_c,
-          produits: []
-        };
-      }
-      if (row.numero_item) {
-        categories[catId].produits.push({
+        const row = stmt.getAsObject();
+        produits.push({
           numero_item: row.numero_item,
           designation: row.designation
         });
       }
-    });
+      stmt.free();
+      return { produits };
+    } else {
+      // Produits avec catégorie spécifique
+      const stmt = db.prepare(`
+        SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
+        FROM categorie c
+        LEFT JOIN item i ON c.numer_categorie = i.numero_categorie
+        WHERE c.numer_categorie = :num OR :num IS NULL
+      `);
+      stmt.bind({ ':num': numero_categorie });
+      const rows = [];
+      while (stmt.step()) {
+        rows.push(stmt.getAsObject());
+      }
+      stmt.free();
 
-    return { categories: Object.values(categories) };
+      const categories = {};
+      rows.forEach(row => {
+        const cat_id = row.numer_categorie;
+        if (!categories[cat_id]) {
+          categories[cat_id] = {
+            numero_categorie: cat_id,
+            description_c: row.description_c,
+            produits: []
+          };
+        }
+        if (row.numero_item !== null) {
+          categories[cat_id].produits.push({
+            numero_item: row.numero_item,
+            designation: row.designation
+          });
+        }
+      });
+
+      return { categories: Object.values(categories) };
+    }
   } catch (error) {
-    console.error("Erreur listeProduitsParCategorie:", error);
+    console.error('Erreur listeProduitsParCategorie:', error);
     return { erreur: error.message, status: 500 };
   }
 }
