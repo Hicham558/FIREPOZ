@@ -1437,61 +1437,37 @@ async function loadCategoryList() {
         showToast('Veuillez vous connecter pour gérer les catégories', true);
         return;
     }
-
     try {
-        // 🔹 Récupération simultanée des catégories et produits
         const [categoriesResponse, productsResponse, productsByCategoryResponse] = await Promise.all([
             fetch(`${API_BASE_URL}/liste_categories`, { headers: { 'X-User-ID': userId } }),
             fetch(`${API_BASE_URL}/liste_produits`, { headers: { 'X-User-ID': userId } }),
+            // ✅ Une seule requête : sans paramètre → Charge TOUTES les catégories avec produits
             fetch(`${API_BASE_URL}/liste_produits_par_categorie`, { headers: { 'X-User-ID': userId } })
         ]);
-
         if (!categoriesResponse.ok || !productsResponse.ok || !productsByCategoryResponse.ok) {
             throw new Error(`Erreur: ${await (categoriesResponse.ok ? productsResponse.ok ? productsByCategoryResponse : productsResponse : categoriesResponse).text()}`);
         }
-
-        // 🔹 Données brutes
         const categories = await categoriesResponse.json();
-        const products = await productsResponse.json();
+        const allProducts = await productsResponse.json();  // Pour filtrer les non assignés
         const productsByCategoryData = await productsByCategoryResponse.json();
-        const productsByCategory = productsByCategoryData.categories || [];
+        const productsByCategory = productsByCategoryData.categories || [];  // Toutes les catégories chargées !
+        console.log('Categories:', categories);
+        console.log('All Products:', allProducts);
+        console.log('Products by Category (toutes):', productsByCategory);
 
-        console.log('Categories brutes:', categories);
-        console.log('Products bruts:', products);
-        console.log('Products by Category bruts:', productsByCategory);
-
-        // 🔹 Normalisation des produits par catégorie
-        const normalizedProductsByCategory = productsByCategory.map(cat => ({
-            numero_categorie: cat.numero_categorie ?? cat.NUMER_CATEGORIE,
-            description_c: cat.description_c ?? cat.DESCRIPTION_C,
-            produits: (cat.produits || []).map(p => ({
-                numero_item: p.numero_item ?? p.NUMERO_ITEM,
-                designation: p.designation ?? p.DESIGNATION
-            }))
-        }));
-
-        // 🔹 Produits non assignés
-        const unassignedResponse = await fetch(`${API_BASE_URL}/liste_produits_par_categorie?numero_categorie`, {
-            headers: { 'X-User-ID': userId }
-        });
-
-        if (!unassignedResponse.ok) {
-            throw new Error(`Erreur: ${await unassignedResponse.text()}`);
-        }
-
-        const { produits: unassignedProducts } = await unassignedResponse.json();
-        const normalizedUnassigned = (unassignedProducts || []).map(p => ({
-            numero_item: p.numero_item ?? p.NUMERO_ITEM,
-            designation: p.designation ?? p.DESIGNATION
-        }));
-
-        console.log('Produits non assignés normalisés:', normalizedUnassigned);
-
-        // 🔹 Préparation de l'affichage
         const categoryList = document.getElementById('categoryList');
         categoryList.innerHTML = '';
 
-        // 🔹 Section produits non assignés
+        // ✅ Non assignés : Filtrer depuis allProducts (pas besoin de requête séparée)
+        const unassignedProducts = allProducts.filter(p => 
+            !p.numero_categorie && !p.NUMER_CATEGORIE  // Sans catégorie (null/undefined)
+        ).map(p => ({
+            numero_item: parseInt(p.numero_item || p.NUMERO_ITEM),
+            designation: p.designation || p.DESIGNATION || 'N/A'
+        }));
+        console.log('Unassigned Products (filtré):', unassignedProducts);
+
+        // Section "Non assignés"
         const unassignedDiv = document.createElement('div');
         unassignedDiv.className = 'mb-4';
         unassignedDiv.innerHTML = `
@@ -1499,9 +1475,9 @@ async function loadCategoryList() {
                 <span class="font-bold">Non assignés</span>
             </div>
             <div class="pl-4">
-                ${normalizedUnassigned.length ? normalizedUnassigned.map(product => `
+                ${unassignedProducts.length ? unassignedProducts.map(product => `
                     <div class="flex justify-between items-center mb-1">
-                        <span>${product.designation}</span>
+                        <span>${product.designation || 'N/A'}</span>
                         <select onchange="assignCategory(${product.numero_item}, this.value)" class="border p-1 rounded w-40">
                             <option value="">Assigner à...</option>
                             ${categories.map(cat => `<option value="${cat.numer_categorie}">${cat.description_c}</option>`).join('')}
@@ -1512,12 +1488,11 @@ async function loadCategoryList() {
         `;
         categoryList.appendChild(unassignedDiv);
 
-        // 🔹 Sections catégories
+        // ✅ Sections par catégorie : Utilise productsByCategory (toutes les cats)
         categories.forEach(category => {
-            const categoryData = normalizedProductsByCategory.find(c => c.numero_categorie === category.numer_categorie) || { produits: [] };
+            const categoryData = productsByCategory.find(cat => cat.numero_categorie === category.numer_categorie) || { produits: [] };
             const categoryProducts = categoryData.produits || [];
-
-            console.log(`Produits pour catégorie ${category.numer_categorie} (${category.description_c}):`, categoryProducts);
+            console.log(`Produits pour catégorie ${category.numer_categorie}:`, categoryProducts);
 
             const div = document.createElement('div');
             div.className = 'mb-4';
@@ -1536,7 +1511,7 @@ async function loadCategoryList() {
                 <div class="pl-4">
                     ${categoryProducts.length ? categoryProducts.map(product => `
                         <div class="flex justify-between items-center mb-1">
-                            <span>${product.designation}</span>
+                            <span>${product.designation || 'N/A'}</span>
                             <button onclick="removeCategoryFromProduct(${product.numero_item}, ${category.numer_categorie})" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
                                 <i class="fas fa-times"></i> 
                             </button>
@@ -1546,14 +1521,11 @@ async function loadCategoryList() {
             `;
             categoryList.appendChild(div);
         });
-
-        console.log('✅ Liste des catégories et produits chargée avec succès.');
     } catch (error) {
         console.error('Erreur chargement catégories:', error);
         showToast(`Erreur chargement catégories: ${error.message}`, true);
     }
 }
-
 async function addCategory() {
     const userId = localStorage.getItem('userId');
     const description = document.getElementById('categoryDescription').value.trim();
