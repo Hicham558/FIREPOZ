@@ -1599,18 +1599,19 @@ export async function assignerCategorie(data) {
   }
 }
 
-export async function listeProduitsParCategorie(params) {
+
+export async function listeProduitsParCategorie(params = {}) {
   try {
+    console.log("Exécution de listeProduitsParCategorie...", params);
+    const db = await getDb();
     const numero_categorie = params?.numero_categorie ?? null;
 
-    let produits = [];
-    let categories = [];
-
+    // Cas spécial : produits sans catégorie
     if (params && "numero_categorie" in params && numero_categorie === null) {
-      // Produits sans catégorie
       const stmt = db.prepare(
         "SELECT numero_item, designation FROM item WHERE numero_categorie IS NULL"
       );
+      const produits = [];
       while (stmt.step()) {
         const row = stmt.getAsObject();
         produits.push({
@@ -1619,49 +1620,46 @@ export async function listeProduitsParCategorie(params) {
         });
       }
       stmt.free();
-      console.info(`Récupération de ${produits.length} produits sans catégorie`);
+      console.log(`Produits sans catégorie récupérés: ${produits.length}`);
       return { produits };
-    } else {
-      // Produits groupés par catégorie
-      const stmt = db.prepare(
-        `SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
-         FROM categorie c
-         LEFT JOIN item i ON c.numer_categorie = i.numero_categorie
-         WHERE c.numer_categorie = ? OR ? IS NULL`
-      );
-
-      stmt.bind([numero_categorie, numero_categorie]);
-
-      const mapCategories = {};
-      while (stmt.step()) {
-        const row = stmt.getAsObject();
-        const cat_id = row.numer_categorie;
-
-        if (!mapCategories[cat_id]) {
-          mapCategories[cat_id] = {
-            numero_categorie: cat_id,
-            description_c: row.description_c,
-            produits: [],
-          };
-        }
-        if (row.numero_item) {
-          mapCategories[cat_id].produits.push({
-            numero_item: row.numero_item,
-            designation: row.designation,
-          });
-        }
-      }
-      stmt.free();
-
-      categories = Object.values(mapCategories);
-      console.info(
-        `Récupération de ${categories.length} catégories avec produits`
-      );
-      return { categories };
     }
-  } catch (e) {
-    console.error("Erreur dans liste_produits_par_categorie:", e);
-    return { erreur: e.message };
+
+    // Cas général : produits groupés par catégorie
+    const stmt = db.prepare(
+      `SELECT c.numer_categorie, c.description_c, i.numero_item, i.designation
+       FROM categorie c
+       LEFT JOIN item i ON c.numer_categorie = i.numero_categorie
+       WHERE c.numer_categorie = ? OR ? IS NULL`
+    );
+    stmt.bind([numero_categorie, numero_categorie]);
+
+    const mapCategories = {};
+    while (stmt.step()) {
+      const row = stmt.getAsObject();
+      const cat_id = row.numer_categorie;
+
+      if (!mapCategories[cat_id]) {
+        mapCategories[cat_id] = {
+          numero_categorie: cat_id,
+          description_c: row.description_c,
+          produits: [],
+        };
+      }
+      if (row.numero_item) {
+        mapCategories[cat_id].produits.push({
+          numero_item: row.numero_item,
+          designation: row.designation,
+        });
+      }
+    }
+    stmt.free();
+
+    const categories = Object.values(mapCategories);
+    console.log(`Catégories récupérées: ${categories.length}`);
+    return { categories };
+  } catch (error) {
+    console.error("Erreur listeProduitsParCategorie:", error);
+    return { erreur: error.message, status: 500 };
   }
 }
 
