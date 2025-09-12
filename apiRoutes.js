@@ -95,25 +95,34 @@ export async function ajouterVersement(data) {
         origine = 'VERSEMENT F';
       }
 
-      // Vérifier si l'entité existe et récupérer le solde actuel
-      const stmtEntity = db.prepare(`SELECT solde FROM ${table} WHERE ${id_column} = ?`);
+      // Vérifier si l'entité existe et récupérer le solde actuel (comme dans validerVente)
+      const stmtEntity = db.prepare(`SELECT COALESCE(CAST(solde AS REAL), 0) AS solde FROM ${table} WHERE ${id_column} = ?`);
       stmtEntity.bind([numero_cf]);
-      const entity = stmtEntity.step() ? stmtEntity.getAsObject() : null;
+      let current_solde = 0.0;
+      if (stmtEntity.step()) {
+        const entity = stmtEntity.getAsObject();
+        current_solde = parseFloat(entity.solde) || 0.0;
+      }
       stmtEntity.free();
 
-      if (!entity) {
+      // Vérifier si l'entité existe vraiment
+      const stmtCheckExists = db.prepare(`SELECT 1 FROM ${table} WHERE ${id_column} = ?`);
+      stmtCheckExists.bind([numero_cf]);
+      const exists = stmtCheckExists.step();
+      stmtCheckExists.free();
+
+      if (!exists) {
         db.run('ROLLBACK');
         return { error: `${type === 'C' ? 'Client' : 'Fournisseur'} non trouvé`, status: 400 };
       }
 
-      // 4. Calcul du nouveau solde (CUMUL)
-      const current_solde = toDotDecimal(entity.solde || '0,00');
+      // 4. Calcul du nouveau solde (CUMUL - comme dans validerVente)
       const new_solde = current_solde + montant_decimal;
       const new_solde_str = toCommaDecimal(new_solde);
 
       console.log(`Calcul solde: ${current_solde} (ancien) + ${montant_decimal} (versement) = ${new_solde} (nouveau)`);
 
-      // 5. Mise à jour du solde (CUMUL)
+      // 5. Mise à jour du solde (CUMUL - comme dans validerVente)
       const stmtUpdate = db.prepare(`UPDATE ${table} SET solde = ? WHERE ${id_column} = ?`);
       stmtUpdate.run([new_solde_str, numero_cf]);
       stmtUpdate.free();
