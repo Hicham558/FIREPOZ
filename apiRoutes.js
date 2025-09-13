@@ -342,7 +342,7 @@ export async function modifierVersement(data) {
     console.log("Exécution de modifierVersement avec data:", data);
     const db = await getDb();
 
-    // 1. Validation des données (identique à ajouterVersement)
+    // 1. Validation des données
     if (!data || !data.numero_mc || !data.type || !data.numero_cf || !data.montant || !data.numero_util || !data.password2) {
       return { error: "Numéro de versement, type, numéro client/fournisseur, montant, utilisateur ou mot de passe manquant", status: 400 };
     }
@@ -358,7 +358,7 @@ export async function modifierVersement(data) {
       return { error: "Le montant ne peut pas être zéro", status: 400 };
     }
 
-    // 2. Vérification de l'authentification (COMME ajouterVersement)
+    // 2. Vérification de l'authentification
     const stmtUser = db.prepare("SELECT numero_util, nom, password2 FROM utilisateur WHERE numero_util = ?");
     stmtUser.bind([numero_util]);
     let user = null;
@@ -374,10 +374,15 @@ export async function modifierVersement(data) {
     db.run('BEGIN TRANSACTION');
 
     try {
-      // 3. Vérification du versement existant
-      const stmtVersement = db.prepare("SELECT montant, cf, numero_cf FROM mouvementc WHERE numero_mc = ? AND origine IN ('VERSEMENT C', 'VERSEMENT F')");
+      // 3. Vérification du versement existant - DEBUG COMPLET
+      const stmtVersement = db.prepare("SELECT * FROM mouvementc WHERE numero_mc = ? AND origine IN ('VERSEMENT C', 'VERSEMENT F')");
       stmtVersement.bind([numero_mc]);
-      const versement = stmtVersement.step() ? stmtVersement.getAsObject() : null;
+      let versement = null;
+      if (stmtVersement.step()) {
+        versement = stmtVersement.getAsObject();
+        console.log("DEBUG - Versement complet:", versement);
+        console.log("DEBUG - Clés du versement:", Object.keys(versement));
+      }
       stmtVersement.free();
 
       if (!versement) {
@@ -385,16 +390,64 @@ export async function modifierVersement(data) {
         return { error: "Versement non trouvé", status: 404 };
       }
 
-      // 4. Vérification de la cohérence du type
-      if (type !== versement.cf) {
+      // 4. VÉRIFICATION DE L'UTILISATEUR ORIGINAL (NOUVEAU)
+      // Récupérer le numero_util original du versement
+      let original_user = null;
+      if (versement.numero_util !== undefined) {
+        original_user = versement.numero_util;
+      } else if (versement.NUMERO_UTIL !== undefined) {
+        original_user = versement.NUMERO_UTIL;
+      } else {
+        // Chercher manuellement
+        for (const key in versement) {
+          if (key.toLowerCase() === 'numero_util') {
+            original_user = versement[key];
+            break;
+          }
+        }
+      }
+
+      console.log("DEBUG - Utilisateur original:", original_user, "Utilisateur actuel:", numero_util);
+
+      // Vérifier que l'utilisateur actuel est le même que l'utilisateur original
+      if (original_user && original_user.toString() !== numero_util.toString()) {
         db.run('ROLLBACK');
-        console.error(`Erreur: Type ${type} ne correspond pas au versement ${numero_mc} (type réel: ${versement.cf})`);
+        console.error("Erreur: Tentative de modification par un utilisateur différent");
+        return { error: "Vous ne pouvez pas modifier un versement fait avec un autre utilisateur", status: 403 };
+      }
+
+      // 5. DÉTERMINATION DU TYPE RÉEL - APPROCHE ROBUSTE
+      let real_type = null;
+      if (versement.cf !== undefined) {
+        real_type = versement.cf;
+      } else if (versement.CF !== undefined) {
+        real_type = versement.CF;
+      } else {
+        for (const key in versement) {
+          if (key.toLowerCase() === 'cf') {
+            real_type = versement[key];
+            break;
+          }
+        }
+      }
+
+      console.log("DEBUG - Type réel déterminé:", real_type);
+
+      if (!real_type) {
+        db.run('ROLLBACK');
+        return { error: "Impossible de déterminer le type du versement", status: 500 };
+      }
+
+      // 6. Vérification de la cohérence du type
+      if (type !== real_type) {
+        db.run('ROLLBACK');
+        console.error(`Erreur: Type ${type} ne correspond pas au versement ${numero_mc} (type réel: ${real_type})`);
         return { error: "Type ne correspond pas au versement", status: 400 };
       }
 
-      // 5. Détermination de la table
+      // 7. Détermination de la table
       let table, id_column, origine;
-      if (versement.cf === 'C') {
+      if (real_type === 'C') {
         table = 'client';
         id_column = 'numero_clt';
         origine = 'VERSEMENT C';
@@ -404,7 +457,7 @@ export async function modifierVersement(data) {
         origine = 'VERSEMENT F';
       }
 
-      // 6. Vérification de l'entité (COMME ajouterVersement)
+      // 8. Vérification de l'entité
       const stmtEntity = db.prepare(`SELECT COALESCE(CAST(solde AS REAL), 0) AS solde FROM ${table} WHERE ${id_column} = ?`);
       stmtEntity.bind([numero_cf]);
       let current_solde = 0.0;
@@ -422,30 +475,49 @@ export async function modifierVersement(data) {
 
       if (!exists) {
         db.run('ROLLBACK');
-        return { error: `${versement.cf === 'C' ? 'Client' : 'Fournisseur'} non trouvé`, status: 400 };
+        return { error: `${real_type === 'C' ? 'Client' : 'Fournisseur'} non trouvé`, status: 400 };
       }
 
-      // 7. Calcul du nouveau solde
-      const old_montant = toDotDecimal(versement.montant || '0,00');
+      // 9. DÉTERMINATION DE L'ANCIEN MONTANT - APPROCHE ROBUSTE
+      let old_montant_value = null;
+      if (versement.montant !== undefined) {
+        old_montant_value = versement.montant;
+      } else if (versement.MONTANT !== undefined) {
+        old_montant_value = versement.MONTANT;
+      } else {
+        for (const key in versement) {
+          if (key.toLowerCase() === 'montant') {
+            old_montant_value = versement[key];
+            break;
+          }
+        }
+      }
+
+      if (!old_montant_value) {
+        db.run('ROLLBACK');
+        return { error: "Impossible de déterminer l'ancien montant", status: 500 };
+      }
+
+      const old_montant = toDotDecimal(old_montant_value);
       const solde_change = -old_montant + montant_decimal;
       const new_solde = current_solde + solde_change;
       const new_solde_str = toCommaDecimal(new_solde);
 
       console.log(`Calcul solde: ${current_solde} - ${old_montant} + ${montant_decimal} = ${new_solde}`);
 
-      // 8. Mise à jour du solde
+      // 10. Mise à jour du solde
       const stmtUpdate = db.prepare(`UPDATE ${table} SET solde = ? WHERE ${id_column} = ?`);
       stmtUpdate.run([new_solde_str, numero_cf]);
       stmtUpdate.free();
 
-      // 9. Mise à jour du versement
+      // 11. Mise à jour du versement
       const now = new Date();
       const date_mc = now.toISOString().split('T')[0];
       const time_mc = now.toISOString().replace('T', ' ').slice(0, 19);
 
       const stmtUpdateVersement = db.prepare(`
         UPDATE mouvementc 
-        SET montant = ?, justificatif = ?, date_mc = ?, time_mc = ?
+        SET montant = ?, justificatif = ?, date_mc = ?, time_mc = ?, numero_util = ?
         WHERE numero_mc = ? AND origine = ?
       `);
       stmtUpdateVersement.run([
@@ -453,6 +525,7 @@ export async function modifierVersement(data) {
         justificatif,
         date_mc,
         time_mc,
+        numero_util, // Garder le même utilisateur
         numero_mc,
         origine
       ]);
@@ -467,7 +540,7 @@ export async function modifierVersement(data) {
       db.run('COMMIT');
       saveDbToLocalStorage(db);
 
-      console.log(`Versement modifié: numero_mc=${numero_mc}, type=${type}, montant=${toCommaDecimal(montant_decimal)}, justificatif=${justificatif}`);
+      console.log(`Versement modifié: numero_mc=${numero_mc}, type=${real_type}, montant=${toCommaDecimal(montant_decimal)}, justificatif=${justificatif}`);
       
       return {
         success: true,
@@ -487,7 +560,6 @@ export async function modifierVersement(data) {
     return { error: error.message, status: 500 };
   }
 }
-
 export async function annulerVersement(data) {
   try {
     console.log("Exécution de annulerVersement avec data:", data);
