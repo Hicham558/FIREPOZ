@@ -1565,155 +1565,234 @@ function updateTempSalesTable() {
             document.getElementById('pendingSalesModal').style.display = 'none';
         }
 
-        function imprimerVente80mm() {
-            console.log('Génération de l\'aperçu d\'impression 80mm...');
-            if (tempSaleLines.length === 0) {
-                showToast('Aucune ligne à imprimer', true);
-                return;
-            }
+      function imprimerVente80mm() {
+    if (tempSaleLines.length === 0) {
+        showToast('Aucune ligne à imprimer', true);
+        return;
+    }
 
-            const settings = JSON.parse(localStorage.getItem('settings')) || {};
-            const companyName = settings.companyName || 'FirePoz';
-            const companyAddress = settings.companyAddress || '';
-            const companyPhone = settings.companyPhone || '';
-            const companyLogo = settings.companyLogo || '';
+    const settings = JSON.parse(localStorage.getItem('settings')) || {};
+    const companyName = settings.companyName || 'FirePoz';
+    const companyAddress = settings.companyAddress || '';
+    const companyPhone = settings.companyPhone || '';
+    const companyLogo = settings.companyLogo || '';
 
-            const clientSelect = document.getElementById('saleClientId');
-            const clientValue = clientSelect.value;
-            const clientText = clientValue === '0' ? 'Vente Comptoir' : clientSelect.options[clientSelect.selectedIndex].text.replace(/<span.*<\/span>/, '');
-            const paymentMode = document.getElementById('paymentMode').value;
-            const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
-            const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0).toFixed(2);
-            const storedSeller = localStorage.getItem('selectedSeller');
-            const sellerName = storedSeller ? JSON.parse(storedSeller).nom : 'Non spécifié';
-            let soldeContent = '';
+    const clientSelect = document.getElementById('saleClientId');
+    const clientValue = clientSelect.value;
+    const clientText = clientValue === '0' ? 'Vente Comptoir' : clientSelect.options[clientSelect.selectedIndex].text.replace(/<span.*<\/span>/, '');
 
-            if (paymentMode === 'a_terme' && clientValue !== '0') {
-                const client = clientsCache.find(c => c.numero_clt === parseInt(clientValue));
-                const soldeAvant = client ? parseFloat(client.solde) || 0 : 0;
-                const soldeApres = soldeAvant + (amountPaid - parseFloat(total));
-                soldeContent = `
-                    <p>Solde avant vente: ${soldeAvant.toFixed(2)} DA</p>
-                    <p>Solde après vente: ${soldeApres.toFixed(2)} DA</p>
-                `;
-            }
+    const paymentMode = document.getElementById('paymentMode').value;
+    const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
+    const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0).toFixed(2);
 
-            let ticketContent = `
-                <div class="printable">
-                    ${companyLogo ? `<img src="${companyLogo}" alt="Logo" style="max-width: 60mm; margin-bottom: 3mm; display: block; margin-left: auto; margin-right: auto;">` : ''}
-                    <h1>${companyName}</h1>
-                    ${companyAddress ? `<p>${companyAddress}</p>` : ''}
-                    ${companyPhone ? `<p>Tél: ${companyPhone}</p>` : ''}
-                    <p>Date: ${new Date().toLocaleString('fr-FR')}</p>
-                    <p>Vendeur: ${sellerName}</p>
-                    <p>Client: ${clientText}</p>
-                    <p>Mode de paiement: ${paymentMode === 'espece' ? 'Espèce' : 'À terme'}</p>
-                    ${paymentMode === 'a_terme' ? `<p>Montant versé: ${amountPaid.toFixed(2)} DA</p>` : ''}
-                    ${soldeContent}
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Produit</th>
-                                <th>Qté</th>
-                                <th>Prix U.</th>
-                                <th>Total</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-            `;
+    const storedSeller = localStorage.getItem('selectedSeller');
+    const sellerName = storedSeller ? JSON.parse(storedSeller).nom : 'Non spécifié';
 
-            tempSaleLines.forEach(ligne => {
-                ticketContent += `
+    let soldeContent = '';
+    if (paymentMode === 'a_terme' && clientValue !== '0') {
+        const client = clientsCache.find(c => c.numero_clt === parseInt(clientValue));
+        const soldeAvant = client ? parseFloat(client.solde) || 0 : 0;
+        const soldeApres = soldeAvant + (amountPaid - parseFloat(total));
+        soldeContent = `
+            <p>Solde avant vente: ${soldeAvant.toFixed(2)} DA</p>
+            <p>Solde après vente: ${soldeApres.toFixed(2)} DA</p>
+        `;
+    }
+
+    let ticketContent = `
+        <div class="printable">
+            ${companyLogo ? `<img src="${companyLogo}" alt="Logo" style="max-width: 60mm; margin-bottom: 3mm; display: block; margin-left: auto; margin-right: auto;">` : ''}
+            <h1>${companyName}</h1>
+            ${companyAddress ? `<p>${companyAddress}</p>` : ''}
+            ${companyPhone ? `<p>Tél: ${companyPhone}</p>` : ''}
+            <p>Date: ${new Date().toLocaleString('fr-FR')}</p>
+            <p>Vendeur: ${sellerName}</p>
+            <p>Client: ${clientText}</p>
+            <p>Mode de paiement: ${paymentMode === 'espece' ? 'Espèce' : 'À terme'}</p>
+            ${paymentMode === 'a_terme' ? `<p>Montant versé: ${amountPaid.toFixed(2)} DA</p>` : ''}
+            ${soldeContent}
+            <table>
+                <thead>
                     <tr>
-                        <td>${ligne.numero_item || 'N/A'}</td>
-                        <td>${ligne.designation || 'N/A'}</td>
-                        <td>${parseFloat(ligne.quantite).toFixed(2)}</td>
-                        <td>${parseFloat(ligne.remarque || 0).toFixed(2)}</td>
-                        <td>${parseFloat(ligne.prixt || 0).toFixed(2)}</td>
+                        <th>ID</th>
+                        <th>Produit</th>
+                        <th>Qté</th>
+                        <th>Prix U.</th>
+                        <th>Total</th>
                     </tr>
-                `;
-            });
+                </thead>
+                <tbody>
+    `;
 
-            ticketContent += `
-                        </tbody>
-                    </table>
-                    <p class="total">Total: ${total} DA</p>
-                    <p style="text-align: center; margin-top: 3mm;">Merci de votre achat !</p>
-                </div>
-            `;
+    tempSaleLines.forEach(ligne => {
+        ticketContent += `
+            <tr>
+                <td>${ligne.numero_item || 'N/A'}</td>
+                <td>${ligne.designation || 'N/A'}</td>
+                <td>${parseFloat(ligne.quantite).toFixed(2)}</td>
+                <td>${parseFloat(ligne.remarque || 0).toFixed(2)}</td>
+                <td>${parseFloat(ligne.prixt || 0).toFixed(2)}</td>
+            </tr>
+        `;
+    });
 
-            const printWindow = window.open('', '_blank', 'width=320,height=480');
-            if (!printWindow) {
-                showToast('Impossible d\'ouvrir l\'aperçu. Veuillez désactiver votre bloqueur de pop-up.', true);
-                return;
-            }
+    ticketContent += `
+                </tbody>
+            </table>
+            <p class="total">Total: ${total} DA</p>
+            <p style="text-align: center; margin-top: 3mm;">Merci de votre achat !</p>
+            <div class="print-buttons" style="text-align: center; margin-top: 10mm; page-break-inside: avoid;">
+                <button onclick="window.print()" style="background: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px; font-size: 14px;">
+                    <i class="fas fa-print"></i> Imprimer
+                </button>
+                <button onclick="window.close()" style="background: #f44336; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px;">
+                    <i class="fas fa-times"></i> Fermer
+                </button>
+            </div>
+        </div>
+    `;
 
-            printWindow.document.write(`
-                <html>
-                    <head>
-                        <title>Aperçu Impression 80mm - ${companyName}</title>
-                        <style>
-                            body {
-                                margin: 0;
-                                padding: 10mm;
-                                background: #fff;
-                                display: flex;
-                                justify-content: center;
-                                align-items: center;
-                                min-height: 100vh;
-                            }
-                            .printable {
-                                width: 80mm;
-                                font-family: Arial, sans-serif;
-                                font-size: 10pt;
-                                line-height: 1.2;
-                                color: #000;
-                                box-shadow:0 0 10px rgba(0, 0, 0, 0.1);
-                                text-align: center;
-                            }
-                            h1 {
-                                font-size: 14pt;
-                                margin: 0 0 3mm;
-                            }
-                            p {
-                                margin: 2mm 0;
-                                font-size: 10pt;
-                            }
-                            table {
-                                width: 100%;
-                                border-collapse: collapse;
-                                margin: 5mm 0;
-                            }
-                            th, td {
-                                border: 0.5mm solid #000;
-                                padding: 2mm;
-                                font-size: 9pt;
-                                text-align: left;
-                            }
-                            th {
-                                background: #f0f0f0;
-                            }
-                            .total {
-                                font-weight: bold;
-                                font-size: 12pt;
-                                margin-top: 5mm;
-                            }
-                        </style>
-                    </head>
-                    <body>
-                        ${ticketContent}
-                    </body>
-                </html>
-            `);
-            printWindow.document.close();
-            printWindow.focus();
-            setTimeout(() => {
-                printWindow.print();
-                printWindow.close();
-            }, 500);
-        }
+    const printWindow = window.open('', '_blank', 'width=400,height=600,scrollbars=yes,resizable=yes');
+    
+    if (!printWindow) {
+        showToast('Impossible d\'ouvrir l\'aperçu. Veuillez désactiver votre bloqueur de pop-up.', true);
+        return;
+    }
 
+    const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+            <head>
+                <title>Aperçu Impression 80mm - ${companyName}</title>
+                <meta charset="UTF-8">
+                <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+                <style>
+                    body {
+                        margin: 0;
+                        padding: 10mm;
+                        background: #f0f0f0;
+                        display: flex;
+                        justify-content: center;
+                        align-items: flex-start;
+                        min-height: 100vh;
+                        font-family: Arial, sans-serif;
+                    }
+                    
+                    .printable {
+                        width: 80mm;
+                        background: white;
+                        padding: 5mm;
+                        font-family: Arial, sans-serif;
+                        font-size: 10pt;
+                        line-height: 1.2;
+                        color: #000;
+                        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+                        text-align: center;
+                        margin-bottom: 20px;
+                    }
+                    
+                    h1 {
+                        font-size: 14pt;
+                        margin: 0 0 3mm;
+                        font-weight: bold;
+                    }
+                    
+                    p {
+                        margin: 2mm 0;
+                        font-size: 10pt;
+                    }
+                    
+                    table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin: 5mm 0;
+                    }
+                    
+                    th, td {
+                        border: 0.5mm solid #000;
+                        padding: 2mm;
+                        font-size: 8pt;
+                        text-align: left;
+                    }
+                    
+                    th {
+                        background: #f0f0f0;
+                        font-weight: bold;
+                    }
+                    
+                    .total {
+                        font-weight: bold;
+                        font-size: 12pt;
+                        margin-top: 5mm;
+                        border-top: 2px solid #000;
+                        padding-top: 3mm;
+                    }
+                    
+                    /* Styles pour l'impression */
+                    @media print {
+                        body {
+                            background: white;
+                            padding: 0;
+                        }
+                        
+                        .printable {
+                            width: 80mm;
+                            box-shadow: none;
+                            margin: 0;
+                            padding: 0;
+                        }
+                        
+                        .print-buttons {
+                            display: none !important;
+                        }
+                        
+                        @page {
+                            size: 80mm auto;
+                            margin: 5mm;
+                        }
+                    }
+                    
+                    /* Styles pour les boutons */
+                    .print-buttons button {
+                        transition: all 0.3s ease;
+                    }
+                    
+                    .print-buttons button:hover {
+                        transform: translateY(-2px);
+                        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+                    }
+                </style>
+            </head>
+            <body>
+                ${ticketContent}
+            </body>
+        </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    
+    // Attendre que la page soit complètement chargée avant de permettre l'impression
+    printWindow.onload = function() {
+        printWindow.focus();
+        
+        // Gérer les événements d'impression
+        printWindow.addEventListener('beforeprint', function() {
+            console.log('Impression en cours...');
+        });
+        
+        printWindow.addEventListener('afterprint', function() {
+            console.log('Impression terminée');
+            // La fenêtre ne se ferme pas automatiquement
+        });
+    };
+    
+    // Gestion des erreurs
+    printWindow.onerror = function(error) {
+        console.error('Erreur dans la fenêtre d\'impression:', error);
+        showToast('Erreur lors de l\'ouverture de l\'aperçu d\'impression', true);
+    };
+}
         function imprimerVenteA4() {
             console.log('Génération de l\'aperçu d\'impression A4...');
             if (tempSaleLines.length === 0) {
