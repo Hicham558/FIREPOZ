@@ -1,20 +1,18 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
-    <script type="module" src="sw1.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Application de scan de codes-barres EAN-13 avec thème Twilight">
-    <title>Scanner EAN-13 - Thème Twilight</title>
+    <meta name="description" content="Application de scan de codes-barres EAN-13 avec thème clair">
+    <title>Scanner EAN-13 - Thème Clair</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        primary: '#800020',
-                        secondary: '#2e1a47',
+                        primary: '#1e40af',
+                        secondary: '#f3f4f6',
                     }
                 }
             },
@@ -22,11 +20,11 @@
         }
     </script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <link rel="manifest" href="/manifest.json">
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <style>
         body {
-            background: linear-gradient(to bottom, #1a2a44, #2e1a47);
-            color: #d9d9d9;
+            background: #ffffff;
+            color: #1f2937;
         }
         #scanner-video {
             transform: scale(1.5);
@@ -60,15 +58,16 @@
         }
         .toast {
             backdrop-filter: blur(5px);
-            background: rgba(26, 42, 68, 0.8);
+            background: rgba(243, 244, 246, 0.9);
+            color: #1f2937;
         }
         .form-input {
-            background: #1a2a44;
-            border: 1px solid #800020;
-            color: #d9d9d9;
+            background: #f9fafb;
+            border: 1px solid #1e40af;
+            color: #1f2937;
         }
         .modal {
-            background: rgba(26, 42, 68, 0.95);
+            background: rgba(243, 244, 246, 0.95);
             backdrop-filter: blur(5px);
         }
         table {
@@ -78,10 +77,8 @@
         th, td {
             padding: 8px;
             text-align: left;
-            border-bottom: 1px solid #2e1a47;
+            border-bottom: 1px solid #e5e7eb;
         }
-        
-        /* Styles pour l'impression des codes-barres */
         @media print {
             body * {
                 visibility: hidden;
@@ -93,37 +90,61 @@
                 position: absolute;
                 left: 0;
                 top: 0;
-                width: 40mm;
+                width: 80mm;
                 height: 20mm;
                 border: 1px solid #000;
                 padding: 2mm;
                 box-sizing: border-box;
                 font-family: Arial, sans-serif;
                 page-break-inside: avoid;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                align-items: center;
+            }
+            .barcode-label svg {
+                width: 100%;
+                height: 12mm;
+            }
+            .barcode-label .designation {
+                font-size: 8px;
+                font-weight: bold;
+                text-align: center;
+                margin-bottom: 1mm;
+                width: 100%;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .barcode-label .prix {
+                font-size: 10px;
+                font-weight: bold;
+                text-align: center;
+                margin-top: 1mm;
             }
         }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center light">
+<body class="min-h-screen flex items-center justify-center">
     <div class="container mx-auto px-4 py-8 max-w-3xl">
         <header class="mb-8 text-center">
-            <h1 class="text-4xl font-bold text-[#b3cde0] mb-2 drop-shadow-lg">Scanner EAN-13</h1>
-            <p class="text-[#d9d9d9] mb-4">Pointez la caméra vers un code-barres EAN-13</p>
+            <h1 class="text-4xl font-bold text-primary mb-2 drop-shadow-lg">Scanner EAN-13</h1>
+            <p class="text-gray-600 mb-4">Pointez la caméra vers un code-barres EAN-13</p>
             <div class="flex justify-center gap-4">
-                <a href="index.html" class="inline-flex items-center bg-[#800020] text-[#e6e6e6] px-4 py-2 rounded-md hover:bg-[#b3cde0] hover:text-[#1a2a44] transition">
+                <a href="index.html" class="inline-flex items-center bg-primary text-white px-4 py-2 rounded-md hover:bg-blue-600 transition">
                     <i class="fas fa-home mr-2"></i>Accueil
                 </a>
-                <button onclick="toggleAddProductForm()" class="inline-flex items-center bg-[#2e1a47] text-[#e6e6e6] px-4 py-2 rounded-md hover:bg-[#b3cde0] hover:text-[#1a2a44] transition" aria-label="Ouvrir le formulaire d'ajout de produit">
+                <button onclick="toggleAddProductForm()" class="inline-flex items-center bg-secondary text-gray-800 px-4 py-2 rounded-md hover:bg-gray-300 transition" aria-label="Ouvrir le formulaire d'ajout de produit">
                     <i class="fas fa-plus mr-2"></i>Ajouter un produit
                 </button>
             </div>
         </header>
 
-        <div class="bg-[#1a2a44]/80 rounded-xl shadow-lg p-6 backdrop-blur-sm">
+        <div class="bg-white/90 rounded-xl shadow-lg p-6 backdrop-blur-sm">
             <div class="mb-6">
-                <div id="scanner-container" class="relative w-full aspect-[4/3] bg-[#2e1a47] rounded-lg overflow-hidden">
+                <div id="scanner-container" class="relative w-full aspect-[4/3] bg-gray-200 rounded-lg overflow-hidden">
                     <video id="scanner-video" class="absolute inset-0 w-full h-full object-cover" autoplay muted playsinline aria-label="Flux vidéo pour scanner les codes-barres"></video>
-                    <div id="camera-loading" class="absolute inset-0 flex items-center justify-center text-[#b3cde0]">
+                    <div id="camera-loading" class="absolute inset-0 flex items-center justify-center text-gray-600">
                         <i class="fas fa-spinner fa-spin mr-2"></i>Chargement de la caméra...
                     </div>
                     <div id="scan-indicator" role="region" aria-live="polite"></div>
@@ -141,50 +162,50 @@
                 </div>
             </div>
 
-            <div id="result" class="p-4 bg-[#2e1a47]/50 rounded-lg text-[#d9d9d9] text-center" role="alert" aria-live="assertive">
+            <div id="result" class="p-4 bg-gray-100 rounded-lg text-gray-800 text-center" role="alert" aria-live="assertive">
                 <p class="text-lg">En attente de scan...</p>
             </div>
 
-            <div id="addProductForm" class="hidden mt-4 p-4 bg-[#2e1a47]/50 rounded-lg">
-                <h3 class="text-lg font-semibold text-[#b3cde0] mb-2">Ajouter un nouveau produit</h3>
+            <div id="addProductForm" class="hidden mt-4 p-4 bg-gray-100 rounded-lg">
+                <h3 class="text-lg font-semibold text-primary mb-2">Ajouter un nouveau produit</h3>
                 <form id="productForm">
                     <div class="mb-2">
-                        <label for="designation" class="block text-sm font-medium text-[#b3cde0]">Désignation</label>
+                        <label for="designation" class="block text-sm font-medium text-gray-700">Désignation</label>
                         <input type="text" id="designation" name="designation" class="form-input w-full p-2 rounded" required aria-required="true">
                     </div>
                     <div class="mb-2">
-                        <label for="bar" class="block text-sm font-medium text-[#b3cde0]">Code-barres</label>
+                        <label for="bar" class="block text-sm font-medium text-gray-700">Code-barres</label>
                         <input type="text" id="bar" name="bar" class="form-input w-full p-2 rounded" aria-required="false">
                     </div>
                     <div class="mb-2">
-                        <label for="prix" class="block text-sm font-medium text-[#b3cde0]">Prix (€)</label>
+                        <label for="prix" class="block text-sm font-medium text-gray-700">Prix (DA)</label>
                         <input type="number" id="prix" name="prix" class="form-input w-full p-2 rounded" step="0.01" min="0" required aria-required="true">
                     </div>
                     <div class="mb-2">
-                        <label for="qte" class="block text-sm font-medium text-[#b3cde0]">Quantité</label>
+                        <label for="qte" class="block text-sm font-medium text-gray-700">Quantité</label>
                         <input type="number" id="qte" name="qte" class="form-input w-full p-2 rounded" min="0" required aria-required="true">
                     </div>
                     <div class="mb-2">
-                        <label for="prixba" class="block text-sm font-medium text-[#b3cde0]">Prix BA (€)</label>
+                        <label for="prixba" class="block text-sm font-medium text-gray-700">Prix BA (DA)</label>
                         <input type="number" id="prixba" name="prixba" class="form-input w-full p-2 rounded" step="0.01" min="0">
                     </div>
-                    <button type="submit" class="w-full bg-[#800020] text-[#e6e6e6] py-2 rounded hover:bg-[#b3cde0] hover:text-[#1a2a44] transition" aria-label="Ajouter le produit">Ajouter le produit</button>
+                    <button type="submit" class="w-full bg-primary text-white py-2 rounded hover:bg-blue-600 transition" aria-label="Ajouter le produit">Ajouter le produit</button>
                 </form>
             </div>
 
             <div id="productList" class="mt-6">
-                <h3 class="text-lg font-semibold text-[#b3cde0] mb-2">Liste des produits</h3>
-                <button onclick="loadProducts(localStorage.getItem('userId'))" class="bg-[#800020] text-[#e6e6e6] px-4 py-2 rounded mb-4 hover:bg-[#b3cde0] hover:text-[#1a2a44] transition">Recharger la grille</button>
+                <h3 class="text-lg font-semibold text-primary mb-2">Liste des produits</h3>
+                <button onclick="loadProducts(localStorage.getItem('userId'))" class="bg-primary text-white px-4 py-2 rounded mb-4 hover:bg-blue-600 transition">Recharger la grille</button>
                 <div class="mb-4">
                     <input type="text" id="searchProduct" placeholder="Rechercher par désignation ou code-barres..." class="form-input w-full p-2 rounded" aria-label="Rechercher un produit">
                 </div>
                 <div class="overflow-x-auto">
-                    <table class="w-full text-left text-[#d9d9d9]">
+                    <table class="w-full text-left text-gray-800">
                         <thead>
-                            <tr class="bg-[#2e1a47]">
+                            <tr class="bg-secondary">
                                 <th class="p-2">Désignation</th>
                                 <th class="p-2">Code-barres</th>
-                                <th class="p-2">Prix (€)</th>
+                                <th class="p-2">Prix (DA)</th>
                                 <th class="p-2">Quantité</th>
                                 <th class="p-2">Actions</th>
                             </tr>
@@ -216,16 +237,16 @@
                         <div class="flex justify-end gap-2">
                             <button type="button" onclick="closeLinkedBarcodeModal()" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition">Annuler</button>
                             <button type="button" onclick="startLinkedBarcodeScan()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition">Scanner</button>
-                            <button type="submit" class="bg-primary text-gray-100 px-4 py-2 rounded hover:bg-gray-200 hover:text-gray-900 transition">Ajouter</button>
+                            <button type="submit" class="bg-primary text-white px-4 py-2 rounded hover:bg-blue-600 transition">Ajouter</button>
                         </div>
                     </form>
                 </div>
             </div>
 
             <div id="viewLinkedBarcodesModal" class="fixed inset-0 hidden modal flex items-center justify-center z-50">
-                <div class="bg-[#1a2a44] p-6 rounded-lg max-w-md w-full">
-                    <h3 class="text-lg font-semibold text-[#b3cde0] mb-4">Codes-barres liés</h3>
-                    <div id="linkedBarcodesList" class="mb-4 text-[#d9d9d9]">
+                <div class="bg-white p-6 rounded-lg max-w-md w-full">
+                    <h3 class="text-lg font-semibold text-primary mb-4">Codes-barres liés</h3>
+                    <div id="linkedBarcodesList" class="mb-4 text-gray-800">
                         <p>Aucun code-barres lié trouvé.</p>
                     </div>
                     <div class="flex justify-end">
@@ -243,7 +264,6 @@
         </div>
     </div>
 
-    <!-- Zone cachée pour l'impression des codes-barres -->
     <div id="barcodePrintArea" style="display: none;"></div>
 
     <script>
@@ -258,14 +278,13 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             const userId = localStorage.getItem('userId');
-            console.log('DOMContentLoaded, userId:', userId);
             const resultElement = document.getElementById('result');
             if (!userId) {
                 showToast('Connexion requise pour utiliser le scanner', true);
                 resultElement.innerHTML = `<p class="text-red-500">Erreur : Aucun utilisateur connecté. Redirection vers la page d'accueil...</p>`;
                 setTimeout(() => window.location.href = 'index.html', 3000);
             } else {
-                resultElement.innerHTML = `<p class="text-[#b3cde0]">Chargement des produits...</p>`;
+                resultElement.innerHTML = `<p class="text-primary">Chargement des produits...</p>`;
                 loadProducts(userId);
                 document.getElementById('searchProduct').addEventListener('input', filterProducts);
             }
@@ -300,16 +319,16 @@
                     </tr>`;
             } else {
                 productTableBody.innerHTML = filteredProduits.map(produit => `
-                    <tr class="border-b border-[#2e1a47]">
+                    <tr class="border-b border-gray-200">
                         <td class="p-2">${produit.DESIGNATION}</td>
                         <td class="p-2">${produit.BAR}</td>
-                        <td class="p-2">${produit.PRIX}</td>
+                        <td class="p-2">${produit.PRIX} DA</td>
                         <td class="p-2">${produit.QTE}</td>
                         <td class="p-2 flex space-x-2">
                             <button onclick="openViewLinkedBarcodesModal('${produit.NUMERO_ITEM}')" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition" aria-label="Afficher les codes-barres liés">
                                 <i class="fas fa-eye mr-1"></i>Afficher
                             </button>
-                            <button onclick="openLinkedBarcodeModal('${produit.NUMERO_ITEM}')" class="bg-[#800020] text-[#e6e6e6] px-2 py-1 rounded hover:bg-[#b3cde0] hover:text-[#1a2a44] transition" aria-label="Ajouter un code-barres lié">
+                            <button onclick="openLinkedBarcodeModal('${produit.NUMERO_ITEM}')" class="bg-primary text-white px-2 py-1 rounded hover:bg-blue-600 transition" aria-label="Ajouter un code-barres lié">
                                 <i class="fas fa-barcode mr-1"></i>Ajouter
                             </button>
                             <button onclick="printBarcode('${produit.DESIGNATION}', '${produit.BAR}', '${produit.PRIX}')" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 transition" aria-label="Imprimer le code-barres">
@@ -324,19 +343,16 @@
         async function loadProducts(userId) {
             const productTableBody = document.getElementById('productTableBody');
             const resultElement = document.getElementById('result');
-            console.log('loadProducts called with userId:', userId);
 
             try {
-                resultElement.innerHTML = `<p class="text-[#b3cde0]">Chargement des produits...</p>`;
+                resultElement.innerHTML = `<p class="text-primary">Chargement des produits...</p>`;
                 const response = await fetch(`${API_BASE_URL}/liste_produits`, {
                     headers: { 'X-User-ID': userId }
                 });
-                console.log('Response status:', response.status);
                 if (!response.ok) {
                     throw new Error(`Erreur ${response.status}: ${response.statusText}`);
                 }
                 const produits = await response.json();
-                console.log('Produits reçus:', produits);
 
                 if (!Array.isArray(produits)) {
                     throw new Error('Réponse inattendue : les produits ne sont pas un tableau');
@@ -353,25 +369,23 @@
                 productTableBody.innerHTML = '';
 
                 if (produitsCache.length === 0) {
-                    console.log('Aucun produit trouvé');
                     productTableBody.innerHTML = `
                         <tr id="noProductsRow">
                             <td colspan="5" class="p-2 text-center">Aucun produit trouvé. Ajoutez un produit pour commencer.</td>
                         </tr>`;
-                    resultElement.innerHTML = `<p class="text-[#d9d9d9]">Aucun produit disponible. Utilisez le formulaire pour en ajouter.</p>`;
+                    resultElement.innerHTML = `<p class="text-gray-600">Aucun produit disponible. Utilisez le formulaire pour en ajouter.</p>`;
                 } else {
-                    console.log('Rendu des produits:', produitsCache);
                     productTableBody.innerHTML = produitsCache.map(produit => `
-                        <tr class="border-b border-[#2e1a47]">
+                        <tr class="border-b border-gray-200">
                             <td class="p-2">${produit.DESIGNATION}</td>
                             <td class="p-2">${produit.BAR}</td>
-                            <td class="p-2">${produit.PRIX}</td>
+                            <td class="p-2">${produit.PRIX} DA</td>
                             <td class="p-2">${produit.QTE}</td>
                             <td class="p-2 flex space-x-2">
                                 <button onclick="openViewLinkedBarcodesModal('${produit.NUMERO_ITEM}')" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition" aria-label="Afficher les codes-barres liés">
                                     <i class="fas fa-eye mr-1"></i>Afficher
                                 </button>
-                                <button onclick="openLinkedBarcodeModal('${produit.NUMERO_ITEM}')" class="bg-[#800020] text-[#e6e6e6] px-2 py-1 rounded hover:bg-[#b3cde0] hover:text-[#1a2a44] transition" aria-label="Ajouter un code-barres lié">
+                                <button onclick="openLinkedBarcodeModal('${produit.NUMERO_ITEM}')" class="bg-primary text-white px-2 py-1 rounded hover:bg-blue-600 transition" aria-label="Ajouter un code-barres lié">
                                     <i class="fas fa-barcode mr-1"></i>Ajouter
                                 </button>
                                 <button onclick="printBarcode('${produit.DESIGNATION}', '${produit.BAR}', '${produit.PRIX}')" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 transition" aria-label="Imprimer le code-barres">
@@ -380,7 +394,7 @@
                             </td>
                         </tr>
                     `).join('');
-                    resultElement.innerHTML = `<p class="text-[#d9d9d9]">Produits chargés avec succès.</p>`;
+                    resultElement.innerHTML = `<p class="text-gray-600">Produits chargés avec succès.</p>`;
                 }
             } catch (error) {
                 console.error('Erreur lors du chargement des produits:', error);
@@ -393,59 +407,30 @@
             }
         }
 
-        // Fonction pour imprimer le code-barres
         function printBarcode(designation, barcode, prix) {
             const printArea = document.getElementById('barcodePrintArea');
-            
-            // Créer le contenu de l'étiquette
             const labelContent = `
                 <div class="barcode-label">
-                    <div style="font-size: 8px; text-align: center; margin-bottom: 2px; font-weight: bold;">${designation}</div>
-                    <div style="text-align: center; margin-bottom: 2px;">
-                        <svg id="barcode-${barcode}"></svg>
-                    </div>
-                    <div style="font-size: 10px; text-align: center; font-weight: bold;">${prix} D.A</div>
+                    <div class="designation">${designation}</div>
+                    <svg id="barcode-${barcode}"></svg>
+                    <div class="prix">${prix} DA</div>
                 </div>
             `;
-            
-            // Vider et remplir la zone d'impression
             printArea.innerHTML = labelContent;
-            
-            // Générer le code-barres avec JsBarcode
-            if (typeof JsBarcode !== 'undefined') {
-                setTimeout(() => {
-                    JsBarcode(`#barcode-${barcode}`, barcode, {
-                        format: "EAN13",
-                        width: 1.5,
-                        height: 20,
-                        displayValue: false
-                    });
-                    
-                    // Lancer l'impression
-                    window.print();
-                }, 100);
-            } else {
-                // Charger JsBarcode si nécessaire
-                const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js';
-                script.onload = () => {
-                    JsBarcode(`#barcode-${barcode}`, barcode, {
-                        format: "EAN13",
-                        width: 1.5,
-                        height: 20,
-                        displayValue: false
-                    });
-                    
-                    // Lancer l'impression
-                    window.print();
-                };
-                document.head.appendChild(script);
-            }
+
+            JsBarcode(`#barcode-${barcode}`, barcode, {
+                format: "EAN13",
+                width: 2,
+                height: 12,
+                displayValue: false,
+                margin: 0
+            });
+
+            setTimeout(() => window.print(), 100);
         }
 
         async function startScanner(isModal = false) {
             if (scannerRunning) {
-                console.log('Scanner déjà en cours, ignoré');
                 return;
             }
             scannerRunning = true;
@@ -464,9 +449,8 @@
                 return;
             }
 
-            resultElement.innerHTML = `<p class="text-[#b3cde0]">Démarrage du scanner...</p>`;
+            resultElement.innerHTML = `<p class="text-primary">Démarrage du scanner...</p>`;
             videoElement.style.display = 'block';
-            console.log('startScanner: videoElement display set to block, isModal:', isModal);
 
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
@@ -476,7 +460,6 @@
                 videoElement.onloadedmetadata = () => {
                     loadingElement.style.display = 'none';
                     scanIndicator.classList.add('scanning');
-                    console.log('Scanner démarré, caméra chargée');
                 };
 
                 if (!('BarcodeDetector' in window)) {
@@ -501,7 +484,6 @@
                             lastScanTime = currentTime;
 
                             const code = barcodes[0].rawValue;
-                            console.log('Code-barres détecté:', code);
                             scanIndicator.classList.remove('scanning');
                             scanIndicator.classList.add('detected');
                             setTimeout(() => scanIndicator.classList.remove('detected'), 500);
@@ -555,11 +537,10 @@
             scannerRunning = false;
             torchOn = false;
             isLinkedBarcodeScan = false;
-            resultElement.innerHTML = `<p class="text-[#d9d9d9]">Scan arrêté. Cliquez sur "Démarrer" pour recommencer.</p>`;
+            resultElement.innerHTML = `<p class="text-gray-600">Scan arrêté. Cliquez sur "Démarrer" pour recommencer.</p>`;
             document.getElementById('addProductForm').classList.add('hidden');
             cameraLoading.style.display = 'flex';
             if (linkedCameraLoading) linkedCameraLoading.style.display = 'flex';
-            console.log('Scanner arrêté');
         }
 
         function toggleTorch() {
@@ -589,16 +570,15 @@
                 });
                 if (!produitsResponse.ok) throw new Error(`Erreur ${produitsResponse.status}: ${produitsResponse.statusText}`);
                 const produits = await produitsResponse.json();
-                console.log('Produits pour fetchProduit:', produits);
 
                 const produit = produits.find(p => p.BAR === barCode);
                 if (produit) {
                     resultElement.innerHTML = `
-                        <div class="bg-[#2e1a47]/80 p-4 rounded-lg">
+                        <div class="bg-gray-100 p-4 rounded-lg">
                             <p class="text-green-500 font-semibold">Produit trouvé :</p>
                             <p><strong>Désignation :</strong> ${produit.DESIGNATION}</p>
                             <p><strong>Quantité :</strong> ${produit.QTE}</p>
-                            <p><strong>Prix :</strong> ${produit.PRIX} €</p>
+                            <p><strong>Prix :</strong> ${produit.PRIX} DA</p>
                             <p><strong>Code-barres :</strong> ${produit.BAR}</p>
                         </div>`;
                     document.getElementById('addProductForm').classList.add('hidden');
@@ -638,11 +618,9 @@
             document.getElementById('linkedBarcodeModal').classList.add('hidden');
             isLinkedBarcodeScan = false;
             stopScanner();
-            console.log('closeLinkedBarcodeModal called');
         }
 
         function startLinkedBarcodeScan() {
-            console.log('startLinkedBarcodeScan called');
             isLinkedBarcodeScan = true;
             startScanner(true);
         }
@@ -703,10 +681,6 @@
                 console.error('Erreur openViewLinkedBarcodesModal:', error);
                 showToast(`Erreur réseau : ${error.message}`, true);
             }
-        }
-
-        function closeViewLinkedBarcodesModal() {
-            document.getElementById('viewLinkedBarcodesModal').classList.add('hidden');
         }
 
         async function deleteLinkedBarcode(numero_item, bar2, userId) {
@@ -781,8 +755,8 @@
                 const result = await responseAdd.json();
                 if (responseAdd.ok) {
                     resultElement.innerHTML = `<p class="text-green-500">Produit ajouté !</p>`;
-                    document.getElementById('addProductForm').classList.add('hidden');
                     document.getElementById('productForm').reset();
+                    document.getElementById('addProductForm').classList.add('hidden');
                     showToast('Produit ajouté !');
                     await loadProducts(userId);
                 } else {
@@ -814,22 +788,16 @@
         function toggleAddProductForm() {
             const form = document.getElementById('addProductForm');
             form.classList.toggle('hidden');
-            document.getElementById('result').innerHTML = `<p class="text-[#b3cde0]">Ajout manuel d’un produit.</p>`;
+            document.getElementById('result').innerHTML = `<p class="text-primary">Ajout manuel d’un produit.</p>`;
         }
 
         window.addEventListener('unhandledrejection', event => {
             console.error('Unhandled rejection:', event.reason);
             if (event.reason.message.includes('Failed to fetch')) {
                 showToast('Erreur de connexion au serveur.', true);
-                document.getElementById('result').innerHTML = `<p class="text-red-500">Erreur : Connexion au serveur échouée.</p>`;
+                document.getElementById('result').innerHTML = `<p class="text red-500">Erreur : Connexion au serveur échouée.</p>`;
             }
         });
-
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js')
-                .then(() => console.log('Service Worker enregistré'))
-                .catch(error => console.error('Erreur Service Worker :', error));
-        }
     </script>
 </body>
 </html>
