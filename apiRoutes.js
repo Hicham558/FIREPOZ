@@ -342,11 +342,12 @@ export async function modifierVersement(data) {
     console.log("Exécution de modifierVersement avec data:", data);
     const db = await getDb();
 
-    const { numero_mc, type, numero_cf, montant, justificatif = '', numero_util, password2 } = data;
-
-    if (!numero_mc || !type || !numero_cf || !montant || !numero_util || !password2) {
+    // 1. Validation des données
+    if (!data || !data.numero_mc || !data.type || !data.numero_cf || !data.montant || !data.numero_util || !data.password2) {
       return { error: "Numéro de versement, type, numéro client/fournisseur, montant, utilisateur ou mot de passe manquant", status: 400 };
     }
+
+    const { numero_mc, type, numero_cf, montant, justificatif = '', numero_util, password2 } = data;
 
     if (type !== 'C' && type !== 'F') {
       return { error: "Type invalide (doit être 'C' ou 'F')", status: 400 };
@@ -357,21 +358,23 @@ export async function modifierVersement(data) {
       return { error: "Le montant ne peut pas être zéro", status: 400 };
     }
 
+    // 2. Vérification de l'authentification
+    const stmtUser = db.prepare("SELECT numero_util, nom, password2 FROM utilisateur WHERE numero_util = ?");
+    stmtUser.bind([numero_util]);
+    let user = null;
+    if (stmtUser.step()) {
+      user = stmtUser.getAsObject();
+    }
+    stmtUser.free();
+
+    if (!user || user.PASSWORD2 !== password2) {
+      return { error: "Authentification invalide", status: 401 };
+    }
+
     db.run('BEGIN TRANSACTION');
 
     try {
-      // Vérification de l'utilisateur et du mot de passe
-      const stmtUser = db.prepare("SELECT password2 FROM utilisateur WHERE numero_util = ?");
-      stmtUser.bind([numero_util]);
-      const utilisateur = stmtUser.step() ? stmtUser.getAsObject() : null;
-      stmtUser.free();
-
-      if (!utilisateur || utilisateur.password2 !== password2) {
-        db.run('ROLLBACK');
-        return { error: "Utilisateur non trouvé ou mot de passe incorrect", status: 401 };
-      }
-
-      // Vérification du versement existant
+      // 3. Vérification du versement existant
       const stmtVersement = db.prepare("SELECT montant, cf, numero_cf FROM mouvementc WHERE numero_mc = ? AND origine IN ('VERSEMENT C', 'VERSEMENT F')");
       stmtVersement.bind([numero_mc]);
       const versement = stmtVersement.step() ? stmtVersement.getAsObject() : null;
@@ -382,7 +385,7 @@ export async function modifierVersement(data) {
         return { error: "Versement non trouvé", status: 404 };
       }
 
-      // Détermination de la table
+      // 4. Détermination de la table
       let table, id_column, origine;
       if (versement.cf === 'C') {
         table = 'client';
@@ -394,33 +397,44 @@ export async function modifierVersement(data) {
         origine = 'VERSEMENT F';
       }
 
-      // Vérification de l'entité (client ou fournisseur)
-      const stmtEntity = db.prepare(`SELECT solde FROM ${table} WHERE ${id_column} = ?`);
+      // 5. Vérification de l'entité et récupération du solde actuel
+      const stmtEntity = db.prepare(`SELECT COALESCE(CAST(solde AS REAL), 0) AS solde FROM ${table} WHERE ${id_column} = ?`);
       stmtEntity.bind([numero_cf]);
-      const entity = stmtEntity.step() ? stmtEntity.getAsObject() : null;
+      let current_solde = 0.0;
+      if (stmtEntity.step()) {
+        const entity = stmtEntity.getAsObject();
+        current_solde = parseFloat(entity.solde) || 0.0;
+      }
       stmtEntity.free();
 
-      if (!entity) {
+      // Vérifier si l'entité existe vraiment
+      const stmtCheckExists = db.prepare(`SELECT 1 FROM ${table} WHERE ${id_column} = ?`);
+      stmtCheckExists.bind([numero_cf]);
+      const exists = stmtCheckExists.step();
+      stmtCheckExists.free();
+
+      if (!exists) {
         db.run('ROLLBACK');
         return { error: `${versement.cf === 'C' ? 'Client' : 'Fournisseur'} non trouvé`, status: 400 };
       }
 
-      // Calcul du nouveau solde
-      const old_montant = toDotDecimal(versement.montant);
-      const current_solde = toDotDecimal(entity.solde || '0,00');
+      // 6. Calcul du nouveau solde (CUMUL - comme dans ajouterVersement)
+      const old_montant = toDotDecimal(versement.montant || '0,00');
       const solde_change = -old_montant + montant_decimal;
       const new_solde = current_solde + solde_change;
       const new_solde_str = toCommaDecimal(new_solde);
 
-      // Mise à jour du solde
+      console.log(`Calcul solde: ${current_solde} (actuel) - ${old_montant} (ancien versement) + ${montant_decimal} (nouveau versement) = ${new_solde} (nouveau)`);
+
+      // 7. Mise à jour du solde
       const stmtUpdate = db.prepare(`UPDATE ${table} SET solde = ? WHERE ${id_column} = ?`);
       stmtUpdate.run([new_solde_str, numero_cf]);
       stmtUpdate.free();
 
-      // Mise à jour du versement dans mouvementc
+      // 8. Mise à jour du versement dans mouvementc
       const now = new Date();
       const date_mc = now.toISOString().split('T')[0];
-      const time_mc = formatDateForSQLite(now);
+      const time_mc = now.toISOString().replace('T', ' ').slice(0, 19);
 
       const stmtUpdateVersement = db.prepare(`
         UPDATE mouvementc 
@@ -447,10 +461,19 @@ export async function modifierVersement(data) {
       saveDbToLocalStorage(db);
 
       console.log(`Versement modifié: numero_mc=${numero_mc}, type=${type}, montant=${toCommaDecimal(montant_decimal)}, justificatif=${justificatif}`);
-      return { statut: "Versement modifié", numero_mc, status: 200 };
+      
+      return {
+        success: true,
+        statut: "Versement modifié",
+        numero_mc,
+        ancien_solde: toCommaDecimal(current_solde),
+        nouveau_solde: new_solde_str,
+        status: 200
+      };
 
     } catch (error) {
       db.run('ROLLBACK');
+      console.error("Erreur dans la transaction:", error);
       throw error;
     }
 
@@ -460,37 +483,39 @@ export async function modifierVersement(data) {
   }
 }
 
-// Fonction pour annuler un versement
 export async function annulerVersement(data) {
   try {
     console.log("Exécution de annulerVersement avec data:", data);
     const db = await getDb();
 
-    const { numero_mc, type, numero_cf, numero_util, password2 } = data;
-
-    if (!numero_mc || !type || !numero_cf || !numero_util || !password2) {
+    // 1. Validation des données
+    if (!data || !data.numero_mc || !data.type || !data.numero_cf || !data.numero_util || !data.password2) {
       return { error: "Numéro de versement, type, numéro client/fournisseur, utilisateur ou mot de passe manquant", status: 400 };
     }
+
+    const { numero_mc, type, numero_cf, numero_util, password2 } = data;
 
     if (type !== 'C' && type !== 'F') {
       return { error: "Type invalide (doit être 'C' ou 'F')", status: 400 };
     }
 
+    // 2. Vérification de l'authentification
+    const stmtUser = db.prepare("SELECT numero_util, nom, password2 FROM utilisateur WHERE numero_util = ?");
+    stmtUser.bind([numero_util]);
+    let user = null;
+    if (stmtUser.step()) {
+      user = stmtUser.getAsObject();
+    }
+    stmtUser.free();
+
+    if (!user || user.PASSWORD2 !== password2) {
+      return { error: "Authentification invalide", status: 401 };
+    }
+
     db.run('BEGIN TRANSACTION');
 
     try {
-      // Vérification de l'utilisateur et du mot de passe
-      const stmtUser = db.prepare("SELECT password2 FROM utilisateur WHERE numero_util = ?");
-      stmtUser.bind([numero_util]);
-      const utilisateur = stmtUser.step() ? stmtUser.getAsObject() : null;
-      stmtUser.free();
-
-      if (!utilisateur || utilisateur.password2 !== password2) {
-        db.run('ROLLBACK');
-        return { error: "Utilisateur non trouvé ou mot de passe incorrect", status: 401 };
-      }
-
-      // Vérification du versement existant
+      // 3. Vérification du versement existant
       const stmtVersement = db.prepare("SELECT montant, cf, numero_cf FROM mouvementc WHERE numero_mc = ? AND origine IN ('VERSEMENT C', 'VERSEMENT F')");
       stmtVersement.bind([numero_mc]);
       const versement = stmtVersement.step() ? stmtVersement.getAsObject() : null;
@@ -501,13 +526,13 @@ export async function annulerVersement(data) {
         return { error: "Versement non trouvé", status: 404 };
       }
 
-      // Vérification de la cohérence du type
+      // 4. Vérification de la cohérence du type
       if (type !== versement.cf) {
         db.run('ROLLBACK');
         return { error: "Type ne correspond pas au versement", status: 400 };
       }
 
-      // Détermination de la table
+      // 5. Détermination de la table
       let table, id_column;
       if (versement.cf === 'C') {
         table = 'client';
@@ -517,29 +542,40 @@ export async function annulerVersement(data) {
         id_column = 'numero_fou';
       }
 
-      // Vérification de l'entité (client ou fournisseur)
-      const stmtEntity = db.prepare(`SELECT solde FROM ${table} WHERE ${id_column} = ?`);
+      // 6. Vérification de l'entité et récupération du solde actuel
+      const stmtEntity = db.prepare(`SELECT COALESCE(CAST(solde AS REAL), 0) AS solde FROM ${table} WHERE ${id_column} = ?`);
       stmtEntity.bind([numero_cf]);
-      const entity = stmtEntity.step() ? stmtEntity.getAsObject() : null;
+      let current_solde = 0.0;
+      if (stmtEntity.step()) {
+        const entity = stmtEntity.getAsObject();
+        current_solde = parseFloat(entity.solde) || 0.0;
+      }
       stmtEntity.free();
 
-      if (!entity) {
+      // Vérifier si l'entité existe vraiment
+      const stmtCheckExists = db.prepare(`SELECT 1 FROM ${table} WHERE ${id_column} = ?`);
+      stmtCheckExists.bind([numero_cf]);
+      const exists = stmtCheckExists.step();
+      stmtCheckExists.free();
+
+      if (!exists) {
         db.run('ROLLBACK');
         return { error: `${versement.cf === 'C' ? 'Client' : 'Fournisseur'} non trouvé`, status: 400 };
       }
 
-      // Calcul du nouveau solde
-      const montant = toDotDecimal(versement.montant);
-      const current_solde = toDotDecimal(entity.solde || '0,00');
+      // 7. Calcul du nouveau solde (SOUSTRACTION du montant)
+      const montant = toDotDecimal(versement.montant || '0,00');
       const new_solde = current_solde - montant;
       const new_solde_str = toCommaDecimal(new_solde);
 
-      // Mise à jour du solde
+      console.log(`Calcul solde: ${current_solde} (actuel) - ${montant} (versement) = ${new_solde} (nouveau)`);
+
+      // 8. Mise à jour du solde
       const stmtUpdate = db.prepare(`UPDATE ${table} SET solde = ? WHERE ${id_column} = ?`);
       stmtUpdate.run([new_solde_str, numero_cf]);
       stmtUpdate.free();
 
-      // Suppression du versement
+      // 9. Suppression du versement
       const stmtDelete = db.prepare("DELETE FROM mouvementc WHERE numero_mc = ?");
       stmtDelete.run([numero_mc]);
       const changes = db.getRowsModified();
@@ -554,10 +590,19 @@ export async function annulerVersement(data) {
       saveDbToLocalStorage(db);
 
       console.log(`Versement annulé: numero_mc=${numero_mc}, type=${type}, montant=${toCommaDecimal(montant)}`);
-      return { statut: "Versement annulé", numero_mc, status: 200 };
+      
+      return {
+        success: true,
+        statut: "Versement annulé",
+        numero_mc,
+        ancien_solde: toCommaDecimal(current_solde),
+        nouveau_solde: new_solde_str,
+        status: 200
+      };
 
     } catch (error) {
       db.run('ROLLBACK');
+      console.error("Erreur dans la transaction:", error);
       throw error;
     }
 
@@ -566,7 +611,6 @@ export async function annulerVersement(data) {
     return { error: error.message, status: 500 };
   }
 }
-
 // GET /liste_codebar_lies
 export async function listeCodebarLies(params) {
   try {
