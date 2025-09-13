@@ -23,6 +23,7 @@
     </script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <link rel="manifest" href="/manifest.json">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"></script>
     <style>
         body {
             background: linear-gradient(to bottom, #1a2a44, #2e1a47);
@@ -79,6 +80,29 @@
             padding: 8px;
             text-align: left;
             border-bottom: 1px solid #2e1a47;
+        }
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #print-label {
+                visibility: visible;
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 40mm;
+                height: 20mm;
+            }
+            #print-label canvas {
+                width: 30mm !important;
+                height: 8mm !important;
+            }
+            #print-label .price {
+                font-size: 12pt !important;
+            }
+            #print-label .designation {
+                font-size: 10pt !important;
+            }
         }
     </style>
 </head>
@@ -221,8 +245,16 @@
         </div>
     </div>
 
+    <div id="print-label" class="hidden fixed inset-0 flex items-center justify-center bg-white text-black p-2 pointer-events-none z-50">
+        <div class="w-[40mm] h-[20mm] flex flex-col justify-between items-center text-center">
+            <div class="designation w-full overflow-hidden text-xs font-bold leading-tight"></div>
+            <canvas id="barcode-canvas" class="w-[30mm] h-[8mm]"></canvas>
+            <div class="price text-sm font-bold"></div>
+        </div>
+    </div>
+
     <script>
-                const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'https://hicham03041979.onrender.com';
+        const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'https://hicham03041979.onrender.com';
         let produitsCache = [];
         let scannerRunning = false;
         let torchOn = false;
@@ -287,6 +319,9 @@
                             <button onclick="openLinkedBarcodeModal('${produit.NUMERO_ITEM}')" class="bg-[#800020] text-[#e6e6e6] px-2 py-1 rounded hover:bg-[#b3cde0] hover:text-[#1a2a44] transition" aria-label="Ajouter un code-barres lié">
                                 <i class="fas fa-barcode mr-1"></i>Ajouter
                             </button>
+                            <button onclick="printBarcodeLabel('${produit.DESIGNATION}', '${produit.BAR}', '${produit.PRIX}')" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 transition" aria-label="Imprimer l'étiquette code-barres">
+                                <i class="fas fa-print mr-1"></i>Imprimer
+                            </button>
                         </td>
                     </tr>
                 `).join('');
@@ -346,6 +381,9 @@
                                 <button onclick="openLinkedBarcodeModal('${produit.NUMERO_ITEM}')" class="bg-[#800020] text-[#e6e6e6] px-2 py-1 rounded hover:bg-[#b3cde0] hover:text-[#1a2a44] transition" aria-label="Ajouter un code-barres lié">
                                     <i class="fas fa-barcode mr-1"></i>Ajouter
                                 </button>
+                                <button onclick="printBarcodeLabel('${produit.DESIGNATION}', '${produit.BAR}', '${produit.PRIX}')" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 transition" aria-label="Imprimer l'étiquette code-barres">
+                                    <i class="fas fa-print mr-1"></i>Imprimer
+                                </button>
                             </td>
                         </tr>
                     `).join('');
@@ -360,6 +398,30 @@
                     </tr>`;
                 resultElement.innerHTML = `<p class="text-red-500">Erreur : ${error.message}</p>`;
             }
+        }
+
+        function printBarcodeLabel(designation, bar, prix) {
+            const printLabel = document.getElementById('print-label');
+            const designationEl = printLabel.querySelector('.designation');
+            const priceEl = printLabel.querySelector('.price');
+            const canvas = document.getElementById('barcode-canvas');
+
+            designationEl.textContent = designation;
+            priceEl.textContent = `${prix} D.A`;
+            JsBarcode(canvas, bar, {
+                format: "EAN13",
+                width: 2,
+                height: 30,
+                displayValue: false,
+                background: "#ffffff",
+                lineColor: "#000000"
+            });
+
+            printLabel.classList.remove('hidden');
+            setTimeout(() => {
+                window.print();
+                printLabel.classList.add('hidden');
+            }, 100);
         }
 
         async function startScanner(isModal = false) {
