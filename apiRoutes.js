@@ -342,7 +342,7 @@ export async function modifierVersement(data) {
     console.log("Exécution de modifierVersement avec data:", data);
     const db = await getDb();
 
-    // 1. Validation des données
+    // 1. Validation des données (identique à Flask)
     if (!data || !data.numero_mc || !data.type || !data.numero_cf || !data.montant || !data.numero_util || !data.password2) {
       return { error: "Numéro de versement, type, numéro client/fournisseur, montant, utilisateur ou mot de passe manquant", status: 400 };
     }
@@ -358,23 +358,20 @@ export async function modifierVersement(data) {
       return { error: "Le montant ne peut pas être zéro", status: 400 };
     }
 
-    // 2. Vérification de l'authentification
-    const stmtUser = db.prepare("SELECT numero_util, nom, password2 FROM utilisateur WHERE numero_util = ?");
+    // 2. Vérification de l'authentification (identique à Flask)
+    const stmtUser = db.prepare("SELECT password2 FROM utilisateur WHERE numero_util = ?");
     stmtUser.bind([numero_util]);
-    let user = null;
-    if (stmtUser.step()) {
-      user = stmtUser.getAsObject();
-    }
+    const utilisateur = stmtUser.step() ? stmtUser.getAsObject() : null;
     stmtUser.free();
 
-    if (!user || user.PASSWORD2 !== password2) {
-      return { error: "Authentification invalide", status: 401 };
+    if (!utilisateur || utilisateur.password2 !== password2) {
+      return { error: "Utilisateur non trouvé ou mot de passe incorrect", status: 401 };
     }
 
     db.run('BEGIN TRANSACTION');
 
     try {
-      // 3. Vérification du versement existant
+      // 3. Vérification du versement existant (identique à Flask)
       const stmtVersement = db.prepare("SELECT montant, cf, numero_cf FROM mouvementc WHERE numero_mc = ? AND origine IN ('VERSEMENT C', 'VERSEMENT F')");
       stmtVersement.bind([numero_mc]);
       const versement = stmtVersement.step() ? stmtVersement.getAsObject() : null;
@@ -385,7 +382,15 @@ export async function modifierVersement(data) {
         return { error: "Versement non trouvé", status: 404 };
       }
 
-      // 4. Détermination de la table
+      // 4. Vérification de la cohérence du type (identique à Flask)
+      // Note: SQL.js retourne les colonnes en minuscules, donc on utilise versement.cf
+      if (type !== versement.cf) {
+        db.run('ROLLBACK');
+        console.error(`Erreur: Type ${type} ne correspond pas au versement ${numero_mc} (type réel: ${versement.cf})`);
+        return { error: "Type ne correspond pas au versement", status: 400 };
+      }
+
+      // 5. Détermination de la table (identique à Flask)
       let table, id_column, origine;
       if (versement.cf === 'C') {
         table = 'client';
@@ -397,41 +402,32 @@ export async function modifierVersement(data) {
         origine = 'VERSEMENT F';
       }
 
-      // 5. Vérification de l'entité et récupération du solde actuel
-      const stmtEntity = db.prepare(`SELECT COALESCE(CAST(solde AS REAL), 0) AS solde FROM ${table} WHERE ${id_column} = ?`);
+      // 6. Vérification de l'entité (identique à Flask)
+      const stmtEntity = db.prepare(`SELECT solde FROM ${table} WHERE ${id_column} = ?`);
       stmtEntity.bind([numero_cf]);
-      let current_solde = 0.0;
-      if (stmtEntity.step()) {
-        const entity = stmtEntity.getAsObject();
-        current_solde = parseFloat(entity.solde) || 0.0;
-      }
+      const entity = stmtEntity.step() ? stmtEntity.getAsObject() : null;
       stmtEntity.free();
 
-      // Vérifier si l'entité existe vraiment
-      const stmtCheckExists = db.prepare(`SELECT 1 FROM ${table} WHERE ${id_column} = ?`);
-      stmtCheckExists.bind([numero_cf]);
-      const exists = stmtCheckExists.step();
-      stmtCheckExists.free();
-
-      if (!exists) {
+      if (!entity) {
         db.run('ROLLBACK');
         return { error: `${versement.cf === 'C' ? 'Client' : 'Fournisseur'} non trouvé`, status: 400 };
       }
 
-      // 6. Calcul du nouveau solde (CUMUL - comme dans ajouterVersement)
+      // 7. Calcul du nouveau solde (identique à Flask)
       const old_montant = toDotDecimal(versement.montant || '0,00');
+      const current_solde = toDotDecimal(entity.solde || '0,00');
       const solde_change = -old_montant + montant_decimal;
       const new_solde = current_solde + solde_change;
       const new_solde_str = toCommaDecimal(new_solde);
 
-      console.log(`Calcul solde: ${current_solde} (actuel) - ${old_montant} (ancien versement) + ${montant_decimal} (nouveau versement) = ${new_solde} (nouveau)`);
+      console.log(`Calcul solde: ${current_solde} - ${old_montant} + ${montant_decimal} = ${new_solde}`);
 
-      // 7. Mise à jour du solde
+      // 8. Mise à jour du solde (identique à Flask)
       const stmtUpdate = db.prepare(`UPDATE ${table} SET solde = ? WHERE ${id_column} = ?`);
       stmtUpdate.run([new_solde_str, numero_cf]);
       stmtUpdate.free();
 
-      // 8. Mise à jour du versement dans mouvementc
+      // 9. Mise à jour du versement (identique à Flask)
       const now = new Date();
       const date_mc = now.toISOString().split('T')[0];
       const time_mc = now.toISOString().replace('T', ' ').slice(0, 19);
@@ -466,8 +462,6 @@ export async function modifierVersement(data) {
         success: true,
         statut: "Versement modifié",
         numero_mc,
-        ancien_solde: toCommaDecimal(current_solde),
-        nouveau_solde: new_solde_str,
         status: 200
       };
 
@@ -488,7 +482,7 @@ export async function annulerVersement(data) {
     console.log("Exécution de annulerVersement avec data:", data);
     const db = await getDb();
 
-    // 1. Validation des données
+    // 1. Validation des données (identique à Flask)
     if (!data || !data.numero_mc || !data.type || !data.numero_cf || !data.numero_util || !data.password2) {
       return { error: "Numéro de versement, type, numéro client/fournisseur, utilisateur ou mot de passe manquant", status: 400 };
     }
@@ -499,23 +493,20 @@ export async function annulerVersement(data) {
       return { error: "Type invalide (doit être 'C' ou 'F')", status: 400 };
     }
 
-    // 2. Vérification de l'authentification
-    const stmtUser = db.prepare("SELECT numero_util, nom, password2 FROM utilisateur WHERE numero_util = ?");
+    // 2. Vérification de l'authentification (identique à Flask)
+    const stmtUser = db.prepare("SELECT password2 FROM utilisateur WHERE numero_util = ?");
     stmtUser.bind([numero_util]);
-    let user = null;
-    if (stmtUser.step()) {
-      user = stmtUser.getAsObject();
-    }
+    const utilisateur = stmtUser.step() ? stmtUser.getAsObject() : null;
     stmtUser.free();
 
-    if (!user || user.PASSWORD2 !== password2) {
-      return { error: "Authentification invalide", status: 401 };
+    if (!utilisateur || utilisateur.password2 !== password2) {
+      return { error: "Utilisateur non trouvé ou mot de passe incorrect", status: 401 };
     }
 
     db.run('BEGIN TRANSACTION');
 
     try {
-      // 3. Vérification du versement existant
+      // 3. Vérification du versement existant (identique à Flask)
       const stmtVersement = db.prepare("SELECT montant, cf, numero_cf FROM mouvementc WHERE numero_mc = ? AND origine IN ('VERSEMENT C', 'VERSEMENT F')");
       stmtVersement.bind([numero_mc]);
       const versement = stmtVersement.step() ? stmtVersement.getAsObject() : null;
@@ -526,13 +517,15 @@ export async function annulerVersement(data) {
         return { error: "Versement non trouvé", status: 404 };
       }
 
-      // 4. Vérification de la cohérence du type
+      // 4. Vérification de la cohérence du type (identique à Flask)
+      // Note: SQL.js retourne les colonnes en minuscules, donc on utilise versement.cf
       if (type !== versement.cf) {
         db.run('ROLLBACK');
+        console.error(`Erreur: Type ${type} ne correspond pas au versement ${numero_mc} (type réel: ${versement.cf})`);
         return { error: "Type ne correspond pas au versement", status: 400 };
       }
 
-      // 5. Détermination de la table
+      // 5. Détermination de la table (identique à Flask)
       let table, id_column;
       if (versement.cf === 'C') {
         table = 'client';
@@ -542,40 +535,31 @@ export async function annulerVersement(data) {
         id_column = 'numero_fou';
       }
 
-      // 6. Vérification de l'entité et récupération du solde actuel
-      const stmtEntity = db.prepare(`SELECT COALESCE(CAST(solde AS REAL), 0) AS solde FROM ${table} WHERE ${id_column} = ?`);
+      // 6. Vérification de l'entité (identique à Flask)
+      const stmtEntity = db.prepare(`SELECT solde FROM ${table} WHERE ${id_column} = ?`);
       stmtEntity.bind([numero_cf]);
-      let current_solde = 0.0;
-      if (stmtEntity.step()) {
-        const entity = stmtEntity.getAsObject();
-        current_solde = parseFloat(entity.solde) || 0.0;
-      }
+      const entity = stmtEntity.step() ? stmtEntity.getAsObject() : null;
       stmtEntity.free();
 
-      // Vérifier si l'entité existe vraiment
-      const stmtCheckExists = db.prepare(`SELECT 1 FROM ${table} WHERE ${id_column} = ?`);
-      stmtCheckExists.bind([numero_cf]);
-      const exists = stmtCheckExists.step();
-      stmtCheckExists.free();
-
-      if (!exists) {
+      if (!entity) {
         db.run('ROLLBACK');
         return { error: `${versement.cf === 'C' ? 'Client' : 'Fournisseur'} non trouvé`, status: 400 };
       }
 
-      // 7. Calcul du nouveau solde (SOUSTRACTION du montant)
+      // 7. Calcul du nouveau solde (identique à Flask)
       const montant = toDotDecimal(versement.montant || '0,00');
+      const current_solde = toDotDecimal(entity.solde || '0,00');
       const new_solde = current_solde - montant;
       const new_solde_str = toCommaDecimal(new_solde);
 
-      console.log(`Calcul solde: ${current_solde} (actuel) - ${montant} (versement) = ${new_solde} (nouveau)`);
+      console.log(`Calcul solde: ${current_solde} - ${montant} = ${new_solde}`);
 
-      // 8. Mise à jour du solde
+      // 8. Mise à jour du solde (identique à Flask)
       const stmtUpdate = db.prepare(`UPDATE ${table} SET solde = ? WHERE ${id_column} = ?`);
       stmtUpdate.run([new_solde_str, numero_cf]);
       stmtUpdate.free();
 
-      // 9. Suppression du versement
+      // 9. Suppression du versement (identique à Flask)
       const stmtDelete = db.prepare("DELETE FROM mouvementc WHERE numero_mc = ?");
       stmtDelete.run([numero_mc]);
       const changes = db.getRowsModified();
@@ -595,8 +579,6 @@ export async function annulerVersement(data) {
         success: true,
         statut: "Versement annulé",
         numero_mc,
-        ancien_solde: toCommaDecimal(current_solde),
-        nouveau_solde: new_solde_str,
         status: 200
       };
 
