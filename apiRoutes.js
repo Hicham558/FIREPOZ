@@ -314,20 +314,35 @@ export async function situationVersements(params = {}) {
     const versements = [];
     while (stmt.step()) {
       const row = stmt.getAsObject();
+      console.log("Ligne brute situationVersements:", row); // DEBUG
+      
+      // CORRECTION: Utiliser les noms de colonnes corrects comme dans historiqueVersements
+      const numero_mc = row.numero_mc || row.NUMERO_MC;
+      const date_mc = row.date_mc || row.DATE_MC;
+      const montant = row.montant || row.MONTANT;
+      const justificatif = row.justificatif || row.JUSTIFICATIF;
+      const cf = row.cf || row.CF;
+      const numero_cf_row = row.numero_cf || row.NUMERO_CF;
+      const numero_util = row.numero_util || row.NUMERO_UTIL;
+      const nom_cf = row.nom_cf || row.NOM_CF;
+      const utilisateur_nom = row.utilisateur_nom || row.UTILISATEUR_NOM;
+
       versements.push({
-        numero_mc: row.numero_mc,
-        date_mc: row.date_mc,
-        montant: row.montant ? row.montant.toString() : '0,00',
-        justificatif: row.justificatif || '',
-        cf: row.cf,
-        numero_cf: row.numero_cf,
-        nom_cf: row.nom_cf || 'N/A',
-        utilisateur_nom: row.utilisateur_nom || 'N/A'
+        numero_mc: numero_mc,
+        date_mc: date_mc || 'N/A',
+        montant: montant ? montant.toString() : '0,00',
+        justificatif: justificatif || '',
+        cf: cf,
+        numero_cf: numero_cf_row,
+        numero_util: numero_util,
+        nom_cf: nom_cf || 'N/A',
+        utilisateur_nom: utilisateur_nom || 'N/A'
       });
     }
     stmt.free();
 
     console.log(`Situation versements: type=${type}, numero_cf=${numero_cf}, ${versements.length} versements`);
+    console.log("Versements situation formatés:", versements); // DEBUG
     return versements;
 
   } catch (error) {
