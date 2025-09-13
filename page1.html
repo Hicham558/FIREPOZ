@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -103,6 +104,38 @@
             #print-label .designation {
                 font-size: 10pt !important;
             }
+        }
+        #print-preview-modal .modal-content {
+            background: white;
+            color: black;
+        }
+        #print-preview-modal .label-container {
+            width: 40mm;
+            height: 20mm;
+            border: 1px solid #ccc;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            padding: 2px;
+            margin: 10px auto;
+            text-align: center;
+        }
+        #print-preview-modal canvas {
+            width: 30mm !important;
+            height: 8mm !important;
+        }
+        #print-preview-modal .designation {
+            font-size: 10pt;
+            font-weight: bold;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            width: 100%;
+        }
+        #print-preview-modal .price {
+            font-size: 12pt;
+            font-weight: bold;
         }
     </style>
 </head>
@@ -235,6 +268,20 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Print Preview Modal -->
+            <div id="print-preview-modal" class="fixed inset-0 hidden flex items-center justify-center z-50 modal">
+                <div class="modal-content bg-white p-6 rounded-lg max-w-md w-full max-h-[80vh] overflow-auto">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Aperçu de l'impression</h3>
+                    <div id="preview-content" class="text-center">
+                        <!-- Preview will be inserted here -->
+                    </div>
+                    <div class="flex justify-end gap-2 mt-4">
+                        <button onclick="printFromPreview()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition">Imprimer</button>
+                        <button onclick="closePrintPreview()" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition">Annuler</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -319,7 +366,7 @@
                             <button onclick="openLinkedBarcodeModal('${produit.NUMERO_ITEM}')" class="bg-[#800020] text-[#e6e6e6] px-2 py-1 rounded hover:bg-[#b3cde0] hover:text-[#1a2a44] transition" aria-label="Ajouter un code-barres lié">
                                 <i class="fas fa-barcode mr-1"></i>Ajouter
                             </button>
-                            <button onclick="printBarcodeLabel('${produit.DESIGNATION}', '${produit.BAR}', '${produit.PRIX}')" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 transition" aria-label="Imprimer l'étiquette code-barres">
+                            <button onclick="previewPrintBarcodeLabel('${produit.DESIGNATION}', '${produit.BAR}', '${produit.PRIX}')" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 transition" aria-label="Aperçu et imprimer l'étiquette code-barres">
                                 <i class="fas fa-print mr-1"></i>Imprimer
                             </button>
                         </td>
@@ -381,7 +428,7 @@
                                 <button onclick="openLinkedBarcodeModal('${produit.NUMERO_ITEM}')" class="bg-[#800020] text-[#e6e6e6] px-2 py-1 rounded hover:bg-[#b3cde0] hover:text-[#1a2a44] transition" aria-label="Ajouter un code-barres lié">
                                     <i class="fas fa-barcode mr-1"></i>Ajouter
                                 </button>
-                                <button onclick="printBarcodeLabel('${produit.DESIGNATION}', '${produit.BAR}', '${produit.PRIX}')" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 transition" aria-label="Imprimer l'étiquette code-barres">
+                                <button onclick="previewPrintBarcodeLabel('${produit.DESIGNATION}', '${produit.BAR}', '${produit.PRIX}')" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 transition" aria-label="Aperçu et imprimer l'étiquette code-barres">
                                     <i class="fas fa-print mr-1"></i>Imprimer
                                 </button>
                             </td>
@@ -400,14 +447,10 @@
             }
         }
 
-        function printBarcodeLabel(designation, bar, prix) {
-            const printLabel = document.getElementById('print-label');
-            const designationEl = printLabel.querySelector('.designation');
-            const priceEl = printLabel.querySelector('.price');
-            const canvas = document.getElementById('barcode-canvas');
-
-            designationEl.textContent = designation;
-            priceEl.textContent = `${prix} D.A`;
+        function previewPrintBarcodeLabel(designation, bar, prix) {
+            const previewContent = document.getElementById('preview-content');
+            const canvas = document.createElement('canvas');
+            canvas.id = 'preview-barcode-canvas';
             JsBarcode(canvas, bar, {
                 format: "EAN13",
                 width: 2,
@@ -417,11 +460,49 @@
                 lineColor: "#000000"
             });
 
+            previewContent.innerHTML = `
+                <div class="label-container">
+                    <div class="designation">${designation}</div>
+                    ${canvas.outerHTML}
+                    <div class="price">${prix} D.A</div>
+                </div>
+            `;
+
+            document.getElementById('print-preview-modal').classList.remove('hidden');
+        }
+
+        function printFromPreview() {
+            const designation = document.querySelector('#preview-content .designation').textContent;
+            const bar = JsBarcode('#preview-barcode-canvas', '')._options.value; // Get the barcode value from the canvas
+            const prix = document.querySelector('#preview-content .price').textContent.replace(' D.A', '');
+
+            // Fill the print label
+            const printLabel = document.getElementById('print-label');
+            const designationEl = printLabel.querySelector('.designation');
+            const priceEl = printLabel.querySelector('.price');
+            const printCanvas = document.getElementById('barcode-canvas');
+
+            designationEl.textContent = designation;
+            priceEl.textContent = `${prix} D.A`;
+            JsBarcode(printCanvas, bar, {
+                format: "EAN13",
+                width: 2,
+                height: 30,
+                displayValue: false,
+                background: "#ffffff",
+                lineColor: "#000000"
+            });
+
+            closePrintPreview();
             printLabel.classList.remove('hidden');
             setTimeout(() => {
                 window.print();
                 printLabel.classList.add('hidden');
             }, 100);
+        }
+
+        function closePrintPreview() {
+            document.getElementById('print-preview-modal').classList.add('hidden');
         }
 
         async function startScanner(isModal = false) {
@@ -814,3 +895,4 @@
     </script>
 </body>
 </html>
+```
