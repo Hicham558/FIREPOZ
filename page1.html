@@ -131,8 +131,18 @@
                 margin: 0;
             }
             
+            body {
+                margin: 0;
+                padding: 0;
+                width: 80mm;
+                height: 20mm;
+                overflow: hidden;
+            }
+            
             body * {
                 visibility: hidden;
+                margin: 0;
+                padding: 0;
             }
             
             .print-label, .print-label * {
@@ -146,11 +156,16 @@
                 width: 80mm;
                 height: 20mm;
                 display: flex;
+                flex-direction: column;
                 align-items: center;
                 justify-content: center;
                 background: white;
                 color: black;
                 font-size: 8px;
+                overflow: hidden;
+                page-break-after: avoid;
+                page-break-before: avoid;
+                page-break-inside: avoid;
             }
         }
 
@@ -575,15 +590,20 @@
                             setTimeout(() => scanIndicator.classList.remove('detected'), 500);
 
                             if (isLinkedBarcodeScan) {
-                                document.getElementById('linkedBarcode').value = code;
-                                await addLinkedBarcode(currentItemId, code, userId);
-                                closeLinkedBarcodeModal();
+                                // Vérifier si le code est valide
+                                if (code && /^\d{13}$/.test(code)) {
+                                    document.getElementById('linkedBarcode').value = code;
+                                    document.getElementById('linkedBarcodeForm').dispatchEvent(new Event('submit'));
+                                } else {
+                                    showToast('Code-barres EAN-13 invalide', true);
+                                }
                             } else {
                                 await handleScannedCode(code, userId);
                             }
                         }
                     } catch (err) {
                         console.error('Erreur de détection:', err);
+                        showToast(`Erreur de détection: ${err.message}`, true);
                     }
                     
                     requestAnimationFrame(scan);
@@ -909,6 +929,11 @@
                 return;
             }
 
+            if (!/^\d{13}$/.test(barcode)) {
+                showToast('Le code-barres doit être un EAN-13 valide (13 chiffres)', true);
+                return;
+            }
+
             try {
                 await addLinkedBarcode(numero_item, barcode, userId);
                 closeLinkedBarcodeModal();
@@ -945,10 +970,11 @@
                 JsBarcode(barcodePreview, barcode, {
                     format: "EAN13",
                     width: 1.5,
-                    height: 30,
+                    height: 12,
                     displayValue: true,
                     fontSize: 8,
-                    textMargin: 2
+                    textMargin: 2,
+                    margin: 2
                 });
             } catch (error) {
                 console.error('Erreur génération code-barres:', error);
@@ -974,10 +1000,11 @@
                 JsBarcode(barcodePrint, barcode, {
                     format: "EAN13",
                     width: 1.2,
-                    height: 25,
+                    height: 10,
                     displayValue: true,
                     fontSize: 6,
-                    textMargin: 1
+                    textMargin: 1,
+                    margin: 2
                 });
                 
                 printArea.classList.remove('hidden');
