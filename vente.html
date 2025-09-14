@@ -559,6 +559,44 @@
         let editNumeroComande = null;
         let produitsLoaded = false;
 		
+		function playBeep() {
+    try {
+        // Créer un contexte audio
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // Créer un oscillateur pour générer le son
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        // Connecter l'oscillateur au gain et le gain aux haut-parleurs
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        // Configurer le son (fréquence, type d'onde)
+        oscillator.frequency.setValueAtTime(800, audioContext.currentTime); // Fréquence de 800Hz
+        oscillator.type = 'sine'; // Type d'onde sinusoïdale pour un son plus doux
+        
+        // Configurer le volume (fade in/out pour éviter les clics)
+        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.3, audioContext.currentTime + 0.01); // Volume à 30%
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2); // Fade out
+        
+        // Jouer le son
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.2); // Arrêter après 200ms
+        
+        console.log('Bip sonore joué');
+    } catch (error) {
+        console.error('Erreur lors de la lecture du bip sonore:', error);
+        // Fallback : utiliser un son système si disponible
+        if (window.speechSynthesis) {
+            const utterance = new SpeechSynthesisUtterance('');
+            utterance.volume = 0; // Volume à 0 pour ne pas entendre de voix
+            utterance.rate = 10; // Très rapide pour faire un bip court
+            window.speechSynthesis.speak(utterance);
+        }
+    }
+}
 		async function loadProductCount() {
     console.log('Chargement du compteur de produits...');
     const userId = localStorage.getItem('userId');
@@ -2130,26 +2168,31 @@ async function startScanner() {
                     console.log('Résultat API:', result);
 
                     if (result.statut === 'trouvé') {
-                        const { produit } = result;
-                        selectProduct(
-                            produit.numero_item,
-                            produit.bar,
-                            produit.prix,
-                            produit.prixba,
-                            produit.qte,
-                            produit.designation
-                        );
-                        // Ajout de la vibration
-                        if ('vibrate' in navigator) {
-                            navigator.vibrate(200); // Vibration de 200ms
-                        } else {
-                            console.log('API Vibration non supportée');
-                        }
-                        showToast(`Produit ajouté : ${produit.designation}`);
-                        // Ne pas appeler stopScanner pour garder le scanner actif
-                    } else {
-                        showToast('Produit non trouvé', true);
-                    }
+    const { produit } = result;
+    selectProduct(
+        produit.numero_item,
+        produit.bar,
+        produit.prix,
+        produit.prixba,
+        produit.qte,
+        produit.designation
+    );
+    
+    // Ajout de la vibration
+    if ('vibrate' in navigator) {
+        navigator.vibrate(200); // Vibration de 200ms
+    } else {
+        console.log('API Vibration non supportée');
+    }
+    
+    // NOUVEAU : Ajout du bip sonore
+    playBeep();
+    
+    showToast(`Produit ajouté : ${produit.designation}`);
+    // Ne pas appeler stopScanner pour garder le scanner actif
+} else {
+    showToast('Produit non trouvé', true);
+}
                 }
             } catch (err) {
                 console.error('Erreur détection code-barres:', err);
