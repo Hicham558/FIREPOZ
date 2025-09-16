@@ -1397,4 +1397,263 @@
                                 background: white;
                                 padding: 5mm;
                                 font-family: Arial, sans-serif;
-                                font-size
+                                font-size: 12px;
+                                line-height: 1.4;
+                                color: #333;
+                                box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+                            }
+                            h1 {
+                                text-align: center;
+                                font-size: 16px;
+                                margin: 0 0 3mm;
+                            }
+                            p {
+                                margin: 2mm 0;
+                                font-size: 12px;
+                            }
+                            table {
+                                width: 100%;
+                                border-collapse: collapse;
+                                margin: 3mm 0;
+                            }
+                            th, td {
+                                border: 0.5mm solid #ccc;
+                                padding: 2mm;
+                                text-align: left;
+                                font-size: 11px;
+                            }
+                            th {
+                                background: #f0f0f0;
+                                font-weight: bold;
+                            }
+                            .total {
+                                font-weight: bold;
+                                font-size: 14px;
+                                text-align: right;
+                                margin-top: 3mm;
+                            }
+                            @media print {
+                                body {
+                                    background: white;
+                                    padding: 0;
+                                    margin: 0;
+                                }
+                                .printable {
+                                    box-shadow: none;
+                                    width: 100%;
+                                    padding: 0;
+                                }
+                                .print-buttons {
+                                    display: none;
+                                }
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        ${ticketContent}
+                    </body>
+                </html>
+            `;
+
+            printWindow.document.write(htmlContent);
+            printWindow.document.close();
+        }
+
+        function showCategoryModal() {
+            const modal = document.getElementById('categoryModal');
+            const categoryList = document.getElementById('categoryList');
+            categoryList.innerHTML = categoriesCache.length === 0
+                ? '<p class="text-center text-gray-500">Aucune catégorie trouvée</p>'
+                : categoriesCache.map(category => `
+                    <div class="border p-4 rounded-md shadow-sm bg-gray-50 flex justify-between items-center">
+                        <span>${category.description_c}</span>
+                        <div class="space-x-2">
+                            <button onclick="editCategory(${category.numer_categorie}, '${category.description_c}')" class="bg-yellow-600 text-white px-2 py-1 rounded-md hover:bg-yellow-700 transition">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button onclick="deleteCategory(${category.numer_categorie})" class="bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+            modal.style.display = 'flex';
+        }
+
+        function closeCategoryModal() {
+            document.getElementById('categoryModal').style.display = 'none';
+            document.getElementById('categoryDescription').value = '';
+        }
+
+        async function addCategory() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour ajouter une catégorie', true);
+                return;
+            }
+            const description = document.getElementById('categoryDescription').value.trim();
+            if (!description) {
+                showToast('Veuillez entrer une description pour la catégorie', true);
+                return;
+            }
+            try {
+                const response = await fetch(`${API_BASE_URL}/ajouter_categorie`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify({ description_c: description })
+                });
+                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
+                showToast('Catégorie ajoutée avec succès');
+                document.getElementById('categoryDescription').value = '';
+                chargerCategories();
+                chargerProduits();
+            } catch (error) {
+                showToast(`Erreur ajout catégorie: ${error.message}`, true);
+            }
+        }
+
+        function editCategory(categoryId, description) {
+            document.getElementById('editCategoryId').value = categoryId;
+            document.getElementById('editCategoryDescription').value = description;
+            document.getElementById('categoryModal').style.display = 'none';
+            document.getElementById('editCategoryModal').style.display = 'flex';
+        }
+
+        function closeEditCategoryModal() {
+            document.getElementById('editCategoryModal').style.display = 'none';
+            showCategoryModal();
+        }
+
+        async function saveEditedCategory(event) {
+            event.preventDefault();
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour modifier une catégorie', true);
+                return;
+            }
+            const categoryId = document.getElementById('editCategoryId').value;
+            const description = document.getElementById('editCategoryDescription').value.trim();
+            if (!description) {
+                showToast('Veuillez entrer une description pour la catégorie', true);
+                return;
+            }
+            try {
+                const response = await fetch(`${API_BASE_URL}/modifier_categorie/${categoryId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify({ description_c: description })
+                });
+                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
+                showToast('Catégorie modifiée avec succès');
+                closeEditCategoryModal();
+                chargerCategories();
+                chargerProduits();
+            } catch (error) {
+                showToast(`Erreur modification catégorie: ${error.message}`, true);
+            }
+        }
+
+        async function deleteCategory(categoryId) {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour supprimer une catégorie', true);
+                return;
+            }
+            if (!confirm('Êtes-vous sûr de vouloir supprimer cette catégorie ?')) return;
+            try {
+                const response = await fetch(`${API_BASE_URL}/supprimer_categorie/${categoryId}`, {
+                    method: 'DELETE',
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
+                showToast('Catégorie supprimée avec succès');
+                chargerCategories();
+                chargerProduits();
+            } catch (error) {
+                showToast(`Erreur suppression catégorie: ${error.message}`, true);
+            }
+        }
+
+        async function loginLogout() {
+            const loginLogoutButton = document.getElementById('loginLogoutButton');
+            if (loginLogoutButton.textContent.includes('Déconnexion')) {
+                localStorage.removeItem('userId');
+                localStorage.removeItem('selectedSeller');
+                localStorage.removeItem('sellerPassword');
+                localStorage.removeItem('pendingSales');
+                window.location.href = 'index.html';
+            } else {
+                window.location.href = 'index.html';
+            }
+        }
+
+        function checkUserSession() {
+            const userId = localStorage.getItem('userId');
+            const loginLogoutButton = document.getElementById('loginLogoutButton');
+            const userDisplay = document.getElementById('userDisplay');
+            if (userId) {
+                loginLogoutButton.innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+                userDisplay.classList.remove('hidden');
+                userDisplay.textContent = `Utilisateur: ${localStorage.getItem('userEmail') || 'Inconnu'}`;
+                const storedSeller = localStorage.getItem('selectedSeller');
+                if (storedSeller) {
+                    const { nom } = JSON.parse(storedSeller);
+                    document.getElementById('selectedSellerName').textContent = nom;
+                    document.getElementById('headerSellerName').textContent = nom;
+                    document.getElementById('sellerPassword').disabled = true;
+                    document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
+                    document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
+                    document.getElementById('sellerContent').classList.add('hidden');
+                    document.getElementById('sellerChevron').classList.add('fa-chevron-down');
+                    document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
+                }
+                chargerUtilisateurs();
+                chargerClients();
+                chargerCategories();
+                chargerProduits();
+            } else {
+                loginLogoutButton.innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                userDisplay.classList.add('hidden');
+                document.getElementById('sellerSection').classList.add('hidden');
+                document.getElementById('productsSection').classList.add('hidden');
+                document.getElementById('salesSection').classList.add('hidden');
+                showToast('Veuillez vous connecter pour accéder aux fonctionnalités', true);
+                setTimeout(() => window.location.href = 'index.html', 2000);
+            }
+        }
+
+        document.getElementById('searchProduct').addEventListener('input', filterProducts);
+
+        document.getElementById('manageCategoriesButton').addEventListener('click', showCategoryModal);
+
+        document.getElementById('categoryButtons').addEventListener('click', (event) => {
+            const button = event.target.closest('.category-button');
+            if (button) {
+                document.querySelectorAll('.category-button').forEach(btn => btn.classList.remove('active-category'));
+                button.classList.add('active-category');
+                currentCategory = button.dataset.category;
+                filterProducts();
+            }
+        });
+
+        window.addEventListener('load', () => {
+            checkUserSession();
+            const urlParams = new URLSearchParams(window.location.search);
+            const numeroComande = urlParams.get('numero_comande');
+            if (numeroComande) {
+                isEditMode = true;
+                editNumeroComande = parseInt(numeroComande);
+                document.getElementById('validateSaleButton').textContent = 'Modifier la vente';
+                document.getElementById('validateSaleButton').onclick = modifierVente;
+                loadSaleData(numeroComande);
+            }
+        });
+    </script>
+</body>
+</html>
