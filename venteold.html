@@ -779,7 +779,8 @@
             }
         }
 
-        function filterProducts() {
+    // Ajouter un bouton dans chaque ligne du tableau des produits
+function filterProducts() {
     const searchTerm = document.getElementById('searchProduct').value.toLowerCase();
     const tbody = document.getElementById('productsList');
     const countElement = document.getElementById('productCount');
@@ -791,7 +792,6 @@
             currentCategory === 'none' ? p.numer_categorie === null : p.numer_categorie === parseInt(currentCategory)
         );
     }
-    console.log('Produits filtrés:', filteredProducts.map(p => ({ designation: p.designation, qte: p.qte }))); // Debug
     if (filteredProducts.length === 0) {
         tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
         countElement.textContent = '0';
@@ -800,21 +800,23 @@
     }
     tbody.innerHTML = '';
     filteredProducts.forEach(produit => {
-        const qte = parseFloat(produit.qte) || 0; // Assurer un parsing propre
+        const qte = parseFloat(produit.qte) || 0;
         const stockStatus = qte <= 0 ? 'Rupture' : qte <= 5 ? 'Stock faible' : qte.toFixed(2);
         const stockClass = qte <= 0 ? 'stock-rupture' : qte <= 5 ? 'stock-faible' : '';
         const buttonDisabled = qte <= 0 ? 'btn-disabled' : '';
         const buttonAttrs = qte <= 0 ? 'disabled' : '';
         const category = categoriesCache.find(c => c.numer_categorie === produit.numer_categorie)?.description_c || 'Non assigné';
-        // Récupérer l'image depuis le localStorage
         const imageData = localStorage.getItem(`${produit.numero_item}.jpg`);
-        const imageSrc = imageData ? imageData : 'https://via.placeholder.com/60'; // Image par défaut si non trouvée
+        const imageSrc = imageData ? imageData : 'https://via.placeholder.com/60';
         const tr = document.createElement('tr');
         tr.className = `hover:bg-gray-50 ${stockClass}`;
         tr.innerHTML = `
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                 <button onclick="selectProduct(${produit.numero_item}, ${produit.prix}, ${produit.prixba}, ${qte}, '${produit.designation.replace(/'/g, "\\'")}')" class="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition duration-300 ${buttonDisabled}" ${buttonAttrs}>
                     <i class="fas fa-plus"></i>
+                </button>
+                <button onclick="uploadImage(${produit.numero_item})" class="bg-green-600 text-white p-2 rounded-md hover:bg-green-700 transition duration-300" title="Ajouter une photo">
+                    <i class="fas fa-camera"></i>
                 </button>
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -829,6 +831,30 @@
     });
     countElement.textContent = filteredProducts.length;
     countElement.classList.remove('hidden');
+}
+
+// Fonction pour télécharger une image
+function uploadImage(numero_item) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/jpeg,image/png';
+    input.onchange = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = () => {
+                const dataUrl = reader.result;
+                localStorage.setItem(`${numero_item}.jpg`, dataUrl);
+                showToast('Image enregistrée avec succès !');
+                filterProducts(); // Rafraîchir la grille
+            };
+            reader.onerror = () => {
+                showToast('Erreur lors de la lecture de l\'image', true);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+    input.click();
 }
 
         function selectProduct(numeroItem, prix, prixba, stock, designation) {
