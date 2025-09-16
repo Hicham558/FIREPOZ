@@ -1279,381 +1279,602 @@
             document.getElementById('pendingSalesModal').style.display = 'none';
         }
 
-        function imprimerVente80mm() {
-            if (tempSaleLines.length === 0) {
-                showToast('Aucune ligne à imprimer', true);
-                return;
-            }
+     function imprimerVente80mm() {
+    if (tempSaleLines.length === 0) {
+        showToast('Aucune ligne à imprimer', true);
+        return;
+    }
 
-            const settings = JSON.parse(localStorage.getItem('settings')) || {};
-            const companyName = settings.companyName || 'FirePoz';
-            const companyAddress = settings.companyAddress || '';
-            const companyPhone = settings.companyPhone || '';
-            const companyLogo = settings.companyLogo || '';
+    const settings = JSON.parse(localStorage.getItem('settings')) || {};
+    const companyName = settings.companyName || 'FirePoz';
+    const companyAddress = settings.companyAddress || '';
+    const companyPhone = settings.companyPhone || '';
+    const companyLogo = settings.companyLogo || '';
 
-            const clientSelect = document.getElementById('saleClientId');
-            const clientValue = clientSelect.value;
-            const clientText = clientValue === '0' ? 'Vente Comptoir' : clientSelect.options[clientSelect.selectedIndex].text.replace(/<span.*<\/span>/, '');
+    const clientSelect = document.getElementById('saleClientId');
+    const clientValue = clientSelect.value;
+    const clientText = clientValue === '0' ? 'Vente Comptoir' : clientSelect.options[clientSelect.selectedIndex].text.replace(/<span.*<\/span>/, '');
 
-            const paymentMode = document.getElementById('paymentMode').value;
-            const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
-            const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0).toFixed(2);
+    const paymentMode = document.getElementById('paymentMode').value;
+    const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
+    const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0).toFixed(2);
 
-            const storedSeller = localStorage.getItem('selectedSeller');
-            const sellerName = storedSeller ? JSON.parse(storedSeller).nom : 'Non spécifié';
+    const storedSeller = localStorage.getItem('selectedSeller');
+    const sellerName = storedSeller ? JSON.parse(storedSeller).nom : 'Non spécifié';
 
-            let soldeContent = '';
-            if (paymentMode === 'a_terme' && clientValue !== '0') {
-                const client = clientsCache.find(c => c.numero_clt === parseInt(clientValue));
-                const soldeAvant = client ? parseFloat(client.solde) || 0 : 0;
-                const soldeApres = soldeAvant + (amountPaid - parseFloat(total));
-                soldeContent = `
-                    <p>Solde avant vente: ${soldeAvant.toFixed(2)} DA</p>
-                    <p>Solde après vente: ${soldeApres.toFixed(2)} DA</p>
-                `;
-            }
+    let soldeContent = '';
+    if (paymentMode === 'a_terme' && clientValue !== '0') {
+        const client = clientsCache.find(c => c.numero_clt === parseInt(clientValue));
+        const soldeAvant = client ? parseFloat(client.solde) || 0 : 0;
+        const soldeApres = soldeAvant + (amountPaid - parseFloat(total));
+        soldeContent = `
+            <p>Solde avant vente: ${soldeAvant.toFixed(2)} DA</p>
+            <p>Solde après vente: ${soldeApres.toFixed(2)} DA</p>
+        `;
+    }
 
-            let ticketContent = `
-                <div class="printable">
-                    ${companyLogo ? `<img src="${companyLogo}" alt="Logo" style="max-width: 60mm; margin-bottom: 3mm; display: block; margin-left: auto; margin-right: auto;">` : ''}
-                    <h1>${companyName}</h1>
-                    ${companyAddress ? `<p>${companyAddress}</p>` : ''}
-                    ${companyPhone ? `<p>Tél: ${companyPhone}</p>` : ''}
-                    <p>Date: ${new Date().toLocaleString('fr-FR')}</p>
-                    <p>Vendeur: ${sellerName}</p>
-                    <p>Client: ${clientText}</p>
-                    <p>Mode de paiement: ${paymentMode === 'espece' ? 'Espèce' : 'À terme'}</p>
-                    ${paymentMode === 'a_terme' ? `<p>Montant versé: ${amountPaid.toFixed(2)} DA</p>` : ''}
-                    ${soldeContent}
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Produit</th>
-                                <th>Qté</th>
-                                <th>Prix U.</th>
-                                <th>Total</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-            `;
-
-            tempSaleLines.forEach(ligne => {
-                ticketContent += `
+    let ticketContent = `
+        <div class="printable">
+            ${companyLogo ? `<img src="${companyLogo}" alt="Logo" style="max-width: 60mm; margin-bottom: 3mm; display: block; margin-left: auto; margin-right: auto;">` : ''}
+            <h1>${companyName}</h1>
+            ${companyAddress ? `<p>${companyAddress}</p>` : ''}
+            ${companyPhone ? `<p>Tél: ${companyPhone}</p>` : ''}
+            <p>Date: ${new Date().toLocaleString('fr-FR')}</p>
+            <p>Vendeur: ${sellerName}</p>
+            <p>Client: ${clientText}</p>
+            <p>Mode de paiement: ${paymentMode === 'espece' ? 'Espèce' : 'À terme'}</p>
+            ${paymentMode === 'a_terme' ? `<p>Montant versé: ${amountPaid.toFixed(2)} DA</p>` : ''}
+            ${soldeContent}
+            <table>
+                <thead>
                     <tr>
-                        <td>${ligne.numero_item || 'N/A'}</td>
-                        <td>${ligne.designation || 'N/A'}</td>
-                        <td>${parseFloat(ligne.quantite).toFixed(2)}</td>
-                        <td>${parseFloat(ligne.remarque || 0).toFixed(2)}</td>
-                        <td>${parseFloat(ligne.prixt || 0).toFixed(2)}</td>
+                        <th>ID</th>
+                        <th>Produit</th>
+                        <th>Qté</th>
+                        <th>Prix U.</th>
+                        <th>Total</th>
                     </tr>
-                `;
-            });
+                </thead>
+                <tbody>
+    `;
 
-            ticketContent += `
-                        </tbody>
-                    </table>
-                    <p class="total">Total: ${total} DA</p>
-                    <p style="text-align: center; margin-top: 3mm;">Merci de votre achat !</p>
-                    <div class="print-buttons" style="text-align: center; margin-top: 10mm; page-break-inside: avoid;">
-                        <button onclick="window.print()" style="background: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px; font-size: 14px;">
-                            <i class="fas fa-print"></i> Imprimer
-                        </button>
-                        <button onclick="window.close()" style="background: #f44336; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px;">
-                            <i class="fas fa-times"></i> Fermer
-                        </button>
+    tempSaleLines.forEach(ligne => {
+        ticketContent += `
+            <tr>
+                <td>${ligne.numero_item || 'N/A'}</td>
+                <td>${ligne.designation || 'N/A'}</td>
+                <td>${parseFloat(ligne.quantite).toFixed(2)}</td>
+                <td>${parseFloat(ligne.remarque || 0).toFixed(2)}</td>
+                <td>${parseFloat(ligne.prixt || 0).toFixed(2)}</td>
+            </tr>
+        `;
+    });
+
+    ticketContent += `
+                </tbody>
+            </table>
+            <p class="total">Total: ${total} DA</p>
+            <p style="text-align: center; margin-top: 3mm;">Merci de votre achat !</p>
+            <div class="print-buttons" style="text-align: center; margin-top: 10mm; page-break-inside: avoid;">
+                <button onclick="window.print()" style="background: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px; font-size: 14px;">
+                    <i class="fas fa-print"></i> Imprimer
+                </button>
+                <button onclick="window.close()" style="background: #f44336; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px;">
+                    <i class="fas fa-times"></i> Fermer
+                </button>
+            </div>
+        </div>
+    `;
+
+    const printWindow = window.open('', '_blank', 'width=400,height=600,scrollbars=yes,resizable=yes');
+    
+    if (!printWindow) {
+        showToast('Impossible d\'ouvrir l\'aperçu. Veuillez désactiver votre bloqueur de pop-up.', true);
+        return;
+    }
+
+    const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+            <head>
+                <title>Aperçu Impression 80mm - ${companyName}</title>
+                <meta charset="UTF-8">
+                <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+                <style>
+                    body {
+                        margin: 0;
+                        padding: 10mm;
+                        background: #f0f0f0;
+                        display: flex;
+                        justify-content: center;
+                        align-items: flex-start;
+                        min-height: 100vh;
+                        font-family: Arial, sans-serif;
+                    }
+                    
+                    .printable {
+                        width: 80mm;
+                        background: white;
+                        padding: 5mm;
+                        font-family: Arial, sans-serif;
+                        font-size: 10pt;
+                        line-height: 1.2;
+                        color: #000;
+                        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+                        text-align: center;
+                        margin-bottom: 20px;
+                    }
+                    
+                    h1 {
+                        font-size: 14pt;
+                        margin: 0 0 3mm;
+                        font-weight: bold;
+                    }
+                    
+                    p {
+                        margin: 2mm 0;
+                        font-size: 10pt;
+                    }
+                    
+                    table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin: 5mm 0;
+                    }
+                    
+                    th, td {
+                        border: 0.5mm solid #000;
+                        padding: 2mm;
+                        font-size: 8pt;
+                        text-align: left;
+                    }
+                    
+                    th {
+                        background: #f0f0f0;
+                        font-weight: bold;
+                    }
+                    
+                    .total {
+                        font-weight: bold;
+                        font-size: 12pt;
+                        margin-top: 5mm;
+                        border-top: 2px solid #000;
+                        padding-top: 3mm;
+                    }
+                    
+                    /* Styles pour l'impression */
+                    @media print {
+                        body {
+                            background: white;
+                            padding: 0;
+                        }
+                        
+                        .printable {
+                            width: 80mm;
+                            box-shadow: none;
+                            margin: 0;
+                            padding: 0;
+                        }
+                        
+                        .print-buttons {
+                            display: none !important;
+                        }
+                        
+                        @page {
+                            size: 80mm auto;
+                            margin: 5mm;
+                        }
+                    }
+                    
+                    /* Styles pour les boutons */
+                    .print-buttons button {
+                        transition: all 0.3s ease;
+                    }
+                    
+                    .print-buttons button:hover {
+                        transform: translateY(-2px);
+                        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+                    }
+                </style>
+            </head>
+            <body>
+                ${ticketContent}
+            </body>
+        </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    
+    // Attendre que la page soit complètement chargée avant de permettre l'impression
+    printWindow.onload = function() {
+        printWindow.focus();
+        
+        // Gérer les événements d'impression
+        printWindow.addEventListener('beforeprint', function() {
+            console.log('Impression en cours...');
+        });
+        
+        printWindow.addEventListener('afterprint', function() {
+            console.log('Impression terminée');
+            // La fenêtre ne se ferme pas automatiquement
+        });
+    };
+    
+    // Gestion des erreurs
+    printWindow.onerror = function(error) {
+        console.error('Erreur dans la fenêtre d\'impression:', error);
+        showToast('Erreur lors de l\'ouverture de l\'aperçu d\'impression', true);
+    };
+}
+function openCategoryModal() {
+    document.getElementById('categoryModal').style.display = 'flex';
+    document.getElementById('categoryDescription').value = '';
+    loadCategoryList();
+}
+
+function closeCategoryModal() {
+    document.getElementById('categoryModal').style.display = 'none';
+}
+
+async function loadCategoryList() {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour gérer les catégories', true);
+        return;
+    }
+    try {
+        const [categoriesResponse, productsResponse, productsByCategoryResponse] = await Promise.all([
+            fetch(`${API_BASE_URL}/liste_categories`, { headers: { 'X-User-ID': userId } }),
+            fetch(`${API_BASE_URL}/liste_produits`, { headers: { 'X-User-ID': userId } }),
+            fetch(`${API_BASE_URL}/liste_produits_par_categorie`, { headers: { 'X-User-ID': userId } })
+        ]);
+        if (!categoriesResponse.ok || !productsResponse.ok || !productsByCategoryResponse.ok) {
+            throw new Error(`Erreur: ${await (categoriesResponse.ok ? productsResponse.ok ? productsByCategoryResponse : productsResponse : categoriesResponse).text()}`);
+        }
+        const categories = await categoriesResponse.json();
+        const products = await productsResponse.json();
+        const productsByCategoryData = await productsByCategoryResponse.json();
+        const productsByCategory = productsByCategoryData.categories || [];
+        console.log('Categories:', categories);
+        console.log('Products:', products);
+        console.log('Products by Category:', productsByCategory);
+
+        const unassignedResponse = await fetch(`${API_BASE_URL}/liste_produits_par_categorie?numero_categorie`, {
+            headers: { 'X-User-ID': userId }
+        });
+        if (!unassignedResponse.ok) {
+            throw new Error(`Erreur: ${await unassignedResponse.text()}`);
+        }
+        const { produits: unassignedProducts } = await unassignedResponse.json();
+        console.log('Unassigned Products:', unassignedProducts);
+
+        const categoryList = document.getElementById('categoryList');
+        categoryList.innerHTML = '';
+
+        const normalizedProducts = products.map(p => ({
+            ...p,
+            numer_categorie: null,
+            numero_item: parseInt(p.numero_item || p.NUMERO_ITEM),
+            designation: p.designation || p.DESIGNATION || 'N/A'
+        }));
+
+        const unassignedDiv = document.createElement('div');
+        unassignedDiv.className = 'mb-4';
+        unassignedDiv.innerHTML = `
+            <div class="flex justify-between items-center mb-2">
+                <span class="font-bold">Non assignés</span>
+            </div>
+            <div class="pl-4">
+                ${unassignedProducts.length ? unassignedProducts.map(product => `
+                    <div class="flex justify-between items-center mb-1">
+                        <span>${product.designation || 'N/A'}</span>
+                        <select onchange="assignCategory(${product.numero_item}, this.value)" class="border p-1 rounded w-40">
+                            <option value="">Assigner à...</option>
+                            ${categories.map(cat => `<option value="${cat.numer_categorie}">${cat.description_c}</option>`).join('')}
+                        </select>
                     </div>
-                </div>
-            `;
+                `).join('') : '<p class="text-gray-500">Aucun produit non assigné</p>'}
+            </div>
+        `;
+        categoryList.appendChild(unassignedDiv);
 
-            const printWindow = window.open('', '_blank', 'width=400,height=600,scrollbars=yes,resizable=yes');
-            
-            if (!printWindow) {
-                showToast('Impossible d\'ouvrir l\'aperçu. Veuillez désactiver votre bloqueur de pop-up.', true);
-                return;
-            }
+        categories.forEach(category => {
+            const categoryData = productsByCategory.find(cat => cat.numero_categorie === category.numer_categorie) || { produits: [] };
+            const categoryProducts = categoryData.produits || [];
+            console.log(`Produits pour catégorie ${category.numer_categorie}:`, categoryProducts);
 
-            const htmlContent = `
-                <!DOCTYPE html>
-                <html>
-                    <head>
-                        <title>Aperçu Impression 80mm - ${companyName}</title>
-                        <meta charset="UTF-8">
-                        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-                        <style>
-                            body {
-                                margin: 0;
-                                padding: 10mm;
-                                background: #f0f0f0;
-                                display: flex;
-                                justify-content: center;
-                                align-items: flex-start;
-                                min-height: 100vh;
-                                font-family: Arial, sans-serif;
-                            }
-                            
-                            .printable {
-                                width: 80mm;
-                                background: white;
-                                padding: 5mm;
-                                font-family: Arial, sans-serif;
-                                font-size: 12px;
-                                line-height: 1.4;
-                                color: #333;
-                                box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-                            }
-                            h1 {
-                                text-align: center;
-                                font-size: 16px;
-                                margin: 0 0 3mm;
-                            }
-                            p {
-                                margin: 2mm 0;
-                                font-size: 12px;
-                            }
-                            table {
-                                width: 100%;
-                                border-collapse: collapse;
-                                margin: 3mm 0;
-                            }
-                            th, td {
-                                border: 0.5mm solid #ccc;
-                                padding: 2mm;
-                                text-align: left;
-                                font-size: 11px;
-                            }
-                            th {
-                                background: #f0f0f0;
-                                font-weight: bold;
-                            }
-                            .total {
-                                font-weight: bold;
-                                font-size: 14px;
-                                text-align: right;
-                                margin-top: 3mm;
-                            }
-                            @media print {
-                                body {
-                                    background: white;
-                                    padding: 0;
-                                    margin: 0;
-                                }
-                                .printable {
-                                    box-shadow: none;
-                                    width: 100%;
-                                    padding: 0;
-                                }
-                                .print-buttons {
-                                    display: none;
-                                }
-                            }
-                        </style>
-                    </head>
-                    <body>
-                        ${ticketContent}
-                    </body>
-                </html>
-            `;
+            const div = document.createElement('div');
+            div.className = 'mb-4';
+            div.innerHTML = `
+    <div class="flex justify-between items-center mb-2">
+        <span class="font-bold">${category.description_c}</span>
+        <div class="space-x-2">
+            <button onclick="editCategoryModal(${category.numer_categorie}, '${category.description_c.replace(/'/g, "\\'")}')" class="bg-yellow-600 text-white p-1 rounded-md hover:bg-yellow-700 transition" title="Modifier">
+                <i class="fas fa-edit"></i>
+            </button>
+            <button onclick="deleteCategory(${category.numer_categorie})" class="bg-red-600 text-white p-1 rounded-md hover:bg-red-700 transition" title="Supprimer">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    </div>
+    <div class="pl-4">
+        ${categoryProducts.length ? categoryProducts.map(product => `
+            <div class="flex justify-between items-center mb-1">
+                <span>${product.designation || 'N/A'}</span>
+                <button onclick="removeCategoryFromProduct(${product.numero_item}, ${category.numer_categorie})" class="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
+                    <i class="fas fa-times"></i> 
+                </button>
+            </div>
+        `).join('') : '<p class="text-gray-500">Aucun produit dans cette catégorie</p>'}
+    </div>
+`;
+            categoryList.appendChild(div);
+        });
+    } catch (error) {
+        console.error('Erreur chargement catégories:', error);
+        showToast(`Erreur chargement catégories: ${error.message}`, true);
+    }
+}
 
-            printWindow.document.write(htmlContent);
-            printWindow.document.close();
+async function addCategory() {
+    const userId = localStorage.getItem('userId');
+    const description = document.getElementById('categoryDescription').value.trim();
+    if (!userId) {
+        showToast('Veuillez vous connecter', true);
+        return;
+    }
+    if (!description) {
+        showToast('Veuillez entrer une description', true);
+        return;
+    }
+    try {
+        const response = await fetch(`${API_BASE_URL}/ajouter_categorie`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-User-ID': userId
+            },
+            body: JSON.stringify({ description_c: description })
+        });
+        if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
+        document.getElementById('categoryDescription').value = '';
+        await chargerCategories();
+        loadCategoryList();
+        showToast('Catégorie ajoutée avec succès');
+    } catch (error) {
+        showToast(`Erreur ajout catégorie: ${error.message}`, true);
+    }
+}
+
+function editCategoryModal(numer_categorie, description) {
+    document.getElementById('editCategoryId').value = numer_categorie;
+    document.getElementById('editCategoryDescription').value = description;
+    document.getElementById('editCategoryModal').style.display = 'flex';
+}
+
+function closeEditCategoryModal() {
+    document.getElementById('editCategoryModal').style.display = 'none';
+}
+
+async function saveEditedCategory(event) {
+    event.preventDefault();
+    const userId = localStorage.getItem('userId');
+    const numer_categorie = document.getElementById('editCategoryId').value;
+    const description = document.getElementById('editCategoryDescription').value.trim();
+    if (!userId) {
+        showToast('Veuillez vous connecter', true);
+        return;
+    }
+    if (!description) {
+        showToast('Veuillez entrer une description', true);
+        return;
+    }
+    try {
+        const response = await fetch(`${API_BASE_URL}/modifier_categorie/${numer_categorie}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-User-ID': userId
+            },
+            body: JSON.stringify({ description_c: description })
+        });
+        if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
+        await chargerCategories();
+        loadCategoryList();
+        closeEditCategoryModal();
+        showToast('Catégorie modifiée avec succès');
+    } catch (error) {
+        showToast(`Erreur modification catégorie: ${error.message}`, true);
+    }
+}
+
+async function deleteCategory(numer_categorie) {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter', true);
+        return;
+    }
+    if (!confirm('Voulez-vous vraiment supprimer cette catégorie ? Les produits associés seront désassignés.')) {
+        return;
+    }
+    try {
+        const response = await fetch(`${API_BASE_URL}/supprimer_categorie/${numer_categorie}`, {
+            method: 'DELETE',
+            headers: { 'X-User-ID': userId }
+        });
+        if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
+        await chargerCategories();
+        await chargerProduits();
+        loadCategoryList();
+        showToast('Catégorie supprimée avec succès');
+    } catch (error) {
+        showToast(`Erreur suppression catégorie: ${error.message}`, true);
+    }
+}
+
+async function assignCategory(numero_item, numer_categorie) {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter', true);
+        return;
+    }
+    let categoryValue = null;
+    if (numer_categorie && !isNaN(parseInt(numer_categorie, 10))) {
+        categoryValue = parseInt(numer_categorie, 10);
+    } else if (numer_categorie !== '') {
+        showToast('Catégorie sélectionnée invalide', true);
+        return;
+    }
+    console.log('Avant assignation:', { numero_item, numer_categorie: categoryValue, userId });
+    try {
+        const response = await fetch(`${API_BASE_URL}/assigner_categorie`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-User-ID': userId
+            },
+            body: JSON.stringify({
+                numero_item: parseInt(numero_item, 10),
+                numer_categorie: categoryValue
+            })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(`Erreur ${response.status}: ${data.erreur || 'Erreur inconnue'}`);
         }
+        await chargerProduits();
+        await loadCategoryList();
+        showToast('Produit assigné à la catégorie');
+    } catch (error) {
+        console.error('Erreur assignation:', error);
+        showToast(`Erreur assignation catégorie: ${error.message}`, true);
+    }
+}
 
-        function showCategoryModal() {
-            const modal = document.getElementById('categoryModal');
-            const categoryList = document.getElementById('categoryList');
-            categoryList.innerHTML = categoriesCache.length === 0
-                ? '<p class="text-center text-gray-500">Aucune catégorie trouvée</p>'
-                : categoriesCache.map(category => `
-                    <div class="border p-4 rounded-md shadow-sm bg-gray-50 flex justify-between items-center">
-                        <span>${category.description_c}</span>
-                        <div class="space-x-2">
-                            <button onclick="editCategory(${category.numer_categorie}, '${category.description_c}')" class="bg-yellow-600 text-white px-2 py-1 rounded-md hover:bg-yellow-700 transition">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button onclick="deleteCategory(${category.numer_categorie})" class="bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    </div>
-                `).join('');
-            modal.style.display = 'flex';
+async function removeCategoryFromProduct(numero_item, numer_categorie) {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter', true);
+        return;
+    }
+    try {
+        const response = await fetch(`${API_BASE_URL}/assigner_categorie`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-User-ID': userId
+            },
+            body: JSON.stringify({
+                numero_item: parseInt(numero_item),
+                numer_categorie: null
+            })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(`Erreur ${response.status}: ${data.erreur || 'Erreur inconnue'}`);
         }
+        await loadCategoryList();
+        showToast('Produit retiré de la catégorie');
+    } catch (error) {
+        console.error('Erreur retrait:', error);
+        showToast(`Erreur retrait catégorie: ${error.message}`, true);
+    }
+}
 
-        function closeCategoryModal() {
-            document.getElementById('categoryModal').style.display = 'none';
-            document.getElementById('categoryDescription').value = '';
-        }
-
-        async function addCategory() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour ajouter une catégorie', true);
-                return;
-            }
-            const description = document.getElementById('categoryDescription').value.trim();
-            if (!description) {
-                showToast('Veuillez entrer une description pour la catégorie', true);
-                return;
-            }
+async function loginLogout() {
+    const userId = localStorage.getItem('userId');
+    if (userId) {
+        localStorage.removeItem('userId');
+        localStorage.removeItem('userEmail');
+        localStorage.removeItem('selectedSeller');
+        localStorage.removeItem('sellerPassword');
+        document.getElementById('userDisplay').classList.add('hidden');
+        document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+        document.getElementById('selectedSellerName').textContent = '-';
+        document.getElementById('headerSellerName').textContent = '-';
+        document.getElementById('sellerSelect').value = '0';
+        document.getElementById('sellerPassword').value = '';
+        document.getElementById('sellerPassword').disabled = false;
+        document.getElementById('validateSellerButton').textContent = 'Valider';
+        document.getElementById('validateSellerButton').onclick = validerVendeur;
+        showToast('Déconnexion réussie');
+    } else {
+        const email = prompt('Entrez votre email:');
+        const password = prompt('Entrez votre mot de passe:');
+        if (email && password) {
             try {
-                const response = await fetch(`${API_BASE_URL}/ajouter_categorie`, {
+                const response = await fetch(`${API_BASE_URL}/connexion`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({ description_c: description })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
                 });
                 if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
-                showToast('Catégorie ajoutée avec succès');
-                document.getElementById('categoryDescription').value = '';
-                chargerCategories();
-                chargerProduits();
-            } catch (error) {
-                showToast(`Erreur ajout catégorie: ${error.message}`, true);
-            }
-        }
-
-        function editCategory(categoryId, description) {
-            document.getElementById('editCategoryId').value = categoryId;
-            document.getElementById('editCategoryDescription').value = description;
-            document.getElementById('categoryModal').style.display = 'none';
-            document.getElementById('editCategoryModal').style.display = 'flex';
-        }
-
-        function closeEditCategoryModal() {
-            document.getElementById('editCategoryModal').style.display = 'none';
-            showCategoryModal();
-        }
-
-        async function saveEditedCategory(event) {
-            event.preventDefault();
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour modifier une catégorie', true);
-                return;
-            }
-            const categoryId = document.getElementById('editCategoryId').value;
-            const description = document.getElementById('editCategoryDescription').value.trim();
-            if (!description) {
-                showToast('Veuillez entrer une description pour la catégorie', true);
-                return;
-            }
-            try {
-                const response = await fetch(`${API_BASE_URL}/modifier_categorie/${categoryId}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': userId
-                    },
-                    body: JSON.stringify({ description_c: description })
-                });
-                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
-                showToast('Catégorie modifiée avec succès');
-                closeEditCategoryModal();
-                chargerCategories();
-                chargerProduits();
-            } catch (error) {
-                showToast(`Erreur modification catégorie: ${error.message}`, true);
-            }
-        }
-
-        async function deleteCategory(categoryId) {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                showToast('Veuillez vous connecter pour supprimer une catégorie', true);
-                return;
-            }
-            if (!confirm('Êtes-vous sûr de vouloir supprimer cette catégorie ?')) return;
-            try {
-                const response = await fetch(`${API_BASE_URL}/supprimer_categorie/${categoryId}`, {
-                    method: 'DELETE',
-                    headers: { 'X-User-ID': userId }
-                });
-                if (!response.ok) throw new Error(`Erreur ${response.status}: ${await response.text()}`);
-                showToast('Catégorie supprimée avec succès');
-                chargerCategories();
-                chargerProduits();
-            } catch (error) {
-                showToast(`Erreur suppression catégorie: ${error.message}`, true);
-            }
-        }
-
-        async function loginLogout() {
-            const loginLogoutButton = document.getElementById('loginLogoutButton');
-            if (loginLogoutButton.textContent.includes('Déconnexion')) {
-                localStorage.removeItem('userId');
-                localStorage.removeItem('selectedSeller');
-                localStorage.removeItem('sellerPassword');
-                localStorage.removeItem('pendingSales');
-                window.location.href = 'index.html';
-            } else {
-                window.location.href = 'index.html';
-            }
-        }
-
-        function checkUserSession() {
-            const userId = localStorage.getItem('userId');
-            const loginLogoutButton = document.getElementById('loginLogoutButton');
-            const userDisplay = document.getElementById('userDisplay');
-            if (userId) {
-                loginLogoutButton.innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
-                userDisplay.classList.remove('hidden');
-                userDisplay.textContent = `Utilisateur: ${localStorage.getItem('userEmail') || 'Inconnu'}`;
-                const storedSeller = localStorage.getItem('selectedSeller');
-                if (storedSeller) {
-                    const { nom } = JSON.parse(storedSeller);
-                    document.getElementById('selectedSellerName').textContent = nom;
-                    document.getElementById('headerSellerName').textContent = nom;
-                    document.getElementById('sellerPassword').disabled = true;
-                    document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
-                    document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
-                    document.getElementById('sellerContent').classList.add('hidden');
-                    document.getElementById('sellerChevron').classList.add('fa-chevron-down');
-                    document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
-                }
+                const data = await response.json();
+                localStorage.setItem('userId', data.numero);
+                localStorage.setItem('userEmail', email);
+                document.getElementById('userDisplay').textContent = email;
+                document.getElementById('userDisplay').classList.remove('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+                showToast('Connexion réussie');
                 chargerUtilisateurs();
                 chargerClients();
                 chargerCategories();
                 chargerProduits();
-            } else {
-                loginLogoutButton.innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
-                userDisplay.classList.add('hidden');
-                document.getElementById('sellerSection').classList.add('hidden');
-                document.getElementById('productsSection').classList.add('hidden');
-                document.getElementById('salesSection').classList.add('hidden');
-                showToast('Veuillez vous connecter pour accéder aux fonctionnalités', true);
-                setTimeout(() => window.location.href = 'index.html', 2000);
+            } catch (error) {
+                showToast(`Erreur connexion: ${error.message}`, true);
             }
+        } else {
+            showToast('Email et mot de passe requis', true);
         }
+    }
+}
 
-        document.getElementById('searchProduct').addEventListener('input', filterProducts);
-
-        document.getElementById('manageCategoriesButton').addEventListener('click', showCategoryModal);
-
-        document.getElementById('categoryButtons').addEventListener('click', (event) => {
-            const button = event.target.closest('.category-button');
-            if (button) {
-                document.querySelectorAll('.category-button').forEach(btn => btn.classList.remove('active-category'));
-                button.classList.add('active-category');
-                currentCategory = button.dataset.category;
-                filterProducts();
-            }
-        });
-
-        window.addEventListener('load', () => {
-            checkUserSession();
-            const urlParams = new URLSearchParams(window.location.search);
-            const numeroComande = urlParams.get('numero_comande');
-            if (numeroComande) {
-                isEditMode = true;
-                editNumeroComande = parseInt(numeroComande);
-                document.getElementById('validateSaleButton').textContent = 'Modifier la vente';
-                document.getElementById('validateSaleButton').onclick = modifierVente;
-                loadSaleData(numeroComande);
-            }
-        });
+document.addEventListener('DOMContentLoaded', async () => {
+    const userId = localStorage.getItem('userId');
+    const userEmail = localStorage.getItem('userEmail');
+    if (userId && userEmail) {
+        document.getElementById('userDisplay').textContent = userEmail;
+        document.getElementById('userDisplay').classList.remove('hidden');
+        document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+        await Promise.all([
+            chargerUtilisateurs(),
+            chargerClients(),
+            chargerCategories(),
+            chargerProduits()
+        ]);
+        const storedSeller = localStorage.getItem('selectedSeller');
+        if (storedSeller) {
+            const { nom } = JSON.parse(storedSeller);
+            document.getElementById('selectedSellerName').textContent = nom;
+            document.getElementById('headerSellerName').textContent = nom;
+            document.getElementById('sellerPassword').disabled = true;
+            document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
+            document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
+        }
+    }
+    document.getElementById('searchProduct').addEventListener('input', filterProducts);
+    document.getElementById('categoryButtons').addEventListener('click', (e) => {
+        const button = e.target.closest('.category-button');
+        if (button) {
+            currentCategory = button.dataset.category;
+            filterProducts();
+            document.querySelectorAll('.category-button').forEach(btn => btn.classList.remove('active-category'));
+            button.classList.add('active-category');
+        }
+    });
+    document.getElementById('manageCategoriesButton').addEventListener('click', openCategoryModal);
+    togglePaymentForm();
+    const urlParams = new URLSearchParams(window.location.search);
+    const numeroComande = urlParams.get('numero_comande');
+    if (numeroComande) {
+        isEditMode = true;
+        editNumeroComande = numeroComande;
+        await loadSaleData(numeroComande);
+        document.getElementById('validateSaleButton').textContent = 'Modifier la vente';
+        document.getElementById('validateSaleButton').onclick = modifierVente;
+    }
+});
     </script>
 </body>
 </html>
