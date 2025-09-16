@@ -32,14 +32,14 @@
         }
 
         /* Scanner vidéo */
-        #scanner-video, #linked-scanner-video, #photo-video {
+        #scanner-video, #linked-scanner-video {
             transform: scale(1.2);
             transform-origin: center center;
             border-radius: 8px;
         }
 
         /* Indicateur de scan */
-        .scan-indicator, .photo-indicator {
+        .scan-indicator {
             position: absolute;
             top: 50%;
             left: 50%;
@@ -53,7 +53,7 @@
             z-index: 10;
         }
 
-        .scan-indicator.scanning, .photo-indicator.active {
+        .scan-indicator.scanning {
             border-color: rgba(0, 255, 0, 0.5);
         }
 
@@ -166,15 +166,6 @@
             border: 1px solid #d1d5db;
             margin: 10px auto;
         }
-
-        /* Style pour les miniatures */
-        .product-thumbnail {
-            width: 40px;
-            height: 40px;
-            object-fit: cover;
-            border-radius: 4px;
-            border: 1px solid #e5e7eb;
-        }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center">
@@ -270,7 +261,6 @@
                     <table class="w-full text-left text-[#1f2937] text-sm">
                         <thead>
                             <tr>
-                                <th>Photo</th>
                                 <th>Désignation</th>
                                 <th>Code-barres</th>
                                 <th>Prix</th>
@@ -280,7 +270,7 @@
                         </thead>
                         <tbody id="productTableBody">
                             <tr>
-                                <td colspan="6" class="text-center py-4">Chargement...</td>
+                                <td colspan="5" class="text-center py-4">Chargement...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -367,28 +357,6 @@
                 </div>
             </div>
         </div>
-
-        <!-- Modal Prise de photo -->
-        <div id="photoModal" class="fixed inset-0 hidden modal flex items-center justify-center z-50">
-            <div class="bg-white p-6 rounded-lg max-w-md w-full mx-4">
-                <h3 class="text-lg font-semibold text-[#1e40af] mb-4">Prendre une photo</h3>
-                
-                <div id="photo-container" class="relative w-full aspect-[4/3] bg-[#e5e7eb] rounded-lg overflow-hidden mb-4">
-                    <video id="photo-video" class="absolute inset-0 w-full h-full object-cover" autoplay muted playsinline></video>
-                    <div id="photo-loading" class="absolute inset-0 flex items-center justify-center text-[#1e40af]">
-                        <i class="fas fa-spinner fa-spin mr-2"></i>Chargement...
-                    </div>
-                    <div id="photo-indicator" class="photo-indicator"></div>
-                </div>
-                
-                <div class="flex justify-end gap-2">
-                    <button type="button" onclick="closePhotoModal()" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition">Annuler</button>
-                    <button type="button" onclick="capturePhoto()" class="btn-primary px-4 py-2 rounded">
-                        <i class="fas fa-camera mr-1"></i>Capturer
-                    </button>
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- Toast notifications -->
@@ -418,7 +386,6 @@
         const SCAN_COOLDOWN = 2000;
         let isLinkedBarcodeScan = false;
         let currentItemId = null;
-        let photoStream = null;
 
         // Initialisation
         document.addEventListener('DOMContentLoaded', () => {
@@ -469,18 +436,13 @@
             if (produits.length === 0) {
                 productTableBody.innerHTML = `
                     <tr>
-                        <td colspan="6" class="text-center py-4">Aucun produit trouvé.</td>
+                        <td colspan="5" class="text-center py-4">Aucun produit trouvé.</td>
                     </tr>`;
                 return;
             }
 
             productTableBody.innerHTML = produits.map(produit => `
                 <tr class="border-b border-[#e5e7eb] hover:bg-[#e5e7eb]/30 transition-colors">
-                    <td class="py-2">
-                        <img src="${localStorage.getItem(`image_${produit.NUMERO_ITEM}`) || 'https://via.placeholder.com/40?text=No+Image'}" 
-                             class="product-thumbnail" 
-                             alt="Photo de ${produit.DESIGNATION}">
-                    </td>
                     <td class="py-2">${produit.DESIGNATION}</td>
                     <td class="py-2">${produit.BAR}</td>
                     <td class="py-2">${produit.PRIX} DA</td>
@@ -501,11 +463,6 @@
                                     class="bg-purple-500 text-white px-2 py-1 rounded text-xs hover:bg-purple-600 transition"
                                     title="Imprimer une vignette">
                                 <i class="fas fa-print"></i>
-                            </button>
-                            <button onclick="openPhotoModal('${produit.NUMERO_ITEM}')" 
-                                    class="bg-green-500 text-white px-2 py-1 rounded text-xs hover:bg-green-600 transition"
-                                    title="Prendre une photo">
-                                <i class="fas fa-camera"></i>
                             </button>
                         </div>
                     </td>
@@ -552,7 +509,7 @@
                 showToast(`Erreur de chargement : ${error.message}`, true);
                 document.getElementById('productTableBody').innerHTML = `
                     <tr>
-                        <td colspan="6" class="text-center py-4 text-red-400">Erreur lors du chargement des produits.</td>
+                        <td colspan="5" class="text-center py-4 text-red-400">Erreur lors du chargement des produits.</td>
                     </tr>`;
                 resultElement.innerHTML = `<p class="text-red-500">Erreur : ${error.message}</p>`;
             }
@@ -644,7 +601,7 @@
         function stopScanner() {
             if (!scannerRunning) return;
 
-            ['scanner-video', 'linked-scanner-video', 'photo-video'].forEach(id => {
+            ['scanner-video', 'linked-scanner-video'].forEach(id => {
                 const video = document.getElementById(id);
                 if (video && video.srcObject) {
                     video.srcObject.getTracks().forEach(track => track.stop());
@@ -652,12 +609,12 @@
                 }
             });
 
-            ['scan-indicator', 'linked-scan-indicator', 'photo-indicator'].forEach(id => {
+            ['scan-indicator', 'linked-scan-indicator'].forEach(id => {
                 const indicator = document.getElementById(id);
-                if (indicator) indicator.classList.remove('scanning', 'detected', 'active');
+                if (indicator) indicator.classList.remove('scanning', 'detected');
             });
 
-            ['camera-loading', 'linked-camera-loading', 'photo-loading'].forEach(id => {
+            ['camera-loading', 'linked-camera-loading'].forEach(id => {
                 const loading = document.getElementById(id);
                 if (loading) loading.style.display = 'flex';
             });
@@ -665,7 +622,6 @@
             scannerRunning = false;
             torchOn = false;
             isLinkedBarcodeScan = false;
-            photoStream = null;
             
             document.getElementById('result').innerHTML = `<p class="text-[#1f2937]">Scanner arrêté.</p>`;
             document.getElementById('addProductForm').classList.add('hidden');
@@ -1044,66 +1000,6 @@
             
             if (!form.classList.contains('hidden')) {
                 document.getElementById('result').innerHTML = `<p class="text-[#1e40af]">Formulaire d'ajout de produit ouvert.</p>`;
-            }
-        }
-
-        // Fonctions pour la prise de photo
-        async function openPhotoModal(numero_item) {
-            currentItemId = numero_item;
-            const photoModal = document.getElementById('photoModal');
-            const videoElement = document.getElementById('photo-video');
-            const loadingElement = document.getElementById('photo-loading');
-            const photoIndicator = document.getElementById('photo-indicator');
-
-            try {
-                photoStream = await navigator.mediaDevices.getUserMedia({
-                    video: { 
-                        facingMode: 'environment', 
-                        width: { ideal: 640 }, 
-                        height: { ideal: 480 } 
-                    }
-                });
-                
-                videoElement.srcObject = photoStream;
-                videoElement.onloadedmetadata = () => {
-                    loadingElement.style.display = 'none';
-                    photoIndicator.classList.add('active');
-                };
-                
-                photoModal.classList.remove('hidden');
-            } catch (err) {
-                console.error('Erreur ouverture caméra photo:', err);
-                showToast(`Erreur : ${err.message}`, true);
-                closePhotoModal();
-            }
-        }
-
-        function closePhotoModal() {
-            document.getElementById('photoModal').classList.add('hidden');
-            stopScanner();
-        }
-
-        async function capturePhoto() {
-            const video = document.getElementById('photo-video');
-            const canvas = document.createElement('canvas');
-            canvas.width = 320; // Taille réduite pour miniature
-            canvas.height = 240;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-            try {
-                // Convertir l'image en base64
-                const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-                
-                // Stocker dans localStorage
-                localStorage.setItem(`image_${currentItemId}`, dataUrl);
-
-                showToast('Photo enregistrée avec succès !');
-                await loadProducts(localStorage.getItem('userId'));
-                closePhotoModal();
-            } catch (err) {
-                console.error('Erreur capture photo:', err);
-                showToast(`Erreur lors de l'enregistrement de la photo : ${err.message}`, true);
             }
         }
 
