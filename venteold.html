@@ -820,7 +820,7 @@ function filterProducts() {
                 </button>
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                <img src="${imageSrc}" alt="${produit.designation}" class="product-image">
+                <img src="${imageSrc}" alt="${produit.designation}" class="w-12 h-12 object-cover rounded">
             </td>
             <td class="px-6 py-4 text-sm text-gray-900">${produit.designation}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stockStatus}</td>
@@ -833,7 +833,41 @@ function filterProducts() {
     countElement.classList.remove('hidden');
 }
 
-// Fonction pour télécharger une image
+// Fonction pour redimensionner et compresser une image
+function resizeImage(file, maxWidth, maxHeight, callback) {
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        const img = new Image();
+        img.onload = function() {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+
+            // Garder le ratio et réduire si nécessaire
+            if (width > maxWidth) {
+                height *= maxWidth / width;
+                width = maxWidth;
+            }
+            if (height > maxHeight) {
+                width *= maxHeight / height;
+                height = maxHeight;
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // Compression JPEG à 70% qualité
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+            callback(dataUrl);
+        };
+        img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+// Fonction pour télécharger une image optimisée
 function uploadImage(numero_item) {
     const input = document.createElement('input');
     input.type = 'file';
@@ -841,17 +875,11 @@ function uploadImage(numero_item) {
     input.onchange = (event) => {
         const file = event.target.files[0];
         if (file) {
-            const reader = new FileReader();
-            reader.onload = () => {
-                const dataUrl = reader.result;
+            resizeImage(file, 200, 200, (dataUrl) => {
                 localStorage.setItem(`${numero_item}.jpg`, dataUrl);
-                showToast('Image enregistrée avec succès !');
+                showToast('Image enregistrée et optimisée avec succès !');
                 filterProducts(); // Rafraîchir la grille
-            };
-            reader.onerror = () => {
-                showToast('Erreur lors de la lecture de l\'image', true);
-            };
-            reader.readAsDataURL(file);
+            });
         }
     };
     input.click();
