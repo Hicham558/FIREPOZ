@@ -1810,7 +1810,7 @@ export async function dashboard(period = 'day') {
     console.log("Exécution de getDashboardData avec period:", period);
     const db = await getDb();
 
-    // Calcul des dates de début et fin
+    // Calcul des dates de début et fin - FORMAT CORRIGÉ
     const now = new Date();
     let date_start, date_end;
 
@@ -1823,8 +1823,20 @@ export async function dashboard(period = 'day') {
       date_end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
     }
 
-    const date_start_str = date_start.toISOString();
-    const date_end_str = date_end.toISOString();
+    // CORRECTION: Format des dates compatible SQLite
+    const formatDateForSQL = (date) => {
+      return date.getFullYear() + '-' + 
+             String(date.getMonth() + 1).padStart(2, '0') + '-' + 
+             String(date.getDate()).padStart(2, '0') + ' ' +
+             String(date.getHours()).padStart(2, '0') + ':' +
+             String(date.getMinutes()).padStart(2, '0') + ':' +
+             String(date.getSeconds()).padStart(2, '0');
+    };
+
+    const date_start_str = formatDateForSQL(date_start);
+    const date_end_str = formatDateForSQL(date_end);
+
+    console.log("Dates pour la requête:", { date_start_str, date_end_str }); // DEBUG
 
     // Fonction pour parser les décimaux avec virgule
     function parseDecimal(value) {
@@ -1867,16 +1879,35 @@ export async function dashboard(period = 'day') {
     const lowStockData = stmtLowStock.getAsObject();
     stmtLowStock.free();
 
-    // 3. Meilleur client (AVEC LOG POUR DEBUG)
+    // 3. Meilleur client - REQUÊTE SIMPLIFIÉE POUR DEBUG
+    console.log("Recherche du meilleur client...");
+    
+    // D'abord, testons si nous avons des commandes dans la période
+    const testQuery = `
+      SELECT COUNT(*) as total_commandes 
+      FROM comande c 
+      WHERE c.date_comande >= ? AND c.date_comande <= ?
+    `;
+    const stmtTest = db.prepare(testQuery);
+    stmtTest.bind([date_start_str, date_end_str]);
+    stmtTest.step();
+    const testResult = stmtTest.getAsObject();
+    stmtTest.free();
+    console.log("Nombre de commandes trouvées:", testResult.total_commandes);
+
+    // Requête pour le meilleur client avec plus de logs
     const queryTopClient = `
       SELECT 
         cl.nom,
+        cl.numero_clt,
+        c.numero_table,
         COALESCE(SUM(CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL)), 0) AS client_ca
       FROM comande c
       JOIN attache a ON c.numero_comande = a.numero_comande
       LEFT JOIN client cl ON c.numero_table = cl.numero_clt
       WHERE c.date_comande >= ? AND c.date_comande <= ?
-      GROUP BY cl.nom
+        AND cl.nom IS NOT NULL
+      GROUP BY cl.nom, cl.numero_clt, c.numero_table
       ORDER BY client_ca DESC
       LIMIT 1
     `;
@@ -1884,9 +1915,39 @@ export async function dashboard(period = 'day') {
     const stmtTopClient = db.prepare(queryTopClient);
     stmtTopClient.bind([date_start_str, date_end_str]);
     let topClient = { nom: 'N/A', client_ca: 0 };
+    
     if (stmtTopClient.step()) {
       topClient = stmtTopClient.getAsObject();
-      console.log('Top client trouvé:', topClient); // LOG DE DEBUG
+      console.log('Top client trouvé (détails):', topClient);
+    } else {
+      console.log('Aucun client trouvé - essayons sans filtre nom');
+      
+      // Requête alternative sans filtre sur nom
+      const queryAllClients = `
+        SELECT 
+          cl.nom,
+          COALESCE(SUM(CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL)), 0) AS client_ca
+        FROM comande c
+        JOIN attache a ON c.numero_comande = a.numero_comande
+        LEFT JOIN client cl ON c.numero_table = cl.numero_clt
+        WHERE c.date_comande >= ? AND c.date_comande <= ?
+        GROUP BY cl.nom
+        ORDER BY client_ca DESC
+        LIMIT 5
+      `;
+      
+      const stmtAllClients = db.prepare(queryAllClients);
+      stmtAllClients.bind([date_start_str, date_end_str]);
+      
+      console.log("Tous les clients trouvés:");
+      while (stmtAllClients.step()) {
+        const client = stmtAllClients.getAsObject();
+        console.log("Client:", client);
+        if (!topClient || topClient.nom === 'N/A') {
+          topClient = client;
+        }
+      }
+      stmtAllClients.free();
     }
     stmtTopClient.free();
 
@@ -1935,8 +1996,7 @@ export async function dashboard(period = 'day') {
       return isNaN(parsed) ? 0 : parsed;
     };
 
-    // FORMAT COMPATIBLE AVEC LE HTML - TOUTES LES CLÉS EN MINUSCULES ✅
-    return {
+    const result = {
       total_ca: safeParseFloat(kpiData.total_ca),
       total_profit: safeParseFloat(kpiData.total_profit),
       sales_count: safeParseInt(kpiData.sales_count),
@@ -1950,6 +2010,9 @@ export async function dashboard(period = 'day') {
         values: chartValues.map(v => safeParseFloat(v))
       }
     };
+
+    console.log("Résultat final:", result);
+    return result;
 
   } catch (error) {
     console.error("Erreur getDashboardData:", error);
