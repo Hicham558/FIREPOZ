@@ -1823,8 +1823,10 @@ export async function dashboard(period = 'day') {
       date_end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
     }
 
-    const date_start_str = date_start.toISOString();
-    const date_end_str = date_end.toISOString();
+    // Formatage des dates pour SQLite (YYYY-MM-DD HH:MM:SS)
+    const date_start_str = `${date_start.getFullYear()}-${String(date_start.getMonth() + 1).padStart(2, '0')}-${String(date_start.getDate()).padStart(2, '0')} ${String(date_start.getHours()).padStart(2, '0')}:${String(date_start.getMinutes()).padStart(2, '0')}:${String(date_start.getSeconds()).padStart(2, '0')}`;
+    const date_end_str = `${date_end.getFullYear()}-${String(date_end.getMonth() + 1).padStart(2, '0')}-${String(date_end.getDate()).padStart(2, '0')} ${String(date_end.getHours()).padStart(2, '0')}:${String(date_end.getMinutes()).padStart(2, '0')}:${String(date_end.getSeconds()).padStart(2, '0')}`;
+    console.log('Dates utilisées:', { date_start_str, date_end_str });
 
     // Fonction pour parser les décimaux avec virgule
     function parseDecimal(value) {
@@ -1852,12 +1854,14 @@ export async function dashboard(period = 'day') {
       JOIN item i ON a.numero_item = i.numero_item
       WHERE c.date_comande >= ? AND c.date_comande <= ?
     `;
-    
     const stmtKpi = db.prepare(queryKpi);
     stmtKpi.bind([date_start_str, date_end_str]);
     let kpiData = { total_ca: 0, total_profit: 0, sales_count: 0 };
     if (stmtKpi.step()) {
       kpiData = stmtKpi.getAsObject();
+      console.log('KPI Data:', kpiData);
+    } else {
+      console.log('Aucun KPI trouvé');
     }
     stmtKpi.free();
 
@@ -1865,9 +1869,10 @@ export async function dashboard(period = 'day') {
     const stmtLowStock = db.prepare("SELECT COUNT(*) AS low_stock FROM item WHERE qte < 10");
     stmtLowStock.step();
     const lowStockData = stmtLowStock.getAsObject();
+    console.log('Low Stock Data:', lowStockData);
     stmtLowStock.free();
 
-    // 3. Meilleur client (AVEC LOG POUR DEBUG)
+    // 3. Meilleur client
     const queryTopClient = `
       SELECT 
         cl.nom,
@@ -1880,13 +1885,14 @@ export async function dashboard(period = 'day') {
       ORDER BY client_ca DESC
       LIMIT 1
     `;
-    
     const stmtTopClient = db.prepare(queryTopClient);
     stmtTopClient.bind([date_start_str, date_end_str]);
     let topClient = { nom: 'N/A', client_ca: 0 };
     if (stmtTopClient.step()) {
       topClient = stmtTopClient.getAsObject();
-      console.log('Top client trouvé:', topClient); // LOG DE DEBUG
+      console.log('Top client trouvé:', topClient);
+    } else {
+      console.log('Aucun top client trouvé pour la période:', { date_start_str, date_end_str });
     }
     stmtTopClient.free();
 
@@ -1901,13 +1907,13 @@ export async function dashboard(period = 'day') {
       GROUP BY DATE(c.date_comande)
       ORDER BY sale_date
     `;
-    
     const stmtChart = db.prepare(queryChart);
     stmtChart.bind([date_start_str, date_end_str]);
     const chartData = [];
     while (stmtChart.step()) {
       chartData.push(stmtChart.getAsObject());
     }
+    console.log('Chart Data:', chartData);
     stmtChart.free();
 
     // 5. Préparation des données du graphique
@@ -1916,15 +1922,14 @@ export async function dashboard(period = 'day') {
     const currentDate = new Date(date_start);
     
     while (currentDate <= date_end) {
-      const dateStr = currentDate.toISOString().split('T')[0];
+      const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
       chartLabels.push(dateStr);
-      
       const dailyCa = chartData.find(row => row.sale_date === dateStr);
       chartValues.push(dailyCa ? parseDecimal(dailyCa.daily_ca) : 0);
       currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    // 6. Retour des données avec gestion sécurisée des valeurs
+    // 6. Fonctions utilitaires pour sécuriser les valeurs
     const safeParseFloat = (value) => {
       const parsed = parseFloat(value || 0);
       return isNaN(parsed) ? 0.0 : parsed;
@@ -1935,14 +1940,14 @@ export async function dashboard(period = 'day') {
       return isNaN(parsed) ? 0 : parsed;
     };
 
-    // FORMAT COMPATIBLE AVEC LE HTML - TOUTES LES CLÉS EN MINUSCULES ✅
+    // 7. Retour des données avec gestion sécurisée
     return {
       total_ca: safeParseFloat(kpiData.total_ca),
       total_profit: safeParseFloat(kpiData.total_profit),
       sales_count: safeParseInt(kpiData.sales_count),
       low_stock_items: safeParseInt(lowStockData.low_stock),
       top_client: {
-        name: topClient.nom || 'N/A',
+        name: topClient.nom || 'N/A', // Utilisation de 'name' pour correspondre au frontend
         ca: safeParseFloat(topClient.client_ca)
       },
       chart_data: {
@@ -1952,8 +1957,8 @@ export async function dashboard(period = 'day') {
     };
 
   } catch (error) {
-    console.error("Erreur getDashboardData:", error);
-    return { 
+    console.error("Erreur dans getDashboardData:", error);
+    return {
       total_ca: 0,
       total_profit: 0,
       sales_count: 0,
