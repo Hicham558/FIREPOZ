@@ -1879,94 +1879,18 @@ export async function dashboard(period = 'day') {
     const lowStockData = stmtLowStock.getAsObject();
     stmtLowStock.free();
 
-    // 3. Meilleur client - DEBUG APPROFONDI
-    console.log("=== DEBUG MEILLEUR CLIENT ===");
+    // 3. Meilleur client - IDENTIQUE À LA REQUÊTE POSTGRESQL QUI FONCTIONNE
+    console.log("Recherche du meilleur client (requête identique à PostgreSQL)...");
     
-    // Test 1: Vérifier les commandes dans la période
-    const testQuery = `
-      SELECT 
-        c.numero_comande, 
-        c.numero_table,
-        c.date_comande
-      FROM comande c 
-      WHERE c.date_comande >= ? AND c.date_comande <= ?
-      LIMIT 5
-    `;
-    const stmtTest = db.prepare(testQuery);
-    stmtTest.bind([date_start_str, date_end_str]);
-    console.log("Échantillon de commandes dans la période:");
-    while (stmtTest.step()) {
-      console.log("Commande:", stmtTest.getAsObject());
-    }
-    stmtTest.free();
-
-    // Test 2: Vérifier la structure de la table client
-    const testClientQuery = `
-      SELECT numero_clt, nom 
-      FROM client 
-      LIMIT 5
-    `;
-    const stmtTestClient = db.prepare(testClientQuery);
-    console.log("Échantillon de clients:");
-    while (stmtTestClient.step()) {
-      console.log("Client:", stmtTestClient.getAsObject());
-    }
-    stmtTestClient.free();
-
-    // Test 3: Vérifier la jointure directement
-    const testJoinQuery = `
-      SELECT 
-        c.numero_table,
-        cl.numero_clt,
-        cl.nom,
-        COUNT(*) as nb_commandes
-      FROM comande c
-      LEFT JOIN client cl ON c.numero_table = cl.numero_clt
-      WHERE c.date_comande >= ? AND c.date_comande <= ?
-      GROUP BY c.numero_table, cl.numero_clt, cl.nom
-      LIMIT 10
-    `;
-    const stmtTestJoin = db.prepare(testJoinQuery);
-    stmtTestJoin.bind([date_start_str, date_end_str]);
-    console.log("Test de jointure commande-client:");
-    while (stmtTestJoin.step()) {
-      console.log("Jointure:", stmtTestJoin.getAsObject());
-    }
-    stmtTestJoin.free();
-
-    // Test 4: Vérifier s'il y a un problème de type de données
-    const testTypeQuery = `
-      SELECT 
-        c.numero_table,
-        typeof(c.numero_table) as type_numero_table,
-        cl.numero_clt,
-        typeof(cl.numero_clt) as type_numero_clt,
-        cl.nom
-      FROM comande c
-      LEFT JOIN client cl ON CAST(c.numero_table AS TEXT) = CAST(cl.numero_clt AS TEXT)
-      WHERE c.date_comande >= ? AND c.date_comande <= ?
-        AND cl.nom IS NOT NULL
-      LIMIT 5
-    `;
-    const stmtTestType = db.prepare(testTypeQuery);
-    stmtTestType.bind([date_start_str, date_end_str]);
-    console.log("Test avec conversion de types:");
-    while (stmtTestType.step()) {
-      console.log("Types:", stmtTestType.getAsObject());
-    }
-    stmtTestType.free();
-
-    // Requête principale pour le meilleur client avec conversion de types
+    // Requête EXACTEMENT identique à celle de PostgreSQL (mais NUMERIC -> REAL pour SQLite)
     const queryTopClient = `
       SELECT 
         cl.nom,
         COALESCE(SUM(CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL)), 0) AS client_ca
       FROM comande c
       JOIN attache a ON c.numero_comande = a.numero_comande
-      LEFT JOIN client cl ON CAST(c.numero_table AS TEXT) = CAST(cl.numero_clt AS TEXT)
+      LEFT JOIN client cl ON c.numero_table = cl.numero_clt
       WHERE c.date_comande >= ? AND c.date_comande <= ?
-        AND cl.nom IS NOT NULL
-        AND cl.nom != ''
       GROUP BY cl.nom
       ORDER BY client_ca DESC
       LIMIT 1
@@ -1978,36 +1902,32 @@ export async function dashboard(period = 'day') {
     
     if (stmtTopClient.step()) {
       topClient = stmtTopClient.getAsObject();
-      console.log('✅ Top client trouvé avec conversion de types:', topClient);
+      console.log('✅ Top client trouvé:', topClient);
     } else {
-      console.log('❌ Aucun client trouvé même avec conversion de types');
+      console.log('❌ Aucun client trouvé - debug rapide:');
       
-      // Essai avec une approche différente - sans filtre sur nom
-      const queryFallback = `
+      // Debug simple : vérifier s'il y a des données
+      const debugQuery = `
         SELECT 
-          COALESCE(cl.nom, 'Client #' || c.numero_table) as nom,
-          COALESCE(SUM(CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL)), 0) AS client_ca
+          c.numero_table,
+          cl.numero_clt,
+          cl.nom,
+          a.prixt
         FROM comande c
         JOIN attache a ON c.numero_comande = a.numero_comande
-        LEFT JOIN client cl ON CAST(c.numero_table AS TEXT) = CAST(cl.numero_clt AS TEXT)
+        LEFT JOIN client cl ON c.numero_table = cl.numero_clt
         WHERE c.date_comande >= ? AND c.date_comande <= ?
-        GROUP BY c.numero_table, cl.nom
-        ORDER BY client_ca DESC
-        LIMIT 1
+        LIMIT 3
       `;
       
-      const stmtFallback = db.prepare(queryFallback);
-      stmtFallback.bind([date_start_str, date_end_str]);
-      
-      if (stmtFallback.step()) {
-        topClient = stmtFallback.getAsObject();
-        console.log('✅ Client trouvé avec requête fallback:', topClient);
+      const stmtDebug = db.prepare(debugQuery);
+      stmtDebug.bind([date_start_str, date_end_str]);
+      while (stmtDebug.step()) {
+        console.log('Donnée trouvée:', stmtDebug.getAsObject());
       }
-      stmtFallback.free();
+      stmtDebug.free();
     }
     stmtTopClient.free();
-    
-    console.log("=== FIN DEBUG MEILLEUR CLIENT ===");
 
     // 4. Données pour le graphique
     const queryChart = `
