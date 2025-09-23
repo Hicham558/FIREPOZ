@@ -1650,7 +1650,6 @@ export async function modifierUtilisateur(numero_util, data) {
   }
 }
 
-export async function modifierItem(numero_item, data, debug = false) {
 export async function modifierItem(numero_item, data) {
   try {
     console.log("Exécution de modifierItem :", numero_item, data);
