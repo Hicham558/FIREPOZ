@@ -1875,7 +1875,7 @@ export async function dashboard(period = 'day') {
     // 3. Meilleur client
     const queryTopClient = `
       SELECT 
-        cl.nom,
+        COALESCE(cl.nom, 'N/A') AS nom,
         COALESCE(SUM(CAST(REPLACE(COALESCE(NULLIF(a.prixt, ''), '0'), ',', '.') AS REAL)), 0) AS client_ca
       FROM comande c
       JOIN attache a ON c.numero_comande = a.numero_comande
@@ -1893,6 +1893,17 @@ export async function dashboard(period = 'day') {
       console.log('Top client trouvé:', topClient);
     } else {
       console.log('Aucun top client trouvé pour la période:', { date_start_str, date_end_str });
+      // Vérification supplémentaire : tester si des commandes existent
+      const stmtCheckCommands = db.prepare(`
+        SELECT COUNT(*) AS command_count 
+        FROM comande c 
+        WHERE c.date_comande >= ? AND c.date_comande <= ?
+      `);
+      stmtCheckCommands.bind([date_start_str, date_end_str]);
+      stmtCheckCommands.step();
+      const commandData = stmtCheckCommands.getAsObject();
+      console.log('Nombre de commandes dans la période:', commandData.command_count);
+      stmtCheckCommands.free();
     }
     stmtTopClient.free();
 
@@ -1941,13 +1952,13 @@ export async function dashboard(period = 'day') {
     };
 
     // 7. Retour des données avec gestion sécurisée
-    return {
+    const response = {
       total_ca: safeParseFloat(kpiData.total_ca),
       total_profit: safeParseFloat(kpiData.total_profit),
       sales_count: safeParseInt(kpiData.sales_count),
       low_stock_items: safeParseInt(lowStockData.low_stock),
       top_client: {
-        name: topClient.nom || 'N/A', // Utilisation de 'name' pour correspondre au frontend
+        name: topClient.nom || 'N/A', // Assure que 'N/A' est utilisé si nom est null
         ca: safeParseFloat(topClient.client_ca)
       },
       chart_data: {
@@ -1955,6 +1966,8 @@ export async function dashboard(period = 'day') {
         values: chartValues.map(v => safeParseFloat(v))
       }
     };
+    console.log('Réponse finale:', response);
+    return response;
 
   } catch (error) {
     console.error("Erreur dans getDashboardData:", error);
