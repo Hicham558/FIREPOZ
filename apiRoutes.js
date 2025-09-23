@@ -1650,7 +1650,7 @@ export async function modifierUtilisateur(numero_util, data) {
   }
 }
 
-export async function modifierItem(numero_item, data) {
+export async function modifierItem(numero_item, data, debug = false) {
   try {
     console.log("Exécution de modifierItem :", numero_item, data);
     const db = await getDb();
@@ -1673,7 +1673,7 @@ export async function modifierItem(numero_item, data) {
 
     // Vérifier si le produit existe
     const stmtCheck = db.prepare('SELECT 1 FROM item WHERE numero_item = ?');
-    const exists = stmtCheck.get([numero_item]); // <-- param ici
+    const exists = stmtCheck.get([numero_item]);
     stmtCheck.free();
 
     if (!exists) {
@@ -1681,9 +1681,20 @@ export async function modifierItem(numero_item, data) {
       return { erreur: "Produit non trouvé", status: 404 };
     }
 
+    // Normaliser le code-barres
+    const barNorm = String(bar).trim();
+
+    if (debug) {
+      const debugStmt = db.prepare('SELECT numero_item, bar FROM item WHERE numero_item = ?');
+      const debugItem = debugStmt.get([numero_item]);
+      debugStmt.free();
+      console.log("Valeur réelle en base pour cet item :", debugItem);
+      console.log("Valeur transmise (normalisée) :", barNorm);
+    }
+
     // Vérifier si le code-barres est déjà utilisé par un autre produit
-    const stmtBar = db.prepare('SELECT 1 FROM item WHERE bar = ? AND numero_item != ?');
-    const barExists = stmtBar.get([bar, numero_item]); // <-- params ici
+    const stmtBar = db.prepare('SELECT 1 FROM item WHERE TRIM(bar) = ? AND numero_item != ?');
+    const barExists = stmtBar.get([barNorm, numero_item]);
     stmtBar.free();
 
     if (barExists) {
@@ -1699,7 +1710,7 @@ export async function modifierItem(numero_item, data) {
     `);
     stmt.run([
       designation,
-      bar,
+      barNorm,
       toCommaDecimal(prixFloat),
       qteFloat,
       prixbaStr,
@@ -1723,7 +1734,6 @@ export async function modifierItem(numero_item, data) {
     return { erreur: error.message, status: 500 };
   }
 }
-
 export async function supprimerClient(numero_clt) {
   try {
     console.log("Exécution de supprimerClient :", numero_clt);
