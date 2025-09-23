@@ -1980,7 +1980,7 @@ export async function dashboard(period = 'day') {
       sales_count: safeParseInt(kpiData.sales_count),
       low_stock_items: safeParseInt(lowStockData.low_stock),
       top_client: {
-        name: topClient.nom || 'N/A',
+        name: topClient.NOM || topClient.nom || 'N/A', // Essaie les deux versions
         ca: safeParseFloat(topClient.client_ca)
       },
       chart_data: {
