@@ -1656,6 +1656,7 @@ export async function modifierItem(numero_item, data) {
     const db = await getDb();
     const { designation, bar, prix, qte, prixba } = data;
 
+    // Vérification des champs obligatoires
     if (!designation || !bar || prix == null || qte == null) {
       console.error("Erreur : Champs obligatoires manquants (designation, bar, prix, qte)");
       return { erreur: "Champs obligatoires manquants (designation, bar, prix, qte)", status: 400 };
@@ -1670,30 +1671,42 @@ export async function modifierItem(numero_item, data) {
       return { erreur: "Le prix et la quantité doivent être positifs", status: 400 };
     }
 
+    // Vérifier si le produit existe
     const stmtCheck = db.prepare('SELECT 1 FROM item WHERE numero_item = ?');
-    stmtCheck.step([numero_item]);
-    const exists = stmtCheck.get();
+    const exists = stmtCheck.get([numero_item]); // <-- param ici
     stmtCheck.free();
+
     if (!exists) {
       console.error("Erreur : Produit non trouvé");
       return { erreur: "Produit non trouvé", status: 404 };
     }
 
+    // Vérifier si le code-barres est déjà utilisé par un autre produit
     const stmtBar = db.prepare('SELECT 1 FROM item WHERE bar = ? AND numero_item != ?');
-    stmtBar.step([bar, numero_item]);
-    const barExists = stmtBar.get();
+    const barExists = stmtBar.get([bar, numero_item]); // <-- params ici
     stmtBar.free();
+
     if (barExists) {
       console.error("Erreur : Ce code-barres est déjà utilisé par un autre produit");
       return { erreur: "Ce code-barres est déjà utilisé par un autre produit", status: 409 };
     }
 
+    // Mise à jour de l'item
     const stmt = db.prepare(`
       UPDATE item SET 
         designation = ?, bar = ?, prix = ?, qte = ?, prixba = ?, prixb = ?, prixvh = ? 
       WHERE numero_item = ?
     `);
-    stmt.run([designation, bar, toCommaDecimal(prixFloat), qteFloat, prixbaStr, prixbaStr, toCommaDecimal(prixFloat), numero_item]);
+    stmt.run([
+      designation,
+      bar,
+      toCommaDecimal(prixFloat),
+      qteFloat,
+      prixbaStr,
+      prixbaStr,
+      toCommaDecimal(prixFloat),
+      numero_item
+    ]);
     const changes = db.getRowsModified();
     stmt.free();
 
