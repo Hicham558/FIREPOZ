@@ -51,6 +51,10 @@
         <button onclick="createNewDatabase()" class="w-full bg-indigo-600 text-white px-4 py-3 rounded-md hover:bg-indigo-700 transition">
           <i class="fas fa-plus-circle mr-2"></i>Nouvelle Base (vierge)
         </button>
+        <!-- Mettre à jour depuis serveur -->
+        <button onclick="updateFromServer()" class="w-full bg-yellow-600 text-white px-4 py-3 rounded-md hover:bg-yellow-700 transition">
+          <i class="fas fa-cloud-download-alt mr-2"></i>Mettre à jour depuis serveur
+        </button>
       </div>
       <div class="mt-4 text-sm text-gray-600">
         <p><i class="fas fa-info-circle mr-2"></i>La base de production est stockée dans le navigateur</p>
@@ -76,6 +80,9 @@
   </div>
 
   <script>
+    const API_BASE_URL = "http://localhost:5000"; // change si besoin
+    const userId = 1; // à adapter selon ton app
+
     // ===== Utils =====
     function showToast(message, isError = false) {
       const toast = document.getElementById('toast');
@@ -97,18 +104,10 @@
     function isDbFile(name) { return /\.(db|sqlite|sqlite3)$/i.test(name); }
     function goHome() { window.location.href = "index.html"; }
 
-    function getDbList() {
-      return JSON.parse(localStorage.getItem("gestion_db_list") || "[]");
-    }
-    function saveDbList(list) {
-      localStorage.setItem("gestion_db_list", JSON.stringify(list));
-    }
-    function getActiveIndex() {
-      return parseInt(localStorage.getItem("gestion_db_active") || "-1");
-    }
-    function setActiveIndex(idx) {
-      localStorage.setItem("gestion_db_active", idx);
-    }
+    function getDbList() { return JSON.parse(localStorage.getItem("gestion_db_list") || "[]"); }
+    function saveDbList(list) { localStorage.setItem("gestion_db_list", JSON.stringify(list)); }
+    function getActiveIndex() { return parseInt(localStorage.getItem("gestion_db_active") || "-1"); }
+    function setActiveIndex(idx) { localStorage.setItem("gestion_db_active", idx); }
 
     // ===== Télécharger =====
     async function downloadDatabase() {
@@ -174,6 +173,28 @@
       saveDbList(list);
       showToast("Nouvelle base vierge ajoutée");
       renderDbList();
+    }
+
+    // ===== Mettre à jour depuis serveur =====
+    async function updateFromServer() {
+      try {
+        const url = `${API_BASE_URL}/export`;
+        console.log("Appel GET", url);
+        const response = await fetch(url, {
+          headers: { "X-User-ID": userId }
+        });
+        if (!response.ok) throw new Error(`Erreur ${response.status}`);
+        const data = await response.json();
+        if (!data.gestion_db) return showToast("Réponse invalide du serveur", true);
+
+        // Écraser la base actuelle
+        localStorage.setItem("gestion_db", data.gestion_db);
+        showToast("Base mise à jour depuis serveur");
+        updateDBSize();
+      } catch (err) {
+        console.error(err);
+        showToast("Erreur lors de la mise à jour", true);
+      }
     }
 
     // ===== Sauvegarder la base courante avant switch =====
