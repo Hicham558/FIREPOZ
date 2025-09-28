@@ -1,4 +1,3 @@
-// db.js
 let db = null;
 const DB_NAME = "gestion_db"; // clé standardisée
 const STORE_NAME = "sqlite_db";
@@ -123,6 +122,9 @@ export async function saveDbToStorage(database) {
     console.error("❌ Erreur sauvegarde DB:", error);
   }
 }
+
+// ⚡ Compatibilité : alias pour les anciens imports
+export const saveDbToLocalStorage = saveDbToStorage;
 
 // Reset complet
 export async function resetDatabase() {
