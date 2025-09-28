@@ -178,23 +178,41 @@
     // ===== Mettre à jour depuis serveur =====
   
 
+
 async function updateFromServer() {
   try {
-    if (API_BASE_URL === "/api") {
-      showToast("⚡ Mode local actif, pas besoin d’export.");
-      return;
-    }
-
+    // Appel serveur
     const response = await fetch(`${API_BASE_URL}/export`);
     if (!response.ok) throw new Error("Erreur HTTP " + response.status);
 
     const data = await response.json();
-    localStorage.setItem("gestion_db", data.db);
 
-    showToast("✅ Base SQLite mise à jour avec succès !");
+    // Ajouter la nouvelle base dans la liste
+    const base64Db = data.db;
+    let list = getDbList();
+    const newDb = {
+      id: Date.now(),
+      name: `BaseServeur_${list.length + 1}`,
+      data: base64Db
+    };
+    list.push(newDb);
+    saveDbList(list);
+
+    // Sélectionner directement cette nouvelle base comme active
+    const newIndex = list.length - 1;
+    localStorage.setItem("gestion_db", base64Db);
+    setActiveIndex(newIndex);
+
+    // ⚡ Passer en mode local
+    localStorage.setItem("apiBaseUrl", "/api");
+
+    // UI
+    renderDbList();
+    updateDBSize();
+    showToast("✅ Base mise à jour et sélectionnée. Mode local activé !");
   } catch (err) {
     console.error(err);
-    showToast("❌ Erreur : " + err.message, false);
+    showToast("❌ Erreur : " + err.message, true);
   }
 }
 
