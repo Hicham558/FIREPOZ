@@ -1,4 +1,6 @@
-<!DOCTYPE html>
+function isDbFile(name) { 
+      return /\.(db|sqlite|sqlite3)$/i.test(name); 
+    }<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
@@ -386,29 +388,77 @@
       }
     }
 
-    function isDbFile(name) { 
-      return /\.(db|sqlite|sqlite3)$/i.test(name); 
-    }
-
     function goHome() { 
       window.location.href = "index.html"; 
     }
 
-    function getDbList() { 
-      const list = localStorage.getItem("gestion_db_list");
-      return list ? JSON.parse(list) : [];
+    // Utiliser les fonctions sécurisées de db.js si disponibles
+    function getDbList() {
+      try {
+        // Essayer d'abord le cache
+        if (window.localStorage._cache && window.localStorage._cache["gestion_db_list"]) {
+          return JSON.parse(window.localStorage._cache["gestion_db_list"]);
+        }
+        
+        // Fallback API native
+        const list = Object.getPrototypeOf(window.localStorage).getItem.call(window.localStorage, "gestion_db_list");
+        return list ? JSON.parse(list) : [];
+      } catch (e) {
+        console.warn("Erreur lecture liste bases:", e);
+        return [];
+      }
     }
 
-    function saveDbList(list) { 
-      localStorage.setItem("gestion_db_list", JSON.stringify(list)); 
+    function saveDbList(list) {
+      try {
+        const listJson = JSON.stringify(list);
+        
+        // Sauvegarder dans le cache
+        if (window.localStorage._cache) {
+          window.localStorage._cache["gestion_db_list"] = listJson;
+        }
+        
+        // Sauvegarder avec l'API native pour éviter les déclencheurs
+        Object.getPrototypeOf(window.localStorage).setItem.call(window.localStorage, "gestion_db_list", listJson);
+      } catch (e) {
+        console.warn("Erreur sauvegarde liste bases:", e);
+        // Fallback dangereux en dernier recours
+        localStorage.setItem("gestion_db_list", listJson);
+      }
     }
 
-    function getActiveIndex() { 
-      return parseInt(localStorage.getItem("gestion_db_active") || "-1"); 
+    function getActiveIndex() {
+      try {
+        // Essayer d'abord le cache
+        if (window.localStorage._cache && window.localStorage._cache["gestion_db_active"]) {
+          return parseInt(window.localStorage._cache["gestion_db_active"]);
+        }
+        
+        // Fallback API native
+        const index = Object.getPrototypeOf(window.localStorage).getItem.call(window.localStorage, "gestion_db_active");
+        return parseInt(index || "-1");
+      } catch (e) {
+        console.warn("Erreur lecture index actif:", e);
+        return -1;
+      }
     }
 
-    function setActiveIndex(idx) { 
-      localStorage.setItem("gestion_db_active", idx.toString()); 
+    function setActiveIndex(idx) {
+      try {
+        const indexStr = idx.toString();
+        
+        // Sauvegarder dans le cache
+        if (window.localStorage._cache) {
+          window.localStorage._cache["gestion_db_active"] = indexStr;
+        }
+        
+        // Sauvegarder avec l'API native
+        Object.getPrototypeOf(window.localStorage).setItem.call(window.localStorage, "gestion_db_active", indexStr);
+      } catch (e) {
+        console.warn("Erreur sauvegarde index actif:", e);
+        // Fallback dangereux
+        localStorage.setItem("gestion_db_active", indexStr);
+      }
     }
 
     function getActiveDatabaseName() {
@@ -472,7 +522,17 @@
         }
         
         const base64 = btoa(binary);
-        localStorage.setItem("gestion_db", base64);
+        
+        // Utiliser une méthode directe pour éviter la récursion
+        if (window.localStorage._cache) {
+          window.localStorage._cache["gestion_db"] = base64;
+        }
+        try {
+          Object.getPrototypeOf(window.localStorage).setItem.call(window.localStorage, "gestion_db", base64);
+        } catch (e) {
+          console.warn("Fallback localStorage dans resetDatabase:", e);
+          localStorage.setItem("gestion_db", base64);
+        }
         
         showToast("Base de production réinitialisée");
         updateStats();
@@ -519,9 +579,17 @@
           list.push(newDb);
           saveDbList(list);
           
-          // Définir comme base active
+          // Définir comme base active avec méthode sécurisée
           const newIndex = list.length - 1;
-          localStorage.setItem("gestion_db", base64);
+          if (window.localStorage._cache) {
+            window.localStorage._cache["gestion_db"] = base64;
+          }
+          try {
+            Object.getPrototypeOf(window.localStorage).setItem.call(window.localStorage, "gestion_db", base64);
+          } catch (e) {
+            console.warn("Fallback localStorage dans uploadDatabase:", e);
+            localStorage.setItem("gestion_db", base64);
+          }
           setActiveIndex(newIndex);
           
           showToast(`Base "${newDb.name}" importée et activée`);
@@ -612,9 +680,17 @@
         list.push(newDb);
         saveDbList(list);
         
-        // Activer cette base
+        // Activer cette base avec méthode sécurisée
         const newIndex = list.length - 1;
-        localStorage.setItem("gestion_db", base64Db);
+        if (window.localStorage._cache) {
+          window.localStorage._cache["gestion_db"] = base64Db;
+        }
+        try {
+          Object.getPrototypeOf(window.localStorage).setItem.call(window.localStorage, "gestion_db", base64Db);
+        } catch (e) {
+          console.warn("Fallback localStorage dans updateFromServer:", e);
+          localStorage.setItem("gestion_db", base64Db);
+        }
         setActiveIndex(newIndex);
         
         // Passer en mode local
@@ -685,7 +761,17 @@
       let list = getDbList();
       
       if (list[idx]) {
-        localStorage.setItem("gestion_db", list[idx].data);
+        // Changer la base active avec méthode sécurisée
+        if (window.localStorage._cache) {
+          window.localStorage._cache["gestion_db"] = list[idx].data;
+        }
+        try {
+          Object.getPrototypeOf(window.localStorage).setItem.call(window.localStorage, "gestion_db", list[idx].data);
+        } catch (e) {
+          console.warn("Fallback localStorage dans selectDatabase:", e);
+          localStorage.setItem("gestion_db", list[idx].data);
+        }
+        
         setActiveIndex(idx);
         showToast(`"${list[idx].name}" est maintenant la base active`);
         updateStats();
