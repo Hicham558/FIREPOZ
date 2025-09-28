@@ -189,4 +189,75 @@
         updateDBSize();
         showToast("Base mise à jour depuis serveur !");
       } catch (err) {
-       
+        console.error(err);
+        showToast("Erreur : " + err.message, true);
+      }
+    }
+
+    // ===== Sélection base =====
+    function selectDatabase(idx) {
+      setActiveIndex(idx);
+      showToast(`Base sélectionnée`);
+      updateDBSize();
+      renderDbList();
+    }
+
+    // ===== Renommer =====
+    function renameDatabase(idx) {
+      const list = getDbList();
+      const newName = prompt("Nouveau nom:", list[idx].name);
+      if (!newName) return;
+      list[idx].name = newName;
+      saveDbList(list);
+      renderDbList();
+    }
+
+    // ===== Supprimer =====
+    function deleteDatabase(idx) {
+      if (!confirm("Supprimer cette base sauvegardée ?")) return;
+      const list = getDbList();
+      list.splice(idx,1);
+      saveDbList(list);
+      if (idx === getActiveIndex()) setActiveIndex(-1);
+      renderDbList();
+      showToast("Base supprimée");
+      updateDBSize();
+    }
+
+    // ===== Affichage =====
+    function renderDbList() {
+      const list = getDbList();
+      const active = getActiveIndex();
+      const ul = document.getElementById("dbList");
+      ul.innerHTML = "";
+      list.forEach((db, idx) => {
+        const li = document.createElement("li");
+        li.className="flex items-center justify-between border rounded p-3";
+        li.innerHTML = `
+          <div class="flex items-center space-x-3">
+            <input type="radio" name="activeDb" ${idx===active?"checked":""} onchange="selectDatabase(${idx})">
+            <span class="font-medium">${db.name}</span>
+          </div>
+          <div class="space-x-2">
+            <button onclick="renameDatabase(${idx})" class="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600"><i class="fas fa-edit"></i></button>
+            <button onclick="deleteDatabase(${idx})" class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"><i class="fas fa-trash"></i></button>
+          </div>
+        `;
+        ul.appendChild(li);
+      });
+    }
+
+    // ===== Taille =====
+    async function updateDBSize() {
+      const size = await getDbSize();
+      const sizeMB = (size / 1024 / 1024).toFixed(2);
+      document.getElementById("dbSize").textContent = `Taille: ${sizeMB} MB`;
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      renderDbList();
+      updateDBSize();
+    });
+  </script>
+</body>
+</html>
