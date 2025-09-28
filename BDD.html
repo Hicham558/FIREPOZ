@@ -61,24 +61,25 @@
         });
       }
 
-      // Patch global localStorage (compatibilité)
-      window.localStorage = {
-        getItem: (k) => { return window._getSync(k); },
-        setItem: (k,v) => { window._setSync(k,v); },
-        removeItem: (k) => { idbRemove(k); },
+      // --- Fake localStorage ---
+      const fakeLocalStorage = {
         _cache: {},
+        getItem: (k) => fakeLocalStorage._cache[k] || null,
+        setItem: (k,v) => { fakeLocalStorage._cache[k] = v; idbSet(k,v); },
+        removeItem: (k) => { idbRemove(k); delete fakeLocalStorage._cache[k]; },
         async _init() {
           const keys = ["gestion_db","gestion_db_list","gestion_db_active","apiBaseUrl"];
           for (let k of keys) {
             let val = await idbGet(k);
-            if (val !== null) window.localStorage._cache[k] = val;
+            if (val !== null) fakeLocalStorage._cache[k] = val;
           }
-        },
-        _getSync(k){ return window.localStorage._cache[k] || null; },
-        _setSync(k,v){ window.localStorage._cache[k] = v; idbSet(k,v); }
+        }
       };
 
-      // Charger les données dans le cache
+      // Remplace localStorage natif
+      window.localStorage = fakeLocalStorage;
+
+      // Charger données dans le cache
       window.localStorage._init();
     })();
   </script>
@@ -95,241 +96,102 @@
     </div>
   </nav>
 
-  <div class="container mx-auto px-4 py-8">
-    <!-- Gestion Base de Données -->
-    <div class="bg-white rounded-lg shadow-md p-6 mb-8">
-      <h2 class="text-xl font-semibold mb-4">
-        <i class="fas fa-database mr-2 text-indigo-500"></i>Outils Base de Données
-      </h2>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <button onclick="downloadDatabase()" class="w-full bg-green-600 text-white px-4 py-3 rounded-md hover:bg-green-700 transition">
-          <i class="fas fa-file-download mr-2"></i>Télécharger gestion.db
-        </button>
-        <button onclick="resetDatabase()" class="w-full bg-red-600 text-white px-4 py-3 rounded-md hover:bg-red-700 transition">
-          <i class="fas fa-trash mr-2"></i>Réinitialiser la Base
-        </button>
-        <label class="w-full bg-blue-600 text-white px-4 py-3 rounded-md hover:bg-blue-700 transition text-center cursor-pointer">
-          <i class="fas fa-upload mr-2"></i>Charger depuis fichier
-          <input type="file" id="uploadDb" accept=".db,.sqlite,.sqlite3" class="hidden" onchange="uploadDatabase(event)">
-        </label>
-        <button onclick="createNewDatabase()" class="w-full bg-indigo-600 text-white px-4 py-3 rounded-md hover:bg-indigo-700 transition">
-          <i class="fas fa-plus-circle mr-2"></i>Nouvelle Base (vierge)
-        </button>
-        <button onclick="updateFromServer()" class="w-full bg-yellow-600 text-white px-4 py-3 rounded-md hover:bg-yellow-700 transition">
-          <i class="fas fa-cloud-download-alt mr-2"></i>Mettre à jour depuis serveur
-        </button>
+  <!-- Contenu principal -->
+  <main class="container mx-auto p-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      
+      <!-- Actions -->
+      <div class="bg-white p-6 rounded-xl shadow-md">
+        <h2 class="text-xl font-bold mb-4"><i class="fas fa-cogs mr-2"></i>Actions rapides</h2>
+        <div class="space-y-3">
+          <button onclick="downloadDatabase()" class="w-full bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600">
+            <i class="fas fa-download mr-2"></i>Télécharger la base
+          </button>
+          <button onclick="resetDatabase()" class="w-full bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600">
+            <i class="fas fa-trash-alt mr-2"></i>Réinitialiser la base
+          </button>
+          <button onclick="updateFromServer()" class="w-full bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
+            <i class="fas fa-sync-alt mr-2"></i>Mettre à jour depuis le serveur
+          </button>
+        </div>
       </div>
-      <div class="mt-4 text-sm text-gray-600">
-        <p><i class="fas fa-info-circle mr-2"></i>La base de production est stockée dans le navigateur</p>
-        <p id="dbSize" class="mt-2">Taille: Calcul en cours...</p>
-      </div>
-    </div>
 
-    <!-- Liste des bases sauvegardées -->
-    <div class="bg-white rounded-lg shadow-md p-6">
-      <h2 class="text-xl font-semibold mb-4">
-        <i class="fas fa-archive mr-2 text-indigo-500"></i>Bases Sauvegardées
-      </h2>
-      <ul id="dbList" class="space-y-3"></ul>
+      <!-- Infos DB -->
+      <div class="bg-white p-6 rounded-xl shadow-md">
+        <h2 class="text-xl font-bold mb-4"><i class="fas fa-info-circle mr-2"></i>Informations</h2>
+        <ul class="space-y-2">
+          <li><strong>Taille stockée :</strong> <span id="db-size">0</span> octets</li>
+          <li><strong>Base active :</strong> <span id="db-active">gestion.db</span></li>
+        </ul>
+      </div>
+
     </div>
-  </div>
+  </main>
 
   <!-- Toast -->
-  <div id="toast" class="fixed bottom-4 right-4 hidden">
-    <div class="flex items-center px-6 py-3 rounded-md shadow-lg">
-      <i id="toastIcon" class="mr-2"></i>
-      <span id="toastMessage"></span>
-    </div>
-  </div>
+  <div id="toast-container" class="fixed bottom-4 right-4 space-y-2"></div>
 
   <script>
-    const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'https://hicham03041979.onrender.com';
-
-    function showToast(message, isError = false) {
-      const toast = document.getElementById('toast');
-      const toastMessage = document.getElementById('toastMessage');
-      const toastIcon = document.getElementById('toastIcon');
-      toast.className = isError
-        ? 'fixed bottom-4 right-4 flex items-center bg-red-500 text-white px-6 py-3 rounded-md shadow-lg toast-in'
-        : 'fixed bottom-4 right-4 flex items-center bg-green-500 text-white px-6 py-3 rounded-md shadow-lg toast-in';
-      toastIcon.className = isError ? 'fas fa-exclamation-circle mr-2' : 'fas fa-check-circle mr-2';
-      toastMessage.textContent = message;
-      toast.classList.remove('hidden');
-      setTimeout(() => {
-        toast.classList.remove('toast-in');
-        toast.classList.add('toast-out');
-        setTimeout(() => toast.classList.add('hidden'), 500);
-      }, 3000);
+    function goHome() {
+      window.location.href = "index.html";
     }
 
-    function isDbFile(name) { return /\.(db|sqlite|sqlite3)$/i.test(name); }
-    function goHome() { window.location.href = "index.html"; }
-    function getDbList() { return JSON.parse(localStorage.getItem("gestion_db_list") || "[]"); }
-    function saveDbList(list) { localStorage.setItem("gestion_db_list", JSON.stringify(list)); }
-    function getActiveIndex() { return parseInt(localStorage.getItem("gestion_db_active") || "-1"); }
-    function setActiveIndex(idx) { localStorage.setItem("gestion_db_active", idx); }
+    function showToast(message, type="info") {
+      const container = document.getElementById("toast-container");
+      const colors = { info: "bg-blue-500", success: "bg-green-500", error: "bg-red-500" };
+      const toast = document.createElement("div");
+      toast.className = `${colors[type]} text-white px-4 py-2 rounded shadow toast-in`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => { toast.classList.replace("toast-in","toast-out"); setTimeout(()=>toast.remove(),500); }, 3000);
+    }
+
+    function updateInfos() {
+      const savedDb = localStorage.getItem("gestion_db");
+      document.getElementById("db-size").textContent = savedDb ? savedDb.length : 0;
+      document.getElementById("db-active").textContent = "gestion.db";
+    }
 
     async function downloadDatabase() {
-      const dbData = localStorage.getItem('gestion_db');
-      if (!dbData) return showToast("Aucune base trouvée", true);
-      const binaryString = atob(dbData);
+      const savedDb = localStorage.getItem("gestion_db");
+      if (!savedDb) { showToast("Aucune base trouvée","error"); return; }
+      const binaryString = atob(savedDb);
       const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
-      const blob = new Blob([bytes], { type: 'application/octet-stream' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
+      for (let i=0; i<binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+      const blob = new Blob([bytes], {type:"application/x-sqlite3"});
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
       a.download = "gestion.db";
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      showToast("Base téléchargée");
+      a.click();
+      showToast("Base téléchargée","success");
     }
 
-    async function resetDatabase() {
-      if (!confirm("Réinitialiser la base de production ?")) return;
-      const response = await fetch("gestion.db");
-      const buffer = await response.arrayBuffer();
-      const bytes = new Uint8Array(buffer);
-      let binary = "";
-      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-      localStorage.setItem("gestion_db", btoa(binary));
-      showToast("Base de production réinitialisée");
-      updateDBSize();
-    }
-
-    function uploadDatabase(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-      if (!isDbFile(file.name)) { showToast("Format non valide", true); return; }
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const bytes = new Uint8Array(e.target.result);
-        let binary = ""; for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-        const base64 = btoa(binary);
-        localStorage.setItem("gestion_db", base64);
-        let list = getDbList();
-        list.push({id: Date.now(), name:file.name, data:base64});
-        saveDbList(list);
-        setActiveIndex(list.length - 1);
-        showToast("Nouvelle base importée");
-        renderDbList();
-        updateDBSize();
-      };
-      reader.readAsArrayBuffer(file);
-    }
-
-    async function createNewDatabase() {
-      const response = await fetch("gestion.db");
-      const buffer = await response.arrayBuffer();
-      const bytes = new Uint8Array(buffer);
-      let binary = ""; for (let i=0;i<bytes.length;i++) binary += String.fromCharCode(bytes[i]);
-      const base64 = btoa(binary);
-      let list = getDbList();
-      list.push({id: Date.now(), name:`NouvelleBase_${list.length+1}`, data:base64});
-      saveDbList(list);
-      showToast("Nouvelle base vierge ajoutée");
-      renderDbList();
+    function resetDatabase() {
+      localStorage.removeItem("gestion_db");
+      showToast("Base réinitialisée","success");
+      updateInfos();
     }
 
     async function updateFromServer() {
       try {
-        const response = await fetch(`${API_BASE_URL}/export`);
-        if (!response.ok) throw new Error("Erreur HTTP " + response.status);
-        const data = await response.json();
-        const base64Db = data.db;
-        let list = getDbList();
-        const newDb = {
-          id: Date.now(),
-          name: `BaseServeur_${list.length + 1}`,
-          data: base64Db
-        };
-        list.push(newDb);
-        saveDbList(list);
-        const newIndex = list.length - 1;
-        localStorage.setItem("gestion_db", base64Db);
-        setActiveIndex(newIndex);
-        localStorage.setItem("apiBaseUrl", "/api");
-        renderDbList();
-        updateDBSize();
-        showToast("✅ Base mise à jour et sélectionnée. Mode local activé !");
-      } catch (err) {
-        console.error(err);
-        showToast("❌ Erreur : " + err.message, true);
+        const response = await fetch("./gestion.db");
+        if (!response.ok) throw new Error("Serveur inaccessible");
+        const arrayBuffer = await response.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+        const binaryString = String.fromCharCode(...bytes);
+        const base64String = btoa(binaryString);
+        localStorage.setItem("gestion_db", base64String);
+        showToast("Base mise à jour depuis le serveur","success");
+        updateInfos();
+      } catch (e) {
+        console.error(e);
+        showToast("Erreur mise à jour","error");
       }
     }
 
-    function saveCurrentBeforeSwitch() {
-      const idx = getActiveIndex();
-      if (idx >= 0) {
-        let list = getDbList();
-        if (list[idx]) {
-          list[idx].data = localStorage.getItem("gestion_db") || "";
-          saveDbList(list);
-        }
-      }
-    }
-
-    function selectDatabase(idx) {
-      saveCurrentBeforeSwitch();
-      let list = getDbList();
-      if (list[idx]) {
-        localStorage.setItem("gestion_db", list[idx].data);
-        setActiveIndex(idx);
-        showToast(`"${list[idx].name}" est maintenant la base de production`);
-        updateDBSize();
-        renderDbList();
-      }
-    }
-
-    function renameDatabase(idx) {
-      let list = getDbList();
-      const newName = prompt("Nouveau nom:", list[idx].name);
-      if (newName) { list[idx].name = newName; saveDbList(list); renderDbList(); }
-    }
-
-    function deleteDatabase(idx) {
-      if (!confirm("Supprimer cette base sauvegardée ?")) return;
-      let list = getDbList();
-      list.splice(idx,1);
-      saveDbList(list);
-      if (idx === getActiveIndex()) { localStorage.removeItem("gestion_db"); setActiveIndex(-1); }
-      renderDbList();
-    }
-
-    function renderDbList() {
-      const list = getDbList();
-      const active = getActiveIndex();
-      const ul = document.getElementById("dbList");
-      ul.innerHTML = "";
-      list.forEach((db, idx) => {
-        const li = document.createElement("li");
-        li.className="flex items-center justify-between border rounded p-3";
-        li.innerHTML = `
-          <div class="flex items-center space-x-3">
-            <input type="radio" name="activeDb" ${idx===active?"checked":""} onchange="selectDatabase(${idx})">
-            <span class="font-medium">${db.name}</span>
-          </div>
-          <div class="space-x-2">
-            <button onclick="renameDatabase(${idx})" class="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600"><i class="fas fa-edit"></i></button>
-            <button onclick="deleteDatabase(${idx})" class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"><i class="fas fa-trash"></i></button>
-          </div>
-        `;
-        ul.appendChild(li);
-      });
-    }
-
-    function updateDBSize() {
-      const dbData = localStorage.getItem('gestion_db');
-      if (dbData) {
-        const sizeMB = (dbData.length/1024/1024).toFixed(2);
-        document.getElementById("dbSize").textContent = `Taille: ${sizeMB} MB`;
-      } else document.getElementById("dbSize").textContent = "Taille: 0 MB";
-    }
-
-    document.addEventListener("DOMContentLoaded", () => {
-      updateDBSize();
-      renderDbList();
-    });
+    // Init infos
+    updateInfos();
   </script>
+
 </body>
 </html>
