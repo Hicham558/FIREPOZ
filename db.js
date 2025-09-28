@@ -123,8 +123,8 @@ export async function saveDbToStorage(database) {
   }
 }
 
-// ⚡ Compatibilité : alias pour les anciens imports
-export const saveDbToLocalStorage = saveDbToStorage;
+// ✅ Alias pour compatibilité avec l'ancien code
+export { saveDbToStorage as saveDbToLocalStorage };
 
 // Reset complet
 export async function resetDatabase() {
