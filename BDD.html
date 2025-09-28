@@ -1,6 +1,4 @@
-function isDbFile(name) { 
-      return /\.(db|sqlite|sqlite3)$/i.test(name); 
-    }<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
@@ -9,6 +7,7 @@ function isDbFile(name) {
   <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script type="module" src="db.js"></script>
   <style>
     .toast-in { animation: toastIn 0.5s both; }
     .toast-out { animation: toastOut 0.5s both; }
@@ -16,52 +15,42 @@ function isDbFile(name) {
     @keyframes toastOut { from { opacity:1; transform:translateY(0);} to { opacity:0; transform:translateY(40px);} }
     .loading { display: none; }
     .loading.show { display: block; }
+    .modal { display: none; }
+    .modal.show { display: flex; }
   </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
-
-  <!-- ⚡ Patch localStorage avec IndexedDB - Version Simplifiée -->
+  <!-- LocalStorage Patch -->
   <script>
     (function(){
       const DB_NAME = "FirePozDB";
       const STORE_NAME = "keyvalue";
-      
       let dbPromise = null;
       let isInitializing = false;
-      
-      // Initialiser IndexedDB de façon sécurisée
+
       function initDB() {
         if (dbPromise || isInitializing) return dbPromise;
-        
         isInitializing = true;
         dbPromise = new Promise((resolve, reject) => {
           try {
             const req = indexedDB.open(DB_NAME, 1);
-            
-            req.onupgradeneeded = e => {
-              try {
-                const db = e.target.result;
-                if (!db.objectStoreNames.contains(STORE_NAME)) {
-                  db.createObjectStore(STORE_NAME);
-                }
-              } catch (err) {
-                console.warn("Erreur upgrade IndexedDB:", err);
+            req.onupgradeneeded = (e) => {
+              const db = e.target.result;
+              if (!db.objectStoreNames.contains(STORE_NAME)) {
+                db.createObjectStore(STORE_NAME);
               }
             };
-            
-            req.onsuccess = e => {
+            req.onsuccess = (e) => {
               isInitializing = false;
               resolve(e.target.result);
             };
-            
-            req.onerror = e => {
+            req.onerror = (e) => {
               isInitializing = false;
-              console.warn("IndexedDB indisponible:", e);
-              resolve(null); // Résoudre avec null au lieu de rejeter
+              console.warn("⚠️ IndexedDB indisponible:", e.target.error.message);
+              resolve(null);
             };
-            
-            req.onblocked = e => {
-              console.warn("IndexedDB bloqué:", e);
+            req.onblocked = (e) => {
+              console.warn("⚠️ IndexedDB bloqué:", e);
               setTimeout(() => {
                 isInitializing = false;
                 resolve(null);
@@ -69,11 +58,10 @@ function isDbFile(name) {
             };
           } catch (err) {
             isInitializing = false;
-            console.warn("Erreur init IndexedDB:", err);
+            console.warn("⚠️ Erreur init IndexedDB:", err.message);
             resolve(null);
           }
         });
-        
         return dbPromise;
       }
 
@@ -81,20 +69,12 @@ function isDbFile(name) {
         try {
           const db = await initDB();
           if (!db) return null;
-          
           return new Promise((resolve) => {
-            try {
-              const tx = db.transaction(STORE_NAME, "readonly");
-              const store = tx.objectStore(STORE_NAME);
-              const req = store.get(key);
-              
-              req.onsuccess = () => resolve(req.result || null);
-              req.onerror = () => resolve(null);
-              
-              tx.onerror = () => resolve(null);
-            } catch (e) {
-              resolve(null);
-            }
+            const tx = db.transaction(STORE_NAME, "readonly");
+            const store = tx.objectStore(STORE_NAME);
+            const req = store.get(key);
+            req.onsuccess = () => resolve(req.result || null);
+            req.onerror = () => resolve(null);
           });
         } catch (e) {
           return null;
@@ -105,18 +85,12 @@ function isDbFile(name) {
         try {
           const db = await initDB();
           if (!db) return false;
-          
           return new Promise((resolve) => {
-            try {
-              const tx = db.transaction(STORE_NAME, "readwrite");
-              const store = tx.objectStore(STORE_NAME);
-              store.put(value, key);
-              
-              tx.oncomplete = () => resolve(true);
-              tx.onerror = () => resolve(false);
-            } catch (e) {
-              resolve(false);
-            }
+            const tx = db.transaction(STORE_NAME, "readwrite");
+            const store = tx.objectStore(STORE_NAME);
+            store.put(value, key);
+            tx.oncomplete = () => resolve(true);
+            tx.onerror = () => resolve(false);
           });
         } catch (e) {
           return false;
@@ -127,68 +101,46 @@ function isDbFile(name) {
         try {
           const db = await initDB();
           if (!db) return false;
-          
           return new Promise((resolve) => {
-            try {
-              const tx = db.transaction(STORE_NAME, "readwrite");
-              const store = tx.objectStore(STORE_NAME);
-              store.delete(key);
-              
-              tx.oncomplete = () => resolve(true);
-              tx.onerror = () => resolve(false);
-            } catch (e) {
-              resolve(false);
-            }
+            const tx = db.transaction(STORE_NAME, "readwrite");
+            const store = tx.objectStore(STORE_NAME);
+            store.delete(key);
+            tx.oncomplete = () => resolve(true);
+            tx.onerror = () => resolve(false);
           });
         } catch (e) {
           return false;
         }
       }
 
-      // Sauvegarder référence originale
       const originalLocalStorage = window.localStorage;
-
-      // Patch global localStorage
       window.localStorage = {
         _cache: {},
         _initialized: false,
 
         async _init() {
           if (this._initialized) return;
-          
           console.log("🔄 Chargement cache localStorage...");
-          
           const keys = ["gestion_db", "gestion_db_list", "gestion_db_active", "apiBaseUrl"];
-          
           for (let key of keys) {
-            try {
-              // Essayer IndexedDB d'abord
-              let value = await idbGet(key);
-              
-              if (value === null) {
-                // Fallback vers localStorage natif
-                try {
-                  value = originalLocalStorage.getItem(key);
-                  if (value) {
-                    // Migrer vers IndexedDB
-                    await idbSet(key, value);
-                    console.log(`📦 Migré ${key} vers IndexedDB`);
-                  }
-                } catch (e) {
-                  console.warn(`Erreur lecture localStorage natif pour ${key}:`, e);
+            let value = await idbGet(key);
+            if (value === null) {
+              try {
+                value = originalLocalStorage.getItem(key);
+                if (value) {
+                  await idbSet(key, value);
+                  console.log(`📦 Migré ${key} vers IndexedDB`);
                 }
-              } else {
-                console.log(`📦 Chargé ${key} depuis IndexedDB`);
+              } catch (e) {
+                console.warn(`⚠️ Erreur lecture localStorage natif pour ${key}:`, e.message);
               }
-              
-              if (value !== null) {
-                this._cache[key] = value;
-              }
-            } catch (e) {
-              console.warn(`⚠️ Erreur chargement ${key}:`, e);
+            } else {
+              console.log(`📦 Chargé ${key} depuis IndexedDB`);
+            }
+            if (value !== null) {
+              this._cache[key] = value;
             }
           }
-          
           this._initialized = true;
           console.log("✅ Cache localStorage initialisé");
         },
@@ -199,26 +151,24 @@ function isDbFile(name) {
 
         setItem(key, value) {
           this._cache[key] = value;
-          // Sauvegarder en arrière-plan
-          idbSet(key, value).catch(e => {
-            console.warn(`Erreur sauvegarde ${key}:`, e);
-            // Fallback localStorage natif
+          idbSet(key, value).catch((e) => {
+            console.warn(`⚠️ Erreur sauvegarde ${key} dans IndexedDB:`, e.message);
             try {
               originalLocalStorage.setItem(key, value);
             } catch (fallbackError) {
-              console.warn(`Fallback localStorage échoué pour ${key}:`, fallbackError);
+              console.warn(`⚠️ Erreur sauvegarde ${key} dans localStorage:`, fallbackError.message);
             }
           });
         },
 
         removeItem(key) {
           delete this._cache[key];
-          idbRemove(key).catch(e => {
-            console.warn(`Erreur suppression ${key}:`, e);
+          idbRemove(key).catch((e) => {
+            console.warn(`⚠️ Erreur suppression ${key} dans IndexedDB:`, e.message);
             try {
               originalLocalStorage.removeItem(key);
             } catch (fallbackError) {
-              console.warn(`Fallback removeItem échoué pour ${key}:`, fallbackError);
+              console.warn(`⚠️ Erreur suppression ${key} dans localStorage:`, fallbackError.message);
             }
           });
         },
@@ -234,30 +184,39 @@ function isDbFile(name) {
 
         clear() {
           this._cache = {};
-        }
+        },
       };
 
-      // Initialisation asynchrone sécurisée
       (async () => {
         try {
           await window.localStorage._init();
         } catch (e) {
-          console.error("❌ Erreur initialisation storage:", e);
+          console.error("❌ Erreur initialisation storage:", e.message);
         } finally {
-          // Toujours déclencher l'événement, même en cas d'erreur
           setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('storageReady'));
+            window.dispatchEvent(new CustomEvent("storageReady"));
           }, 100);
         }
       })();
     })();
   </script>
 
-  <!-- Loading indicator -->
+  <!-- Loading Indicator -->
   <div id="loading" class="loading show fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
     <div class="bg-white p-6 rounded-lg">
-      <i class="fas fa-spinner fa-spin mr-2"></i>
-      Chargement des données...
+      <i class="fas fa-spinner fa-spin mr-2"></i> Chargement des données...
+    </div>
+  </div>
+
+  <!-- Modal for Input -->
+  <div id="nameModal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white p-6 rounded-lg shadow-lg w-96">
+      <h3 id="modalTitle" class="text-lg font-semibold mb-4"></h3>
+      <input id="modalInput" type="text" class="w-full p-2 border rounded mb-4" placeholder="Nom de la base">
+      <div class="flex justify-end space-x-2">
+        <button id="modalCancel" class="bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400">Annuler</button>
+        <button id="modalConfirm" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">Confirmer</button>
+      </div>
     </div>
   </div>
 
@@ -350,7 +309,9 @@ function isDbFile(name) {
     </div>
   </div>
 
-  <script>
+  <script type="module">
+    import { getDbList, saveDbList, getActiveIndex, setActiveIndex, isDbFile, saveDbToStorage, resetDatabase as resetDb, exportCurrentDb, importDb } from './db.js';
+
     const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'https://hicham03041979.onrender.com';
     let isInitialized = false;
 
@@ -358,15 +319,12 @@ function isDbFile(name) {
       const toast = document.getElementById('toast');
       const toastMessage = document.getElementById('toastMessage');
       const toastIcon = document.getElementById('toastIcon');
-      
       toast.className = isError
         ? 'fixed bottom-4 right-4 flex items-center bg-red-500 text-white px-6 py-3 rounded-md shadow-lg toast-in z-40'
         : 'fixed bottom-4 right-4 flex items-center bg-green-500 text-white px-6 py-3 rounded-md shadow-lg toast-in z-40';
-      
       toastIcon.className = isError ? 'fas fa-exclamation-circle mr-2' : 'fas fa-check-circle mr-2';
       toastMessage.textContent = message;
       toast.classList.remove('hidden');
-      
       setTimeout(() => {
         toast.classList.remove('toast-in');
         toast.classList.add('toast-out');
@@ -377,94 +335,51 @@ function isDbFile(name) {
     function showLoading(show = true) {
       const loading = document.getElementById('loading');
       if (!loading) return;
-      
       if (show) {
         loading.classList.add('show');
         loading.classList.remove('hidden');
       } else {
         loading.classList.remove('show');
-        // Petit délai pour une transition plus smooth
         setTimeout(() => loading.classList.add('hidden'), 100);
       }
     }
 
-    function goHome() { 
-      window.location.href = "index.html"; 
+    function showModal(title, callback) {
+      const modal = document.getElementById('nameModal');
+      const modalTitle = document.getElementById('modalTitle');
+      const modalInput = document.getElementById('modalInput');
+      const modalConfirm = document.getElementById('modalConfirm');
+      const modalCancel = document.getElementById('modalCancel');
+      modalTitle.textContent = title;
+      modalInput.value = '';
+      modal.classList.add('show');
+
+      const confirmHandler = () => {
+        const value = modalInput.value.trim();
+        if (value) callback(value);
+        modal.classList.remove('show');
+        modalConfirm.removeEventListener('click', confirmHandler);
+        modalCancel.removeEventListener('click', cancelHandler);
+      };
+
+      const cancelHandler = () => {
+        modal.classList.remove('show');
+        modalConfirm.removeEventListener('click', confirmHandler);
+        modalCancel.removeEventListener('click', cancelHandler);
+      };
+
+      modalConfirm.addEventListener('click', confirmHandler);
+      modalCancel.addEventListener('click', cancelHandler);
     }
 
-    // Utiliser les fonctions sécurisées de db.js si disponibles
-    function getDbList() {
-      try {
-        // Essayer d'abord le cache
-        if (window.localStorage._cache && window.localStorage._cache["gestion_db_list"]) {
-          return JSON.parse(window.localStorage._cache["gestion_db_list"]);
-        }
-        
-        // Fallback API native
-        const list = Object.getPrototypeOf(window.localStorage).getItem.call(window.localStorage, "gestion_db_list");
-        return list ? JSON.parse(list) : [];
-      } catch (e) {
-        console.warn("Erreur lecture liste bases:", e);
-        return [];
-      }
-    }
-
-    function saveDbList(list) {
-      try {
-        const listJson = JSON.stringify(list);
-        
-        // Sauvegarder dans le cache
-        if (window.localStorage._cache) {
-          window.localStorage._cache["gestion_db_list"] = listJson;
-        }
-        
-        // Sauvegarder avec l'API native pour éviter les déclencheurs
-        Object.getPrototypeOf(window.localStorage).setItem.call(window.localStorage, "gestion_db_list", listJson);
-      } catch (e) {
-        console.warn("Erreur sauvegarde liste bases:", e);
-        // Fallback dangereux en dernier recours
-        localStorage.setItem("gestion_db_list", listJson);
-      }
-    }
-
-    function getActiveIndex() {
-      try {
-        // Essayer d'abord le cache
-        if (window.localStorage._cache && window.localStorage._cache["gestion_db_active"]) {
-          return parseInt(window.localStorage._cache["gestion_db_active"]);
-        }
-        
-        // Fallback API native
-        const index = Object.getPrototypeOf(window.localStorage).getItem.call(window.localStorage, "gestion_db_active");
-        return parseInt(index || "-1");
-      } catch (e) {
-        console.warn("Erreur lecture index actif:", e);
-        return -1;
-      }
-    }
-
-    function setActiveIndex(idx) {
-      try {
-        const indexStr = idx.toString();
-        
-        // Sauvegarder dans le cache
-        if (window.localStorage._cache) {
-          window.localStorage._cache["gestion_db_active"] = indexStr;
-        }
-        
-        // Sauvegarder avec l'API native
-        Object.getPrototypeOf(window.localStorage).setItem.call(window.localStorage, "gestion_db_active", indexStr);
-      } catch (e) {
-        console.warn("Erreur sauvegarde index actif:", e);
-        // Fallback dangereux
-        localStorage.setItem("gestion_db_active", indexStr);
-      }
+    function goHome() {
+      window.location.href = "index.html";
     }
 
     function getActiveDatabaseName() {
       const list = getDbList();
       const activeIndex = getActiveIndex();
-      return (activeIndex >= 0 && list[activeIndex]) ? list[activeIndex].name : "Aucune";
+      return activeIndex >= 0 && list[activeIndex] ? list[activeIndex].name : "Aucune";
     }
 
     function calculateTotalSize() {
@@ -481,180 +396,118 @@ function isDbFile(name) {
       }
 
       try {
-        const binaryString = atob(dbData);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        
+        const bytes = Uint8Array.from(atob(dbData), (c) => c.charCodeAt(0));
         const blob = new Blob([bytes], { type: 'application/octet-stream' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         const activeName = getActiveDatabaseName();
-        
         a.href = url;
         a.download = activeName !== "Aucune" ? `${activeName}.db` : "gestion.db";
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        
         showToast("Base téléchargée avec succès");
       } catch (error) {
-        console.error("Erreur téléchargement:", error);
+        console.error("❌ Erreur téléchargement:", error.message);
         showToast("Erreur lors du téléchargement", true);
       }
     }
 
     async function resetDatabase() {
       if (!confirm("⚠️ Réinitialiser la base de production avec gestion.db ?\n\nCette action est irréversible.")) return;
-      
       showLoading(true);
       try {
-        const response = await fetch("gestion.db");
-        if (!response.ok) throw new Error("Impossible de charger gestion.db");
-        
-        const buffer = await response.arrayBuffer();
-        const bytes = new Uint8Array(buffer);
-        let binary = "";
-        for (let i = 0; i < bytes.length; i++) {
-          binary += String.fromCharCode(bytes[i]);
-        }
-        
-        const base64 = btoa(binary);
-        
-        // Utiliser une méthode directe pour éviter la récursion
-        if (window.localStorage._cache) {
-          window.localStorage._cache["gestion_db"] = base64;
-        }
-        try {
-          Object.getPrototypeOf(window.localStorage).setItem.call(window.localStorage, "gestion_db", base64);
-        } catch (e) {
-          console.warn("Fallback localStorage dans resetDatabase:", e);
-          localStorage.setItem("gestion_db", base64);
-        }
-        
+        await resetDb();
         showToast("Base de production réinitialisée");
         updateStats();
       } catch (error) {
-        console.error("Erreur reset:", error);
+        console.error("❌ Erreur réinitialisation:", error.message);
         showToast("Erreur lors de la réinitialisation", true);
       } finally {
         showLoading(false);
       }
     }
 
-    function uploadDatabase(event) {
+    async function uploadDatabase(event) {
       const file = event.target.files[0];
       if (!file) return;
-      
+
       if (!isDbFile(file.name)) {
         showToast("Format non valide. Utilisez .db, .sqlite ou .sqlite3", true);
         return;
       }
-      
+
       showLoading(true);
       const reader = new FileReader();
-      
-      reader.onload = function(e) {
+
+      reader.onload = async function (e) {
         try {
           const bytes = new Uint8Array(e.target.result);
-          let binary = "";
-          for (let i = 0; i < bytes.length; i++) {
-            binary += String.fromCharCode(bytes[i]);
-          }
-          
-          const base64 = btoa(binary);
-          let list = getDbList();
-          
+          const base64 = btoa(String.fromCharCode(...bytes));
+          await importDb(base64);
+          const list = await getDbList();
           const newDb = {
             id: Date.now(),
             name: file.name.replace(/\.(db|sqlite|sqlite3)$/i, ''),
             data: base64,
             createdAt: new Date().toISOString(),
             lastModified: new Date().toISOString(),
-            size: base64.length
+            size: base64.length,
           };
-          
           list.push(newDb);
-          saveDbList(list);
-          
-          // Définir comme base active avec méthode sécurisée
-          const newIndex = list.length - 1;
-          if (window.localStorage._cache) {
-            window.localStorage._cache["gestion_db"] = base64;
-          }
-          try {
-            Object.getPrototypeOf(window.localStorage).setItem.call(window.localStorage, "gestion_db", base64);
-          } catch (e) {
-            console.warn("Fallback localStorage dans uploadDatabase:", e);
-            localStorage.setItem("gestion_db", base64);
-          }
-          setActiveIndex(newIndex);
-          
+          await saveDbList(list);
+          await setActiveIndex(list.length - 1);
           showToast(`Base "${newDb.name}" importée et activée`);
           renderDbList();
           updateStats();
         } catch (error) {
-          console.error("Erreur import:", error);
+          console.error("❌ Erreur import:", error.message);
           showToast("Erreur lors de l'importation", true);
         } finally {
           showLoading(false);
         }
       };
-      
+
       reader.onerror = () => {
         showLoading(false);
         showToast("Erreur de lecture du fichier", true);
       };
-      
+
       reader.readAsArrayBuffer(file);
-      
-      // Reset input
       event.target.value = '';
     }
 
     async function createNewDatabase() {
-      const name = prompt("Nom de la nouvelle base:");
-      if (!name || name.trim() === "") return;
-      
-      showLoading(true);
-      try {
-        // Charger gestion.db comme modèle
-        const response = await fetch("gestion.db");
-        if (!response.ok) throw new Error("Impossible de charger gestion.db");
-        
-        const buffer = await response.arrayBuffer();
-        const bytes = new Uint8Array(buffer);
-        let binary = "";
-        for (let i = 0; i < bytes.length; i++) {
-          binary += String.fromCharCode(bytes[i]);
+      showModal("Nom de la nouvelle base", async (name) => {
+        if (!name) return;
+        showLoading(true);
+        try {
+          const newDb = await createNewDb();
+          const base64 = await exportCurrentDb();
+          const list = await getDbList();
+          const newDbEntry = {
+            id: Date.now(),
+            name,
+            data: base64,
+            createdAt: new Date().toISOString(),
+            lastModified: new Date().toISOString(),
+            size: base64.length,
+          };
+          list.push(newDbEntry);
+          await saveDbList(list);
+          await setActiveDb(base64);
+          await setActiveIndex(list.length - 1);
+          showToast(`Nouvelle base "${name}" créée`);
+          renderDbList();
+          updateStats();
+        } catch (error) {
+          console.error("❌ Erreur création:", error.message);
+          showToast("Erreur lors de la création", true);
+        } finally {
+          showLoading(false);
         }
-        
-        const base64 = btoa(binary);
-        let list = getDbList();
-        
-        const newDb = {
-          id: Date.now(),
-          name: name.trim(),
-          data: base64,
-          createdAt: new Date().toISOString(),
-          lastModified: new Date().toISOString(),
-          size: base64.length
-        };
-        
-        list.push(newDb);
-        saveDbList(list);
-        
-        showToast(`Nouvelle base "${newDb.name}" créée`);
-        renderDbList();
-        updateStats();
-      } catch (error) {
-        console.error("Erreur création:", error);
-        showToast("Erreur lors de la création", true);
-      } finally {
-        showLoading(false);
-      }
+      });
     }
 
     async function updateFromServer() {
@@ -662,11 +515,10 @@ function isDbFile(name) {
       try {
         const response = await fetch(`${API_BASE_URL}/export`);
         if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`);
-        
         const data = await response.json();
         const base64Db = data.db;
-        
-        let list = getDbList();
+        await importDb(base64Db);
+        const list = await getDbList();
         const newDb = {
           id: Date.now(),
           name: `BaseServeur_${new Date().toLocaleString('fr-FR')}`,
@@ -674,167 +526,128 @@ function isDbFile(name) {
           createdAt: new Date().toISOString(),
           lastModified: new Date().toISOString(),
           size: base64Db.length,
-          fromServer: true
+          fromServer: true,
         };
-        
         list.push(newDb);
-        saveDbList(list);
-        
-        // Activer cette base avec méthode sécurisée
-        const newIndex = list.length - 1;
-        if (window.localStorage._cache) {
-          window.localStorage._cache["gestion_db"] = base64Db;
-        }
-        try {
-          Object.getPrototypeOf(window.localStorage).setItem.call(window.localStorage, "gestion_db", base64Db);
-        } catch (e) {
-          console.warn("Fallback localStorage dans updateFromServer:", e);
-          localStorage.setItem("gestion_db", base64Db);
-        }
-        setActiveIndex(newIndex);
-        
-        // Passer en mode local
+        await saveDbList(list);
+        await setActiveIndex(list.length - 1);
         localStorage.setItem("apiBaseUrl", "/api");
-        
         renderDbList();
         updateStats();
-        showToast("✅ Base synchronisée depuis le serveur et activée");
+        showToast("Base synchronisée depuis le serveur et activée");
       } catch (err) {
-        console.error("Erreur sync serveur:", err);
-        showToast(`❌ Erreur serveur: ${err.message}`, true);
+        console.error("❌ Erreur sync serveur:", err.message);
+        showToast(`Erreur serveur: ${err.message}`, true);
       } finally {
         showLoading(false);
       }
     }
 
-    function exportAllDatabases() {
-      const list = getDbList();
+    async function exportAllDatabases() {
+      const list = await getDbList();
       if (list.length === 0) {
         showToast("Aucune base à exporter", true);
         return;
       }
-      
       const exportData = {
         exportDate: new Date().toISOString(),
-        databases: list.map(db => ({
+        databases: list.map((db) => ({
           id: db.id,
           name: db.name,
           createdAt: db.createdAt,
-          data: db.data
-        }))
+          data: db.data,
+        })),
       };
-      
       const jsonString = JSON.stringify(exportData, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      
       a.href = url;
       a.download = `bases_export_${new Date().toISOString().split('T')[0]}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      
       showToast(`${list.length} base(s) exportée(s)`);
     }
 
-    function saveCurrentBeforeSwitch() {
-      const idx = getActiveIndex();
+    async function saveCurrentBeforeSwitch() {
+      const idx = await getActiveIndex();
       if (idx >= 0) {
-        let list = getDbList();
+        const list = await getDbList();
         if (list[idx]) {
           const currentData = localStorage.getItem("gestion_db");
           if (currentData) {
             list[idx].data = currentData;
             list[idx].size = currentData.length;
             list[idx].lastModified = new Date().toISOString();
-            // Sauvegarder la liste sans déclencher de sauvegarde de base
-            saveDbList(list);
+            await saveDbList(list);
           }
         }
       }
     }
 
-    function selectDatabase(idx) {
-      saveCurrentBeforeSwitch();
-      let list = getDbList();
-      
+    async function selectDatabase(idx) {
+      await saveCurrentBeforeSwitch();
+      const list = await getDbList();
       if (list[idx]) {
-        // Changer la base active avec méthode sécurisée
-        if (window.localStorage._cache) {
-          window.localStorage._cache["gestion_db"] = list[idx].data;
-        }
-        try {
-          Object.getPrototypeOf(window.localStorage).setItem.call(window.localStorage, "gestion_db", list[idx].data);
-        } catch (e) {
-          console.warn("Fallback localStorage dans selectDatabase:", e);
-          localStorage.setItem("gestion_db", list[idx].data);
-        }
-        
-        setActiveIndex(idx);
+        await setActiveDb(list[idx].data);
+        await setActiveIndex(idx);
         showToast(`"${list[idx].name}" est maintenant la base active`);
         updateStats();
         renderDbList();
       }
     }
 
-    function renameDatabase(idx) {
-      let list = getDbList();
+    async function renameDatabase(idx) {
+      const list = await getDbList();
       if (!list[idx]) return;
-      
-      const newName = prompt("Nouveau nom:", list[idx].name);
-      if (newName && newName.trim() !== "" && newName !== list[idx].name) {
-        list[idx].name = newName.trim();
-        saveDbList(list);
-        renderDbList();
-        updateStats();
-        showToast("Base renommée");
-      }
+      showModal("Renommer la base", async (newName) => {
+        if (newName && newName !== list[idx].name) {
+          list[idx].name = newName;
+          await saveDbList(list);
+          renderDbList();
+          updateStats();
+          showToast("Base renommée");
+        }
+      });
     }
 
-    function deleteDatabase(idx) {
-      let list = getDbList();
+    async function deleteDatabase(idx) {
+      const list = await getDbList();
       if (!list[idx]) return;
-      
       if (!confirm(`⚠️ Supprimer définitivement la base "${list[idx].name}" ?\n\nCette action est irréversible.`)) return;
-      
-      const wasActive = idx === getActiveIndex();
+      const wasActive = idx === (await getActiveIndex());
       list.splice(idx, 1);
-      saveDbList(list);
-      
-      // Si c'était la base active, réinitialiser
+      await saveDbList(list);
       if (wasActive) {
         localStorage.removeItem("gestion_db");
-        setActiveIndex(-1);
+        await setActiveIndex(-1);
       }
-      
       renderDbList();
       updateStats();
       showToast("Base supprimée");
     }
 
-    function duplicateDatabase(idx) {
-      let list = getDbList();
+    async function duplicateDatabase(idx) {
+      const list = await getDbList();
       if (!list[idx]) return;
-      
       const originalDb = list[idx];
       const newDb = {
         id: Date.now(),
         name: `${originalDb.name}_copie`,
         data: originalDb.data,
         createdAt: new Date().toISOString(),
-        size: originalDb.size
+        size: originalDb.size,
       };
-      
       list.push(newDb);
-      saveDbList(list);
+      await saveDbList(list);
       renderDbList();
       updateStats();
       showToast(`Base "${originalDb.name}" dupliquée`);
     }
 
-    function refreshDbList() {
+    async function refreshDbList() {
       renderDbList();
       updateStats();
       showToast("Liste actualisée");
@@ -849,33 +662,27 @@ function isDbFile(name) {
       if (!bytes) return "0 KB";
       const kb = bytes / 1024;
       const mb = kb / 1024;
-      
       if (mb >= 1) return `${mb.toFixed(2)} MB`;
       if (kb >= 1) return `${kb.toFixed(1)} KB`;
       return `${bytes} B`;
     }
 
-    function renderDbList() {
-      const list = getDbList();
-      const active = getActiveIndex();
+    async function renderDbList() {
+      const list = await getDbList();
+      const active = await getActiveIndex();
       const ul = document.getElementById("dbList");
       const emptyState = document.getElementById("emptyState");
-      
       ul.innerHTML = "";
-      
       if (list.length === 0) {
         emptyState.classList.remove("hidden");
         return;
       }
-      
       emptyState.classList.add("hidden");
-      
       list.forEach((db, idx) => {
         const li = document.createElement("li");
         const isActive = idx === active;
         const createdAt = formatDate(db.createdAt);
         const size = formatSize(db.size);
-        
         li.className = `border rounded-lg p-4 ${isActive ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200'}`;
         li.innerHTML = `
           <div class="flex items-center justify-between">
@@ -918,45 +725,36 @@ function isDbFile(name) {
       });
     }
 
-    function updateStats() {
-      const list = getDbList();
+    async function updateStats() {
+      const list = await getDbList();
       const activeName = getActiveDatabaseName();
       const totalSize = calculateTotalSize();
-      
       document.getElementById("activeDbName").textContent = activeName;
       document.getElementById("dbCount").textContent = list.length.toString();
       document.getElementById("totalSize").textContent = `${totalSize} MB`;
     }
 
-    function initializeApp() {
+    async function initializeApp() {
       if (isInitialized) return;
-      
       console.log("🚀 Initialisation de l'application...");
       isInitialized = true;
-      
       try {
-        // Masquer le loading
         showLoading(false);
-        
-        // Initialiser les données
-        updateStats();
-        renderDbList();
-        
+        await updateStats();
+        await renderDbList();
         console.log("✅ Application initialisée avec succès");
       } catch (error) {
-        console.error("❌ Erreur lors de l'initialisation:", error);
+        console.error("❌ Erreur lors de l'initialisation:", error.message);
         showLoading(false);
         showToast("Erreur lors de l'initialisation", true);
       }
     }
 
-    // Attendre que le storage soit prêt
     window.addEventListener('storageReady', () => {
       console.log("📡 Storage prêt - initialisation de l'app");
       initializeApp();
     });
 
-    // Fallback de sécurité - forcer l'initialisation après 2 secondes
     setTimeout(() => {
       if (!isInitialized) {
         console.warn("⚠️ Timeout storage - initialisation forcée");
@@ -964,10 +762,8 @@ function isDbFile(name) {
       }
     }, 2000);
 
-    // Si le DOM est déjà chargé et le storage prêt
     if (document.readyState === 'loading') {
       document.addEventListener("DOMContentLoaded", () => {
-        // Double vérification après DOM ready
         setTimeout(() => {
           if (!isInitialized) {
             console.log("🔄 Initialisation post-DOM");
@@ -976,7 +772,6 @@ function isDbFile(name) {
         }, 100);
       });
     } else {
-      // DOM déjà chargé
       setTimeout(() => {
         if (!isInitialized) {
           console.log("🔄 DOM déjà prêt - init immédiate");
