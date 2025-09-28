@@ -16,71 +16,176 @@
 </head>
 <body class="bg-gray-100 min-h-screen">
 
-  <!-- ⚡ Patch localStorage avec IndexedDB -->
+  <!-- ⚡ Gestionnaire IndexedDB amélioré pour multi-bases -->
   <script>
-    (function(){
-      const DB_NAME = "FirePozDB";
-      const STORE_NAME = "keyvalue";
-      let dbPromise = new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, 1);
-        req.onupgradeneeded = e => {
-          e.target.result.createObjectStore(STORE_NAME);
-        };
-        req.onsuccess = e => resolve(e.target.result);
-        req.onerror = e => reject(e);
-      });
+    class DatabaseManager {
+      constructor() {
+        this.DB_NAME = "FirePozMultiDB";
+        this.STORE_NAME = "databases";
+        this.CONFIG_STORE = "config";
+        this.dbPromise = this.initDB();
+        this.currentDb = null;
+        this.activeDbId = null;
+      }
 
-      async function idbGet(key) {
-        const db = await dbPromise;
+      async initDB() {
         return new Promise((resolve, reject) => {
-          const tx = db.transaction(STORE_NAME, "readonly");
-          const store = tx.objectStore(STORE_NAME);
-          const req = store.get(key);
+          const req = indexedDB.open(this.DB_NAME, 1);
+          req.onupgradeneeded = e => {
+            const db = e.target.result;
+            // Store pour les bases de données
+            if (!db.objectStoreNames.contains(this.STORE_NAME)) {
+              db.createObjectStore(this.STORE_NAME, { keyPath: 'id' });
+            }
+            // Store pour la configuration
+            if (!db.objectStoreNames.contains(this.CONFIG_STORE)) {
+              db.createObjectStore(this.CONFIG_STORE);
+            }
+          };
+          req.onsuccess = e => resolve(e.target.result);
+          req.onerror = e => reject(e);
+        });
+      }
+
+      async saveDatabase(id, name, data) {
+        const db = await this.dbPromise;
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction(this.STORE_NAME, "readwrite");
+          const store = tx.objectStore(this.STORE_NAME);
+          const dbEntry = {
+            id: id,
+            name: name,
+            data: data,
+            lastModified: Date.now()
+          };
+          store.put(dbEntry);
+          tx.oncomplete = () => resolve(true);
+          tx.onerror = reject;
+        });
+      }
+
+      async getDatabase(id) {
+        const db = await this.dbPromise;
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction(this.STORE_NAME, "readonly");
+          const store = tx.objectStore(this.STORE_NAME);
+          const req = store.get(id);
           req.onsuccess = () => resolve(req.result || null);
           req.onerror = reject;
         });
       }
-      async function idbSet(key, value) {
-        const db = await dbPromise;
+
+      async getAllDatabases() {
+        const db = await this.dbPromise;
         return new Promise((resolve, reject) => {
-          const tx = db.transaction(STORE_NAME, "readwrite");
-          const store = tx.objectStore(STORE_NAME);
+          const tx = db.transaction(this.STORE_NAME, "readonly");
+          const store = tx.objectStore(this.STORE_NAME);
+          const req = store.getAll();
+          req.onsuccess = () => resolve(req.result || []);
+          req.onerror = reject;
+        });
+      }
+
+      async deleteDatabase(id) {
+        const db = await this.dbPromise;
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction(this.STORE_NAME, "readwrite");
+          const store = tx.objectStore(this.STORE_NAME);
+          store.delete(id);
+          tx.oncomplete = () => resolve(true);
+          tx.onerror = reject;
+        });
+      }
+
+      async setActiveDatabase(id) {
+        this.activeDbId = id;
+        const dbEntry = await this.getDatabase(id);
+        if (dbEntry) {
+          this.currentDb = dbEntry.data;
+          await this.setConfig('activeDbId', id);
+          return true;
+        }
+        return false;
+      }
+
+      async getActiveDatabase() {
+        if (!this.activeDbId) {
+          this.activeDbId = await this.getConfig('activeDbId');
+        }
+        return this.currentDb;
+      }
+
+      async getActiveDatabaseId() {
+        if (!this.activeDbId) {
+          this.activeDbId = await this.getConfig('activeDbId');
+        }
+        return this.activeDbId;
+      }
+
+      async setConfig(key, value) {
+        const db = await this.dbPromise;
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction(this.CONFIG_STORE, "readwrite");
+          const store = tx.objectStore(this.CONFIG_STORE);
           store.put(value, key);
           tx.oncomplete = () => resolve(true);
           tx.onerror = reject;
         });
       }
-      async function idbRemove(key) {
-        const db = await dbPromise;
+
+      async getConfig(key) {
+        const db = await this.dbPromise;
         return new Promise((resolve, reject) => {
-          const tx = db.transaction(STORE_NAME, "readwrite");
-          const store = tx.objectStore(STORE_NAME);
-          store.delete(key);
-          tx.oncomplete = () => resolve(true);
-          tx.onerror = reject;
+          const tx = db.transaction(this.CONFIG_STORE, "readonly");
+          const store = tx.objectStore(this.CONFIG_STORE);
+          const req = store.get(key);
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = reject;
         });
       }
 
-      // Patch global localStorage (compatibilité)
-      window.localStorage = {
-        getItem: (k) => { return window._getSync(k); },
-        setItem: (k,v) => { window._setSync(k,v); },
-        removeItem: (k) => { idbRemove(k); },
-        _cache: {},
-        async _init() {
-          const keys = ["gestion_db","gestion_db_list","gestion_db_active","apiBaseUrl"];
-          for (let k of keys) {
-            let val = await idbGet(k);
-            if (val !== null) window.localStorage._cache[k] = val;
+      async updateCurrentDatabase(data) {
+        if (this.activeDbId && this.currentDb !== data) {
+          this.currentDb = data;
+          const dbEntry = await this.getDatabase(this.activeDbId);
+          if (dbEntry) {
+            await this.saveDatabase(this.activeDbId, dbEntry.name, data);
           }
-        },
-        _getSync(k){ return window.localStorage._cache[k] || null; },
-        _setSync(k,v){ window.localStorage._cache[k] = v; idbSet(k,v); }
-      };
+        }
+      }
+    }
 
-      // Charger les données dans le cache
-      window.localStorage._init();
-    })();
+    // Instance globale du gestionnaire
+    const dbManager = new DatabaseManager();
+
+    // Compatibility layer pour localStorage
+    window.localStorage = {
+      async getItem(key) {
+        if (key === 'gestion_db') {
+          return await dbManager.getActiveDatabase();
+        }
+        return await dbManager.getConfig(key);
+      },
+      async setItem(key, value) {
+        if (key === 'gestion_db') {
+          await dbManager.updateCurrentDatabase(value);
+        } else {
+          await dbManager.setConfig(key, value);
+        }
+      },
+      // Version synchrone pour compatibilité (utilise le cache)
+      getItemSync(key) {
+        if (key === 'gestion_db') {
+          return dbManager.currentDb;
+        }
+        return null; // Pour les autres clés, utiliser la version async
+      },
+      setItemSync(key, value) {
+        if (key === 'gestion_db') {
+          dbManager.currentDb = value;
+        }
+      }
+    };
   </script>
 
   <!-- Navbar -->
@@ -120,8 +225,9 @@
         </button>
       </div>
       <div class="mt-4 text-sm text-gray-600">
-        <p><i class="fas fa-info-circle mr-2"></i>La base de production est stockée dans le navigateur</p>
+        <p><i class="fas fa-info-circle mr-2"></i>La base de production est stockée dans IndexedDB</p>
         <p id="dbSize" class="mt-2">Taille: Calcul en cours...</p>
+        <p id="activeDb" class="mt-2 font-semibold text-indigo-600">Base active: Aucune</p>
       </div>
     </div>
 
@@ -143,7 +249,25 @@
   </div>
 
   <script>
-    const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'https://hicham03041979.onrender.com';
+    let API_BASE_URL = 'https://hicham03041979.onrender.com';
+
+    async function initApp() {
+      API_BASE_URL = await dbManager.getConfig('apiBaseUrl') || API_BASE_URL;
+      await loadActiveDatabase();
+      await renderDbList();
+      updateDBSize();
+    }
+
+    async function loadActiveDatabase() {
+      const activeId = await dbManager.getActiveDatabaseId();
+      if (activeId) {
+        await dbManager.setActiveDatabase(activeId);
+        const dbEntry = await dbManager.getDatabase(activeId);
+        if (dbEntry) {
+          document.getElementById("activeDb").textContent = `Base active: ${dbEntry.name}`;
+        }
+      }
+    }
 
     function showToast(message, isError = false) {
       const toast = document.getElementById('toast');
@@ -164,14 +288,11 @@
 
     function isDbFile(name) { return /\.(db|sqlite|sqlite3)$/i.test(name); }
     function goHome() { window.location.href = "index.html"; }
-    function getDbList() { return JSON.parse(localStorage.getItem("gestion_db_list") || "[]"); }
-    function saveDbList(list) { localStorage.setItem("gestion_db_list", JSON.stringify(list)); }
-    function getActiveIndex() { return parseInt(localStorage.getItem("gestion_db_active") || "-1"); }
-    function setActiveIndex(idx) { localStorage.setItem("gestion_db_active", idx); }
 
     async function downloadDatabase() {
-      const dbData = localStorage.getItem('gestion_db');
-      if (!dbData) return showToast("Aucune base trouvée", true);
+      const dbData = await dbManager.getActiveDatabase();
+      if (!dbData) return showToast("Aucune base active trouvée", true);
+      
       const binaryString = atob(dbData);
       const bytes = new Uint8Array(binaryString.length);
       for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
@@ -180,158 +301,209 @@
       const a = document.createElement('a');
       a.href = url;
       a.download = "gestion.db";
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      document.body.appendChild(a); 
+      a.click(); 
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
       showToast("Base téléchargée");
     }
 
     async function resetDatabase() {
-      if (!confirm("Réinitialiser la base de production ?")) return;
-      const response = await fetch("gestion.db");
-      const buffer = await response.arrayBuffer();
-      const bytes = new Uint8Array(buffer);
-      let binary = "";
-      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-      localStorage.setItem("gestion_db", btoa(binary));
-      showToast("Base de production réinitialisée");
-      updateDBSize();
+      if (!confirm("Réinitialiser la base active ?")) return;
+      
+      try {
+        const response = await fetch("gestion.db");
+        const buffer = await response.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+        let binary = "";
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        const base64 = btoa(binary);
+        
+        const activeId = await dbManager.getActiveDatabaseId();
+        if (activeId) {
+          const dbEntry = await dbManager.getDatabase(activeId);
+          await dbManager.saveDatabase(activeId, dbEntry.name, base64);
+          await dbManager.setActiveDatabase(activeId);
+        }
+        
+        showToast("Base active réinitialisée");
+        updateDBSize();
+      } catch (error) {
+        showToast("Erreur lors de la réinitialisation", true);
+      }
     }
 
-    function uploadDatabase(event) {
+    async function uploadDatabase(event) {
       const file = event.target.files[0];
       if (!file) return;
-      if (!isDbFile(file.name)) { showToast("Format non valide", true); return; }
+      if (!isDbFile(file.name)) { 
+        showToast("Format non valide", true); 
+        return; 
+      }
+      
       const reader = new FileReader();
-      reader.onload = function(e) {
+      reader.onload = async function(e) {
         const bytes = new Uint8Array(e.target.result);
-        let binary = ""; for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        let binary = ""; 
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
         const base64 = btoa(binary);
-        localStorage.setItem("gestion_db", base64);
-        let list = getDbList();
-        list.push({id: Date.now(), name:file.name, data:base64});
-        saveDbList(list);
-        setActiveIndex(list.length - 1);
-        showToast("Nouvelle base importée");
-        renderDbList();
+        
+        const newId = Date.now();
+        await dbManager.saveDatabase(newId, file.name, base64);
+        await dbManager.setActiveDatabase(newId);
+        
+        showToast(`Base "${file.name}" importée et activée`);
+        await renderDbList();
         updateDBSize();
+        document.getElementById("activeDb").textContent = `Base active: ${file.name}`;
       };
       reader.readAsArrayBuffer(file);
     }
 
     async function createNewDatabase() {
-      const response = await fetch("gestion.db");
-      const buffer = await response.arrayBuffer();
-      const bytes = new Uint8Array(buffer);
-      let binary = ""; for (let i=0;i<bytes.length;i++) binary += String.fromCharCode(bytes[i]);
-      const base64 = btoa(binary);
-      let list = getDbList();
-      list.push({id: Date.now(), name:`NouvelleBase_${list.length+1}`, data:base64});
-      saveDbList(list);
-      showToast("Nouvelle base vierge ajoutée");
-      renderDbList();
+      try {
+        const response = await fetch("gestion.db");
+        const buffer = await response.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+        let binary = ""; 
+        for (let i=0;i<bytes.length;i++) binary += String.fromCharCode(bytes[i]);
+        const base64 = btoa(binary);
+        
+        const databases = await dbManager.getAllDatabases();
+        const newId = Date.now();
+        const newName = `NouvelleBase_${databases.length + 1}`;
+        
+        await dbManager.saveDatabase(newId, newName, base64);
+        showToast("Nouvelle base vierge créée");
+        await renderDbList();
+      } catch (error) {
+        showToast("Erreur lors de la création", true);
+      }
     }
 
     async function updateFromServer() {
       try {
         const response = await fetch(`${API_BASE_URL}/export`);
         if (!response.ok) throw new Error("Erreur HTTP " + response.status);
+        
         const data = await response.json();
         const base64Db = data.db;
-        let list = getDbList();
-        const newDb = {
-          id: Date.now(),
-          name: `BaseServeur_${list.length + 1}`,
-          data: base64Db
-        };
-        list.push(newDb);
-        saveDbList(list);
-        const newIndex = list.length - 1;
-        localStorage.setItem("gestion_db", base64Db);
-        setActiveIndex(newIndex);
-        localStorage.setItem("apiBaseUrl", "/api");
-        renderDbList();
+        
+        const databases = await dbManager.getAllDatabases();
+        const newId = Date.now();
+        const newName = `BaseServeur_${databases.length + 1}`;
+        
+        await dbManager.saveDatabase(newId, newName, base64Db);
+        await dbManager.setActiveDatabase(newId);
+        await dbManager.setConfig("apiBaseUrl", "/api");
+        
+        await renderDbList();
         updateDBSize();
-        showToast("✅ Base mise à jour et sélectionnée. Mode local activé !");
+        document.getElementById("activeDb").textContent = `Base active: ${newName}`;
+        showToast("✅ Base mise à jour et activée. Mode local activé !");
       } catch (err) {
         console.error(err);
         showToast("❌ Erreur : " + err.message, true);
       }
     }
 
-    function saveCurrentBeforeSwitch() {
-      const idx = getActiveIndex();
-      if (idx >= 0) {
-        let list = getDbList();
-        if (list[idx]) {
-          list[idx].data = localStorage.getItem("gestion_db") || "";
-          saveDbList(list);
-        }
+    async function selectDatabase(id) {
+      const success = await dbManager.setActiveDatabase(id);
+      if (success) {
+        const dbEntry = await dbManager.getDatabase(id);
+        showToast(`"${dbEntry.name}" est maintenant la base de production`);
+        document.getElementById("activeDb").textContent = `Base active: ${dbEntry.name}`;
+        updateDBSize();
+        await renderDbList();
+      } else {
+        showToast("Erreur lors de la sélection", true);
       }
     }
 
-    function selectDatabase(idx) {
-    saveCurrentBeforeSwitch();
-    let list = getDbList();
-    if (list[idx]) {
-        // Mettre à jour le cache ET IndexedDB
-        window.localStorage._setSync("gestion_db", list[idx].data);
-
-        setActiveIndex(idx);
-        showToast(`"${list[idx].name}" est maintenant la base de production`);
-        updateDBSize();
-        renderDbList();
-    }
-}
-
-    function renameDatabase(idx) {
-      let list = getDbList();
-      const newName = prompt("Nouveau nom:", list[idx].name);
-      if (newName) { list[idx].name = newName; saveDbList(list); renderDbList(); }
+    async function renameDatabase(id) {
+      const dbEntry = await dbManager.getDatabase(id);
+      const newName = prompt("Nouveau nom:", dbEntry.name);
+      if (newName && newName !== dbEntry.name) { 
+        await dbManager.saveDatabase(id, newName, dbEntry.data);
+        const activeId = await dbManager.getActiveDatabaseId();
+        if (id === activeId) {
+          document.getElementById("activeDb").textContent = `Base active: ${newName}`;
+        }
+        await renderDbList(); 
+      }
     }
 
-    function deleteDatabase(idx) {
-      if (!confirm("Supprimer cette base sauvegardée ?")) return;
-      let list = getDbList();
-      list.splice(idx,1);
-      saveDbList(list);
-      if (idx === getActiveIndex()) { localStorage.removeItem("gestion_db"); setActiveIndex(-1); }
-      renderDbList();
+    async function deleteDatabase(id) {
+      const dbEntry = await dbManager.getDatabase(id);
+      if (!confirm(`Supprimer la base "${dbEntry.name}" ?`)) return;
+      
+      await dbManager.deleteDatabase(id);
+      const activeId = await dbManager.getActiveDatabaseId();
+      
+      if (id === activeId) {
+        dbManager.currentDb = null;
+        dbManager.activeDbId = null;
+        await dbManager.setConfig('activeDbId', null);
+        document.getElementById("activeDb").textContent = "Base active: Aucune";
+      }
+      
+      await renderDbList();
+      updateDBSize();
     }
 
-    function renderDbList() {
-      const list = getDbList();
-      const active = getActiveIndex();
+    async function renderDbList() {
+      const databases = await dbManager.getAllDatabases();
+      const activeId = await dbManager.getActiveDatabaseId();
       const ul = document.getElementById("dbList");
       ul.innerHTML = "";
- list.forEach((db, idx) => {
-    const li = document.createElement("li");
-    li.className="flex items-center justify-between border rounded p-3";
-    li.innerHTML = `
-      <div class="flex items-center space-x-3">
-        <input type="radio" name="activeDb" ${idx===getActiveIndex()?"checked":""} onchange="selectDatabase(${idx})">
-        <span class="font-medium">${db.name}</span>
-      </div>
-      <div class="space-x-2">
-        <button onclick="renameDatabase(${idx})" class="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600"><i class="fas fa-edit"></i></button>
-        <button onclick="deleteDatabase(${idx})" class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"><i class="fas fa-trash"></i></button>
-      </div>
-    `;
-    ul.appendChild(li);
-});
+      
+      if (databases.length === 0) {
+        ul.innerHTML = "<li class='text-gray-500 text-center py-4'>Aucune base sauvegardée</li>";
+        return;
+      }
+
+      databases.forEach((db) => {
+        const li = document.createElement("li");
+        li.className = "flex items-center justify-between border rounded p-3" + 
+                      (db.id === activeId ? " bg-indigo-50 border-indigo-300" : "");
+        
+        const date = new Date(db.lastModified).toLocaleDateString();
+        li.innerHTML = `
+          <div class="flex items-center space-x-3">
+            <input type="radio" name="activeDb" ${db.id === activeId ? "checked" : ""} 
+                   onchange="selectDatabase(${db.id})">
+            <div>
+              <span class="font-medium">${db.name}</span>
+              <div class="text-sm text-gray-500">Modifié le ${date}</div>
+            </div>
+          </div>
+          <div class="space-x-2">
+            <button onclick="renameDatabase(${db.id})" 
+                    class="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600">
+              <i class="fas fa-edit"></i>
+            </button>
+            <button onclick="deleteDatabase(${db.id})" 
+                    class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        `;
+        ul.appendChild(li);
+      });
     }
 
-    function updateDBSize() {
-      const dbData = localStorage.getItem('gestion_db');
+    async function updateDBSize() {
+      const dbData = await dbManager.getActiveDatabase();
       if (dbData) {
-        const sizeMB = (dbData.length/1024/1024).toFixed(2);
+        const sizeMB = (dbData.length / 1024 / 1024).toFixed(2);
         document.getElementById("dbSize").textContent = `Taille: ${sizeMB} MB`;
-      } else document.getElementById("dbSize").textContent = "Taille: 0 MB";
+      } else {
+        document.getElementById("dbSize").textContent = "Taille: 0 MB";
+      }
     }
 
-    document.addEventListener("DOMContentLoaded", () => {
-      updateDBSize();
-      renderDbList();
-    });
+    // Initialisation de l'application
+    document.addEventListener("DOMContentLoaded", initApp);
   </script>
 </body>
 </html>
