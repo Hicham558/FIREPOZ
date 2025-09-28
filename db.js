@@ -125,37 +125,22 @@ export async function getDb() {
 }
 
 // Sauvegarder dans IndexedDB (+ LocalStorage en backup)
+// Sauvegarder dans IndexedDB (+ LocalStorage en backup)
 export async function saveDbToStorage(database) {
-  if (!database) {
-    console.warn("⚠️ Tentative de sauvegarde d'une base null");
-    return;
-  }
-
   try {
     const dbBinary = database.export();
 
-    // IndexedDB (stockage principal)
+    // IndexedDB
     await saveToIndexedDB(dbBinary);
 
-    // LocalStorage (base active + backup compatibilité)
+    // LocalStorage (fallback compatibilité, mais limité)
     const binaryString = String.fromCharCode(...dbBinary);
     const base64String = btoa(binaryString);
     localStorage.setItem("gestion_db", base64String);
 
-    // Mettre à jour dans la liste des bases si elle existe
-    const dbList = getDbList();
-    const activeIndex = getActiveIndex();
-    if (activeIndex >= 0 && dbList[activeIndex]) {
-      dbList[activeIndex].data = base64String;
-      dbList[activeIndex].size = base64String.length;
-      saveDbList(dbList);
-    }
-
     console.log("💾 Base sauvegardée (IndexedDB + LocalStorage)");
-    return true;
   } catch (error) {
     console.error("❌ Erreur sauvegarde DB:", error);
-    return false;
   }
 }
 
