@@ -128,71 +128,21 @@ export async function getDb() {
 let isSaving = false;
 
 // Sauvegarder dans IndexedDB (+ LocalStorage en backup)
-export async function saveDbToStorage(database, updateList = true) {
-  // Éviter la récursion
-  if (isSaving) {
-    console.warn("⚠️ Sauvegarde déjà en cours - ignorée");
-    return false;
-  }
-  
-  if (!database) {
-    console.warn("⚠️ Tentative de sauvegarde d'une base null");
-    return false;
-  }
-
-  isSaving = true;
-
+export async function saveDbToStorage(database) {
   try {
     const dbBinary = database.export();
 
-    // IndexedDB (stockage principal)
+    // IndexedDB
     await saveToIndexedDB(dbBinary);
 
-    // LocalStorage (base active seulement, pas de déclenchement d'événement)
+    // LocalStorage (fallback compatibilité, mais limité)
     const binaryString = String.fromCharCode(...dbBinary);
     const base64String = btoa(binaryString);
-    
-    // Utiliser l'API native localStorage pour éviter les déclencheurs
-    if (window.localStorage._cache) {
-      window.localStorage._cache["gestion_db"] = base64String;
-    }
-    // Fallback direct
-    try {
-      Object.getPrototypeOf(window.localStorage).setItem.call(window.localStorage, "gestion_db", base64String);
-    } catch (e) {
-      // Si tout échoue, utilisation directe (risque de déclenchement)
-      localStorage.setItem("gestion_db", base64String);
-    }
-
-    // Mettre à jour dans la liste des bases si demandé (sans sauvegarder)
-    if (updateList) {
-      const dbList = getDbList();
-      const activeIndex = getActiveIndex();
-      if (activeIndex >= 0 && dbList[activeIndex]) {
-        dbList[activeIndex].data = base64String;
-        dbList[activeIndex].size = base64String.length;
-        dbList[activeIndex].lastModified = new Date().toISOString();
-        
-        // Sauvegarder la liste directement sans passer par localStorage patch
-        const listJson = JSON.stringify(dbList);
-        if (window.localStorage._cache) {
-          window.localStorage._cache["gestion_db_list"] = listJson;
-        }
-        try {
-          Object.getPrototypeOf(window.localStorage).setItem.call(window.localStorage, "gestion_db_list", listJson);
-        } catch (e) {
-          console.warn("Fallback saveDbList échoué:", e);
-        }
-      }
-    }
+    localStorage.setItem("gestion_db", base64String);
 
     console.log("💾 Base sauvegardée (IndexedDB + LocalStorage)");
-    return true;
   } catch (error) {
     console.error("❌ Erreur sauvegarde DB:", error);
-    return false;
-  } finally {
-    isSaving = false;
   }
 }
 
