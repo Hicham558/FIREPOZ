@@ -124,12 +124,23 @@ export async function getDb() {
   }
 }
 
+// Flag pour éviter la récursion
+let isSaving = false;
+
 // Sauvegarder dans IndexedDB (+ LocalStorage en backup)
 export async function saveDbToStorage(database, updateList = true) {
+  // Éviter la récursion
+  if (isSaving) {
+    console.warn("⚠️ Sauvegarde déjà en cours - ignorée");
+    return false;
+  }
+  
   if (!database) {
     console.warn("⚠️ Tentative de sauvegarde d'une base null");
     return false;
   }
+
+  isSaving = true;
 
   try {
     const dbBinary = database.export();
@@ -137,12 +148,23 @@ export async function saveDbToStorage(database, updateList = true) {
     // IndexedDB (stockage principal)
     await saveToIndexedDB(dbBinary);
 
-    // LocalStorage (base active + backup compatibilité)
+    // LocalStorage (base active seulement, pas de déclenchement d'événement)
     const binaryString = String.fromCharCode(...dbBinary);
     const base64String = btoa(binaryString);
-    localStorage.setItem("gestion_db", base64String);
+    
+    // Utiliser l'API native localStorage pour éviter les déclencheurs
+    if (window.localStorage._cache) {
+      window.localStorage._cache["gestion_db"] = base64String;
+    }
+    // Fallback direct
+    try {
+      Object.getPrototypeOf(window.localStorage).setItem.call(window.localStorage, "gestion_db", base64String);
+    } catch (e) {
+      // Si tout échoue, utilisation directe (risque de déclenchement)
+      localStorage.setItem("gestion_db", base64String);
+    }
 
-    // Mettre à jour dans la liste des bases si demandé (éviter récursion)
+    // Mettre à jour dans la liste des bases si demandé (sans sauvegarder)
     if (updateList) {
       const dbList = getDbList();
       const activeIndex = getActiveIndex();
@@ -150,7 +172,17 @@ export async function saveDbToStorage(database, updateList = true) {
         dbList[activeIndex].data = base64String;
         dbList[activeIndex].size = base64String.length;
         dbList[activeIndex].lastModified = new Date().toISOString();
-        saveDbList(dbList);
+        
+        // Sauvegarder la liste directement sans passer par localStorage patch
+        const listJson = JSON.stringify(dbList);
+        if (window.localStorage._cache) {
+          window.localStorage._cache["gestion_db_list"] = listJson;
+        }
+        try {
+          Object.getPrototypeOf(window.localStorage).setItem.call(window.localStorage, "gestion_db_list", listJson);
+        } catch (e) {
+          console.warn("Fallback saveDbList échoué:", e);
+        }
       }
     }
 
@@ -159,28 +191,86 @@ export async function saveDbToStorage(database, updateList = true) {
   } catch (error) {
     console.error("❌ Erreur sauvegarde DB:", error);
     return false;
+  } finally {
+    isSaving = false;
   }
 }
 
 // ✅ Alias pour compatibilité avec l'ancien code
 export { saveDbToStorage as saveDbToLocalStorage };
 
-// Fonctions utilitaires pour la gestion multi-base
+// Fonctions utilitaires pour la gestion multi-base (utilisation directe pour éviter récursion)
 function getDbList() {
-  const list = localStorage.getItem("gestion_db_list");
-  return list ? JSON.parse(list) : [];
+  try {
+    // Essayer d'abord le cache
+    if (window.localStorage._cache && window.localStorage._cache["gestion_db_list"]) {
+      return JSON.parse(window.localStorage._cache["gestion_db_list"]);
+    }
+    
+    // Fallback API native
+    const list = Object.getPrototypeOf(window.localStorage).getItem.call(window.localStorage, "gestion_db_list");
+    return list ? JSON.parse(list) : [];
+  } catch (e) {
+    console.warn("Erreur lecture liste bases:", e);
+    return [];
+  }
 }
 
 function saveDbList(list) {
-  localStorage.setItem("gestion_db_list", JSON.stringify(list));
+  try {
+    const listJson = JSON.stringify(list);
+    
+    // Sauvegarder dans le cache
+    if (window.localStorage._cache) {
+      window.localStorage._cache["gestion_db_list"] = listJson;
+    }
+    
+    // Sauvegarder avec l'API native pour éviter les déclencheurs
+    Object.getPrototypeOf(window.localStorage).setItem.call(window.localStorage, "gestion_db_list", listJson);
+  } catch (e) {
+    console.warn("Erreur sauvegarde liste bases:", e);
+  }
 }
 
 function getActiveIndex() {
-  return parseInt(localStorage.getItem("gestion_db_active") || "-1");
+  try {
+    // Essayer d'abord le cache
+    if (window.localStorage._cache && window.localStorage._cache["gestion_db_active"]) {
+      return parseInt(window.localStorage._cache["gestion_db_active"]);
+    }
+    
+    // Fallback API native
+    const index = Object.getPrototypeOf(window.localStorage).getItem.call(window.localStorage, "gestion_db_active");
+    return parseInt(index || "-1");
+  } catch (e) {
+    console.warn("Erreur lecture index actif:", e);
+    return -1;
+  }
 }
 
-// Définir une base comme active
+function setActiveIndex(idx) {
+  try {
+    const indexStr = idx.toString();
+    
+    // Sauvegarder dans le cache
+    if (window.localStorage._cache) {
+      window.localStorage._cache["gestion_db_active"] = indexStr;
+    }
+    
+    // Sauvegarder avec l'API native
+    Object.getPrototypeOf(window.localStorage).setItem.call(window.localStorage, "gestion_db_active", indexStr);
+  } catch (e) {
+    console.warn("Erreur sauvegarde index actif:", e);
+  }
+}
+
+// Définir une base comme active (version sécurisée)
 export async function setActiveDb(base64Data) {
+  if (isSaving) {
+    console.warn("⚠️ Sauvegarde en cours - setActiveDb reporté");
+    return db;
+  }
+
   try {
     const SQL = await initSQL();
     const bytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
@@ -188,8 +278,17 @@ export async function setActiveDb(base64Data) {
     // Créer la nouvelle instance de base
     db = new SQL.Database(bytes);
     
-    // Sauvegarder sans mettre à jour la liste (éviter conflit)
-    localStorage.setItem('gestion_db', base64Data);
+    // Sauvegarder directement sans déclencher de mise à jour
+    if (window.localStorage._cache) {
+      window.localStorage._cache["gestion_db"] = base64Data;
+    }
+    
+    try {
+      Object.getPrototypeOf(window.localStorage).setItem.call(window.localStorage, "gestion_db", base64Data);
+    } catch (e) {
+      console.warn("Fallback setActiveDb localStorage:", e);
+    }
+    
     await saveToIndexedDB(bytes);
     
     console.log("✅ Base active mise à jour");
@@ -362,8 +461,13 @@ export async function exportCurrentDb() {
   }
 }
 
-// Importer une base depuis base64
+// Importer une base depuis base64 (version sécurisée)
 export async function importDb(base64Data) {
+  if (isSaving) {
+    console.warn("⚠️ Sauvegarde en cours - import reporté");
+    throw new Error("Import en cours de sauvegarde, veuillez réessayer");
+  }
+
   try {
     const SQL = await initSQL();
     const bytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
@@ -375,8 +479,17 @@ export async function importDb(base64Data) {
     // Si on arrive ici, la base est valide
     db = new SQL.Database(bytes);
     
-    // Sauvegarder sans mise à jour de liste
-    localStorage.setItem('gestion_db', base64Data);
+    // Sauvegarder directement
+    if (window.localStorage._cache) {
+      window.localStorage._cache["gestion_db"] = base64Data;
+    }
+    
+    try {
+      Object.getPrototypeOf(window.localStorage).setItem.call(window.localStorage, "gestion_db", base64Data);
+    } catch (e) {
+      console.warn("Fallback importDb localStorage:", e);
+    }
+    
     await saveToIndexedDB(bytes);
     
     console.log("✅ Base importée avec succès");
@@ -396,3 +509,6 @@ export function isDbLoaded() {
 export function getCurrentDb() {
   return db;
 }
+
+// Exporter les fonctions utilitaires pour BDD.html
+export { getDbList, saveDbList, getActiveIndex, setActiveIndex };
