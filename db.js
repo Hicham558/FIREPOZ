@@ -177,7 +177,8 @@ export { saveDbToStorage as saveDbToLocalStorage };
 export async function getDbList() {
   try {
     const list = localStorage.getItem("gestion_db_list");
-    return list ? JSON.parse(list) : [];
+    const parsed = list ? JSON.parse(list) : [];
+    return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
     console.warn("⚠️ Erreur lecture liste bases:", e.message);
     return [];
@@ -186,6 +187,10 @@ export async function getDbList() {
 
 export async function saveDbList(list) {
   try {
+    if (!Array.isArray(list)) {
+      console.warn("⚠️ Liste de bases invalide, sauvegarde ignorée");
+      return;
+    }
     localStorage.setItem("gestion_db_list", JSON.stringify(list));
   } catch (e) {
     console.warn("⚠️ Erreur sauvegarde liste bases:", e.message);
