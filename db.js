@@ -1,33 +1,30 @@
 let db = null;
-const DB_NAME = "gestion_db"; // clé standardisée
+const DB_NAME = "gestion_db";
 const STORE_NAME = "sqlite_db";
 
 // Ouvrir IndexedDB
 function openIndexedDB() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, 1);
-
     request.onupgradeneeded = (event) => {
-      const db = event.target.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
+      const idb = event.target.result;
+      if (!idb.objectStoreNames.contains(STORE_NAME)) {
+        idb.createObjectStore(STORE_NAME);
       }
     };
-
     request.onsuccess = (event) => resolve(event.target.result);
     request.onerror = (event) => reject(event.target.error);
   });
 }
 
-// Lire depuis IndexedDB
-async function loadFromIndexedDB() {
+// Lire une base depuis IndexedDB
+async function loadFromIndexedDB(key = "db") {
   try {
     const idb = await openIndexedDB();
     return new Promise((resolve, reject) => {
       const tx = idb.transaction(STORE_NAME, "readonly");
       const store = tx.objectStore(STORE_NAME);
-      const req = store.get("db");
-
+      const req = store.get(key);
       req.onsuccess = () => resolve(req.result || null);
       req.onerror = () => reject(req.error);
     });
@@ -37,15 +34,14 @@ async function loadFromIndexedDB() {
   }
 }
 
-// Sauvegarder dans IndexedDB
-async function saveToIndexedDB(data) {
+// Sauvegarder une base dans IndexedDB
+async function saveToIndexedDB(data, key = "db") {
   try {
     const idb = await openIndexedDB();
     return new Promise((resolve, reject) => {
       const tx = idb.transaction(STORE_NAME, "readwrite");
       const store = tx.objectStore(STORE_NAME);
-      const req = store.put(data, "db");
-
+      const req = store.put(data, key);
       req.onsuccess = () => resolve(true);
       req.onerror = () => reject(req.error);
     });
@@ -55,46 +51,32 @@ async function saveToIndexedDB(data) {
   }
 }
 
-export async function getDb() {
+// Charger la DB active
+export async function getDb(activeKey = "db") {
   if (db) return db;
 
   const SQL = await initSqlJs({
-    locateFile: () =>
-      "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.wasm",
+    locateFile: () => "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.wasm",
   });
 
   try {
-    let savedDb = null;
+    let savedDb = await loadFromIndexedDB(activeKey);
 
-    // 🔍 Essayer IndexedDB
-    const idbData = await loadFromIndexedDB();
-    if (idbData) {
-      console.log("📦 Chargement de la base depuis IndexedDB");
-      savedDb = idbData;
-    }
-
-    // 🔍 Sinon, fallback LocalStorage
+    // fallback LocalStorage
     if (!savedDb) {
-      const lsData =
-        localStorage.getItem("gestion_db") || localStorage.getItem("gestion");
-      if (lsData) {
-        console.log("📦 Chargement de la base depuis LocalStorage");
-        savedDb = Uint8Array.from(atob(lsData), (c) => c.charCodeAt(0));
-      }
+      const lsData = localStorage.getItem(activeKey);
+      if (lsData) savedDb = Uint8Array.from(atob(lsData), c => c.charCodeAt(0));
     }
 
     if (savedDb) {
       db = new SQL.Database(savedDb);
     } else {
-      // 📥 Charger la base initiale gestion.db
-      console.log("📥 Chargement de la base initiale depuis gestion.db");
+      // Charger base initiale
       const response = await fetch("./gestion.db");
       if (!response.ok) throw new Error("Impossible de charger gestion.db");
-      const arrayBuffer = await response.arrayBuffer();
-      db = new SQL.Database(new Uint8Array(arrayBuffer));
-
-      // Sauvegarde immédiate
-      await saveDbToStorage(db);
+      const buffer = await response.arrayBuffer();
+      db = new SQL.Database(new Uint8Array(buffer));
+      await saveDbToStorage(db, activeKey);
     }
 
     return db;
@@ -104,58 +86,41 @@ export async function getDb() {
   }
 }
 
-// Sauvegarder dans IndexedDB (+ LocalStorage en backup)
-export async function saveDbToStorage(database) {
+// Sauvegarde
+export async function saveDbToStorage(database, key = "db") {
   try {
     const dbBinary = database.export();
+    await saveToIndexedDB(dbBinary, key);
 
-    // IndexedDB
-    await saveToIndexedDB(dbBinary);
-
-    // LocalStorage (fallback compatibilité, mais limité)
     const binaryString = String.fromCharCode(...dbBinary);
-    const base64String = btoa(binaryString);
-    localStorage.setItem("gestion_db", base64String);
-
-    console.log("💾 Base sauvegardée (IndexedDB + LocalStorage)");
+    localStorage.setItem(key, btoa(binaryString));
+    console.log(`💾 Base sauvegardée sous "${key}"`);
   } catch (error) {
     console.error("❌ Erreur sauvegarde DB:", error);
   }
 }
 
-// ✅ Alias pour compatibilité avec l'ancien code
+// Alias ancien code
 export { saveDbToStorage as saveDbToLocalStorage };
 
 // Reset complet
-export async function resetDatabase() {
-  localStorage.removeItem("gestion_db");
-  localStorage.removeItem("gestion");
-
+export async function resetDatabase(activeKey = "db") {
+  localStorage.removeItem(activeKey);
   try {
     const idb = await openIndexedDB();
     const tx = idb.transaction(STORE_NAME, "readwrite");
-    tx.objectStore(STORE_NAME).delete("db");
-    console.log("🔄 Base supprimée d'IndexedDB");
+    tx.objectStore(STORE_NAME).delete(activeKey);
   } catch (e) {
     console.warn("⚠️ Impossible de reset IndexedDB:", e);
   }
-
   db = null;
   alert("Base de données réinitialisée !");
 }
 
-// Taille approx
-export async function getDbSize() {
-  const idbData = await loadFromIndexedDB();
+// Taille approximative
+export async function getDbSize(activeKey = "db") {
+  let idbData = await loadFromIndexedDB(activeKey);
   if (idbData) return idbData.length;
-
-  const savedDb =
-    localStorage.getItem("gestion_db") || localStorage.getItem("gestion");
+  const savedDb = localStorage.getItem(activeKey);
   return savedDb ? savedDb.length : 0;
-}
-export async function setActiveDb(base64Data) {
-  const bytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-  db = await initSqlJs().then(SQL => new SQL.Database(bytes));
-  await saveDbToStorage(db); // sauvegarde dans IndexedDB + LocalStorage
-  localStorage.setItem('gestion_db', base64Data);
 }
