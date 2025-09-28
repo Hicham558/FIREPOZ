@@ -87,14 +87,26 @@ export async function getDb(activeKey = "db") {
 }
 
 // Sauvegarde
-export async function saveDbToStorage(database, key = "db") {
+export async function saveDbToStorage(database) {
   try {
-    const dbBinary = database.export();
-    await saveToIndexedDB(dbBinary, key);
+    let dbBinary;
 
+    // Vérifie si c'est un objet SQL.js Database
+    if (database.export) {
+      dbBinary = database.export(); // objet Database
+    } else {
+      dbBinary = database; // Uint8Array déjà existant
+    }
+
+    // IndexedDB
+    await saveToIndexedDB(dbBinary);
+
+    // LocalStorage fallback
     const binaryString = String.fromCharCode(...dbBinary);
-    localStorage.setItem(key, btoa(binaryString));
-    console.log(`💾 Base sauvegardée sous "${key}"`);
+    const base64String = btoa(binaryString);
+    localStorage.setItem("gestion_db", base64String);
+
+    console.log("💾 Base sauvegardée (IndexedDB + LocalStorage)");
   } catch (error) {
     console.error("❌ Erreur sauvegarde DB:", error);
   }
