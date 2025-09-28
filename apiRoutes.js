@@ -1072,7 +1072,7 @@ export async function listeTables() {
 
 export async function listeClients() {
   try {
-    console.log("Exécution de listeClients...");
+   
     const db = await getDb();
     const stmtInfo = db.prepare("PRAGMA table_info(client)");
     const columns = [];
@@ -1080,13 +1080,13 @@ export async function listeClients() {
       columns.push(stmtInfo.getAsObject().name);
     }
     stmtInfo.free();
-    console.log("Colonnes de la table client :", columns);
+
 
     const stmt = db.prepare('SELECT numero_clt, nom, solde, reference, contact, adresse FROM client');
     const clients = [];
     while (stmt.step()) {
       const row = stmt.get();
-      console.log("Client brut récupéré :", row);
+ 
       clients.push({
         numero_clt: row[0] !== null ? row[0] : '',
         nom: row[1] !== null ? row[1] : '',
@@ -1097,7 +1097,6 @@ export async function listeClients() {
       });
     }
     stmt.free();
-    console.log("Clients formatés retournés :", clients);
     return clients;
   } catch (error) {
     console.error("Erreur listeClients :", error);
@@ -1107,7 +1106,6 @@ export async function listeClients() {
 
 export async function listeFournisseurs() {
   try {
-    console.log("Exécution de listeFournisseurs...");
     const db = await getDb();
     const stmtInfo = db.prepare("PRAGMA table_info(fournisseur)");
     const columns = [];
@@ -1115,13 +1113,11 @@ export async function listeFournisseurs() {
       columns.push(stmtInfo.getAsObject().name);
     }
     stmtInfo.free();
-    console.log("Colonnes de la table fournisseur :", columns);
 
     const stmt = db.prepare('SELECT numero_fou, nom, solde, reference, contact, adresse FROM fournisseur');
     const fournisseurs = [];
     while (stmt.step()) {
       const row = stmt.get();
-      console.log("Fournisseur brut récupéré :", row);
       fournisseurs.push({
         numero_fou: row[0] !== null ? row[0] : '',
         nom: row[1] !== null ? row[1] : '',
@@ -1132,7 +1128,6 @@ export async function listeFournisseurs() {
       });
     }
     stmt.free();
-    console.log("Fournisseurs formatés retournés :", fournisseurs);
     return fournisseurs;
   } catch (error) {
     console.error("Erreur listeFournisseurs :", error);
@@ -1142,7 +1137,6 @@ export async function listeFournisseurs() {
 
 export async function listeUtilisateurs() {
   try {
-    console.log("Exécution de listeUtilisateurs...");
     const db = await getDb();
     const stmtInfo = db.prepare("PRAGMA table_info(utilisateur)");
     const columns = [];
@@ -1150,13 +1144,10 @@ export async function listeUtilisateurs() {
       columns.push(stmtInfo.getAsObject().name);
     }
     stmtInfo.free();
-    console.log("Colonnes de la table utilisateur :", columns);
-
     const stmt = db.prepare('SELECT numero_util, nom, statue FROM utilisateur ORDER BY nom');
     const utilisateurs = [];
     while (stmt.step()) {
       const row = stmt.get();
-      console.log("Utilisateur brut récupéré :", row);
       utilisateurs.push({
         numero: row[0] !== null ? row[0] : '',
         nom: row[1] !== null ? row[1] : '',
@@ -1164,7 +1155,6 @@ export async function listeUtilisateurs() {
       });
     }
     stmt.free();
-    console.log("Utilisateurs formatés retournés :", utilisateurs);
     return utilisateurs;
   } catch (error) {
     console.error("Erreur listeUtilisateurs :", error);
@@ -1174,7 +1164,7 @@ export async function listeUtilisateurs() {
 
 export async function listeProduits() {
   try {
-    console.log("Exécution de listeProduits...");
+   
     const db = await getDb();
 
     // Vérifier les colonnes de la table item
@@ -1184,25 +1174,23 @@ export async function listeProduits() {
       columns.push(stmtInfo.getAsObject().name);
     }
     stmtInfo.free();
-    console.log("Colonnes de la table item :", columns);
+
 
     // Récupérer les données
     const stmt = db.prepare('SELECT numero_item, bar, designation, qte, prix, prixba, ref FROM item ORDER BY designation');
     const produits = [];
     while (stmt.step()) {
       const row = stmt.get();
-      console.log("Produit brut récupéré :", row);
+     
 
       // Conversion des valeurs avec débogage
       const prixRaw = row[4];
       const prixbaRaw = row[5];
-      console.log("Valeurs brutes - prix :", prixRaw, "prixba :", prixbaRaw);
+  
 
       const prixFloat = toDotDecimal(prixRaw);
       const prixbaFloat = toDotDecimal(prixbaRaw);
       const qteInt = parseInt(row[3]) || 0;
-
-      console.log("Valeurs converties - prixFloat :", prixFloat, "prixbaFloat :", prixbaFloat, "qteInt :", qteInt);
 
       produits.push({
         NUMERO_ITEM: row[0] !== null ? row[0] : '',
@@ -1220,7 +1208,6 @@ export async function listeProduits() {
       });
     }
     stmt.free();
-    console.log("Produits formatés retournés :", produits);
     return produits;
   } catch (error) {
     console.error("Erreur listeProduits :", error);
