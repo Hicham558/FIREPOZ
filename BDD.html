@@ -18,72 +18,135 @@
 </head>
 <body class="bg-gray-100 min-h-screen">
 
-  <!-- ⚡ Patch localStorage avec IndexedDB -->
+  <!-- ⚡ Patch localStorage avec IndexedDB - Version Simplifiée -->
   <script>
     (function(){
       const DB_NAME = "FirePozDB";
       const STORE_NAME = "keyvalue";
-      let dbPromise = new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, 1);
-        req.onupgradeneeded = e => {
-          if (!e.target.result.objectStoreNames.contains(STORE_NAME)) {
-            e.target.result.createObjectStore(STORE_NAME);
+      
+      let dbPromise = null;
+      let isInitializing = false;
+      
+      // Initialiser IndexedDB de façon sécurisée
+      function initDB() {
+        if (dbPromise || isInitializing) return dbPromise;
+        
+        isInitializing = true;
+        dbPromise = new Promise((resolve, reject) => {
+          try {
+            const req = indexedDB.open(DB_NAME, 1);
+            
+            req.onupgradeneeded = e => {
+              try {
+                const db = e.target.result;
+                if (!db.objectStoreNames.contains(STORE_NAME)) {
+                  db.createObjectStore(STORE_NAME);
+                }
+              } catch (err) {
+                console.warn("Erreur upgrade IndexedDB:", err);
+              }
+            };
+            
+            req.onsuccess = e => {
+              isInitializing = false;
+              resolve(e.target.result);
+            };
+            
+            req.onerror = e => {
+              isInitializing = false;
+              console.warn("IndexedDB indisponible:", e);
+              resolve(null); // Résoudre avec null au lieu de rejeter
+            };
+            
+            req.onblocked = e => {
+              console.warn("IndexedDB bloqué:", e);
+              setTimeout(() => {
+                isInitializing = false;
+                resolve(null);
+              }, 1000);
+            };
+          } catch (err) {
+            isInitializing = false;
+            console.warn("Erreur init IndexedDB:", err);
+            resolve(null);
           }
-        };
-        req.onsuccess = e => resolve(e.target.result);
-        req.onerror = e => reject(e);
-      });
+        });
+        
+        return dbPromise;
+      }
 
       async function idbGet(key) {
         try {
-          const db = await dbPromise;
-          return new Promise((resolve, reject) => {
-            const tx = db.transaction(STORE_NAME, "readonly");
-            const store = tx.objectStore(STORE_NAME);
-            const req = store.get(key);
-            req.onsuccess = () => resolve(req.result || null);
-            req.onerror = reject;
+          const db = await initDB();
+          if (!db) return null;
+          
+          return new Promise((resolve) => {
+            try {
+              const tx = db.transaction(STORE_NAME, "readonly");
+              const store = tx.objectStore(STORE_NAME);
+              const req = store.get(key);
+              
+              req.onsuccess = () => resolve(req.result || null);
+              req.onerror = () => resolve(null);
+              
+              tx.onerror = () => resolve(null);
+            } catch (e) {
+              resolve(null);
+            }
           });
         } catch (e) {
-          console.warn("IndexedDB non disponible:", e);
           return null;
         }
       }
 
       async function idbSet(key, value) {
         try {
-          const db = await dbPromise;
-          return new Promise((resolve, reject) => {
-            const tx = db.transaction(STORE_NAME, "readwrite");
-            const store = tx.objectStore(STORE_NAME);
-            store.put(value, key);
-            tx.oncomplete = () => resolve(true);
-            tx.onerror = reject;
+          const db = await initDB();
+          if (!db) return false;
+          
+          return new Promise((resolve) => {
+            try {
+              const tx = db.transaction(STORE_NAME, "readwrite");
+              const store = tx.objectStore(STORE_NAME);
+              store.put(value, key);
+              
+              tx.oncomplete = () => resolve(true);
+              tx.onerror = () => resolve(false);
+            } catch (e) {
+              resolve(false);
+            }
           });
         } catch (e) {
-          console.warn("IndexedDB non disponible:", e);
           return false;
         }
       }
 
       async function idbRemove(key) {
         try {
-          const db = await dbPromise;
-          return new Promise((resolve, reject) => {
-            const tx = db.transaction(STORE_NAME, "readwrite");
-            const store = tx.objectStore(STORE_NAME);
-            store.delete(key);
-            tx.oncomplete = () => resolve(true);
-            tx.onerror = reject;
+          const db = await initDB();
+          if (!db) return false;
+          
+          return new Promise((resolve) => {
+            try {
+              const tx = db.transaction(STORE_NAME, "readwrite");
+              const store = tx.objectStore(STORE_NAME);
+              store.delete(key);
+              
+              tx.oncomplete = () => resolve(true);
+              tx.onerror = () => resolve(false);
+            } catch (e) {
+              resolve(false);
+            }
           });
         } catch (e) {
-          console.warn("IndexedDB non disponible:", e);
           return false;
         }
       }
 
-      // Patch global localStorage (compatibilité)
+      // Sauvegarder référence originale
       const originalLocalStorage = window.localStorage;
+
+      // Patch global localStorage
       window.localStorage = {
         _cache: {},
         _initialized: false,
@@ -91,52 +154,73 @@
         async _init() {
           if (this._initialized) return;
           
-          console.log("🔄 Initialisation du cache IndexedDB...");
-          const keys = ["gestion_db","gestion_db_list","gestion_db_active","apiBaseUrl"];
+          console.log("🔄 Chargement cache localStorage...");
           
-          for (let k of keys) {
+          const keys = ["gestion_db", "gestion_db_list", "gestion_db_active", "apiBaseUrl"];
+          
+          for (let key of keys) {
             try {
-              let val = await idbGet(k);
-              if (val !== null) {
-                this._cache[k] = val;
-                console.log(`📦 Chargé depuis IndexedDB: ${k} (${typeof val})`);
-              } else {
+              // Essayer IndexedDB d'abord
+              let value = await idbGet(key);
+              
+              if (value === null) {
                 // Fallback vers localStorage natif
-                const fallback = originalLocalStorage.getItem(k);
-                if (fallback) {
-                  this._cache[k] = fallback;
-                  // Migrer vers IndexedDB
-                  await idbSet(k, fallback);
-                  console.log(`🔄 Migré vers IndexedDB: ${k}`);
+                try {
+                  value = originalLocalStorage.getItem(key);
+                  if (value) {
+                    // Migrer vers IndexedDB
+                    await idbSet(key, value);
+                    console.log(`📦 Migré ${key} vers IndexedDB`);
+                  }
+                } catch (e) {
+                  console.warn(`Erreur lecture localStorage natif pour ${key}:`, e);
                 }
+              } else {
+                console.log(`📦 Chargé ${key} depuis IndexedDB`);
+              }
+              
+              if (value !== null) {
+                this._cache[key] = value;
               }
             } catch (e) {
-              console.warn(`⚠️ Erreur chargement ${k}:`, e);
+              console.warn(`⚠️ Erreur chargement ${key}:`, e);
             }
           }
           
           this._initialized = true;
-          console.log("✅ Cache IndexedDB initialisé");
-          
-          // Déclencher l'événement personnalisé
-          window.dispatchEvent(new CustomEvent('storageReady'));
+          console.log("✅ Cache localStorage initialisé");
         },
 
-        getItem(k) { 
-          return this._cache[k] || null; 
+        getItem(key) {
+          return this._cache[key] || null;
         },
 
-        setItem(k, v) { 
-          this._cache[k] = v; 
-          idbSet(k, v).catch(e => console.warn("Erreur IndexedDB set:", e));
+        setItem(key, value) {
+          this._cache[key] = value;
+          // Sauvegarder en arrière-plan
+          idbSet(key, value).catch(e => {
+            console.warn(`Erreur sauvegarde ${key}:`, e);
+            // Fallback localStorage natif
+            try {
+              originalLocalStorage.setItem(key, value);
+            } catch (fallbackError) {
+              console.warn(`Fallback localStorage échoué pour ${key}:`, fallbackError);
+            }
+          });
         },
 
-        removeItem(k) { 
-          delete this._cache[k]; 
-          idbRemove(k).catch(e => console.warn("Erreur IndexedDB remove:", e));
+        removeItem(key) {
+          delete this._cache[key];
+          idbRemove(key).catch(e => {
+            console.warn(`Erreur suppression ${key}:`, e);
+            try {
+              originalLocalStorage.removeItem(key);
+            } catch (fallbackError) {
+              console.warn(`Fallback removeItem échoué pour ${key}:`, fallbackError);
+            }
+          });
         },
 
-        // Méthodes de compatibilité
         key(index) {
           const keys = Object.keys(this._cache);
           return keys[index] || null;
@@ -148,15 +232,22 @@
 
         clear() {
           this._cache = {};
-          // Note: ne nettoie pas IndexedDB pour des raisons de sécurité
         }
       };
 
-      // Initialiser le cache de façon asynchrone
-      window.localStorage._init().catch(e => {
-        console.error("❌ Erreur initialisation storage:", e);
-        window.dispatchEvent(new CustomEvent('storageReady')); // Continuer même en cas d'erreur
-      });
+      // Initialisation asynchrone sécurisée
+      (async () => {
+        try {
+          await window.localStorage._init();
+        } catch (e) {
+          console.error("❌ Erreur initialisation storage:", e);
+        } finally {
+          // Toujours déclencher l'événement, même en cas d'erreur
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('storageReady'));
+          }, 100);
+        }
+      })();
     })();
   </script>
 
@@ -283,10 +374,15 @@
 
     function showLoading(show = true) {
       const loading = document.getElementById('loading');
+      if (!loading) return;
+      
       if (show) {
         loading.classList.add('show');
+        loading.classList.remove('hidden');
       } else {
         loading.classList.remove('show');
+        // Petit délai pour une transition plus smooth
+        setTimeout(() => loading.classList.add('hidden'), 100);
       }
     }
 
@@ -747,31 +843,56 @@
       console.log("🚀 Initialisation de l'application...");
       isInitialized = true;
       
-      showLoading(false);
-      updateStats();
-      renderDbList();
-      
-      console.log("✅ Application initialisée");
+      try {
+        // Masquer le loading
+        showLoading(false);
+        
+        // Initialiser les données
+        updateStats();
+        renderDbList();
+        
+        console.log("✅ Application initialisée avec succès");
+      } catch (error) {
+        console.error("❌ Erreur lors de l'initialisation:", error);
+        showLoading(false);
+        showToast("Erreur lors de l'initialisation", true);
+      }
     }
 
     // Attendre que le storage soit prêt
-    window.addEventListener('storageReady', initializeApp);
+    window.addEventListener('storageReady', () => {
+      console.log("📡 Storage prêt - initialisation de l'app");
+      initializeApp();
+    });
 
-    // Fallback si l'événement ne se déclenche pas
+    // Fallback de sécurité - forcer l'initialisation après 2 secondes
     setTimeout(() => {
       if (!isInitialized) {
         console.warn("⚠️ Timeout storage - initialisation forcée");
         initializeApp();
       }
-    }, 3000);
+    }, 2000);
 
-    // Initialisation au chargement du DOM
-    document.addEventListener("DOMContentLoaded", () => {
-      // Si le storage est déjà prêt
-      if (window.localStorage._initialized) {
-        initializeApp();
-      }
-    });
+    // Si le DOM est déjà chargé et le storage prêt
+    if (document.readyState === 'loading') {
+      document.addEventListener("DOMContentLoaded", () => {
+        // Double vérification après DOM ready
+        setTimeout(() => {
+          if (!isInitialized) {
+            console.log("🔄 Initialisation post-DOM");
+            initializeApp();
+          }
+        }, 100);
+      });
+    } else {
+      // DOM déjà chargé
+      setTimeout(() => {
+        if (!isInitialized) {
+          console.log("🔄 DOM déjà prêt - init immédiate");
+          initializeApp();
+        }
+      }, 100);
+    }
   </script>
 </body>
 </html>
