@@ -15,7 +15,8 @@
   </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
-  <!-- Patch localStorage avec IndexedDB -->
+
+  <!-- ⚡ Patch localStorage avec IndexedDB -->
   <script>
     (function(){
       const DB_NAME = "FirePozDB";
@@ -39,7 +40,6 @@
           req.onerror = reject;
         });
       }
-
       async function idbSet(key, value) {
         const db = await dbPromise;
         return new Promise((resolve, reject) => {
@@ -50,7 +50,6 @@
           tx.onerror = reject;
         });
       }
-
       async function idbRemove(key) {
         const db = await dbPromise;
         return new Promise((resolve, reject) => {
@@ -62,22 +61,24 @@
         });
       }
 
+      // Patch global localStorage (compatibilité)
       window.localStorage = {
-        getItem: (k) => window._getSync(k),
-        setItem: (k, v) => window._setSync(k, v),
-        removeItem: (k) => idbRemove(k),
+        getItem: (k) => { return window._getSync(k); },
+        setItem: (k,v) => { window._setSync(k,v); },
+        removeItem: (k) => { idbRemove(k); },
         _cache: {},
         async _init() {
-          const keys = ["gestion_db", "gestion_db_list", "gestion_db_active", "apiBaseUrl"];
+          const keys = ["gestion_db","gestion_db_list","gestion_db_active","apiBaseUrl"];
           for (let k of keys) {
             let val = await idbGet(k);
             if (val !== null) window.localStorage._cache[k] = val;
           }
         },
-        _getSync(k) { return window.localStorage._cache[k] || null; },
-        _setSync(k, v) { window.localStorage._cache[k] = v; idbSet(k, v); }
+        _getSync(k){ return window.localStorage._cache[k] || null; },
+        _setSync(k,v){ window.localStorage._cache[k] = v; idbSet(k,v); }
       };
 
+      // Charger les données dans le cache
       window.localStorage._init();
     })();
   </script>
@@ -144,7 +145,6 @@
   <script>
     const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'https://hicham03041979.onrender.com';
 
-    // Afficher un toast pour les messages
     function showToast(message, isError = false) {
       const toast = document.getElementById('toast');
       const toastMessage = document.getElementById('toastMessage');
@@ -162,179 +162,81 @@
       }, 3000);
     }
 
-    // Vérifier si le fichier est une base de données
-    function isDbFile(name) {
-      return /\.(db|sqlite|sqlite3)$/i.test(name);
-    }
+    function isDbFile(name) { return /\.(db|sqlite|sqlite3)$/i.test(name); }
+    function goHome() { window.location.href = "index.html"; }
+    function getDbList() { return JSON.parse(localStorage.getItem("gestion_db_list") || "[]"); }
+    function saveDbList(list) { localStorage.setItem("gestion_db_list", JSON.stringify(list)); }
+    function getActiveIndex() { return parseInt(localStorage.getItem("gestion_db_active") || "-1"); }
+    function setActiveIndex(idx) { localStorage.setItem("gestion_db_active", idx); }
 
-    // Redirection vers la page d'accueil
-    function goHome() {
-      window.location.href = "index.html";
-    }
-
-    // Récupérer la liste des bases sauvegardées
-    function getDbList() {
-      return JSON.parse(localStorage.getItem("gestion_db_list") || "[]");
-    }
-
-    // Sauvegarder la liste des bases
-    function saveDbList(list) {
-      localStorage.setItem("gestion_db_list", JSON.stringify(list));
-    }
-
-    // Récupérer l'index de la base active
-    function getActiveIndex() {
-      return parseInt(localStorage.getItem("gestion_db_active") || "-1");
-    }
-
-    // Définir l'index de la base active
-    function setActiveIndex(idx) {
-      localStorage.setItem("gestion_db_active", idx);
-    }
-
-    // Télécharger la base de production
     async function downloadDatabase() {
       const dbData = localStorage.getItem('gestion_db');
       if (!dbData) return showToast("Aucune base trouvée", true);
-      try {
-        const binaryString = atob(dbData);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
-        const blob = new Blob([bytes], { type: 'application/octet-stream' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = "gestion.db";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        showToast("Base téléchargée");
-      } catch (err) {
-        showToast("Erreur lors du téléchargement : " + err.message, true);
-        console.error(err);
-      }
+      const binaryString = atob(dbData);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+      const blob = new Blob([bytes], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = "gestion.db";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast("Base téléchargée");
     }
 
-    // Réinitialiser la base de production
     async function resetDatabase() {
       if (!confirm("Réinitialiser la base de production ?")) return;
-      try {
-        const response = await fetch("gestion.db");
-        if (!response.ok) throw new Error("Erreur lors du chargement de gestion.db");
-        const buffer = await response.arrayBuffer();
-        const bytes = new Uint8Array(buffer);
-        let binary = "";
-        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-        const base64 = btoa(binary);
-
-        // Mettre à jour la base de production
-        localStorage.setItem("gestion_db", base64);
-
-        // Ajouter à la liste des bases sauvegardées
-        let list = getDbList();
-        const newDb = {
-          id: Date.now(),
-          name: `BaseRéinitialisée_${list.length + 1}`,
-          data: base64
-        };
-        list.push(newDb);
-        saveDbList(list);
-
-        // Définir comme base active
-        setActiveIndex(list.length - 1);
-
-        showToast("Base de production réinitialisée et ajoutée à la liste");
-        updateDBSize();
-        renderDbList();
-      } catch (err) {
-        showToast("Erreur lors de la réinitialisation : " + err.message, true);
-        console.error(err);
-      }
+      const response = await fetch("gestion.db");
+      const buffer = await response.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = "";
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+      localStorage.setItem("gestion_db", btoa(binary));
+      showToast("Base de production réinitialisée");
+      updateDBSize();
     }
 
-    // Importer une base depuis un fichier
-    async function uploadDatabase(event) {
+    function uploadDatabase(event) {
       const file = event.target.files[0];
       if (!file) return;
-      if (!isDbFile(file.name)) {
-        showToast("Format non valide", true);
-        return;
-      }
+      if (!isDbFile(file.name)) { showToast("Format non valide", true); return; }
       const reader = new FileReader();
-      reader.onload = async function(e) {
-        try {
-          const bytes = new Uint8Array(e.target.result);
-          let binary = "";
-          for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-          const base64 = btoa(binary);
-
-          // Mettre à jour la base de production
-          localStorage.setItem("gestion_db", base64);
-
-          // Ajouter à la liste des bases sauvegardées
-          let list = getDbList();
-          list.push({ id: Date.now(), name: file.name, data: base64 });
-          saveDbList(list);
-
-          // Définir comme base active
-          setActiveIndex(list.length - 1);
-
-          showToast("Nouvelle base importée");
-          renderDbList();
-          updateDBSize();
-        } catch (err) {
-          showToast("Erreur lors de l'importation : " + err.message, true);
-          console.error(err);
-        }
+      reader.onload = function(e) {
+        const bytes = new Uint8Array(e.target.result);
+        let binary = ""; for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        const base64 = btoa(binary);
+        localStorage.setItem("gestion_db", base64);
+        let list = getDbList();
+        list.push({id: Date.now(), name:file.name, data:base64});
+        saveDbList(list);
+        setActiveIndex(list.length - 1);
+        showToast("Nouvelle base importée");
+        renderDbList();
+        updateDBSize();
       };
-      reader.onerror = () => showToast("Erreur de lecture du fichier", true);
       reader.readAsArrayBuffer(file);
     }
 
-    // Créer une nouvelle base vierge
     async function createNewDatabase() {
-      try {
-        const response = await fetch("gestion.db");
-        if (!response.ok) throw new Error("Erreur lors du chargement de gestion.db");
-        const buffer = await response.arrayBuffer();
-        const bytes = new Uint8Array(buffer);
-        let binary = "";
-        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-        const base64 = btoa(binary);
-
-        // Ajouter à la liste des bases sauvegardées
-        let list = getDbList();
-        const newDb = {
-          id: Date.now(),
-          name: `NouvelleBase_${list.length + 1}`,
-          data: base64
-        };
-        list.push(newDb);
-        saveDbList(list);
-
-        // Définir comme base active
-        localStorage.setItem("gestion_db", base64);
-        setActiveIndex(list.length - 1);
-
-        showToast("Nouvelle base vierge ajoutée et sélectionnée");
-        renderDbList();
-        updateDBSize();
-      } catch (err) {
-        showToast("Erreur lors de la création : " + err.message, true);
-        console.error(err);
-      }
+      const response = await fetch("gestion.db");
+      const buffer = await response.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = ""; for (let i=0;i<bytes.length;i++) binary += String.fromCharCode(bytes[i]);
+      const base64 = btoa(binary);
+      let list = getDbList();
+      list.push({id: Date.now(), name:`NouvelleBase_${list.length+1}`, data:base64});
+      saveDbList(list);
+      showToast("Nouvelle base vierge ajoutée");
+      renderDbList();
     }
 
-    // Mettre à jour depuis le serveur
     async function updateFromServer() {
       try {
         const response = await fetch(`${API_BASE_URL}/export`);
         if (!response.ok) throw new Error("Erreur HTTP " + response.status);
         const data = await response.json();
         const base64Db = data.db;
-
-        // Ajouter à la liste des bases sauvegardées
         let list = getDbList();
         const newDb = {
           id: Date.now(),
@@ -343,27 +245,20 @@
         };
         list.push(newDb);
         saveDbList(list);
-
-        // Sélectionner directement cette nouvelle base comme active
         const newIndex = list.length - 1;
         localStorage.setItem("gestion_db", base64Db);
         setActiveIndex(newIndex);
-
-        // Passer en mode local
         localStorage.setItem("apiBaseUrl", "/api");
-
-        // Mise à jour UI
         renderDbList();
         updateDBSize();
         showToast("✅ Base mise à jour et sélectionnée. Mode local activé !");
       } catch (err) {
-        showToast("❌ Erreur : " + err.message, true);
         console.error(err);
+        showToast("❌ Erreur : " + err.message, true);
       }
     }
 
-    // Sauvegarder la base courante avant de changer
-    async function saveCurrentBeforeSwitch() {
+    function saveCurrentBeforeSwitch() {
       const idx = getActiveIndex();
       if (idx >= 0) {
         let list = getDbList();
@@ -374,49 +269,33 @@
       }
     }
 
-    // Sélectionner une base
-    async function selectDatabase(idx) {
-      try {
-        await saveCurrentBeforeSwitch();
-        let list = getDbList();
-        if (list[idx]) {
-          localStorage.setItem("gestion_db", list[idx].data);
-          setActiveIndex(idx);
-          showToast(`"${list[idx].name}" est maintenant la base de production`);
-          updateDBSize();
-          renderDbList();
-        }
-      } catch (err) {
-        showToast("Erreur lors de la sélection : " + err.message, true);
-        console.error(err);
-      }
-    }
-
-    // Renommer une base
-    function renameDatabase(idx) {
+    function selectDatabase(idx) {
+      saveCurrentBeforeSwitch();
       let list = getDbList();
-      const newName = prompt("Nouveau nom:", list[idx].name);
-      if (newName) {
-        list[idx].name = newName;
-        saveDbList(list);
+      if (list[idx]) {
+        localStorage.setItem("gestion_db", list[idx].data);
+        setActiveIndex(idx);
+        showToast(`"${list[idx].name}" est maintenant la base de production`);
+        updateDBSize();
         renderDbList();
       }
     }
 
-    // Supprimer une base
+    function renameDatabase(idx) {
+      let list = getDbList();
+      const newName = prompt("Nouveau nom:", list[idx].name);
+      if (newName) { list[idx].name = newName; saveDbList(list); renderDbList(); }
+    }
+
     function deleteDatabase(idx) {
       if (!confirm("Supprimer cette base sauvegardée ?")) return;
       let list = getDbList();
-      list.splice(idx, 1);
+      list.splice(idx,1);
       saveDbList(list);
-      if (idx === getActiveIndex()) {
-        localStorage.removeItem("gestion_db");
-        setActiveIndex(-1);
-      }
+      if (idx === getActiveIndex()) { localStorage.removeItem("gestion_db"); setActiveIndex(-1); }
       renderDbList();
     }
 
-    // Afficher la liste des bases sauvegardées
     function renderDbList() {
       const list = getDbList();
       const active = getActiveIndex();
@@ -424,10 +303,10 @@
       ul.innerHTML = "";
       list.forEach((db, idx) => {
         const li = document.createElement("li");
-        li.className = "flex items-center justify-between border rounded p-3";
+        li.className="flex items-center justify-between border rounded p-3";
         li.innerHTML = `
           <div class="flex items-center space-x-3">
-            <input type="radio" name="activeDb" ${idx === active ? "checked" : ""} onchange="selectDatabase(${idx})">
+            <input type="radio" name="activeDb" ${idx===active?"checked":""} onchange="selectDatabase(${idx})">
             <span class="font-medium">${db.name}</span>
           </div>
           <div class="space-x-2">
@@ -439,18 +318,14 @@
       });
     }
 
-    // Mettre à jour la taille de la base
     function updateDBSize() {
       const dbData = localStorage.getItem('gestion_db');
       if (dbData) {
-        const sizeMB = (dbData.length / 1024 / 1024).toFixed(2);
+        const sizeMB = (dbData.length/1024/1024).toFixed(2);
         document.getElementById("dbSize").textContent = `Taille: ${sizeMB} MB`;
-      } else {
-        document.getElementById("dbSize").textContent = "Taille: 0 MB";
-      }
+      } else document.getElementById("dbSize").textContent = "Taille: 0 MB";
     }
 
-    // Initialisation
     document.addEventListener("DOMContentLoaded", () => {
       updateDBSize();
       renderDbList();
