@@ -153,3 +153,9 @@ export async function getDbSize() {
     localStorage.getItem("gestion_db") || localStorage.getItem("gestion");
   return savedDb ? savedDb.length : 0;
 }
+export async function setActiveDb(base64Data) {
+  const bytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+  db = await initSqlJs().then(SQL => new SQL.Database(bytes));
+  await saveDbToStorage(db); // sauvegarde dans IndexedDB + LocalStorage
+  localStorage.setItem('gestion_db', base64Data);
+}
