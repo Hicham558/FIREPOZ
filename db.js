@@ -112,8 +112,8 @@ export async function getDb() {
       const arrayBuffer = await response.arrayBuffer();
       db = new SQL.Database(new Uint8Array(arrayBuffer));
 
-      // Sauvegarde immédiate
-      await saveDbToStorage(db);
+      // Sauvegarde initiale sans mise à jour de la liste (éviter récursion)
+      await saveDbToStorage(db, false);
       console.log("💾 Base initiale sauvegardée");
     }
 
@@ -125,10 +125,10 @@ export async function getDb() {
 }
 
 // Sauvegarder dans IndexedDB (+ LocalStorage en backup)
-export async function saveDbToStorage(database) {
+export async function saveDbToStorage(database, updateList = true) {
   if (!database) {
     console.warn("⚠️ Tentative de sauvegarde d'une base null");
-    return;
+    return false;
   }
 
   try {
@@ -142,13 +142,16 @@ export async function saveDbToStorage(database) {
     const base64String = btoa(binaryString);
     localStorage.setItem("gestion_db", base64String);
 
-    // Mettre à jour dans la liste des bases si elle existe
-    const dbList = getDbList();
-    const activeIndex = getActiveIndex();
-    if (activeIndex >= 0 && dbList[activeIndex]) {
-      dbList[activeIndex].data = base64String;
-      dbList[activeIndex].size = base64String.length;
-      saveDbList(dbList);
+    // Mettre à jour dans la liste des bases si demandé (éviter récursion)
+    if (updateList) {
+      const dbList = getDbList();
+      const activeIndex = getActiveIndex();
+      if (activeIndex >= 0 && dbList[activeIndex]) {
+        dbList[activeIndex].data = base64String;
+        dbList[activeIndex].size = base64String.length;
+        dbList[activeIndex].lastModified = new Date().toISOString();
+        saveDbList(dbList);
+      }
     }
 
     console.log("💾 Base sauvegardée (IndexedDB + LocalStorage)");
@@ -185,9 +188,9 @@ export async function setActiveDb(base64Data) {
     // Créer la nouvelle instance de base
     db = new SQL.Database(bytes);
     
-    // Sauvegarder
-    await saveDbToStorage(db);
+    // Sauvegarder sans mettre à jour la liste (éviter conflit)
     localStorage.setItem('gestion_db', base64Data);
+    await saveToIndexedDB(bytes);
     
     console.log("✅ Base active mise à jour");
     return db;
@@ -256,7 +259,19 @@ export async function resetDatabase() {
     db = null;
     
     // Recharger depuis gestion.db
-    await getDb();
+    const response = await fetch("./gestion.db");
+    if (!response.ok) throw new Error("Impossible de charger gestion.db");
+    const arrayBuffer = await response.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+    
+    const SQL = await initSQL();
+    db = new SQL.Database(bytes);
+    
+    // Sauvegarder sans mise à jour de liste
+    const binaryString = String.fromCharCode(...bytes);
+    const base64String = btoa(binaryString);
+    localStorage.setItem("gestion_db", base64String);
+    await saveToIndexedDB(bytes);
     
     console.log("🔄 Base de données réinitialisée");
     return true;
@@ -359,7 +374,10 @@ export async function importDb(base64Data) {
     
     // Si on arrive ici, la base est valide
     db = new SQL.Database(bytes);
-    await saveDbToStorage(db);
+    
+    // Sauvegarder sans mise à jour de liste
+    localStorage.setItem('gestion_db', base64Data);
+    await saveToIndexedDB(bytes);
     
     console.log("✅ Base importée avec succès");
     return db;
