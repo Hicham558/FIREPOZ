@@ -407,23 +407,45 @@
     }
 
     function saveDbList(list) {
-      try {
-        const listJson = JSON.stringify(list);
-        
-        // Sauvegarder dans le cache
-        if (window.localStorage._cache) {
-          window.localStorage._cache["gestion_db_list"] = listJson;
-        }
-        
-        // Sauvegarder avec l'API native pour éviter les déclencheurs
-        Object.getPrototypeOf(window.localStorage).setItem.call(window.localStorage, "gestion_db_list", listJson);
-      } catch (e) {
-        console.warn("Erreur sauvegarde liste bases:", e);
-        // Fallback dangereux en dernier recours
-        localStorage.setItem("gestion_db_list", listJson);
-      }
+  try {
+    // Validate input
+    if (!Array.isArray(list)) {
+      throw new Error("La liste des bases doit être un tableau");
     }
 
+    // Clone the list to avoid modifying the original and remove non-serializable properties
+    const sanitizedList = list.map(db => ({
+      id: db.id,
+      name: db.name,
+      data: db.data,
+      createdAt: db.createdAt,
+      lastModified: db.lastModified,
+      size: db.size,
+      isLarge: db.isLarge,
+      fromServer: db.fromServer
+    }));
+
+    const listJson = JSON.stringify(sanitizedList);
+
+    // Sauvegarder dans le cache
+    if (window.localStorage._cache) {
+      window.localStorage._cache["gestion_db_list"] = listJson;
+    }
+
+    // Sauvegarder avec l'API native pour éviter les déclencheurs
+    Object.getPrototypeOf(window.localStorage).setItem.call(window.localStorage, "gestion_db_list", listJson);
+  } catch (e) {
+    console.warn("Erreur sauvegarde liste bases:", e);
+    // Fallback dangereux en dernier recours, mais sans utiliser listJson
+    try {
+      const fallbackJson = JSON.stringify(list); // Try serializing again for fallback
+      localStorage.setItem("gestion_db_list", fallbackJson);
+    } catch (fallbackError) {
+      console.warn("Erreur fallback sauvegarde liste bases:", fallbackError);
+      showToast("Erreur lors de la sauvegarde de la liste des bases", true);
+    }
+  }
+}
     function getActiveIndex() {
       try {
         // Essayer d'abord le cache
