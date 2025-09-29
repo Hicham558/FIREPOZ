@@ -2,77 +2,7 @@ let db = null;
 const DB_NAME = "gestion_db"; // clé standardisée
 const STORE_NAME = "sqlite_db";
 
-//
-// 🚀 Patch localStorage pour IndexedDB
-//
-(function () {
-  const CACHE = {};
-
-  async function idbSet(key, value) {
-    const idb = await openIndexedDB();
-    const tx = idb.transaction(STORE_NAME, "readwrite");
-    tx.objectStore(STORE_NAME).put(value, key);
-    return tx.complete;
-  }
-
-  async function idbGet(key) {
-    const idb = await openIndexedDB();
-    return new Promise((resolve, reject) => {
-      const tx = idb.transaction(STORE_NAME, "readonly");
-      const req = tx.objectStore(STORE_NAME).get(key);
-      req.onsuccess = () => resolve(req.result || null);
-      req.onerror = () => reject(req.error);
-    });
-  }
-
-  async function idbRemove(key) {
-    const idb = await openIndexedDB();
-    const tx = idb.transaction(STORE_NAME, "readwrite");
-    tx.objectStore(STORE_NAME).delete(key);
-    return tx.complete;
-  }
-
-  window.localStorage = {
-    async setItem(key, value) {
-      CACHE[key] = value;
-      try {
-        await idbSet(key, value);
-      } catch (e) {
-        console.warn(`⚠️ Erreur IndexedDB setItem(${key}):`, e);
-      }
-    },
-    async getItem(key) {
-      if (CACHE[key]) return CACHE[key];
-      try {
-        const value = await idbGet(key);
-        if (value !== null) CACHE[key] = value;
-        return value;
-      } catch (e) {
-        console.warn(`⚠️ Erreur IndexedDB getItem(${key}):`, e);
-        return null;
-      }
-    },
-    async removeItem(key) {
-      delete CACHE[key];
-      try {
-        await idbRemove(key);
-      } catch (e) {
-        console.warn(`⚠️ Erreur IndexedDB removeItem(${key}):`, e);
-      }
-    },
-    clear() {
-      for (const k in CACHE) delete CACHE[k];
-      openIndexedDB().then((idb) => {
-        const tx = idb.transaction(STORE_NAME, "readwrite");
-        tx.objectStore(STORE_NAME).clear();
-      });
-    },
-  };
-})();
-
-//
 // Ouvrir IndexedDB
-//
 function openIndexedDB() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, 1);
@@ -89,9 +19,7 @@ function openIndexedDB() {
   });
 }
 
-//
 // Lire depuis IndexedDB
-//
 async function loadFromIndexedDB() {
   try {
     const idb = await openIndexedDB();
@@ -109,9 +37,7 @@ async function loadFromIndexedDB() {
   }
 }
 
-//
 // Sauvegarder dans IndexedDB
-//
 async function saveToIndexedDB(data) {
   try {
     const idb = await openIndexedDB();
@@ -129,24 +55,19 @@ async function saveToIndexedDB(data) {
   }
 }
 
-//
 // Initialiser SQL.js
-//
 let SQL = null;
 async function initSQL() {
   if (SQL) return SQL;
-
+  
   SQL = await initSqlJs({
     locateFile: () =>
       "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.wasm",
   });
-
+  
   return SQL;
 }
 
-//
-// Obtenir la base
-//
 export async function getDb() {
   if (db) return db;
 
@@ -155,10 +76,10 @@ export async function getDb() {
   try {
     let savedDb = null;
 
-    // 🔍 Priorité 1: Vérifier base active
-    const activeDbData = await localStorage.getItem("gestion_db");
+    // 🔍 Priorité 1: Vérifier localStorage pour la base active
+    const activeDbData = localStorage.getItem("gestion_db");
     if (activeDbData) {
-      console.log("📦 Chargement de la base active");
+      console.log("📦 Chargement de la base active depuis localStorage");
       savedDb = Uint8Array.from(atob(activeDbData), (c) => c.charCodeAt(0));
     }
 
@@ -168,6 +89,15 @@ export async function getDb() {
       if (idbData) {
         console.log("📦 Chargement de la base depuis IndexedDB");
         savedDb = idbData;
+      }
+    }
+
+    // 🔍 Priorité 3: Fallback LocalStorage (anciennes versions)
+    if (!savedDb) {
+      const lsData = localStorage.getItem("gestion");
+      if (lsData) {
+        console.log("📦 Chargement de la base depuis LocalStorage (ancien)");
+        savedDb = Uint8Array.from(atob(lsData), (c) => c.charCodeAt(0));
       }
     }
 
@@ -194,9 +124,8 @@ export async function getDb() {
   }
 }
 
-//
-// Sauvegarder DB
-//
+// Sauvegarder dans IndexedDB (+ LocalStorage en backup)
+// Sauvegarder dans IndexedDB (+ LocalStorage en backup)
 export async function saveDbToStorage(database) {
   try {
     const dbBinary = database.export();
@@ -204,24 +133,24 @@ export async function saveDbToStorage(database) {
     // IndexedDB
     await saveToIndexedDB(dbBinary);
 
-    // Stockage en base64 dans localStorage (qui pointe sur IndexedDB)
+    // LocalStorage (fallback compatibilité, mais limité)
     const binaryString = String.fromCharCode(...dbBinary);
     const base64String = btoa(binaryString);
-    await localStorage.setItem("gestion_db", base64String);
+    localStorage.setItem("gestion_db", base64String);
 
-    console.log("💾 Base sauvegardée (IndexedDB)");
+    console.log("💾 Base sauvegardée (IndexedDB + LocalStorage)");
   } catch (error) {
     console.error("❌ Erreur sauvegarde DB:", error);
   }
 }
 
+// ✅ Alias pour compatibilité avec l'ancien code
 export { saveDbToStorage as saveDbToLocalStorage };
 
-//
-// Fonctions utilitaires multi-base
-//
+// Fonctions utilitaires pour la gestion multi-base
 function getDbList() {
-  return localStorage.getItem("gestion_db_list") || [];
+  const list = localStorage.getItem("gestion_db_list");
+  return list ? JSON.parse(list) : [];
 }
 
 function saveDbList(list) {
@@ -232,39 +161,39 @@ function getActiveIndex() {
   return parseInt(localStorage.getItem("gestion_db_active") || "-1");
 }
 
-//
-// Définir base active
-//
+// Définir une base comme active
 export async function setActiveDb(base64Data) {
   try {
     const SQL = await initSQL();
-    const bytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
-
+    const bytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+    
+    // Créer la nouvelle instance de base
     db = new SQL.Database(bytes);
-
+    
+    // Sauvegarder
     await saveDbToStorage(db);
-    await localStorage.setItem("gestion_db", base64Data);
-
+    localStorage.setItem('gestion_db', base64Data);
+    
     console.log("✅ Base active mise à jour");
     return db;
   } catch (error) {
-    console.error("❌ Erreur changement base active:", error);
+    console.error("❌ Erreur lors du changement de base active:", error);
     throw error;
   }
 }
 
-//
-// Créer nouvelle base
-//
+// Créer une nouvelle base vierge
 export async function createNewDb() {
   try {
     const SQL = await initSQL();
+    
+    // Charger le modèle de base depuis gestion.db
     const response = await fetch("./gestion.db");
     if (!response.ok) throw new Error("Impossible de charger gestion.db");
-
+    
     const arrayBuffer = await response.arrayBuffer();
     const newDb = new SQL.Database(new Uint8Array(arrayBuffer));
-
+    
     return newDb;
   } catch (error) {
     console.error("❌ Erreur création nouvelle base:", error);
@@ -272,19 +201,17 @@ export async function createNewDb() {
   }
 }
 
-//
-// Dupliquer DB
-//
+// Dupliquer la base actuelle
 export async function duplicateCurrentDb() {
   if (!db) {
     await getDb();
   }
-
+  
   try {
     const SQL = await initSQL();
     const dbBinary = db.export();
     const duplicatedDb = new SQL.Database(dbBinary);
-
+    
     return duplicatedDb;
   } catch (error) {
     console.error("❌ Erreur duplication base:", error);
@@ -292,15 +219,15 @@ export async function duplicateCurrentDb() {
   }
 }
 
-//
 // Reset complet
-//
 export async function resetDatabase() {
   try {
-    await localStorage.removeItem("gestion_db");
-    await localStorage.removeItem("gestion");
-    await localStorage.removeItem("gestion_db_active");
+    // Supprimer les anciennes clés
+    localStorage.removeItem("gestion_db");
+    localStorage.removeItem("gestion");
+    localStorage.removeItem("gestion_db_active");
 
+    // Nettoyer IndexedDB
     try {
       const idb = await openIndexedDB();
       const tx = idb.transaction(STORE_NAME, "readwrite");
@@ -310,9 +237,12 @@ export async function resetDatabase() {
       console.warn("⚠️ Impossible de reset IndexedDB:", e);
     }
 
+    // Réinitialiser la base
     db = null;
+    
+    // Recharger depuis gestion.db
     await getDb();
-
+    
     console.log("🔄 Base de données réinitialisée");
     return true;
   } catch (error) {
@@ -321,18 +251,17 @@ export async function resetDatabase() {
   }
 }
 
-//
-// Infos DB
-//
+// Obtenir les informations de la base actuelle
 export async function getDbInfo() {
   if (!db) {
     await getDb();
   }
-
+  
   try {
     const dbBinary = db.export();
     const size = dbBinary.length;
-
+    
+    // Essayer d'obtenir quelques statistiques
     let tableCount = 0;
     try {
       const result = db.exec("SELECT COUNT(*) as count FROM sqlite_master WHERE type='table'");
@@ -342,12 +271,12 @@ export async function getDbInfo() {
     } catch (e) {
       console.warn("Impossible d'obtenir le nombre de tables:", e);
     }
-
+    
     return {
-      size,
+      size: size,
       sizeFormatted: formatBytes(size),
-      tableCount,
-      isLoaded: true,
+      tableCount: tableCount,
+      isLoaded: true
     };
   } catch (error) {
     console.error("❌ Erreur obtention info base:", error);
@@ -355,20 +284,18 @@ export async function getDbInfo() {
       size: 0,
       sizeFormatted: "0 B",
       tableCount: 0,
-      isLoaded: false,
+      isLoaded: false
     };
   }
 }
 
-//
-// Taille DB
-//
+// Taille approximative de la base
 export async function getDbSize() {
   if (!db) {
-    const activeDbData = await localStorage.getItem("gestion_db");
+    const activeDbData = localStorage.getItem("gestion_db");
     return activeDbData ? activeDbData.length : 0;
   }
-
+  
   try {
     const dbBinary = db.export();
     return dbBinary.length;
@@ -378,27 +305,23 @@ export async function getDbSize() {
   }
 }
 
-//
-// Formater tailles
-//
+// Utilitaire pour formater les tailles
 function formatBytes(bytes) {
-  if (bytes === 0) return "0 B";
-
+  if (bytes === 0) return '0 B';
+  
   const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
+  const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-//
-// Export DB
-//
+// Exporter la base actuelle en base64
 export async function exportCurrentDb() {
   if (!db) {
     await getDb();
   }
-
+  
   try {
     const dbBinary = db.export();
     const binaryString = String.fromCharCode(...dbBinary);
@@ -409,20 +332,20 @@ export async function exportCurrentDb() {
   }
 }
 
-//
-// Import DB
-//
+// Importer une base depuis base64
 export async function importDb(base64Data) {
   try {
     const SQL = await initSQL();
-    const bytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
-
+    const bytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+    
+    // Tester que la base est valide
     const testDb = new SQL.Database(bytes);
     testDb.close();
-
+    
+    // Si on arrive ici, la base est valide
     db = new SQL.Database(bytes);
     await saveDbToStorage(db);
-
+    
     console.log("✅ Base importée avec succès");
     return db;
   } catch (error) {
@@ -431,16 +354,12 @@ export async function importDb(base64Data) {
   }
 }
 
-//
-// Vérifier si DB chargée
-//
+// Vérifier si une base est chargée
 export function isDbLoaded() {
   return db !== null;
 }
 
-//
-// Obtenir DB courante
-//
+// Obtenir une référence à la base actuelle (pour compatibilité)
 export function getCurrentDb() {
   return db;
 }
