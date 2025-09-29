@@ -76,34 +76,16 @@ export async function getDb() {
   try {
     let savedDb = null;
 
-    // 🔍 Priorité 1: Vérifier localStorage pour la base active
-    const activeDbData = localStorage.getItem("gestion_db");
-    if (activeDbData) {
-      console.log("📦 Chargement de la base active depuis localStorage");
-      savedDb = Uint8Array.from(atob(activeDbData), (c) => c.charCodeAt(0));
-    }
-
-    // 🔍 Priorité 2: Essayer IndexedDB
-    if (!savedDb) {
-      const idbData = await loadFromIndexedDB();
-      if (idbData) {
-        console.log("📦 Chargement de la base depuis IndexedDB");
-        savedDb = idbData;
-      }
-    }
-
-    // 🔍 Priorité 3: Fallback LocalStorage (anciennes versions)
-    if (!savedDb) {
-      const lsData = localStorage.getItem("gestion");
-      if (lsData) {
-        console.log("📦 Chargement de la base depuis LocalStorage (ancien)");
-        savedDb = Uint8Array.from(atob(lsData), (c) => c.charCodeAt(0));
-      }
+    // 🔍 Vérifier IndexedDB
+    const idbData = await loadFromIndexedDB();
+    if (idbData) {
+      console.log("📦 Chargement de la base depuis IndexedDB");
+      savedDb = idbData;
     }
 
     if (savedDb) {
       db = new SQL.Database(savedDb);
-      console.log("✅ Base de données chargée depuis le cache");
+      console.log("✅ Base de données chargée depuis IndexedDB");
     } else {
       // 📥 Charger la base initiale gestion.db
       console.log("📥 Chargement de la base initiale depuis gestion.db");
@@ -114,7 +96,7 @@ export async function getDb() {
 
       // Sauvegarde immédiate
       await saveDbToStorage(db);
-      console.log("💾 Base initiale sauvegardée");
+      console.log("💾 Base initiale sauvegardée dans IndexedDB");
     }
 
     return db;
@@ -124,8 +106,7 @@ export async function getDb() {
   }
 }
 
-// Sauvegarder dans IndexedDB (+ LocalStorage en backup)
-// Sauvegarder dans IndexedDB (+ LocalStorage en backup)
+// Sauvegarder dans IndexedDB uniquement
 export async function saveDbToStorage(database) {
   try {
     const dbBinary = database.export();
@@ -133,12 +114,7 @@ export async function saveDbToStorage(database) {
     // IndexedDB
     await saveToIndexedDB(dbBinary);
 
-    // LocalStorage (fallback compatibilité, mais limité)
-    const binaryString = String.fromCharCode(...dbBinary);
-    const base64String = btoa(binaryString);
-    localStorage.setItem("gestion_db", base64String);
-
-    console.log("💾 Base sauvegardée (IndexedDB + LocalStorage)");
+    console.log("💾 Base sauvegardée (IndexedDB uniquement)");
   } catch (error) {
     console.error("❌ Erreur sauvegarde DB:", error);
   }
@@ -146,20 +122,6 @@ export async function saveDbToStorage(database) {
 
 // ✅ Alias pour compatibilité avec l'ancien code
 export { saveDbToStorage as saveDbToLocalStorage };
-
-// Fonctions utilitaires pour la gestion multi-base
-function getDbList() {
-  const list = localStorage.getItem("gestion_db_list");
-  return list ? JSON.parse(list) : [];
-}
-
-function saveDbList(list) {
-  localStorage.setItem("gestion_db_list", JSON.stringify(list));
-}
-
-function getActiveIndex() {
-  return parseInt(localStorage.getItem("gestion_db_active") || "-1");
-}
 
 // Définir une base comme active
 export async function setActiveDb(base64Data) {
@@ -172,7 +134,6 @@ export async function setActiveDb(base64Data) {
     
     // Sauvegarder
     await saveDbToStorage(db);
-    localStorage.setItem('gestion_db', base64Data);
     
     console.log("✅ Base active mise à jour");
     return db;
@@ -222,11 +183,6 @@ export async function duplicateCurrentDb() {
 // Reset complet
 export async function resetDatabase() {
   try {
-    // Supprimer les anciennes clés
-    localStorage.removeItem("gestion_db");
-    localStorage.removeItem("gestion");
-    localStorage.removeItem("gestion_db_active");
-
     // Nettoyer IndexedDB
     try {
       const idb = await openIndexedDB();
@@ -292,8 +248,7 @@ export async function getDbInfo() {
 // Taille approximative de la base
 export async function getDbSize() {
   if (!db) {
-    const activeDbData = localStorage.getItem("gestion_db");
-    return activeDbData ? activeDbData.length : 0;
+    return 0;
   }
   
   try {
