@@ -1724,11 +1724,11 @@ async function imprimerVente80mm() {
         const clientSelect = document.getElementById('saleClientId');
         const clientValue = clientSelect.value;
         const clientText = clientValue === '0' ? 'Vente Comptoir' : 
-            clientSelect.options[clientSelect.selectedIndex].text.replace(/<span.*<\/span>/, '');
+            clientSelect.options[clientSelect.selectedIndex].text.split('(ID:')[0].trim();
 
         const paymentMode = document.getElementById('paymentMode').value;
         const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
-        const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0).toFixed(2);
+        const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
 
         const storedSeller = localStorage.getItem('selectedSeller');
         const sellerName = storedSeller ? JSON.parse(storedSeller).nom : 'Non spécifié';
@@ -1755,71 +1755,79 @@ async function imprimerVente80mm() {
         // Informations de la vente
         ticket += 'Date: ' + new Date().toLocaleString('fr-FR') + ESCPOS.LINE_FEED;
         ticket += 'Vendeur: ' + sellerName + ESCPOS.LINE_FEED;
-        ticket += 'Client: ' + clientText + ESCPOS.LINE_FEED;
+        ticket += 'Client: ' + clientText;
+        
+        // Afficher le solde si client à terme
+        if (clientValue !== '0') {
+            const client = clientsCache.find(c => c.numero_clt === parseInt(clientValue));
+            if (client) {
+                const soldeAvant = parseFloat(client.solde) || 0;
+                ticket += ' (ID: ' + clientValue + ') [Solde: ' + soldeAvant.toFixed(2) + ' DA]';
+            }
+        }
+        ticket += ESCPOS.LINE_FEED;
+        
         ticket += 'Mode: ' + (paymentMode === 'espece' ? 'Espece' : 'A terme') + ESCPOS.LINE_FEED;
         
         if (paymentMode === 'a_terme') {
             ticket += 'Verse: ' + amountPaid.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
         }
 
-        // Solde si applicable
-        if (paymentMode === 'a_terme' && clientValue !== '0') {
-            const client = clientsCache.find(c => c.numero_clt === parseInt(clientValue));
-            if (client) {
-                const soldeAvant = parseFloat(client.solde) || 0;
-                const soldeApres = soldeAvant + (amountPaid - parseFloat(total));
-                ticket += 'Solde avant: ' + soldeAvant.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
-                ticket += 'Solde apres: ' + soldeApres.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
-            }
-        }
-
         ticket += '================================' + ESCPOS.LINE_FEED;
-
-        // En-tête du tableau
-        ticket += ESCPOS.BOLD_ON;
-        ticket += 'ARTICLES:' + ESCPOS.LINE_FEED;
-        ticket += ESCPOS.BOLD_OFF;
-        ticket += '--------------------------------' + ESCPOS.LINE_FEED;
 
         // Envoyer l'en-tête d'abord
         await sendToPrinter(ticket);
         await new Promise(resolve => setTimeout(resolve, 200));
 
-        // Envoyer chaque article séparément pour éviter les problèmes de buffer
+        // Articles - Format horizontal compact
         for (let i = 0; i < tempSaleLines.length; i++) {
             const ligne = tempSaleLines[i];
             let articleTicket = '';
             
-            // ID et Désignation
             const id = ligne.numero_item || 'N/A';
-            const designation = (ligne.designation || 'Produit').substring(0, 30);
-            articleTicket += ESCPOS.BOLD_ON + 'ID: ' + id + ESCPOS.BOLD_OFF + ' - ' + designation + ESCPOS.LINE_FEED;
-            
-            // Quantité et Prix unitaire
+            const designation = (ligne.designation || 'Produit').substring(0, 20);
             const qte = parseFloat(ligne.quantite || 0).toFixed(2);
             const prixU = parseFloat(ligne.remarque || 0).toFixed(2);
             const prixT = parseFloat(ligne.prixt || 0).toFixed(2);
             
+            // Format: ID: X - Designation
+            articleTicket += 'ID: ' + id + ' - ' + designation + ESCPOS.LINE_FEED;
+            // Format: Qte: X x Prix DA = Total DA (sur une ligne)
             articleTicket += '  Qte: ' + qte + ' x ' + prixU + ' DA' + ESCPOS.LINE_FEED;
             articleTicket += '  Total: ' + prixT + ' DA' + ESCPOS.LINE_FEED;
             articleTicket += '- - - - - - - - - - - - - - - -' + ESCPOS.LINE_FEED;
             
-            // Envoyer cet article
             await sendToPrinter(articleTicket);
-            await new Promise(resolve => setTimeout(resolve, 150)); // Délai entre articles
+            await new Promise(resolve => setTimeout(resolve, 150));
         }
 
         // Pied de ticket
         let footerTicket = '';
         footerTicket += '================================' + ESCPOS.LINE_FEED;
 
-        // Total en gras et grande taille
+        // Total en gras
         footerTicket += ESCPOS.SIZE_DOUBLE + ESCPOS.BOLD_ON;
         footerTicket += ESCPOS.ALIGN_CENTER;
-        footerTicket += 'TOTAL: ' + total + ' DA' + ESCPOS.LINE_FEED;
+        footerTicket += 'TOTAL: ' + total.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
         footerTicket += ESCPOS.SIZE_NORMAL + ESCPOS.BOLD_OFF;
-
         footerTicket += '================================' + ESCPOS.LINE_FEED;
+        
+        footerTicket += ESCPOS.ALIGN_LEFT;
+        
+        // Afficher solde avant/après pour vente à terme
+        if (paymentMode === 'a_terme' && clientValue !== '0') {
+            const client = clientsCache.find(c => c.numero_clt === parseInt(clientValue));
+            if (client) {
+                const soldeAvant = parseFloat(client.solde) || 0;
+                const soldeApres = soldeAvant - total + amountPaid;
+                footerTicket += 'Solde avant vente: ' + soldeAvant.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
+                footerTicket += 'Montant verse: ' + amountPaid.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
+                footerTicket += 'Solde apres vente: ' + soldeApres.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
+                footerTicket += '================================' + ESCPOS.LINE_FEED;
+            }
+        }
+
+        footerTicket += ESCPOS.ALIGN_CENTER;
         footerTicket += ESCPOS.LINE_FEED;
         footerTicket += 'Merci de votre achat !' + ESCPOS.LINE_FEED;
         footerTicket += ESCPOS.LINE_FEED;
@@ -1829,7 +1837,6 @@ async function imprimerVente80mm() {
         // Couper le papier
         footerTicket += ESCPOS.CUT_PAPER;
 
-        // Envoyer le pied
         await sendToPrinter(footerTicket);
 
         showToast('Impression réussie !');
@@ -1838,7 +1845,6 @@ async function imprimerVente80mm() {
         console.error('Erreur impression Bluetooth:', error);
         showToast('Erreur impression : ' + error.message, true);
         
-        // Réinitialiser la connexion en cas d'erreur
         bluetoothDevice = null;
         bluetoothCharacteristic = null;
     }
