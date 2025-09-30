@@ -1693,68 +1693,6 @@ async function sendToPrinter(data) {
     }
 }
 
-// Fonction auxiliaire pour convertir une image en bitmap pour imprimante thermique
-async function imageToESCPOS(imageDataUrl, maxWidth = 384) {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => {
-            // Calculer les dimensions
-            let width = img.width;
-            let height = img.height;
-            
-            // Redimensionner si nécessaire (384 pixels = 48mm pour 80mm)
-            if (width > maxWidth) {
-                height = Math.floor(height * maxWidth / width);
-                width = maxWidth;
-            }
-            
-            // Créer un canvas
-            const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            
-            // Dessiner l'image en noir et blanc
-            ctx.drawImage(img, 0, 0, width, height);
-            const imageData = ctx.getImageData(0, 0, width, height);
-            
-            // Convertir en monochrome (seuil à 128)
-            const bitmap = [];
-            for (let y = 0; y < height; y++) {
-                for (let x = 0; x < width; x += 8) {
-                    let byte = 0;
-                    for (let bit = 0; bit < 8; bit++) {
-                        const px = x + bit;
-                        if (px < width) {
-                            const index = (y * width + px) * 4;
-                            const gray = imageData.data[index] * 0.3 + 
-                                       imageData.data[index + 1] * 0.59 + 
-                                       imageData.data[index + 2] * 0.11;
-                            if (gray < 128) {
-                                byte |= (1 << (7 - bit));
-                            }
-                        }
-                    }
-                    bitmap.push(byte);
-                }
-            }
-            
-            // Créer la commande ESC/POS pour l'image
-            const widthBytes = Math.ceil(width / 8);
-            const header = [
-                0x1D, 0x76, 0x30, 0x00, // GS v 0
-                widthBytes & 0xFF, (widthBytes >> 8) & 0xFF,
-                height & 0xFF, (height >> 8) & 0xFF
-            ];
-            
-            resolve(new Uint8Array([...header, ...bitmap]));
-        };
-        
-        img.onerror = reject;
-        img.src = imageDataUrl;
-    });
-}
-
 async function imprimerVente80mm() {
     if (tempSaleLines.length === 0) {
         showToast('Aucune ligne à imprimer', true);
@@ -1778,7 +1716,6 @@ async function imprimerVente80mm() {
         const companyName = settings.companyName || 'FirePoz';
         const companyAddress = settings.companyAddress || '';
         const companyPhone = settings.companyPhone || '';
-        const companyLogo = settings.companyLogo || '';
 
         const clientSelect = document.getElementById('saleClientId');
         const clientValue = clientSelect.value;
@@ -1792,31 +1729,10 @@ async function imprimerVente80mm() {
         const storedSeller = localStorage.getItem('selectedSeller');
         const sellerName = storedSeller ? JSON.parse(storedSeller).nom : 'Non spécifié';
 
-        // Initialiser l'imprimante
+        // Construire le ticket
         let ticket = ESCPOS.INIT;
-        await sendToPrinter(ticket);
-        await new Promise(resolve => setTimeout(resolve, 100));
 
-        // Imprimer le logo s'il existe
-        if (companyLogo) {
-            try {
-                ticket = ESCPOS.ALIGN_CENTER;
-                await sendToPrinter(ticket);
-                
-                const logoData = await imageToESCPOS(companyLogo, 300); // 300px = ~38mm
-                await bluetoothCharacteristic.writeValue(logoData);
-                await new Promise(resolve => setTimeout(resolve, 300));
-                
-                ticket = ESCPOS.LINE_FEED;
-                await sendToPrinter(ticket);
-            } catch (logoError) {
-                console.error('Erreur impression logo:', logoError);
-                // Continue sans le logo
-            }
-        }
-
-        // En-tête
-        ticket = '';
+        // En-tête centré
         ticket += ESCPOS.ALIGN_CENTER;
         ticket += ESCPOS.SIZE_LARGE + ESCPOS.BOLD_ON;
         ticket += companyName + ESCPOS.LINE_FEED;
@@ -1832,6 +1748,7 @@ async function imprimerVente80mm() {
         ticket += '================================' + ESCPOS.LINE_FEED;
         ticket += ESCPOS.ALIGN_LEFT;
 
+        // Informations
         ticket += 'Date: ' + new Date().toLocaleString('fr-FR') + ESCPOS.LINE_FEED;
         ticket += 'Vendeur: ' + sellerName + ESCPOS.LINE_FEED;
         ticket += 'Client: ' + clientText;
@@ -1853,27 +1770,30 @@ async function imprimerVente80mm() {
 
         ticket += '================================' + ESCPOS.LINE_FEED;
 
+        // En-tête du tableau des articles
+        ticket += ESCPOS.BOLD_ON;
+        ticket += 'ID  Designation      PrixU  Qte Total' + ESCPOS.LINE_FEED;
+        ticket += ESCPOS.BOLD_OFF;
+        ticket += '--------------------------------' + ESCPOS.LINE_FEED;
+
         await sendToPrinter(ticket);
         await new Promise(resolve => setTimeout(resolve, 200));
 
-        // Articles
+        // Articles en format tableau
         for (let i = 0; i < tempSaleLines.length; i++) {
             const ligne = tempSaleLines[i];
             let articleTicket = '';
             
-            const id = ligne.numero_item || 'N/A';
-            const designation = (ligne.designation || 'Produit').substring(0, 20);
-            const qte = parseFloat(ligne.quantite || 0).toFixed(2);
-            const prixU = parseFloat(ligne.remarque || 0).toFixed(2);
-            const prixT = parseFloat(ligne.prixt || 0).toFixed(2);
+            const id = String(ligne.numero_item || '0').padEnd(4);
+            const designation = (ligne.designation || 'Produit').substring(0, 13).padEnd(13);
+            const prixU = parseFloat(ligne.remarque || 0).toFixed(0).padStart(6);
+            const qte = parseFloat(ligne.quantite || 0).toFixed(2).padStart(4);
+            const prixT = parseFloat(ligne.prixt || 0).toFixed(0).padStart(6);
             
-            articleTicket += 'ID: ' + id + ' - ' + designation + ESCPOS.LINE_FEED;
-            articleTicket += '  Qte: ' + qte + ' x ' + prixU + ' DA' + ESCPOS.LINE_FEED;
-            articleTicket += '  Total: ' + prixT + ' DA' + ESCPOS.LINE_FEED;
-            articleTicket += '- - - - - - - - - - - - - - - -' + ESCPOS.LINE_FEED;
+            articleTicket += id + ' ' + designation + ' ' + prixU + ' ' + qte + ' ' + prixT + ESCPOS.LINE_FEED;
             
             await sendToPrinter(articleTicket);
-            await new Promise(resolve => setTimeout(resolve, 150));
+            await new Promise(resolve => setTimeout(resolve, 100));
         }
 
         // Pied
