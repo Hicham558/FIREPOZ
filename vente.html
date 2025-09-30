@@ -1775,58 +1775,62 @@ async function imprimerVente80mm() {
 
         ticket += '================================' + ESCPOS.LINE_FEED;
 
-        // En-tête du tableau des articles
+        // En-tête du tableau
         ticket += ESCPOS.BOLD_ON;
-        ticket += 'Articles:' + ESCPOS.LINE_FEED;
+        ticket += 'ARTICLES:' + ESCPOS.LINE_FEED;
         ticket += ESCPOS.BOLD_OFF;
         ticket += '--------------------------------' + ESCPOS.LINE_FEED;
 
-        // Vérifier si tempSaleLines existe et contient des données
-        console.log('Lignes de vente:', tempSaleLines);
-        
-        if (tempSaleLines && tempSaleLines.length > 0) {
-            // Lignes de vente avec format tableau
-            for (let i = 0; i < tempSaleLines.length; i++) {
-                const ligne = tempSaleLines[i];
-                
-                // ID et Désignation
-                const id = ligne.numero_item || 'N/A';
-                const designation = ligne.designation || 'Produit';
-                ticket += ESCPOS.BOLD_ON + 'ID: ' + id + ESCPOS.BOLD_OFF + ' - ' + designation + ESCPOS.LINE_FEED;
-                
-                // Quantité, Prix unitaire et Total
-                const qte = parseFloat(ligne.quantite || 0).toFixed(2);
-                const prixU = parseFloat(ligne.remarque || 0).toFixed(2);
-                const prixT = parseFloat(ligne.prixt || 0).toFixed(2);
-                
-                ticket += '  Qte: ' + qte + ' x ' + prixU + ' DA' + ESCPOS.LINE_FEED;
-                ticket += '  Total: ' + prixT + ' DA' + ESCPOS.LINE_FEED;
-                ticket += '- - - - - - - - - - - - - - - -' + ESCPOS.LINE_FEED;
-            }
-        } else {
-            ticket += 'Aucun article' + ESCPOS.LINE_FEED;
+        // Envoyer l'en-tête d'abord
+        await sendToPrinter(ticket);
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        // Envoyer chaque article séparément pour éviter les problèmes de buffer
+        for (let i = 0; i < tempSaleLines.length; i++) {
+            const ligne = tempSaleLines[i];
+            let articleTicket = '';
+            
+            // ID et Désignation
+            const id = ligne.numero_item || 'N/A';
+            const designation = (ligne.designation || 'Produit').substring(0, 30);
+            articleTicket += ESCPOS.BOLD_ON + 'ID: ' + id + ESCPOS.BOLD_OFF + ' - ' + designation + ESCPOS.LINE_FEED;
+            
+            // Quantité et Prix unitaire
+            const qte = parseFloat(ligne.quantite || 0).toFixed(2);
+            const prixU = parseFloat(ligne.remarque || 0).toFixed(2);
+            const prixT = parseFloat(ligne.prixt || 0).toFixed(2);
+            
+            articleTicket += '  Qte: ' + qte + ' x ' + prixU + ' DA' + ESCPOS.LINE_FEED;
+            articleTicket += '  Total: ' + prixT + ' DA' + ESCPOS.LINE_FEED;
+            articleTicket += '- - - - - - - - - - - - - - - -' + ESCPOS.LINE_FEED;
+            
+            // Envoyer cet article
+            await sendToPrinter(articleTicket);
+            await new Promise(resolve => setTimeout(resolve, 150)); // Délai entre articles
         }
 
-        ticket += '================================' + ESCPOS.LINE_FEED;
+        // Pied de ticket
+        let footerTicket = '';
+        footerTicket += '================================' + ESCPOS.LINE_FEED;
 
         // Total en gras et grande taille
-        ticket += ESCPOS.SIZE_DOUBLE + ESCPOS.BOLD_ON;
-        ticket += ESCPOS.ALIGN_CENTER;
-        ticket += 'TOTAL: ' + total + ' DA' + ESCPOS.LINE_FEED;
-        ticket += ESCPOS.SIZE_NORMAL + ESCPOS.BOLD_OFF;
+        footerTicket += ESCPOS.SIZE_DOUBLE + ESCPOS.BOLD_ON;
+        footerTicket += ESCPOS.ALIGN_CENTER;
+        footerTicket += 'TOTAL: ' + total + ' DA' + ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.SIZE_NORMAL + ESCPOS.BOLD_OFF;
 
-        ticket += '================================' + ESCPOS.LINE_FEED;
-        ticket += ESCPOS.LINE_FEED;
-        ticket += 'Merci de votre achat !' + ESCPOS.LINE_FEED;
-        ticket += ESCPOS.LINE_FEED;
-        ticket += ESCPOS.LINE_FEED;
-        ticket += ESCPOS.LINE_FEED;
+        footerTicket += '================================' + ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.LINE_FEED;
+        footerTicket += 'Merci de votre achat !' + ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.LINE_FEED;
 
-        // Couper le papier (optionnel selon l'imprimante)
-        ticket += ESCPOS.CUT_PAPER;
+        // Couper le papier
+        footerTicket += ESCPOS.CUT_PAPER;
 
-        // Envoyer à l'imprimante
-        await sendToPrinter(ticket);
+        // Envoyer le pied
+        await sendToPrinter(footerTicket);
 
         showToast('Impression réussie !');
 
