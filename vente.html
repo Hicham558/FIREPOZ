@@ -1,88 +1,2328 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+    <script type="module" src="sw1.js"></script>
+	<meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Impression Bluetooth Xprinter 80mm</title>
+    <title>Gestion des Ventes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-            background-color: #f0f0f0;
+       /* Animation tiroir pour productsContent */
+/* Style pour #productsSection */
+#productsSection {
+    margin-bottom: 8px; /* Réduit la marge inférieure pour une apparence plus compacte */
+    transition: all 0.3s ease; /* Transition fluide pour tous les changements */
+}
+
+/* Style pour l'en-tête de #productsSection */
+#productsSection .header {
+    padding: 8px 12px; /* Padding réduit pour un en-tête plus compact */
+    transition: padding 0.3s ease; /* Transition fluide pour le padding */
+}
+
+/* Ajuster le padding quand la section est ouverte */
+#productsSection.open .header {
+    padding: 24px 16px; /* Restaure un padding légèrement plus grand quand ouvert */
+}
+
+/* Style pour #productsContent */
+#productsContent {
+    max-height: 0; /* Hauteur nulle quand fermé */
+    opacity: 0;
+    overflow: hidden;
+    padding: 0; /* Pas de padding quand fermé */
+    transition: max-height 0.3s ease, opacity 0.3s ease, padding 0.3s ease; /* Transition pour hauteur, opacité et padding */
+}
+
+#productsContent.open {
+    max-height: 1000px; /* Hauteur maximale quand ouvert */
+    opacity: 1;
+    padding: 16px; /* Padding normal quand ouvert */
+}
+
+/* Animation keyframes pour ouverture/fermeture */
+@keyframes drawerOpen {
+    from { max-height: 0; opacity: 0; padding: 0; }
+    to { max-height: 1000px; opacity: 1; padding: 16px; }
+}
+
+@keyframes drawerClose {
+    from { max-height: 1000px; opacity: 1; padding: 16px; }
+    to { max-height: 0; opacity: 0; padding: 0; }
+}
+	   .password-input-container {
+            position: relative;
+            display: inline-block;
         }
-        button {
-            padding: 10px 20px;
-            font-size: 16px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 5px;
+        .password-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
             cursor: pointer;
         }
-        button:hover {
-            background-color: #0056b3;
+        @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes userPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        @keyframes countPulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        @keyframes totalPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        @keyframes smoothBlink { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+     @keyframes toastIn {
+    from {
+        opacity: 0;
+        transform: translateY(40px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+@keyframes toastOut {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(40px);
+    }
+}
+
+@keyframes flashWhite {
+    0% { opacity: 0.7; }
+    50% { opacity: 0.9; }
+    100% { opacity: 0; }
+}
+.flash-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(255, 255, 255, 0.7);
+    z-index: 1001;
+    pointer-events: none;
+    animation: flashWhite 0.2s ease-out forwards;
+}
+   .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
+        .animate-pulse { animation: pulse 2s infinite ease-in-out; }
+        .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
+        .animate-total-pulse { animation: totalPulse 1.5s ease-in-out; }
+        .seller-anim { animation: smoothBlink 1.5s infinite ease-in-out; }
+   .toast-in {
+    animation: toastIn 0.5s both;
+}
+.toast-out {
+    animation: toastOut 0.5s both;
+}  
+   #productsSection { animation-delay: 0.2s; }
+        #salesSection { animation-delay: 0.4s; }
+        footer { animation-delay: 1s; }
+      #scannerPreview {
+    width: 100vw;
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1000;
+    display: none;
+    object-fit: cover; /* Assure que la vidéo remplit l'écran sans déformation */
+}
+#scannerOverlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+}
+#scan-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 70%;
+    height: 50%;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    transition: border-color 0.3s;
+    pointer-events: none;
+    z-index: 1001;
+}
+.scanning {
+    border-color: rgba(0, 255, 0, 0.5); /* Vert semi-transparent */
+}
+.detected {
+    border-color: rgba(0, 255, 0, 1); /* Vert opaque */
+}
+#camera-loading {
+    display: none;
+}
+#closeScannerButton {
+    z-index: 1002;
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    background-color: #ef4444;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+#closeScannerButton:hover {
+    background-color: #dc2626;
+}
+        .user-anim { animation: userPulse 1.5s infinite ease-in-out; }
+        .count-anim { animation: countPulse 1.5s infinite ease-in-out; }
+        .small-email { font-size: 0.75rem; line-height: 1rem; }
+        .quantity-input { width: 60px; }
+        .total-large {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #4f46e5;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
         }
-        #status {
-            margin-top: 20px;
+        button i.fas.fa-plus {
+            font-size: 1rem;
+        }
+        select {
+            transition: all 0.3s ease;
+        }
+        select:focus {
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+        }
+        select option {
+            padding: 8px;
+            background: #fff;
             color: #333;
         }
+        select option:hover {
+            background: #f3f4f6;
+        }
+        #productsContent .table-container {
+            max-height: 250px;
+            overflow-y: auto;
+            overflow-x: auto;
+        }
+        #productsContent .table-container table {
+            width: 100%;
+        }
+        #paymentForm {
+            transition: all 0.3s ease;
+        }
+        .solde-negatif {
+            color: red;
+            font-size: 0.75rem;
+        }
+        .solde-positif {
+            color: black;
+            font-size: 0.75rem;
+        }
+        .stock-rupture {
+            background-color: rgba(255, 0, 0, 0.1);
+        }
+        .stock-faible {
+            background-color: rgba(255, 165, 0, 0.1);
+        }
+        .btn-disabled {
+            background-color: #d1d5db !important;
+            cursor: not-allowed !important;
+        }
+        #pendingSalesModal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        #pendingSalesModal .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        /* Styles pour le mode maximisé */
+        #productsSection.maximized {
+            position: fixed;
+            top: 80px; /* Hauteur de la barre de navigation */
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 100;
+            background: white;
+            margin: 0;
+            border-radius: 0;
+            box-shadow: none;
+            overflow: hidden;
+        }
+        #productsSection.maximized #productsContent {
+            display: block !important; /* Forcer l'affichage du contenu même si replié */
+            height: calc(100% - 120px); /* Hauteur totale moins la barre de recherche et l'en-tête */
+            padding: 0 16px 16px;
+        }
+        #productsSection.maximized .table-container {
+            max-height: calc(100% - 80px); /* Hauteur restante après la barre de recherche */
+            overflow-y: auto;
+        }
+        /* Ajustement de la barre de recherche en mode maximisé */
+        #productsSection.maximized .mb-4.flex {
+            position: sticky;
+            top: 0;
+            background: white;
+            z-index: 10;
+            padding: 16px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        /* Style du bouton maximiser/restaurer */
+        #maximizeProductsButton.restore::after {
+            content: '\f066'; /* Icône Font Awesome fa-compress */
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+        }
+        #holdSaleButton:disabled, #pendingSalesButton:disabled {
+    background-color: #d1d5db !important;
+    color: #6b7280 !important;
+    cursor: not-allowed !important;
+    opacity: 0.7 !important;
+}
     </style>
 </head>
-<body>
-    <button onclick="printHelloWorld()">Imprimer Hello World</button>
-    <div id="status">Statut : Prêt</div>
+<body class="bg-gray-100">
+    <nav class="bg-indigo-600 text-white p-4 fixed w-full top-0 z-10 shadow-md animate-slide-in">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex flex-col">
+                <h1 class="text-2xl font-bold flex items-center">
+                    <i class="fas fa-fire mr-2 text-amber-400 animate-pulse"></i> FirePoz
+                </h1>
+                <span id="userDisplay" class="small-email user-anim hidden"></span>
+            </div>
+            <div class="space-x-4 flex items-center">
+                <a href="index.html" class="hover:text-indigo-200 transition flex items-center">
+                    <i class="fas fa-home mr-1"></i> Accueil
+                </a>
+                <button id="loginLogoutButton" onclick="loginLogout()" class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition flex items-center">
+                    <i class="fas fa-sign-out-alt mr-1"></i>Déconnexion
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto px-4 pt-20">
+        <!-- Section vendeur en haut, repliable -->
+        <div id="sellerSection" class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8">
+            <div class="p-6 cursor-pointer" onclick="toggleSection('sellerSection')">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-user mr-2 text-indigo-500"></i> Sélection du Vendeur
+                    </h2>
+                    <button class="text-gray-600 hover:text-gray-800 transition">
+                        <i class="fas fa-chevron-down" id="sellerChevron"></i>
+                    </button>
+                </div>
+                <div class="mt-2">
+                    <span class="text-sm font-medium text-gray-700">Vendeur: </span>
+                    <span id="headerSellerName" class="text-sm text-indigo-600 seller-anim">-</span>
+                </div>
+            </div>
+            <div class="p-6 hidden" id="sellerContent">
+                <div class="flex flex-col md:flex-row gap-4 mb-4">
+                    <div class="relative w-full md:w-1/3">
+                        <span class="text-sm font-medium text-gray-700 mr-2">Vendeur: </span>
+                        <select id="sellerSelect" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300">
+                            <option value="0">Sélectionner un vendeur</option>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700 top-6">
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                    </div>
+                    <div class="relative w-full md:w-1/3 password-input-container">
+                        <span class="text-sm font-medium text-gray-700 mr-2">Mot de passe: </span>
+                        <input type="password" id="sellerPassword" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Entrez le mot de passe">
+                        <i class="fas fa-eye password-toggle" id="togglePassword" onclick="togglePasswordVisibility()"></i>
+                    </div>
+                    <div class="w-full md:w-1/3">
+                        <button id="validateSellerButton" onclick="validerVendeur()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition duration-300">
+                            <i class="fas fa-check mr-2"></i>Valider
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <span class="text-sm font-medium text-gray-700">Vendeur sélectionné: </span>
+                    <span id="selectedSellerName" class="text-sm text-indigo-600 seller-anim">-</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-8">
+            <header class="mb-8">
+                <h1 class="text-3xl font-bold text-indigo-700">Gestion des Ventes</h1>
+                <p class="text-gray-600 flex items-center">
+                    <i class="fas fa-shopping-cart mr-2 text-indigo-500"></i> Ventes en temps réel
+                </p>
+            </header>
+
+            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in mb-8" id="productsSection">
+                <div class="header flex justify-between items-center cursor-pointer" onclick="toggleSection('productsSection')">
+                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-boxes mr-2 text-indigo-500"></i> Produits Disponibles
+                        <span id="productCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                    </h2>
+                    <div class="flex items-center space-x-4">
+                        <button id="maximizeProductsButton" onclick="toggleMaximizeProducts()" class="text-gray-600 hover:text-gray-800 transition">
+                            <i class="fas fa-expand"></i>
+                        </button>
+                        <button class="text-gray-600 hover:text-gray-800 transition">
+                            <i class="fas fa-chevron-down" id="productsChevron"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="p-6" id="productsContent">
+                    <div class="mb-4 flex flex-col md:flex-row gap-4">
+                        <div class="relative w-full md:w-1/2">
+                            <input type="text" id="searchProduct" placeholder="Rechercher un produit..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                        </div>
+                        <div class="relative w-full md:w-1/2">
+                            <input type="text" id="productBar" class="w-full px-3 py-2 border rounded-md" placeholder="Scanner ou entrer code-barres" required>
+                            <button id="scanButton" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition duration-300" onclick="startScanner()">
+                                <i class="fas fa-camera"></i> Scanner
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Désignation</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Vente</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productsList" class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td colspan="5" class="text-center py-4 text-gray-500">Chargement en cours...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-md transition-all duration-300 overflow-hidden animate-fade-in" id="salesSection">
+                <div class="p-6 flex justify-between items-center">
+                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-receipt mr-2 text-indigo-500"></i> Ventes
+                        <span id="saleItemCount" class="ml-2 text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full count-anim hidden">0</span>
+                    </h2>
+                </div>
+                <div class="p-6">
+                    <div class="mb-6">
+                        <h3 class="font-medium mb-3">Lignes de la vente en cours</h3>
+                        <div class="mb-4">
+                            <div class="total-large animate-total-pulse text-center mb-4">
+                                Total: <span id="totalSale">0.00 DA</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <div class="relative">
+                                    <div class="mb-4">
+                                        <span class="text-sm font-medium text-gray-700 mr-2">Mode de paiement: </span>
+                                        <div class="relative inline-block w-64">
+                                            <select id="paymentMode" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300" onchange="togglePaymentForm()">
+                                                <option value="espece" selected>Espèce</option>
+                                                <option value="a_terme">À terme</option>
+                                            </select>
+                                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                                                <i class="fas fa-chevron-down"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div id="paymentForm" class="hidden mb-4">
+                                        <label for="amountPaid" class="text-sm font-medium text-gray-700 mr-2">Montant versé: </label>
+                                        <input type="number" id="amountPaid" step="1" min="0" class="w-64 px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0.00 DA">
+                                    </div>
+                                    <span class="text-sm font-medium text-gray-700 mr-2">Client: </span>
+                                    <div class="relative inline-block w-64">
+                                        <select id="saleClientId" class="block appearance-none w-full bg-white border border-gray-300 hover:border-indigo-500 px-4 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300">
+                                            <option value="0">Vente Comptoir (Sans client)</option>
+                                        </select>
+                                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Unitaire</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tempSalesList" class="bg-white divide-y divide-gray-200">
+                                    <tr>
+                                        <td colspan="6" class="text-center py-4 text-gray-500">Aucune ligne ajoutée</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                      <div class="mt-4 flex justify-end space-x-2" id="pendingButtonsContainer">
+    <div class="w-full flex space-x-2">
+        <button id="holdSaleButton" onclick="holdSale()" class="flex-1 bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 transition duration-300 transform hover:scale-105">
+            <i class="fas fa-pause mr-2"></i>Mettre en attente
+        </button>
+        <button id="pendingSalesButton" onclick="showPendingSales()" class="flex-1 bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700 transition duration-300 transform hover:scale-105">
+            <i class="fas fa-list mr-2"></i>Liste d'attente
+        </button>
+    </div>
+</div>
+                        <div class="mt-4 flex justify-end space-x-2">
+                            <button id="printSaleButton80mm" onclick="imprimerVente80mm()" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition duration-300 transform hover:scale-105" disabled>
+                                <i class="fas fa-print mr-2"></i>Imprimer 80mm
+                            </button>
+                            <button id="printSaleButtonA4" onclick="imprimerVenteA4()" class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition duration-300 transform hover:scale-105" disabled>
+                                <i class="fas fa-file-pdf mr-2"></i>Imprimer A4
+                            </button>
+                            <button id="validateSaleButton" onclick="validerVente()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition duration-300 transform hover:scale-105" disabled>
+                                <i class="fas fa-check mr-2"></i>Valider la vente
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+<video id="scannerPreview" autoplay playsinline class="relative"></video>
+<div id="scannerOverlay">
+    <div id="scan-indicator" role="region" aria-live="polite"></div>
+    <div id="camera-loading" class="absolute inset-0 flex items-center justify-center text-white bg-black bg-opacity-50">
+        <i class="fas fa-spinner fa-spin mr-2"></i>Chargement de la caméra...
+    </div>
+</div>
+
+    <div id="pendingSalesModal">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold text-gray-800">Ventes en attente</h2>
+                <button onclick="closePendingSalesModal()" class="text-gray-600 hover:text-gray-800 transition">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="pendingSalesList" class="space-y-4">
+                <!-- Liste des ventes en attente -->
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-gray-700 text-white text-center py-4 animate-fade-in">
+        <p>Développé par Khelladi Hicham</p>
+        <p>Tel: <a href="tel:00213553700900" class="underline hover:text-indigo-300 transition duration-300">00213553700900</a></p>
+        <p>Email: <a href="mailto:Hicham.khelladi@gmail.com" class="underline hover:text-indigo-300 transition duration-300">Hicham.khelladi@gmail.com</a></p>
+    </footer>
+
+    <div id="toast" class="fixed bottom-4 right-4 hidden">
+        <div class="flex items-center px-6 py-3 rounded-md shadow-lg">
+            <i id="toastIcon" class="mr-2"></i>
+            <span id="toastMessage"></span>
+        </div>
+    </div>
 
     <script>
-        // Fonction pour afficher les messages de statut
-        function showStatus(message, isError = false) {
-            const statusDiv = document.getElementById('status');
-            statusDiv.textContent = `Statut : ${message}`;
-            statusDiv.style.color = isError ? 'red' : 'green';
+        const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'https://hicham03041979.onrender.com';
+        let tempSaleLines = [];
+        let produitsCache = [];
+        let clientsCache = [];
+        let utilisateursCache = [];
+        let isEditMode = false;
+        let editNumeroComande = null;
+        let produitsLoaded = false;
+		
+		function playBeep() {
+    try {
+        // Créer un contexte audio
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // Créer un oscillateur pour générer le son
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        // Connecter l'oscillateur au gain et le gain aux haut-parleurs
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        // Configurer le son (fréquence, type d'onde)
+        oscillator.frequency.setValueAtTime(800, audioContext.currentTime); // Fréquence de 800Hz
+        oscillator.type = 'sine'; // Type d'onde sinusoïdale pour un son plus doux
+        
+        // Configurer le volume (fade in/out pour éviter les clics)
+        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.3, audioContext.currentTime + 0.01); // Volume à 30%
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2); // Fade out
+        
+        // Jouer le son
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.2); // Arrêter après 200ms
+        
+        console.log('Bip sonore joué');
+    } catch (error) {
+        console.error('Erreur lors de la lecture du bip sonore:', error);
+        // Fallback : utiliser un son système si disponible
+        if (window.speechSynthesis) {
+            const utterance = new SpeechSynthesisUtterance('');
+            utterance.volume = 0; // Volume à 0 pour ne pas entendre de voix
+            utterance.rate = 10; // Très rapide pour faire un bip court
+            window.speechSynthesis.speak(utterance);
+        }
+    }
+}
+		async function loadProductCount() {
+    console.log('Chargement du compteur de produits...');
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour voir le compteur', true);
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/liste_produits`, {
+            headers: { 'X-User-ID': userId }
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Erreur ${response.status}: ${errorText}`);
+        }
+        const produits = await response.json();
+        const countElement = document.getElementById('productCount');
+        countElement.textContent = produits.length;
+        countElement.classList.remove('hidden');
+    } catch (error) {
+        console.error('Erreur chargement compteur produits:', error);
+        showToast(`Erreur chargement compteur: ${error.message}`, true);
+    }
+}
+        function togglePaymentForm() {
+            const paymentMode = document.getElementById('paymentMode').value;
+            const paymentForm = document.getElementById('paymentForm');
+            paymentForm.classList.toggle('hidden', paymentMode === 'espece');
         }
 
-        // Fonction d'impression
-        async function printHelloWorld() {
-            try {
-                // Préparer les commandes ESC/POS pour "Hello World"
-                const encoder = new TextEncoder();
-                const data = [
-                    '\x1B\x40', // Initialisation de l'imprimante
-                    '\x1B\x61\x01', // Centrer le texte
-                    encoder.encode('Hello World\n'), // Texte à imprimer
-                    encoder.encode('\n'), // Saut de ligne
-                    '\x1D\x56\x42\x00' // Coupe du papier (ajustez si nécessaire)
-                ];
-
-                // Demander l'appareil Bluetooth
-                showStatus('Recherche de l\'imprimante...');
-                const device = await navigator.bluetooth.requestDevice({
-                    filters: [{ namePrefix: 'XP-' }], // Filtrer les imprimantes Xprinter
-                    optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb'] // Service Bluetooth série
-                });
-
-                // Connexion à l'imprimante
-                showStatus('Connexion à ' + device.name + '...');
-                const server = await device.gatt.connect();
-                const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
-                const characteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
-
-                // Envoyer les données
-                showStatus('Envoi des données...');
-                for (const chunk of data) {
-                    await characteristic.writeValue(chunk);
-                }
-
-                showStatus('Impression réussie !');
-            } catch (err) {
-                console.error('Erreur impression Bluetooth:', err);
-                showStatus('Erreur : ' + err.message, true);
+        function togglePasswordVisibility() {
+            const passwordInput = document.getElementById('sellerPassword');
+            const toggleIcon = document.getElementById('togglePassword');
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.classList.remove('fa-eye');
+                toggleIcon.classList.add('fa-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                toggleIcon.classList.remove('fa-eye-slash');
+                toggleIcon.classList.add('fa-eye');
             }
         }
+
+        function toggleSection(sectionId) {
+    const section = document.getElementById(sectionId);
+    const content = document.getElementById(`${sectionId.replace('Section', 'Content')}`);
+    const chevron = document.getElementById(`${sectionId.replace('Section', 'Chevron')}`);
+
+    content.classList.toggle('open');
+    chevron.classList.toggle('fa-chevron-down');
+    chevron.classList.toggle('fa-chevron-up');
+
+    // Charger les produits uniquement si la section est ouverte et non chargée
+    if (content.classList.contains('open') && !produitsLoaded) {
+        chargerProduits();
+    }
+}
+
+        function toggleMaximizeProducts() {
+            const productsSection = document.getElementById('productsSection');
+            const maximizeButton = document.getElementById('maximizeProductsButton');
+            const productsContent = document.getElementById('productsContent');
+            const productsChevron = document.getElementById('productsChevron');
+
+            const isMaximized = productsSection.classList.contains('maximized');
+
+            if (!isMaximized) {
+                productsSection.classList.add('maximized');
+                maximizeButton.classList.add('restore');
+                if (productsContent.classList.contains('hidden')) {
+                    productsContent.classList.remove('hidden');
+                    productsChevron.classList.remove('fa-chevron-down');
+                    productsChevron.classList.add('fa-chevron-up');
+                }
+                const tableContainer = productsContent.querySelector('.table-container');
+                tableContainer.style.maxHeight = 'calc(100% - 80px)';
+            } else {
+                productsSection.classList.remove('maximized');
+                maximizeButton.classList.remove('restore');
+                const tableContainer = productsContent.querySelector('.table-container');
+                tableContainer.style.maxHeight = '250px';
+            }
+        }
+
+     document.addEventListener('DOMContentLoaded', async () => {
+    console.log('Page chargée, vérification utilisateur...');
+    const userId = localStorage.getItem('userId');
+    const userEmail = localStorage.getItem('userEmail');
+    if (userId && userEmail) {
+        console.log('Utilisateur connecté:', userId, userEmail);
+        document.getElementById('userDisplay').textContent = userEmail.toLowerCase();
+        document.getElementById('userDisplay').classList.remove('hidden');
+        document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
+        document.getElementById('sellerSelect').disabled = true;
+
+        // Charger les utilisateurs, clients et compteur produits
+        await Promise.all([
+            chargerUtilisateurs(),
+            chargerClients(),
+            loadProductCount() // Ajout ici
+        ]);
+
+        const storedSeller = localStorage.getItem('selectedSeller');
+        if (storedSeller) {
+            const { numero_util, nom } = JSON.parse(storedSeller);
+            const sellerSelect = document.getElementById('sellerSelect');
+            const optionExists = Array.from(sellerSelect.options).some(option => option.value === numero_util);
+            if (optionExists) {
+                sellerSelect.value = numero_util;
+                document.getElementById('selectedSellerName').textContent = nom;
+                document.getElementById('headerSellerName').textContent = nom;
+                document.getElementById('sellerPassword').disabled = true;
+                document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
+                document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
+                document.getElementById('sellerContent').classList.add('hidden');
+                document.getElementById('sellerChevron').classList.add('fa-chevron-down');
+                document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
+            } else {
+                localStorage.removeItem('selectedSeller');
+                localStorage.removeItem('sellerPassword');
+                document.getElementById('sellerContent').classList.remove('hidden');
+                document.getElementById('sellerChevron').classList.add('fa-chevron-up');
+                document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
+            }
+        } else {
+            document.getElementById('sellerContent').classList.remove('hidden');
+            document.getElementById('sellerChevron').classList.add('fa-chevron-up');
+            document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
+        }
+        sellerSelect.disabled = false;
+
+        // Vérifier si mode édition
+        const urlParams = new URLSearchParams(window.location.search);
+        isEditMode = urlParams.get('edit') === 'true';
+        editNumeroComande = urlParams.get('numero_comande');
+        const nature = urlParams.get('nature');
+
+        // Hide pending buttons in edit mode
+        const pendingButtonsContainer = document.getElementById('pendingButtonsContainer');
+        if (isEditMode) {
+            pendingButtonsContainer.classList.add('hidden');
+            document.querySelector('header h1').textContent = `Modifier la vente #${editNumeroComande}`;
+            const validateButton = document.getElementById('validateSaleButton');
+            validateButton.innerHTML = '<i class="fas fa-edit mr-2"></i>Modifier la vente';
+            validateButton.onclick = modifierVente;
+            await loadSaleData(editNumeroComande);
+        } else {
+            pendingButtonsContainer.classList.remove('hidden');
+        }
+
+        // Ne pas charger les produits ici, car le compteur est chargé via loadProductCount
+    } else {
+        console.log('Aucun utilisateur connecté, redirection vers index.html');
+        document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+        window.location.href = 'index.html';
+    }
+
+});
+      
+async function loadSaleData(numeroComande) {
+    console.log(`Chargement des données de la vente #${numeroComande}...`);
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter', true);
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/vente/${numeroComande}`, {
+            headers: { 'X-User-ID': userId }
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Erreur ${response.status}: ${errorText}`);
+        }
+        const saleData = await response.json();
+        console.log('Données de la vente:', saleData);
+
+        // Vérifier si saleData.lignes existe et est un tableau
+        if (!Array.isArray(saleData.lignes)) {
+            throw new Error('Les lignes de vente sont manquantes ou invalides');
+        }
+
+        // Pré-remplir les champs en filtrant les lignes invalides
+        tempSaleLines = saleData.lignes
+            .filter(ligne => ligne.numero_item != null)
+            .map(ligne => {
+                const numeroItem = ligne.numero_item ?? 0;
+                const quantite = parseFloat(ligne.quantite) || 0;
+                const prixt = parseFloat(ligne.prixt) || 0;
+
+                return {
+                    numero_item: numeroItem,
+                    produit_bar: numeroItem.toString(),
+                    designation: ligne.designation || 'N/A',
+                    quantite: quantite.toFixed(2),
+                    prixt: prixt.toFixed(2),
+                    remarque: quantite > 0 ? (prixt / quantite).toFixed(2) : '0.00',
+                    prixbh: parseFloat(ligne.prixbh) || 0
+                };
+            });
+
+        if (saleData.lignes.length !== tempSaleLines.length) {
+            showToast('Certaines lignes invalides ont été ignorées', true);
+        }
+
+        // Pré-sélectionner le client
+        const clientSelect = document.getElementById('saleClientId');
+        const clientId = saleData.numero_table || '0';
+        const clientOptionExists = Array.from(clientSelect.options).some(option => option.value === clientId);
+        if (!clientOptionExists && clientId !== '0') {
+            const tempOption = document.createElement('option');
+            tempOption.value = clientId;
+            tempOption.textContent = `${saleData.client_nom || 'Client inconnu'} (ID: ${clientId})`;
+            clientSelect.appendChild(tempOption);
+        }
+        clientSelect.value = clientId;
+
+        // Définir le mode de paiement par défaut sur 'Espèce'
+        document.getElementById('paymentMode').value = 'espece';
+        document.getElementById('amountPaid').value = ''; // Réinitialiser le montant versé
+        togglePaymentForm(); // Masquer le champ du montant versé
+
+        updateTempSalesTable();
+
+        // Pré-sélectionner le vendeur
+        const storedSeller = localStorage.getItem('selectedSeller');
+        if (storedSeller) {
+            const { numero_util } = JSON.parse(storedSeller);
+            if (numero_util !== saleData.numero_util?.toString()) {
+                document.getElementById('sellerSelect').value = saleData.numero_util || '0';
+                document.getElementById('sellerPassword').value = '';
+                document.getElementById('sellerPassword').disabled = false;
+                document.getElementById('selectedSellerName').textContent = saleData.utilisateur_nom || '-';
+                document.getElementById('headerSellerName').textContent = saleData.utilisateur_nom || '-';
+            }
+        }
+    } catch (error) {
+        showToast(`Erreur lors du chargement de la vente: ${error.message}`, true);
+        console.error('Erreur chargement vente:', error);
+    }
+}
+      
+        async function modifierVente() {
+            console.log(`Modification de la vente #${editNumeroComande}...`);
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour modifier la vente', true);
+                return;
+            }
+
+            if (tempSaleLines.length === 0) {
+                showToast('Aucune ligne à modifier', true);
+                return;
+            }
+
+            const storedSeller = localStorage.getItem('selectedSeller');
+            if (!storedSeller) {
+                showToast('Veuillez sélectionner et valider un vendeur', true);
+                return;
+            }
+
+            const { numero_util } = JSON.parse(storedSeller);
+            let password2 = localStorage.getItem('sellerPassword');
+            if (!password2) {
+                password2 = prompt('Veuillez entrer le mot de passe du vendeur pour modifier la vente:');
+                if (!password2) {
+                    showToast('Mot de passe requis pour modifier la vente', true);
+                    return;
+                }
+            }
+
+            const paymentMode = document.getElementById('paymentMode').value;
+            const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
+            const numeroTable = parseInt(document.getElementById('saleClientId').value) || 0;
+
+            if (paymentMode === 'a_terme' && numeroTable === 0) {
+                showToast('Veuillez sélectionner un client pour une vente à terme', true);
+                return;
+            }
+
+            if (paymentMode === 'a_terme' && amountPaid < 0) {
+                showToast('Le montant versé ne peut pas être négatif', true);
+                return;
+            }
+
+            const venteData = {
+                numero_table: numeroTable,
+                date_comande: new Date().toISOString(),
+                numero_util: parseInt(numero_util),
+                password2: password2,
+                lignes: tempSaleLines.map(ligne => ({
+                    numero_item: ligne.numero_item,
+                    quantite: parseFloat(ligne.quantite),
+                    prixt: parseFloat(ligne.prixt),
+                    remarque: ligne.remarque,
+                    prixbh: ligne.prixbh
+                }))
+            };
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/modifier_vente/${editNumeroComande}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify(venteData)
+                });
+                console.log('Réponse modifier_vente:', response.status, response.statusText);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Erreur texte modifier_vente:', errorText);
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                const result = await response.json();
+                console.log('Vente modifiée:', result);
+
+                showToast(`Vente #${result.numero_comande} modifiée avec succès`);
+                tempSaleLines = [];
+                document.getElementById('paymentMode').value = 'espece';
+                document.getElementById('amountPaid').value = '';
+                document.getElementById('saleClientId').value = '0';
+                togglePaymentForm();
+                updateTempSalesTable();
+                chargerProduits();
+                chargerClients();
+                window.location.href = 'page2.html';
+            } catch (error) {
+                console.error('Erreur modification vente:', error);
+                showToast(`Erreur modification vente: ${error.message}`, true);
+            }
+        }
+
+        function loginLogout() {
+            console.log('Déconnexion en cours...');
+            const userId = localStorage.getItem('userId');
+            if (userId) {
+                localStorage.removeItem('userId');
+                localStorage.removeItem('userEmail');
+                localStorage.removeItem('selectedSeller');
+                localStorage.removeItem('sellerPassword');
+                document.getElementById('userDisplay').textContent = '';
+                document.getElementById('userDisplay').classList.add('hidden');
+                document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-in-alt mr-1"></i>Connexion';
+                window.location.href = 'index.html';
+            }
+        }
+
+      function showToast(message, isError = false) {
+    const toast = document.getElementById('toast');
+    const toastMessage = document.getElementById('toastMessage');
+    const toastIcon = document.getElementById('toastIcon');
+    if (!toast || !toastMessage || !toastIcon) {
+        console.error('Éléments toast introuvables');
+        return;
+    }
+    toast.className = isError
+        ? 'fixed bottom-4 right-4 flex items-center bg-red-500 text-white px-6 py-3 rounded-md shadow-lg toast-in'
+        : 'fixed bottom-4 right-4 flex items-center bg-green-500 text-white px-6 py-3 rounded-md shadow-lg toast-in';
+    toastIcon.className = isError ? 'fas fa-exclamation-circle mr-2' : 'fas fa-check-circle mr-2';
+    toastMessage.textContent = message;
+    toast.classList.remove('hidden');
+    setTimeout(() => {
+        toast.classList.remove('toast-in');
+        toast.classList.add('toast-out');
+        setTimeout(() => toast.classList.add('hidden'), 500);
+    }, 3000);
+}
+
+        async function chargerUtilisateurs() {
+            console.log('Chargement des utilisateurs...');
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir les utilisateurs', true);
+                return;
+            }
+
+            try {
+                const sellerSelect = document.getElementById('sellerSelect');
+                const currentSelection = sellerSelect.value;
+                const response = await fetch(`${API_BASE_URL}/liste_utilisateurs`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                console.log('Réponse liste_utilisateurs:', response.status, response.statusText);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Erreur texte liste_utilisateurs:', errorText);
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                utilisateursCache = await response.json();
+                console.log('Utilisateurs reçus:', utilisateursCache);
+
+                sellerSelect.innerHTML = '<option value="0">Sélectionner un vendeur</option>';
+                utilisateursCache.forEach(utilisateur => {
+                    const option = document.createElement('option');
+                    option.value = utilisateur.numero;
+                    option.textContent = utilisateur.nom;
+                    sellerSelect.appendChild(option);
+                });
+
+                if (currentSelection !== '0' && utilisateursCache.some(u => u.numero === currentSelection)) {
+                    sellerSelect.value = currentSelection;
+                }
+            } catch (error) {
+                showToast('Erreur lors du chargement des utilisateurs: ' + error.message, true);
+                console.error('Erreur utilisateurs:', error);
+            }
+        }
+
+      async function validerVendeur() {
+    console.log('Validation du vendeur...');
+    const numeroUtil = document.getElementById('sellerSelect').value;
+    const password2 = document.getElementById('sellerPassword').value;
+    const userId = localStorage.getItem('userId');
+
+    if (numeroUtil === '0') {
+        showToast('Veuillez sélectionner un vendeur', true);
+        return;
+    }
+    if (!password2) {
+        showToast('Veuillez entrer le mot de passe', true);
+        return;
+    }
+
+    try {
+        const selectedOption = document.getElementById('sellerSelect').options[document.getElementById('sellerSelect').selectedIndex];
+        const sellerName = selectedOption.text;
+
+        const vendeurData = {
+            nom: sellerName,
+            password2: password2
+        };
+
+        const response = await fetch(`${API_BASE_URL}/valider_vendeur`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-User-ID': userId
+            },
+            body: JSON.stringify(vendeurData)
+        });
+
+        if (!response.ok) {
+            let errorText;
+            try {
+                const errorData = await response.json();
+                errorText = errorData.erreur || `Erreur serveur ${response.status}`;
+            } catch {
+                errorText = `Erreur serveur ${response.status}`;
+            }
+            throw new Error(errorText);
+        }
+
+        const result = await response.json();
+        const { numero_util } = result.utilisateur;
+
+        localStorage.setItem('selectedSeller', JSON.stringify({
+            numero_util: numeroUtil,
+            nom: sellerName
+        }));
+        localStorage.setItem('sellerPassword', password2);
+
+        document.getElementById('selectedSellerName').textContent = sellerName;
+        document.getElementById('headerSellerName').textContent = sellerName;
+        document.getElementById('sellerPassword').disabled = true;
+        document.getElementById('validateSellerButton').textContent = 'Changer de vendeur';
+        document.getElementById('validateSellerButton').onclick = changeAndValidateSeller;
+        document.getElementById('sellerContent').classList.add('hidden');
+        document.getElementById('sellerChevron').classList.add('fa-chevron-down');
+        document.getElementById('sellerChevron').classList.remove('fa-chevron-up');
+        showToast(`Vendeur ${sellerName} validé`);
+    } catch (error) {
+        showToast(`Erreur validation vendeur: ${error.message}`, true);
+        console.error('Erreur validation:', error);
+    }
+}  
+
+
+        function changeAndValidateSeller() {
+            console.log('Changement et validation du vendeur...');
+            const sellerSelect = document.getElementById('sellerSelect');
+            sellerSelect.value = '0';
+            document.getElementById('sellerPassword').value = '';
+            document.getElementById('sellerPassword').disabled = false;
+            document.getElementById('selectedSellerName').textContent = '-';
+            document.getElementById('headerSellerName').textContent = '-';
+            document.getElementById('validateSellerButton').textContent = 'Valider';
+            document.getElementById('validateSellerButton').onclick = validerVendeur;
+
+            localStorage.removeItem('selectedSeller');
+            localStorage.removeItem('sellerPassword');
+
+            document.getElementById('sellerContent').classList.remove('hidden');
+            document.getElementById('sellerChevron').classList.add('fa-chevron-up');
+            document.getElementById('sellerChevron').classList.remove('fa-chevron-down');
+        }
+
+        async function chargerClients() {
+            console.log('Chargement des clients...');
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour voir les clients', true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/liste_clients`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                console.log('Réponse liste_clients:', response.status, response.statusText);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Erreur texte liste_clients:', errorText);
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                clientsCache = await response.json();
+                console.log('Clients reçus:', clientsCache);
+                const selectElement = document.getElementById('saleClientId');
+
+                selectElement.innerHTML = '<option value="0">Vente Comptoir (Sans client)</option>';
+
+                await chargerSoldesClients();
+
+                clientsCache.forEach(client => {
+                    const solde = parseFloat(client.solde) || 0;
+                    const soldeClass = solde < 0 ? 'solde-negatif' : 'solde-positif';
+                    const option = document.createElement('option');
+                    option.value = client.numero_clt;
+                    option.innerHTML = `${client.nom} (ID: ${client.numero_clt}) <span class="${soldeClass}">[Solde: ${solde.toFixed(2)} DA]</span>`;
+                    selectElement.appendChild(option);
+                });
+            } catch (error) {
+                showToast('Erreur lors du chargement des clients: ' + error.message, true);
+                console.error('Erreur clients:', error);
+            }
+        }
+
+        async function chargerSoldesClients() {
+            console.log('Chargement des soldes des clients...');
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/client_solde`, {
+                    headers: { 'X-User-ID': userId }
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Erreur texte client_solde:', errorText);
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                const soldes = await response.json();
+                console.log('Soldes reçus:', soldes);
+
+                clientsCache.forEach(client => {
+                    const soldeData = soldes.find(s => s.numero_clt === client.numero_clt);
+                    client.solde = soldeData ? soldeData.solde : '0.00';
+                });
+            } catch (error) {
+                console.error('Erreur chargement soldes:', error);
+                showToast('Erreur lors du chargement des soldes: ' + error.message, true);
+            }
+        }
+
+       async function chargerProduits() {
+    if (produitsLoaded) {
+        console.log('Produits déjà chargés, mise à jour du tableau uniquement.');
+        updateProductsTable();
+        return;
+    }
+
+    console.log('Chargement des produits...');
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Veuillez vous connecter pour voir les produits', true);
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/liste_produits`, {
+            headers: { 'X-User-ID': userId }
+        });
+        console.log('Réponse liste_produits:', response.status, response.statusText);
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Erreur texte liste_produits:', errorText);
+            showToast(`Erreur chargement produits: ${errorText}`, true);
+            throw new Error(`Erreur ${response.status}: ${errorText}`);
+        }
+        produitsCache = await response.json();
+        console.log('Produits reçus:', produitsCache);
+        produitsLoaded = true; // Marquer comme chargé
+        updateProductsTable();
+    } catch (error) {
+        document.getElementById('productsList').innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center py-4 text-red-500">
+                    Erreur de chargement: ${error.message}
+                </td>
+            </tr>
+        `;
+        console.error('Erreur produits:', error);
+        showToast(`Erreur chargement produits: ${error.message}`, true);
+    }
+}
+
+function updateProductsTable() {
+    const tbody = document.getElementById('productsList');
+    const countElement = document.getElementById('productCount');
+
+    if (produitsCache.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
+        countElement.textContent = '0';
+        countElement.classList.remove('hidden');
+        return;
+    }
+
+    tbody.innerHTML = '';
+    produitsCache.forEach(produit => {
+        const stockStatus = produit.QTE <= 0 ? 'Rupture' : produit.QTE <= 5 ? 'Stock faible' : produit.QTE.toFixed(2);
+        const stockClass = produit.QTE <= 0 ? 'stock-rupture' : produit.QTE <= 5 ? 'stock-faible' : '';
+        const buttonDisabled = produit.QTE <= 0 ? 'btn-disabled' : '';
+        const buttonAttrs = produit.QTE <= 0 ? 'disabled' : '';
+
+        const tr = document.createElement('tr');
+        tr.className = `hover:bg-gray-50 ${stockClass}`;
+        tr.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <button onclick="selectProduct(${produit.NUMERO_ITEM}, ${produit.BAR}, ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition duration-300 ${buttonDisabled}" ${buttonAttrs}>
+                    <i class="fas fa-plus"></i>
+                </button>
+            </td>
+            <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stockStatus}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+    countElement.textContent = produitsCache.length;
+    countElement.classList.remove('hidden');
+}
+
+        function selectProduct(numeroItem, bar, prix, prixba, stock, designation) {
+    console.log('Produit sélectionné:', numeroItem, bar, prix, prixba, stock, designation);
+    const numeroItemInt = parseInt(numeroItem);
+    const barInt = parseInt(bar) || numeroItemInt; // Fallback sur numeroItemInt si bar est invalide
+    const unitPrice = parseFloat(prix || 0);
+    const pricePurchase = parseFloat(prixba || 0);
+    const quantity = 1.0;
+
+    if (isNaN(numeroItemInt) || unitPrice <= 0) {
+        showToast('Produit invalide ou prix incorrect', true);
+        return;
+    }
+
+    const produit = produitsCache.find(p => p.numero_item === numeroItemInt || p.NUMERO_ITEM === numeroItemInt);
+    const existingLine = tempSaleLines.find(line => line.numero_item === numeroItemInt);
+    const totalQuantity = existingLine ? (parseFloat(existingLine.quantite) + quantity) : quantity;
+    const priceTotal = quantity * unitPrice;
+    const existingLineIndex = tempSaleLines.findIndex(line => line.numero_item === numeroItemInt);
+
+    if (existingLineIndex >= 0) {
+        tempSaleLines[existingLineIndex].quantite = totalQuantity.toFixed(2);
+        tempSaleLines[existingLineIndex].prixt = (totalQuantity * unitPrice).toFixed(2);
+        tempSaleLines[existingLineIndex].remarque = unitPrice.toFixed(2);
+    } else {
+        tempSaleLines.push({
+            numero_item: numeroItemInt,
+            produit_bar: barInt.toString(),
+            designation: produit ? (produit.designation || produit.DESIGNATION || 'N/A') : (designation || 'N/A'),
+            quantite: quantity.toFixed(2),
+            prixt: priceTotal.toFixed(2),
+            remarque: unitPrice.toFixed(2),
+            prixbh: pricePurchase
+        });
+    }
+
+    updateTempSalesTable();
+    showToast(`Produit ajouté : ${produit ? (produit.designation || produit.DESIGNATION || 'N/A') : designation}`);
+}
+function updateTempSalesTable() {
+    const tbody = document.getElementById('tempSalesList');
+    const totalElement = document.getElementById('totalSale');
+    const itemCountElement = document.getElementById('saleItemCount');
+    const validateButton = document.getElementById('validateSaleButton');
+    const printButton80mm = document.getElementById('printSaleButton80mm');
+    const printButtonA4 = document.getElementById('printSaleButtonA4');
+    const holdSaleButton = document.getElementById('holdSaleButton');
+    const pendingSalesButton = document.getElementById('pendingSalesButton');
+
+    if (tempSaleLines.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">Aucune ligne ajoutée</td></tr>';
+        totalElement.textContent = '0.00 DA';
+        itemCountElement.textContent = '0';
+        itemCountElement.classList.add('hidden');
+        validateButton.disabled = true;
+        printButton80mm.disabled = true;
+        printButtonA4.disabled = true;
+        holdSaleButton.disabled = true;
+        pendingSalesButton.disabled = false; // Garde Liste d'attente actif
+        return;
+    }
+
+    tbody.innerHTML = '';
+    let total = 0;
+    let totalItems = 0;
+
+    tempSaleLines.forEach((ligne, index) => {
+        const lineTotal = parseFloat(ligne.prixt) || 0;
+        total += lineTotal;
+        totalItems += parseFloat(ligne.quantite) || 0;
+
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-gray-50';
+        tr.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <button onclick="supprimerLigne(${index})" class="bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+            <td class="px-6 py-4 text-sm text-gray-900">${ligne.designation || 'N/A'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <div class="flex items-center space-x-2">
+                    <button onclick="modifierQuantite(${index}, -1)" class="bg-gray-300 text-gray-700 px-2 py-1 rounded-md hover:bg-gray-400 transition">-</button>
+                    <input type="number" step="1" min="0" value="${parseFloat(ligne.quantite).toFixed(2)}" onchange="modifierQuantiteDirect(${index}, this.value)" class="quantity-input px-2 py-1 border rounded-md w-16 text-center">
+                    <button onclick="modifierQuantite(${index}, 1)" class="bg-gray-300 text-gray-700 px-2 py-1 rounded-md hover:bg-gray-400 transition">+</button>
+                </div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ligne.numero_item}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <input type="number" step="1" value="${parseFloat(ligne.remarque).toFixed(2)}" onchange="modifierPrix(${index}, this.value)" class="quantity-input px-2 py-1 border rounded-md">
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${lineTotal.toFixed(2)}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    totalElement.textContent = `${total.toFixed(2)} DA`;
+    totalElement.classList.add('animate-total-pulse');
+    setTimeout(() => totalElement.classList.remove('animate-total-pulse'), 1500);
+    itemCountElement.textContent = totalItems.toFixed(2);
+    itemCountElement.classList.remove('hidden');
+    validateButton.disabled = false;
+    printButton80mm.disabled = false;
+    printButtonA4.disabled = false;
+    holdSaleButton.disabled = false;
+    pendingSalesButton.disabled = false;
+}
+    
+
+        function modifierQuantite(index, delta) {
+            const ligne = tempSaleLines[index];
+            const produit = produitsCache.find(p => p.NUMERO_ITEM === ligne.numero_item);
+            const newQuantity = parseFloat(ligne.quantite) + delta;
+
+            if (newQuantity <= 0) {
+                supprimerLigne(index);
+                return;
+            }
+
+            if (produit && newQuantity > produit.QTE) {
+                showToast('Quantité demandée supérieure au stock disponible', true);
+                return;
+            }
+
+            ligne.quantite = newQuantity.toFixed(2);
+            ligne.prixt = (newQuantity * parseFloat(ligne.remarque)).toFixed(2);
+            updateTempSalesTable();
+            showToast(`Quantité mise à jour: ${ligne.quantite}`);
+        }
+
+        function modifierQuantiteDirect(index, newQuantity) {
+            const quantity = parseFloat(newQuantity);
+            if (isNaN(quantity) || quantity <= 0) {
+                showToast('Quantité invalide', true);
+                return;
+            }
+
+            const ligne = tempSaleLines[index];
+            const produit = produitsCache.find(p => p.NUMERO_ITEM === ligne.numero_item);
+
+            if (produit && quantity > produit.QTE) {
+                showToast('Quantité demandée supérieure au stock disponible', true);
+                return;
+            }
+
+            ligne.quantite = quantity.toFixed(2);
+            ligne.prixt = (quantity * parseFloat(ligne.remarque)).toFixed(2);
+            updateTempSalesTable();
+            showToast(`Quantité mise à jour: ${ligne.quantite}`);
+        }
+
+        function modifierPrix(index, newPrice) {
+            const price = parseFloat(newPrice);
+            if (isNaN(price) || price <= 0) {
+                showToast('Prix unitaire invalide', true);
+                return;
+            }
+
+            const ligne = tempSaleLines[index];
+            ligne.remarque = price.toFixed(2);
+            ligne.prixt = (parseFloat(ligne.quantite) * price).toFixed(2);
+            updateTempSalesTable();
+            showToast('Prix unitaire mis à jour');
+        }
+
+        function supprimerLigne(index) {
+            const ligne = tempSaleLines[index];
+            tempSaleLines.splice(index, 1);
+            updateTempSalesTable();
+            showToast(`Ligne "${ligne.designation}" supprimée`);
+        }
+
+        async function validerVente() {
+            console.log('Validation vente...');
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                showToast('Veuillez vous connecter pour valider la vente', true);
+                return;
+            }
+
+            if (tempSaleLines.length === 0) {
+                showToast('Aucune ligne à valider', true);
+                return;
+            }
+
+            const storedSeller = localStorage.getItem('selectedSeller');
+            if (!storedSeller) {
+                showToast('Veuillez sélectionner et valider un vendeur', true);
+                return;
+            }
+
+            const { numero_util } = JSON.parse(storedSeller);
+            const password2 = localStorage.getItem('sellerPassword');
+
+            const paymentMode = document.getElementById('paymentMode').value;
+            const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
+            const numeroTable = parseInt(document.getElementById('saleClientId').value) || 0;
+
+            if (paymentMode === 'a_terme' && numeroTable === 0) {
+                showToast('Veuillez sélectionner un client pour une vente à terme', true);
+                return;
+            }
+
+            if (paymentMode === 'a_terme' && amountPaid < 0) {
+                showToast('Le montant versé ne peut pas être négatif', true);
+                return;
+            }
+
+            const venteData = {
+                numero_table: numeroTable,
+                date_comande: new Date().toISOString(),
+                payment_mode: paymentMode,
+                amount_paid: amountPaid,
+                numero_util: parseInt(numero_util),
+                password2: password2,
+                lignes: tempSaleLines.map(ligne => ({
+                    numero_item: ligne.numero_item,
+                    quantite: parseFloat(ligne.quantite),
+                    prixt: parseFloat(ligne.prixt),
+                    remarque: ligne.remarque,
+                    prixbh: ligne.prixbh
+                }))
+            };
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/valider_vente`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': userId
+                    },
+                    body: JSON.stringify(venteData)
+                });
+                console.log('Réponse valider_vente:', response.status, response.statusText);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Erreur texte valider_vente:', errorText);
+                    throw new Error(`Erreur ${response.status}: ${errorText}`);
+                }
+                const result = await response.json();
+                console.log('Vente validée:', result);
+
+                showToast(`Vente #${result.numero_comande} validée avec succès`);
+                tempSaleLines = [];
+                document.getElementById('paymentMode').value = 'espece';
+                document.getElementById('amountPaid').value = '';
+                togglePaymentForm();
+                updateTempSalesTable();
+                chargerProduits();
+                chargerClients();
+            } catch (error) {
+                console.error('Erreur validation vente:', error);
+                showToast(`Erreur validation vente: ${error.message}`, true);
+            }
+        }
+
+        function holdSale() {
+            console.log('Mise en attente de la vente...');
+            if (tempSaleLines.length === 0) {
+                showToast('Aucune ligne à mettre en attente', true);
+                return;
+            }
+
+            const paymentMode = document.getElementById('paymentMode').value;
+            const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
+            const clientId = document.getElementById('saleClientId').value;
+
+            const pendingSale = {
+                id: Date.now(),
+                date: new Date().toLocaleString('fr-FR'),
+                lines: [...tempSaleLines],
+                paymentMode,
+                amountPaid,
+                clientId
+            };
+
+            const pendingSales = JSON.parse(localStorage.getItem('pendingSales') || '[]');
+            pendingSales.push(pendingSale);
+            localStorage.setItem('pendingSales', JSON.stringify(pendingSales));
+
+            tempSaleLines = [];
+            document.getElementById('paymentMode').value = 'espece';
+            document.getElementById('amountPaid').value = '';
+            document.getElementById('saleClientId').value = '0';
+            togglePaymentForm();
+            updateTempSalesTable();
+
+            showToast('Vente mise en attente avec succès');
+        }
+
+        function showPendingSales() {
+            console.log('Affichage des ventes en attente...');
+            const modal = document.getElementById('pendingSalesModal');
+            const pendingSalesList = document.getElementById('pendingSalesList');
+            const pendingSales = JSON.parse(localStorage.getItem('pendingSales') || '[]');
+
+            if (pendingSales.length === 0) {
+                pendingSalesList.innerHTML = '<p class="text-center text-gray-500">Aucune vente en attente</p>';
+            } else {
+                pendingSalesList.innerHTML = pendingSales.map(sale => `
+                    <div class="border p-4 rounded-md shadow-sm bg-gray-50">
+                        <div class="flex justify-between items-center mb-2">
+                            <h3 class="font-semibold">Vente #${sale.id} - ${sale.date}</h3>
+                            <div class="space-x-2">
+                                <button onclick="loadPendingSale(${sale.id})" class="bg-green-600 text-white px-2 py-1 rounded-md hover:bg-green-700 transition">
+                                    <i class="fas fa-upload mr-1"></i> Charger
+                                </button>
+                                <button onclick="deletePendingSale(${sale.id})" class="bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
+                                    <i class="fas fa-trash mr-1"></i> Supprimer
+                                </button>
+                            </div>
+                        </div>
+                        <p><strong>Client:</strong> ${sale.clientId === '0' ? 'Vente Comptoir' : clientsCache.find(c => c.numero_clt === parseInt(sale.clientId))?.nom || 'Inconnu'}</p>
+                        <p><strong>Mode de paiement:</strong> ${sale.paymentMode === 'espece' ? 'Espèce' : 'À terme'}</p>
+                        ${sale.paymentMode === 'a_terme' ? `<p><strong>Montant versé:</strong> ${sale.amountPaid.toFixed(2)} DA</p>` : ''}
+                        <p><strong>Total:</strong> ${sale.lines.reduce((sum, line) => sum + parseFloat(line.prixt || 0), 0).toFixed(2)} DA</p>
+                        <p><strong>Articles:</strong> ${sale.lines.length}</p>
+                    </div>
+                `).join('');
+            }
+
+            modal.style.display = 'flex';
+        }
+
+        function loadPendingSale(saleId) {
+            console.log('Chargement de la vente en attente:', saleId);
+            const pendingSales = JSON.parse(localStorage.getItem('pendingSales') || '[]');
+            const sale = pendingSales.find(s => s.id === saleId);
+
+            if (!sale) {
+                showToast('Vente en attente non trouvée', true);
+                return;
+            }
+
+            tempSaleLines = [...sale.lines];
+            document.getElementById('paymentMode').value = sale.paymentMode;
+            document.getElementById('amountPaid').value = sale.amountPaid || '';
+            document.getElementById('saleClientId').value = sale.clientId || '0';
+            togglePaymentForm();
+            updateTempSalesTable();
+
+            deletePendingSale(saleId);
+            closePendingSalesModal();
+            showToast('Vente en attente chargée avec succès');
+        }
+
+        function deletePendingSale(saleId) {
+            console.log('Suppression de la vente en attente:', saleId);
+            let pendingSales = JSON.parse(localStorage.getItem('pendingSales') || '[]');
+            pendingSales = pendingSales.filter(s => s.id !== saleId);
+            localStorage.setItem('pendingSales', JSON.stringify(pendingSales));
+            showPendingSales();
+            showToast('Vente en attente supprimée');
+        }
+
+        function closePendingSalesModal() {
+            document.getElementById('pendingSalesModal').style.display = 'none';
+        }
+
+      // Variable globale pour stocker la connexion Bluetooth
+let bluetoothDevice = null;
+let bluetoothCharacteristic = null;
+
+// Fonction pour se connecter à l'imprimante Bluetooth
+async function connectBluetoothPrinter() {
+    try {
+        // Demander la sélection d'un périphérique Bluetooth
+        bluetoothDevice = await navigator.bluetooth.requestDevice({
+            filters: [
+                { services: ['000018f0-0000-1000-8000-00805f9b34fb'] }, // Service commun pour imprimantes
+            ],
+            optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
+        });
+
+        console.log('Connexion à l\'imprimante:', bluetoothDevice.name);
+        const server = await bluetoothDevice.gatt.connect();
+        
+        // Obtenir le service et la caractéristique
+        const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+        bluetoothCharacteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
+        
+        showToast('Imprimante connectée : ' + bluetoothDevice.name);
+        return true;
+    } catch (error) {
+        console.error('Erreur connexion Bluetooth:', error);
+        showToast('Erreur de connexion : ' + error.message, true);
+        return false;
+    }
+}
+
+// Fonction pour encoder du texte en ESC/POS
+function encodeESCPOS(text) {
+    const encoder = new TextEncoder();
+    return encoder.encode(text);
+}
+
+// Commandes ESC/POS
+const ESC = '\x1B';
+const GS = '\x1D';
+
+const ESCPOS = {
+    INIT: ESC + '@',                    // Initialiser l'imprimante
+    ALIGN_CENTER: ESC + 'a' + '1',      // Centrer le texte
+    ALIGN_LEFT: ESC + 'a' + '0',        // Aligner à gauche
+    ALIGN_RIGHT: ESC + 'a' + '2',       // Aligner à droite
+    BOLD_ON: ESC + 'E' + '1',           // Texte en gras
+    BOLD_OFF: ESC + 'E' + '0',          // Désactiver gras
+    SIZE_NORMAL: GS + '!' + '\x00',     // Taille normale
+    SIZE_DOUBLE: GS + '!' + '\x11',     // Taille double
+    SIZE_LARGE: GS + '!' + '\x22',      // Grande taille
+    UNDERLINE_ON: ESC + '-' + '1',      // Souligner
+    UNDERLINE_OFF: ESC + '-' + '0',     // Désactiver soulignement
+    LINE_FEED: '\n',                    // Saut de ligne
+    CUT_PAPER: GS + 'V' + '\x00',       // Couper le papier
+};
+
+// Fonction pour envoyer des données à l'imprimante
+async function sendToPrinter(data) {
+    if (!bluetoothCharacteristic) {
+        throw new Error('Imprimante non connectée');
+    }
+    
+    const encoded = encodeESCPOS(data);
+    const chunkSize = 512; // Taille des morceaux pour l'envoi
+    
+    for (let i = 0; i < encoded.length; i += chunkSize) {
+        const chunk = encoded.slice(i, i + chunkSize);
+        await bluetoothCharacteristic.writeValue(chunk);
+        await new Promise(resolve => setTimeout(resolve, 50)); // Délai entre envois
+    }
+}
+
+// Fonction principale d'impression Bluetooth 80mm
+async function imprimerVente80mm() {
+    if (tempSaleLines.length === 0) {
+        showToast('Aucune ligne à imprimer', true);
+        return;
+    }
+
+    // Vérifier si Bluetooth est supporté
+    if (!navigator.bluetooth) {
+        showToast('Bluetooth non supporté sur ce navigateur. Utilisez Chrome sur Android.', true);
+        return;
+    }
+
+    try {
+        // Se connecter si pas déjà connecté
+        if (!bluetoothCharacteristic) {
+            const connected = await connectBluetoothPrinter();
+            if (!connected) return;
+        }
+
+        showToast('Impression en cours...');
+
+        // Récupérer les paramètres
+        const settings = JSON.parse(localStorage.getItem('settings')) || {};
+        const companyName = settings.companyName || 'FirePoz';
+        const companyAddress = settings.companyAddress || '';
+        const companyPhone = settings.companyPhone || '';
+
+        const clientSelect = document.getElementById('saleClientId');
+        const clientValue = clientSelect.value;
+        const clientText = clientValue === '0' ? 'Vente Comptoir' : 
+            clientSelect.options[clientSelect.selectedIndex].text.replace(/<span.*<\/span>/, '');
+
+        const paymentMode = document.getElementById('paymentMode').value;
+        const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
+        const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0).toFixed(2);
+
+        const storedSeller = localStorage.getItem('selectedSeller');
+        const sellerName = storedSeller ? JSON.parse(storedSeller).nom : 'Non spécifié';
+
+        // Construire le ticket ESC/POS
+        let ticket = ESCPOS.INIT;
+
+        // En-tête centré
+        ticket += ESCPOS.ALIGN_CENTER;
+        ticket += ESCPOS.SIZE_LARGE + ESCPOS.BOLD_ON;
+        ticket += companyName + ESCPOS.LINE_FEED;
+        ticket += ESCPOS.SIZE_NORMAL + ESCPOS.BOLD_OFF;
+        
+        if (companyAddress) {
+            ticket += companyAddress + ESCPOS.LINE_FEED;
+        }
+        if (companyPhone) {
+            ticket += 'Tel: ' + companyPhone + ESCPOS.LINE_FEED;
+        }
+
+        ticket += '================================' + ESCPOS.LINE_FEED;
+        ticket += ESCPOS.ALIGN_LEFT;
+
+        // Informations de la vente
+        ticket += 'Date: ' + new Date().toLocaleString('fr-FR') + ESCPOS.LINE_FEED;
+        ticket += 'Vendeur: ' + sellerName + ESCPOS.LINE_FEED;
+        ticket += 'Client: ' + clientText + ESCPOS.LINE_FEED;
+        ticket += 'Mode: ' + (paymentMode === 'espece' ? 'Espece' : 'A terme') + ESCPOS.LINE_FEED;
+        
+        if (paymentMode === 'a_terme') {
+            ticket += 'Verse: ' + amountPaid.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
+        }
+
+        // Solde si applicable
+        if (paymentMode === 'a_terme' && clientValue !== '0') {
+            const client = clientsCache.find(c => c.numero_clt === parseInt(clientValue));
+            if (client) {
+                const soldeAvant = parseFloat(client.solde) || 0;
+                const soldeApres = soldeAvant + (amountPaid - parseFloat(total));
+                ticket += 'Solde avant: ' + soldeAvant.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
+                ticket += 'Solde apres: ' + soldeApres.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
+            }
+        }
+
+        ticket += '================================' + ESCPOS.LINE_FEED;
+
+        // Lignes de vente
+        tempSaleLines.forEach(ligne => {
+            const designation = ligne.designation.substring(0, 24); // Limiter à 24 caractères
+            const qte = parseFloat(ligne.quantite).toFixed(2);
+            const prixU = parseFloat(ligne.remarque || 0).toFixed(2);
+            const prixT = parseFloat(ligne.prixt || 0).toFixed(2);
+            
+            ticket += designation + ESCPOS.LINE_FEED;
+            ticket += '  ' + qte + ' x ' + prixU + ' = ' + prixT + ' DA' + ESCPOS.LINE_FEED;
+        });
+
+        ticket += '================================' + ESCPOS.LINE_FEED;
+
+        // Total en gras et grande taille
+        ticket += ESCPOS.SIZE_DOUBLE + ESCPOS.BOLD_ON;
+        ticket += ESCPOS.ALIGN_CENTER;
+        ticket += 'TOTAL: ' + total + ' DA' + ESCPOS.LINE_FEED;
+        ticket += ESCPOS.SIZE_NORMAL + ESCPOS.BOLD_OFF;
+
+        ticket += '================================' + ESCPOS.LINE_FEED;
+        ticket += ESCPOS.LINE_FEED;
+        ticket += 'Merci de votre achat !' + ESCPOS.LINE_FEED;
+        ticket += ESCPOS.LINE_FEED;
+        ticket += ESCPOS.LINE_FEED;
+        ticket += ESCPOS.LINE_FEED;
+
+        // Couper le papier (optionnel selon l'imprimante)
+        ticket += ESCPOS.CUT_PAPER;
+
+        // Envoyer à l'imprimante
+        await sendToPrinter(ticket);
+
+        showToast('Impression réussie !');
+
+    } catch (error) {
+        console.error('Erreur impression Bluetooth:', error);
+        showToast('Erreur impression : ' + error.message, true);
+        
+        // Réinitialiser la connexion en cas d'erreur
+        bluetoothDevice = null;
+        bluetoothCharacteristic = null;
+    }
+}
+
+// Fonction pour déconnecter l'imprimante
+function disconnectBluetoothPrinter() {
+    if (bluetoothDevice && bluetoothDevice.gatt.connected) {
+        bluetoothDevice.gatt.disconnect();
+        bluetoothDevice = null;
+        bluetoothCharacteristic = null;
+        showToast('Imprimante déconnectée');
+    }
+}
+
+// Ajouter un bouton pour gérer la connexion Bluetooth (optionnel)
+function addBluetoothButton() {
+    const buttonHTML = `
+        <button id="bluetoothConnectButton" onclick="connectBluetoothPrinter()" 
+                class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition duration-300 mr-2">
+            <i class="fas fa-bluetooth mr-2"></i>Connecter imprimante
+        </button>
+    `;
+    
+    // Insérer le bouton avant le bouton d'impression 80mm
+    const printButton = document.getElementById('printSaleButton80mm');
+    if (printButton && !document.getElementById('bluetoothConnectButton')) {
+        printButton.insertAdjacentHTML('beforebegin', buttonHTML);
+    }
+}
+   function imprimerVenteA4() {
+    if (tempSaleLines.length === 0) {
+        showToast('Aucune ligne à imprimer', true);
+        return;
+    }
+
+    const settings = JSON.parse(localStorage.getItem('settings')) || {};
+    const companyName = settings.companyName || 'FirePoz';
+    const companyAddress = settings.companyAddress || '';
+    const companyPhone = settings.companyPhone || '';
+    const companyLogo = settings.companyLogo || '';
+
+    const clientSelect = document.getElementById('saleClientId');
+    const clientValue = clientSelect.value;
+    const clientText = clientValue === '0' ? 'Vente Comptoir' : clientSelect.options[clientSelect.selectedIndex].text.replace(/<span.*<\/span>/, '');
+
+    const paymentMode = document.getElementById('paymentMode').value;
+    const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
+    const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0).toFixed(2);
+
+    const storedSeller = localStorage.getItem('selectedSeller');
+    const sellerName = storedSeller ? JSON.parse(storedSeller).nom : 'Non spécifié';
+
+    let soldeContent = '';
+    if (paymentMode === 'a_terme' && clientValue !== '0') {
+        const client = clientsCache.find(c => c.numero_clt === parseInt(clientValue));
+        const soldeAvant = client ? parseFloat(client.solde) || 0 : 0;
+        const soldeApres = soldeAvant + (amountPaid - parseFloat(total));
+        soldeContent = `
+            <p>Solde avant vente: ${soldeAvant.toFixed(2)} DA</p>
+            <p>Solde après vente: ${soldeApres.toFixed(2)} DA</p>
+        `;
+    }
+
+    let ticketContent = `
+        <div class="printable">
+            ${companyLogo ? `<img src="${companyLogo}" alt="Logo" style="max-width: 150mm; margin-bottom: 10mm; display: block; margin-left: auto; margin-right: auto;">` : ''}
+            <h1>${companyName}</h1>
+            ${companyAddress ? `<p>${companyAddress}</p>` : ''}
+            ${companyPhone ? `<p>Tél: ${companyPhone}</p>` : ''}
+            <p>Date: ${new Date().toLocaleString('fr-FR')}</p>
+            <p>Vendeur: ${sellerName}</p>
+            <p>Client: ${clientText}</p>
+            <p>Mode de paiement: ${paymentMode === 'espece' ? 'Espèce' : 'À terme'}</p>
+            ${paymentMode === 'a_terme' ? `<p>Montant versé: ${amountPaid.toFixed(2)} DA</p>` : ''}
+            ${soldeContent}
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Produit</th>
+                        <th>Qté</th>
+                        <th>Prix U.</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+    tempSaleLines.forEach(ligne => {
+        ticketContent += `
+            <tr>
+                <td>${ligne.numero_item || 'N/A'}</td>
+                <td>${ligne.designation || 'N/A'}</td>
+                <td>${parseFloat(ligne.quantite).toFixed(2)}</td>
+                <td>${parseFloat(ligne.remarque || 0).toFixed(2)}</td>
+                <td>${parseFloat(ligne.prixt || 0).toFixed(2)}</td>
+            </tr>
+        `;
+    });
+
+    ticketContent += `
+                </tbody>
+            </table>
+            <p class="total">Total: ${total} DA</p>
+            <p style="text-align: center; margin-top: 10mm;">Merci de votre achat !</p>
+            <div class="print-buttons" style="text-align: center; margin-top: 15mm; page-break-inside: avoid;">
+                <button onclick="window.print()" style="background: #4CAF50; color: white; padding: 15px 30px; border: none; border-radius: 5px; cursor: pointer; margin-right: 15px; font-size: 16px;">
+                    <i class="fas fa-print"></i> Imprimer
+                </button>
+                <button onclick="window.close()" style="background: #f44336; color: white; padding: 15px 30px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">
+                    <i class="fas fa-times"></i> Fermer
+                </button>
+            </div>
+        </div>
+    `;
+
+    const printWindow = window.open('', '_blank', 'width=800,height=900,scrollbars=yes,resizable=yes');
+    
+    if (!printWindow) {
+        showToast('Impossible d\'ouvrir l\'aperçu. Veuillez désactiver votre bloqueur de pop-up.', true);
+        return;
+    }
+
+    const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+            <head>
+                <title>Aperçu Impression A4 - ${companyName}</title>
+                <meta charset="UTF-8">
+                <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+                <style>
+                    body {
+                        margin: 0;
+                        padding: 20mm;
+                        background: #f5f5f5;
+                        display: flex;
+                        justify-content: center;
+                        align-items: flex-start;
+                        min-height: 100vh;
+                        font-family: Arial, sans-serif;
+                    }
+                    
+                    .printable {
+                        width: 210mm;
+                        background: white;
+                        padding: 20mm;
+                        font-family: Arial, sans-serif;
+                        font-size: 12pt;
+                        line-height: 1.4;
+                        color: #000;
+                        box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+                        text-align: center;
+                        margin-bottom: 20px;
+                        min-height: 297mm;
+                    }
+                    
+                    h1 {
+                        font-size: 24pt;
+                        margin: 0 0 10mm;
+                        font-weight: bold;
+                        color: #333;
+                    }
+                    
+                    p {
+                        margin: 3mm 0;
+                        font-size: 12pt;
+                    }
+                    
+                    table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin: 15mm 0;
+                        font-size: 11pt;
+                    }
+                    
+                    th, td {
+                        border: 1px solid #000;
+                        padding: 5mm;
+                        text-align: left;
+                    }
+                    
+                    th {
+                        background: #f0f0f0;
+                        font-weight: bold;
+                        font-size: 12pt;
+                    }
+                    
+                    .total {
+                        font-weight: bold;
+                        font-size: 18pt;
+                        margin-top: 15mm;
+                        border-top: 3px solid #000;
+                        padding-top: 10mm;
+                        color: #333;
+                    }
+                    
+                    /* Styles pour l'impression */
+                    @media print {
+                        body {
+                            background: white;
+                            padding: 0;
+                        }
+                        
+                        .printable {
+                            width: 210mm;
+                            box-shadow: none;
+                            margin: 0;
+                            padding: 20mm;
+                            min-height: auto;
+                        }
+                        
+                        .print-buttons {
+                            display: none !important;
+                        }
+                        
+                        @page {
+                            size: A4;
+                            margin: 20mm;
+                        }
+                    }
+                    
+                    /* Styles pour les boutons */
+                    .print-buttons button {
+                        transition: all 0.3s ease;
+                        font-family: Arial, sans-serif;
+                    }
+                    
+                    .print-buttons button:hover {
+                        transform: translateY(-2px);
+                        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+                    }
+                </style>
+            </head>
+            <body>
+                ${ticketContent}
+            </body>
+        </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    
+    // Attendre que la page soit complètement chargée avant de permettre l'impression
+    printWindow.onload = function() {
+        printWindow.focus();
+        
+        // Gérer les événements d'impression
+        printWindow.addEventListener('beforeprint', function() {
+            console.log('Impression A4 en cours...');
+        });
+        
+        printWindow.addEventListener('afterprint', function() {
+            console.log('Impression A4 terminée');
+            // La fenêtre ne se ferme pas automatiquement
+        });
+    };
+    
+    // Gestion des erreurs
+    printWindow.onerror = function(error) {
+        console.error('Erreur dans la fenêtre d\'impression A4:', error);
+        showToast('Erreur lors de l\'ouverture de l\'aperçu d\'impression A4', true);
+    };
+}
+
+      let scannerStream = null;
+let scannerRunning = false;
+let lastScanTime = 0;
+const SCAN_COOLDOWN = 2000; // 2 secondes de cooldown entre scans
+
+async function startScanner() {
+    console.log('Démarrage du scanner...');
+    if (scannerRunning) return;
+    scannerRunning = true;
+
+    const scannerPreview = document.getElementById('scannerPreview');
+    const scannerOverlay = document.getElementById('scannerOverlay');
+    const scanIndicator = document.getElementById('scan-indicator');
+    const cameraLoading = document.getElementById('camera-loading');
+
+    let closeScannerButton = document.getElementById('closeScannerButton');
+    if (!closeScannerButton) {
+        closeScannerButton = document.createElement('button');
+        closeScannerButton.id = 'closeScannerButton';
+        closeScannerButton.innerHTML = '<i class="fas fa-times"></i> Fermer';
+        document.body.appendChild(closeScannerButton);
+    }
+
+    try {
+        scannerStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: 'environment' } }
+        });
+        scannerPreview.srcObject = scannerStream;
+        scannerPreview.style.display = 'block';
+        scannerOverlay.style.display = 'block';
+        cameraLoading.style.display = 'flex';
+        closeScannerButton.style.display = 'block';
+
+        scannerPreview.onloadedmetadata = () => {
+            console.log('Métadonnées vidéo chargées:', scannerPreview.videoWidth, scannerPreview.videoHeight);
+            cameraLoading.style.display = 'none';
+            scanIndicator.classList.add('scanning');
+        };
+
+        if (!('BarcodeDetector' in window)) {
+            throw new Error('API BarcodeDetector non supportée. Utilisez Chrome ou Edge sur Android.');
+        }
+
+        const barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
+        console.log('BarcodeDetector initialisé avec formats:', ['ean_13', 'code_128', 'upc_a', 'upc_e']);
+
+        const scan = async () => {
+            if (!scannerRunning) return;
+            console.log('Scan en cours...');
+            const canvas = document.createElement('canvas');
+            canvas.width = scannerPreview.videoWidth;
+            canvas.height = scannerPreview.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(scannerPreview, 0, 0, canvas.width, canvas.height);
+            console.log('Image capturée:', canvas.width, canvas.height);
+
+            try {
+                const barcodes = await barcodeDetector.detect(canvas);
+                console.log('Barcodes détectés:', barcodes);
+                if (barcodes.length > 0) {
+                    const currentTime = Date.now();
+                    if (currentTime - lastScanTime < SCAN_COOLDOWN) {
+                        requestAnimationFrame(scan);
+                        return;
+                    }
+                    lastScanTime = currentTime;
+
+                    const barcode = barcodes[0].rawValue;
+                    console.log('Code-barres détecté:', barcode);
+                    scanIndicator.classList.remove('scanning');
+                    scanIndicator.classList.add('detected');
+                    setTimeout(() => {
+                        scanIndicator.classList.remove('detected');
+                        scanIndicator.classList.add('scanning'); // Remettre en mode scanning
+                    }, 500);
+
+                    // Créer l'overlay pour l'animation de flash
+                    const flashOverlay = document.createElement('div');
+                    flashOverlay.className = 'flash-overlay';
+                    document.body.appendChild(flashOverlay);
+                    setTimeout(() => {
+                        flashOverlay.remove();
+                    }, 200); // Supprimer après la fin de l'animation (200ms)
+
+                    const userId = localStorage.getItem('userId');
+                    const response = await fetch(`${API_BASE_URL}/rechercher_produit_codebar?codebar=${encodeURIComponent(barcode)}`, {
+                        headers: { 'X-User-ID': userId }
+                    });
+                    console.log('Réponse API:', response.status, response.statusText);
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error('Erreur API:', errorText);
+                        showToast('Produit non trouvé', true);
+                        requestAnimationFrame(scan);
+                        return;
+                    }
+
+                    const result = await response.json();
+                    console.log('Résultat API:', result);
+
+                    if (result.statut === 'trouvé') {
+    const { produit } = result;
+    selectProduct(
+        produit.numero_item,
+        produit.bar,
+        produit.prix,
+        produit.prixba,
+        produit.qte,
+        produit.designation
+    );
+    
+    // Ajout de la vibration
+    if ('vibrate' in navigator) {
+        navigator.vibrate(200); // Vibration de 200ms
+    } else {
+        console.log('API Vibration non supportée');
+    }
+    
+    // NOUVEAU : Ajout du bip sonore
+    playBeep();
+    
+    showToast(`Produit ajouté : ${produit.designation}`);
+    // Ne pas appeler stopScanner pour garder le scanner actif
+} else {
+    showToast('Produit non trouvé', true);
+}
+                }
+            } catch (err) {
+                console.error('Erreur détection code-barres:', err);
+                showToast(`Erreur de détection : ${err.message}`, true);
+            }
+            if (scannerRunning) {
+                requestAnimationFrame(scan);
+            }
+        };
+
+        scannerPreview.play();
+        scan();
+
+        closeScannerButton.onclick = stopScanner;
+    } catch (err) {
+        console.error('Erreur démarrage scanner:', err);
+        showToast(`Impossible d'accéder à la caméra : ${err.message}`, true);
+        scannerRunning = false;
+        cameraLoading.style.display = 'none';
+        stopScanner();
+    }
+}
+function stopScanner() {
+    console.log('Arrêt du scanner...');
+    scannerRunning = false;
+
+    const scannerPreview = document.getElementById('scannerPreview');
+    const scannerOverlay = document.getElementById('scannerOverlay');
+    const scanIndicator = document.getElementById('scan-indicator');
+    const cameraLoading = document.getElementById('camera-loading');
+    const closeScannerButton = document.getElementById('closeScannerButton');
+
+    if (scannerStream) {
+        scannerStream.getTracks().forEach(track => track.stop());
+        scannerStream = null;
+    }
+
+    scannerPreview.style.display = 'none';
+    scannerOverlay.style.display = 'none';
+    scanIndicator.classList.remove('scanning', 'detected');
+    cameraLoading.style.display = 'none';
+    if (closeScannerButton) {
+        closeScannerButton.style.display = 'none';
+    }
+}
+
+       document.getElementById('productBar').addEventListener('change', async (event) => {
+    const barcode = event.target.value.trim();
+    if (barcode) {
+        console.log('Recherche produit par code-barres:', barcode);
+        const userId = localStorage.getItem('userId');
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/rechercher_produit_codebar?codebar=${encodeURIComponent(barcode)}`, {
+                headers: { 'X-User-ID': userId }
+            });
+            console.log('Réponse API:', response.status, response.statusText);
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Erreur API:', errorText);
+                showToast('Produit non trouvé', true);
+                event.target.value = '';
+                return;
+            }
+
+            const result = await response.json();
+            console.log('Résultat API:', result);
+
+            if (result.statut === 'trouvé') {
+                const { produit } = result;
+                selectProduct(
+                    produit.numero_item,
+                    produit.bar,
+                    produit.prix,
+                    produit.prixba,
+                    produit.qte,
+                    produit.designation
+                );
+                showToast(`Produit ajouté : ${produit.designation}`);
+                event.target.value = '';
+            } else {
+                showToast('Produit non trouvé', true);
+                event.target.value = '';
+            }
+        } catch (err) {
+            console.error('Erreur recherche code-barres:', err);
+            showToast(`Erreur : ${err.message}`, true);
+            event.target.value = '';
+        }
+    }
+});
+        document.getElementById('searchProduct').addEventListener('input', (event) => {
+            const searchTerm = event.target.value.toLowerCase();
+            console.log('Recherche produit:', searchTerm);
+            const filteredProducts = produitsCache.filter(p =>
+                p.DESIGNATION.toLowerCase().includes(searchTerm) ||
+                p.BAR.toString().includes(searchTerm)
+            );
+            const tbody = document.getElementById('productsList');
+            const countElement = document.getElementById('productCount');
+
+            if (filteredProducts.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun produit trouvé</td></tr>';
+                countElement.textContent = '0';
+                countElement.classList.remove('hidden');
+                return;
+            }
+
+            tbody.innerHTML = '';
+            filteredProducts.forEach(produit => {
+                const stockStatus = produit.QTE <= 0 ? 'Rupture' : produit.QTE <= 5 ? 'Stock faible' : produit.QTE.toFixed(2);
+                const stockClass = produit.QTE <= 0 ? 'stock-rupture' : produit.QTE <= 5 ? 'stock-faible' : '';
+                const buttonDisabled = produit.QTE <= 0 ? 'btn-disabled' : '';
+                const buttonAttrs = produit.QTE <= 0 ? 'disabled' : '';
+
+                const tr = document.createElement('tr');
+                tr.className = `hover:bg-gray-50 ${stockClass}`;
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <button onclick="selectProduct(${produit.NUMERO_ITEM}, ${produit.BAR}, ${produit.PRIX}, ${produit.PRIXBA}, ${produit.QTE}, '${produit.DESIGNATION}')" class="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition duration-300 ${buttonDisabled}" ${buttonAttrs}>
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-900">${produit.DESIGNATION || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stockStatus}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produit.BAR || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${parseFloat(produit.PRIX || 0).toFixed(2)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+            countElement.textContent = filteredProducts.length;
+            countElement.classList.remove('hidden');
+        });
     </script>
 </body>
 </html>
