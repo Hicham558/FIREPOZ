@@ -526,7 +526,10 @@
         <div class="modal-content">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-xl font-semibold text-gray-800">Ventes en attente</h2>
-                <button onclick="closePendingSalesModal()" class="text-gray-600 hover:text-gray-800 transition">
+             <button onclick="validerVentesRafale()" class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition">
+                    <i class="fas fa-bolt mr-2"></i>Rafale
+                </button>
+   <button onclick="closePendingSalesModal()" class="text-gray-600 hover:text-gray-800 transition">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
@@ -559,6 +562,37 @@
         let editNumeroComande = null;
         let produitsLoaded = false;
 		
+		async function validerVentesRafale() {
+    const pendingSales = JSON.parse(localStorage.getItem('pendingSales') || '[]');
+    if (pendingSales.length === 0) {
+        showToast('Aucune vente en attente à valider', true);
+        return;
+    }
+
+    showToast(`Lancement de la validation en rafale pour ${pendingSales.length} ventes...`);
+    
+    for (let i = 0; i < pendingSales.length; i++) {
+        const sale = pendingSales[i];
+        
+        // Simuler le chargement de chaque vente
+        tempSaleLines = [...sale.lines];
+        document.getElementById('paymentMode').value = sale.paymentMode;
+        document.getElementById('amountPaid').value = sale.amountPaid || '';
+        document.getElementById('saleClientId').value = sale.clientId || '0';
+        updateTempSalesTable();
+        
+        // Valider la vente
+        await validerVente();
+        
+        // Petite pause entre chaque validation
+        await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    
+    // Vider les ventes en attente après validation
+    localStorage.removeItem('pendingSales');
+    closePendingSalesModal();
+    showToast(`Validation en rafale terminée ! ${pendingSales.length} ventes validées.`);
+}
 		function playBeep() {
     try {
         // Créer un contexte audio
