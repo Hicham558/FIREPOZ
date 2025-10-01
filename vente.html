@@ -1725,6 +1725,7 @@ async function imprimerVente80mm() {
         const paymentMode = document.getElementById('paymentMode').value;
         const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
         const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
+        const totalArticles = tempSaleLines.length; // Nombre total d'articles
 
         const storedSeller = localStorage.getItem('selectedSeller');
         const sellerName = storedSeller ? JSON.parse(storedSeller).nom : 'Non spécifié';
@@ -1784,22 +1785,24 @@ async function imprimerVente80mm() {
         // Ligne vide comme première ligne
         ticket = ' '.padEnd(13) + ' '.padEnd(6) + ' '.padEnd(4) + ' '.padEnd(6) + ESCPOS.LINE_FEED;
         ticket += '--------------------------------' + ESCPOS.LINE_FEED;
-        ticket += ESCPOS.LINE_FEED; // Saut de ligne supplémentaire pour forcer l'espacement
+        ticket += ESCPOS.LINE_FEED; // Saut de ligne supplémentaire
 
         // Envoyer la ligne vide séparément
         await sendToPrinter(ticket);
         await new Promise(resolve => setTimeout(resolve, 300)); // Délai augmenté
 
-        // Articles en format tableau (sans ID, Total en gras, séparation après chaque ligne)
+        // Articles en format tableau (numérotés, Total en gras, séparation après chaque ligne)
         for (let i = 0; i < tempSaleLines.length; i++) {
             const ligne = tempSaleLines[i];
+            const numero = (i + 1) + '.'; // Numérotation (1., 2., etc.)
             
             const designation = (ligne.designation || 'Produit').substring(0, 13).padEnd(13);
             const prixU = parseFloat(ligne.remarque || 0).toFixed(0).padStart(6);
             const qte = parseFloat(ligne.quantite || 0).toFixed(2).padStart(4);
             const prixT = parseFloat(ligne.prixt || 0).toFixed(0).padStart(6);
             
-            const articleTicket = designation + ' ' + prixU + ' ' + qte + ' ' + ESCPOS.BOLD_ON + prixT + ESCPOS.BOLD_OFF + ESCPOS.LINE_FEED +
+            const articleTicket = numero.padEnd(4) + designation + ' ' + prixU + ' ' + qte + ' ' + 
+                                 ESCPOS.BOLD_ON + prixT + ESCPOS.BOLD_OFF + ESCPOS.LINE_FEED +
                                  '--------------------------------' + ESCPOS.LINE_FEED;
             
             await sendToPrinter(articleTicket);
@@ -1812,6 +1815,7 @@ async function imprimerVente80mm() {
         footerTicket += ESCPOS.SIZE_DOUBLE + ESCPOS.BOLD_ON;
         footerTicket += ESCPOS.ALIGN_CENTER;
         footerTicket += 'TOTAL: ' + total.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
+        footerTicket += 'Total Articles: ' + totalArticles + ESCPOS.LINE_FEED; // Ajout du total d'articles
         footerTicket += ESCPOS.SIZE_NORMAL + ESCPOS.BOLD_OFF;
         footerTicket += '================================' + ESCPOS.LINE_FEED;
         footerTicket += ESCPOS.ALIGN_LEFT;
