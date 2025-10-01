@@ -1490,56 +1490,14 @@ function removeAccents(str) {
     return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
-// Fonction pour supprimer les accents (déjà présente, inchangée)
-function removeAccents(str) {
-    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-}
-
-// Fonction pour vérifier et demander les autorisations Bluetooth
-async function checkBluetoothPermissions() {
-    if (!navigator.bluetooth) {
-        showToast('L\'API Bluetooth n\'est pas supportée dans ce contexte. Vérifiez la configuration de l\'application ou utilisez Chrome.', true);
-        return false;
-    }
-
-    try {
-        // Demander les permissions Bluetooth si elles ne sont pas encore accordées
-        const permissionStatus = await navigator.permissions.query({ name: 'bluetooth' });
-        if (permissionStatus.state === 'denied') {
-            showToast('Les permissions Bluetooth sont bloquées. Veuillez les activer dans les paramètres.', true);
-            return false;
-        }
-
-        if (permissionStatus.state === 'prompt') {
-            const device = await navigator.bluetooth.requestDevice({
-                acceptAllDevices: true,
-                optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
-            }).catch(() => null);
-            if (!device) {
-                showToast('Autorisation Bluetooth refusée. Veuillez réessayer.', true);
-                return false;
-            }
-        }
-
-        return true;
-    } catch (error) {
-        console.error('Erreur vérification permissions Bluetooth:', error);
-        showToast('Erreur permissions Bluetooth : ' + error.message, true);
-        return false;
-    }
-}
-
-// Fonction principale d'impression Bluetooth 80mm
 async function imprimerVente80mm(numeroComande = 'N/A') {
     if (tempSaleLines.length === 0) {
-        showToast('Aucune ligne à imprimer', true);
+        showToast('Aucune ligne a imprimer', true);
         return;
     }
 
-    // Vérifier les permissions Bluetooth avant de continuer
-    const hasBluetoothPermission = await checkBluetoothPermissions();
-    if (!hasBluetoothPermission) {
-        showToast('Impossible d\'imprimer sans autorisation Bluetooth. Vérifiez les paramètres ou utilisez Chrome.', true);
+    if (!navigator.bluetooth) {
+        showToast('Bluetooth non supporte sur ce navigateur. Utilisez Chrome sur Android.', true);
         return;
     }
 
@@ -1553,8 +1511,8 @@ async function imprimerVente80mm(numeroComande = 'N/A') {
 
         const settings = JSON.parse(localStorage.getItem('settings')) || {};
         const companyName = removeAccents(settings.companyName || 'FirePoz');
-        const companyAddress = removeAccents(settings.companyAddress || 'Adresse non spécifiée');
-        const companyPhone = removeAccents(settings.companyPhone || 'Numéro non spécifié');
+        const companyAddress = removeAccents(settings.companyAddress || 'Adresse non specifiee');
+        const companyPhone = removeAccents(settings.companyPhone || 'Numero non specifie');
 
         const clientSelect = document.getElementById('saleClientId');
         const clientValue = clientSelect.value;
@@ -1568,10 +1526,12 @@ async function imprimerVente80mm(numeroComande = 'N/A') {
         const totalArticles = tempSaleLines.length;
 
         const storedSeller = localStorage.getItem('selectedSeller');
-        const sellerName = removeAccents(storedSeller ? JSON.parse(storedSeller).nom : 'Non spécifié');
+        const sellerName = removeAccents(storedSeller ? JSON.parse(storedSeller).nom : 'Non specifie');
 
-        // Construire le ticket (reste inchangé)
+        // Construire le ticket
         let ticket = ESCPOS.INIT;
+
+        // En-tete professionnel sans accents
         ticket += ESCPOS.ALIGN_CENTER;
         ticket += ESCPOS.SIZE_LARGE + ESCPOS.BOLD_ON;
         ticket += companyName.toUpperCase() + ESCPOS.LINE_FEED;
@@ -1580,6 +1540,7 @@ async function imprimerVente80mm(numeroComande = 'N/A') {
         ticket += 'Tel: ' + companyPhone + ESCPOS.LINE_FEED;
         ticket += '----------------------------------------' + ESCPOS.LINE_FEED;
 
+        // Informations de la vente
         ticket += ESCPOS.ALIGN_LEFT;
         ticket += 'Date: ' + removeAccents(new Date().toLocaleString('fr-FR', { timeZone: 'CET' })) + ESCPOS.LINE_FEED;
         ticket += 'Vendeur: ' + sellerName + ESCPOS.LINE_FEED;
@@ -1595,19 +1556,23 @@ async function imprimerVente80mm(numeroComande = 'N/A') {
         }
         ticket += '----------------------------------------' + ESCPOS.LINE_FEED;
 
+        // En-tete du tableau
         ticket += ESCPOS.BOLD_ON;
         ticket += 'Designation      PrixU  Qte  Total' + ESCPOS.LINE_FEED;
         ticket += ESCPOS.BOLD_OFF;
         ticket += '----------------------------------------' + ESCPOS.LINE_FEED;
 
+        // Envoyer l'en-tete separement
         await sendToPrinter(ticket);
         await new Promise(resolve => setTimeout(resolve, 300));
 
+        // Ligne vide
         ticket = ''.padEnd(32) + ESCPOS.LINE_FEED;
         ticket += '----------------------------------------' + ESCPOS.LINE_FEED;
         await sendToPrinter(ticket);
         await new Promise(resolve => setTimeout(resolve, 300));
 
+        // Articles numerotes
         for (let i = 0; i < tempSaleLines.length; i++) {
             const ligne = tempSaleLines[i];
             const numero = (i + 1) + '.';
@@ -1623,6 +1588,7 @@ async function imprimerVente80mm(numeroComande = 'N/A') {
             await new Promise(resolve => setTimeout(resolve, 200));
         }
 
+        // Pied de page
         let footerTicket = '';
         footerTicket += '----------------------------------------' + ESCPOS.LINE_FEED;
         footerTicket += ESCPOS.ALIGN_CENTER;
@@ -1637,7 +1603,7 @@ async function imprimerVente80mm(numeroComande = 'N/A') {
             footerTicket += '----------------------------------------' + ESCPOS.LINE_FEED;
             footerTicket += 'Solde Avant: ' + soldeAvant.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
             footerTicket += 'Montant Verse: ' + amountPaid.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
-            footerTicket += 'Solde Apres: ' + soldeApres.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
+            footerTicket += 'Solde Apres: ' + soldeApres.toFixed(2) + ' DA' + ESCPOS.LINE_FEED; // Correction de l'affichage
             footerTicket += '----------------------------------------' + ESCPOS.LINE_FEED;
         }
 
@@ -1650,7 +1616,7 @@ async function imprimerVente80mm(numeroComande = 'N/A') {
         await sendToPrinter(footerTicket);
         await new Promise(resolve => setTimeout(resolve, 300));
 
-        showToast('Impression réussie !');
+        showToast('Impression reussie !');
 
     } catch (error) {
         console.error('Erreur impression Bluetooth:', error);
@@ -1659,6 +1625,7 @@ async function imprimerVente80mm(numeroComande = 'N/A') {
         bluetoothCharacteristic = null;
     }
 }
+
 // Fonction pour déconnecter l'imprimante
 function disconnectBluetoothPrinter() {
     if (bluetoothDevice && bluetoothDevice.gatt.connected) {
