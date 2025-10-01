@@ -1725,10 +1725,13 @@ async function imprimerVente80mm() {
         const paymentMode = document.getElementById('paymentMode').value;
         const amountPaid = paymentMode === 'a_terme' ? parseFloat(document.getElementById('amountPaid').value) || 0 : 0;
         const total = tempSaleLines.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
-        const totalArticles = tempSaleLines.length; // Nombre total d'articles
+        const totalArticles = tempSaleLines.length;
 
         const storedSeller = localStorage.getItem('selectedSeller');
         const sellerName = storedSeller ? JSON.parse(storedSeller).nom : 'Non spécifié';
+
+        // Simuler le numero_comande (sera remplacé par la réponse de l'API après validation)
+        let numeroComande = 'N/A'; // À remplacer par la valeur de l'API (ex. result.numero_comande dans validerVente)
 
         // Construire le ticket
         let ticket = ESCPOS.INIT;
@@ -1749,22 +1752,21 @@ async function imprimerVente80mm() {
         ticket += '================================' + ESCPOS.LINE_FEED;
         ticket += ESCPOS.ALIGN_LEFT;
 
-        // Informations
+        // Informations (ajout du numero_comande)
         ticket += 'Date: ' + new Date().toLocaleString('fr-FR') + ESCPOS.LINE_FEED;
         ticket += 'Vendeur: ' + sellerName + ESCPOS.LINE_FEED;
-        ticket += 'Client: ' + clientText;
+        ticket += 'Client: ' + clientText + ESCPOS.LINE_FEED;
+        ticket += 'N° Commande: ' + numeroComande + ESCPOS.LINE_FEED; // Ajout du numéro de commande
         
         if (clientValue !== '0') {
             const client = clientsCache.find(c => c.numero_clt === parseInt(clientValue));
             if (client) {
                 const soldeAvant = parseFloat(client.solde) || 0;
-                ticket += ' (ID: ' + clientValue + ') [Solde: ' + soldeAvant.toFixed(2) + ' DA]';
+                ticket += 'Solde avant: ' + soldeAvant.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
             }
         }
-        ticket += ESCPOS.LINE_FEED;
         
         ticket += 'Mode: ' + (paymentMode === 'espece' ? 'Espece' : 'A terme') + ESCPOS.LINE_FEED;
-        
         if (paymentMode === 'a_terme') {
             ticket += 'Verse: ' + amountPaid.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
         }
@@ -1780,21 +1782,21 @@ async function imprimerVente80mm() {
 
         // Envoyer l'en-tête séparément
         await sendToPrinter(ticket);
-        await new Promise(resolve => setTimeout(resolve, 300)); // Délai augmenté
+        await new Promise(resolve => setTimeout(resolve, 300));
 
         // Ligne vide comme première ligne
         ticket = ' '.padEnd(13) + ' '.padEnd(6) + ' '.padEnd(4) + ' '.padEnd(6) + ESCPOS.LINE_FEED;
         ticket += '--------------------------------' + ESCPOS.LINE_FEED;
-        ticket += ESCPOS.LINE_FEED; // Saut de ligne supplémentaire
+        ticket += ESCPOS.LINE_FEED;
 
         // Envoyer la ligne vide séparément
         await sendToPrinter(ticket);
-        await new Promise(resolve => setTimeout(resolve, 300)); // Délai augmenté
+        await new Promise(resolve => setTimeout(resolve, 300));
 
         // Articles en format tableau (numérotés, Total en gras, séparation après chaque ligne)
         for (let i = 0; i < tempSaleLines.length; i++) {
             const ligne = tempSaleLines[i];
-            const numero = (i + 1) + '.'; // Numérotation (1., 2., etc.)
+            const numero = (i + 1) + '.';
             
             const designation = (ligne.designation || 'Produit').substring(0, 13).padEnd(13);
             const prixU = parseFloat(ligne.remarque || 0).toFixed(0).padStart(6);
@@ -1806,7 +1808,7 @@ async function imprimerVente80mm() {
                                  '--------------------------------' + ESCPOS.LINE_FEED;
             
             await sendToPrinter(articleTicket);
-            await new Promise(resolve => setTimeout(resolve, 200)); // Délai augmenté
+            await new Promise(resolve => setTimeout(resolve, 200));
         }
 
         // Pied
@@ -1815,19 +1817,18 @@ async function imprimerVente80mm() {
         footerTicket += ESCPOS.SIZE_DOUBLE + ESCPOS.BOLD_ON;
         footerTicket += ESCPOS.ALIGN_CENTER;
         footerTicket += 'TOTAL: ' + total.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
-        footerTicket += 'Total Articles: ' + totalArticles + ESCPOS.LINE_FEED; // Ajout du total d'articles
+        footerTicket += 'Total Articles: ' + totalArticles + ESCPOS.LINE_FEED;
         footerTicket += ESCPOS.SIZE_NORMAL + ESCPOS.BOLD_OFF;
-        footerTicket += '================================' + ESCPOS.LINE_FEED;
-        footerTicket += ESCPOS.ALIGN_LEFT;
-        
+
         if (paymentMode === 'a_terme' && clientValue !== '0') {
             const client = clientsCache.find(c => c.numero_clt === parseInt(clientValue));
             if (client) {
                 const soldeAvant = parseFloat(client.solde) || 0;
-                const soldeApres = soldeAvant - total + amountPaid;
+                const soldeApres = soldeAvant - total + amountPaid; // Solde après vente
+                footerTicket += '================================' + ESCPOS.LINE_FEED;
                 footerTicket += 'Solde avant vente: ' + soldeAvant.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
                 footerTicket += 'Montant verse: ' + amountPaid.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
-                footerTicket += 'Solde apres vente: ' + soldeApres.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
+                footerTicket += 'Solde apres vente: ' + soldeApres.toFixed(2) + ' DA' + ESCPOS.LINE_FEED; // Ajout du solde après
                 footerTicket += '================================' + ESCPOS.LINE_FEED;
             }
         }
@@ -1835,11 +1836,16 @@ async function imprimerVente80mm() {
         footerTicket += ESCPOS.ALIGN_CENTER;
         footerTicket += ESCPOS.LINE_FEED;
         footerTicket += 'Merci de votre achat !' + ESCPOS.LINE_FEED;
-        footerTicket += ESCPOS.LINE_FEED + ESCPOS.LINE_FEED + ESCPOS.LINE_FEED;
+
+        // Ajout d'un espace réservé pour le QR code (commande basique, dépend de l'imprimante)
+        footerTicket += ESCPOS.ALIGN_CENTER;
+        footerTicket += 'QR Code: ' + numeroComande + ESCPOS.LINE_FEED; // Texte placeholder
+        footerTicket += ESCPOS.LINE_FEED + ESCPOS.LINE_FEED; // Espaces pour QR code (à remplacer par une commande spécifique si supportée)
+
         footerTicket += ESCPOS.CUT_PAPER;
 
         await sendToPrinter(footerTicket);
-        await new Promise(resolve => setTimeout(resolve, 300)); // Délai augmenté
+        await new Promise(resolve => setTimeout(resolve, 300));
 
         showToast('Impression réussie !');
 
