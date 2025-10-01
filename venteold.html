@@ -1485,14 +1485,19 @@ async function sendToPrinter(data) {
     }
 }
 
+// Fonction pour supprimer les accents
+function removeAccents(str) {
+    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 async function imprimerVente80mm(numeroComande = 'N/A') {
     if (tempSaleLines.length === 0) {
-        showToast('Aucune ligne à imprimer', true);
+        showToast('Aucune ligne a imprimer', true);
         return;
     }
 
     if (!navigator.bluetooth) {
-        showToast('Bluetooth non supporté sur ce navigateur. Utilisez Chrome sur Android.', true);
+        showToast('Bluetooth non supporte sur ce navigateur. Utilisez Chrome sur Android.', true);
         return;
     }
 
@@ -1505,14 +1510,14 @@ async function imprimerVente80mm(numeroComande = 'N/A') {
         showToast('Impression en cours...');
 
         const settings = JSON.parse(localStorage.getItem('settings')) || {};
-        const companyName = settings.companyName || 'FirePoz';
-        const companyAddress = settings.companyAddress || 'Adresse non spécifiée';
-        const companyPhone = settings.companyPhone || 'Numéro non spécifié';
+        const companyName = removeAccents(settings.companyName || 'FirePoz');
+        const companyAddress = removeAccents(settings.companyAddress || 'Adresse non specifiee');
+        const companyPhone = removeAccents(settings.companyPhone || 'Numero non specifie');
 
         const clientSelect = document.getElementById('saleClientId');
         const clientValue = clientSelect.value;
         const clientText = clientValue === '0' ? 'Vente Comptoir' : 
-            clientSelect.options[clientSelect.selectedIndex].text.split('(ID:')[0].trim();
+            removeAccents(clientSelect.options[clientSelect.selectedIndex].text.split('(ID:')[0].trim());
         const client = clientValue !== '0' ? clientsCache.find(c => c.numero_clt === parseInt(clientValue)) : null;
 
         const paymentMode = document.getElementById('paymentMode').value;
@@ -1521,56 +1526,57 @@ async function imprimerVente80mm(numeroComande = 'N/A') {
         const totalArticles = tempSaleLines.length;
 
         const storedSeller = localStorage.getItem('selectedSeller');
-        const sellerName = storedSeller ? JSON.parse(storedSeller).nom : 'Non spécifié';
+        const sellerName = removeAccents(storedSeller ? JSON.parse(storedSeller).nom : 'Non specifie');
 
-        // Construire le ticket avec un design amélioré
+        // Construire le ticket
         let ticket = ESCPOS.INIT;
 
-        // En-tête professionnel
+        // En-tete professionnel sans accents
         ticket += ESCPOS.ALIGN_CENTER;
         ticket += ESCPOS.SIZE_LARGE + ESCPOS.BOLD_ON;
         ticket += companyName.toUpperCase() + ESCPOS.LINE_FEED;
         ticket += ESCPOS.SIZE_NORMAL + ESCPOS.BOLD_OFF;
         ticket += companyAddress + ESCPOS.LINE_FEED;
-        ticket += 'Tél: ' + companyPhone + ESCPOS.LINE_FEED;
-        ticket += '--------------------------------' + ESCPOS.LINE_FEED; // Ligne de séparation élégante
-        ticket += ESCPOS.ALIGN_LEFT;
+        ticket += 'Tel: ' + companyPhone + ESCPOS.LINE_FEED;
+        ticket += '----------------------------------------' + ESCPOS.LINE_FEED;
 
         // Informations de la vente
-        ticket += 'Date: ' + new Date().toLocaleString('fr-FR', { timeZone: 'CET' }) + ESCPOS.LINE_FEED;
+        ticket += ESCPOS.ALIGN_LEFT;
+        ticket += 'Date: ' + removeAccents(new Date().toLocaleString('fr-FR', { timeZone: 'CET' })) + ESCPOS.LINE_FEED;
         ticket += 'Vendeur: ' + sellerName + ESCPOS.LINE_FEED;
         ticket += 'Client: ' + clientText + (client ? ' (ID: ' + clientValue + ')' : '') + ESCPOS.LINE_FEED;
-        ticket += 'N° Commande: ' + numeroComande + ESCPOS.LINE_FEED;
-        ticket += 'Mode Paiement: ' + (paymentMode === 'espece' ? 'Espèce' : 'À Terme') + ESCPOS.LINE_FEED; // Affichage clair du mode
+        ticket += 'N Commande: ' + numeroComande + ESCPOS.LINE_FEED;
+        ticket += 'Mode Paiement: ' + (paymentMode === 'a_terme' ? 'A Terme' : 'Espece') + ESCPOS.LINE_FEED;
         if (paymentMode === 'a_terme' && amountPaid > 0) {
-            ticket += 'Montant Versé: ' + amountPaid.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
+            ticket += 'Montant Verse: ' + amountPaid.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
         }
         if (client && client.solde) {
-            ticket += 'Solde Avant: ' + parseFloat(client.solde).toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
+            const soldeAvant = parseFloat(client.solde) || 0;
+            ticket += 'Solde Avant: ' + soldeAvant.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
         }
-        ticket += '--------------------------------' + ESCPOS.LINE_FEED;
+        ticket += '----------------------------------------' + ESCPOS.LINE_FEED;
 
-        // En-tête du tableau
+        // En-tete du tableau
         ticket += ESCPOS.BOLD_ON;
-        ticket += 'Designation      PrixU  Qte  Total' + ESCPOS.LINE_FEED; // Ajusté pour alignement
+        ticket += 'Designation      PrixU  Qte  Total' + ESCPOS.LINE_FEED;
         ticket += ESCPOS.BOLD_OFF;
-        ticket += '----------------------------------------' + ESCPOS.LINE_FEED; // Bordure plus longue
+        ticket += '----------------------------------------' + ESCPOS.LINE_FEED;
 
-        // Envoyer l'en-tête séparément
+        // Envoyer l'en-tete separement
         await sendToPrinter(ticket);
         await new Promise(resolve => setTimeout(resolve, 300));
 
         // Ligne vide
-        ticket = ''.padEnd(32) + ESCPOS.LINE_FEED; // Ligne vide alignée
+        ticket = ''.padEnd(32) + ESCPOS.LINE_FEED;
         ticket += '----------------------------------------' + ESCPOS.LINE_FEED;
         await sendToPrinter(ticket);
         await new Promise(resolve => setTimeout(resolve, 300));
 
-        // Articles numérotés
+        // Articles numerotes
         for (let i = 0; i < tempSaleLines.length; i++) {
             const ligne = tempSaleLines[i];
             const numero = (i + 1) + '.';
-            const designation = (ligne.designation || 'Produit').substring(0, 13).padEnd(13);
+            const designation = removeAccents((ligne.designation || 'Produit').substring(0, 13)).padEnd(13);
             const prixU = parseFloat(ligne.remarque || 0).toFixed(0).padStart(6);
             const qte = parseFloat(ligne.quantite || 0).toFixed(2).padStart(4);
             const prixT = parseFloat(ligne.prixt || 0).toFixed(0).padStart(6);
@@ -1582,7 +1588,7 @@ async function imprimerVente80mm(numeroComande = 'N/A') {
             await new Promise(resolve => setTimeout(resolve, 200));
         }
 
-        // Pied de page professionnel
+        // Pied de page
         let footerTicket = '';
         footerTicket += '----------------------------------------' + ESCPOS.LINE_FEED;
         footerTicket += ESCPOS.ALIGN_CENTER;
@@ -1591,26 +1597,26 @@ async function imprimerVente80mm(numeroComande = 'N/A') {
         footerTicket += 'Articles: ' + totalArticles + ESCPOS.LINE_FEED;
         footerTicket += ESCPOS.SIZE_NORMAL + ESCPOS.BOLD_OFF;
 
-        if (paymentMode === 'a_terme' && client) {
+        if (paymentMode === 'a_terme' && client && client.solde !== undefined) {
             const soldeAvant = parseFloat(client.solde) || 0;
             const soldeApres = soldeAvant - total + amountPaid;
             footerTicket += '----------------------------------------' + ESCPOS.LINE_FEED;
             footerTicket += 'Solde Avant: ' + soldeAvant.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
-            footerTicket += 'Montant Versé: ' + amountPaid.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
-            footerTicket += 'Solde Après: ' + soldeApres.toFixed(2) + ' DA' + ESCPOS.LINE_FEED; // Correction d'affichage
+            footerTicket += 'Montant Verse: ' + amountPaid.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
+            footerTicket += 'Solde Apres: ' + soldeApres.toFixed(2) + ' DA' + ESCPOS.LINE_FEED; // Correction de l'affichage
             footerTicket += '----------------------------------------' + ESCPOS.LINE_FEED;
         }
 
         footerTicket += ESCPOS.ALIGN_CENTER;
-        footerTicket += 'Merci pour votre confiance !' + ESCPOS.LINE_FEED; // Message professionnel
-        footerTicket += 'N° Commande: ' + numeroComande + ESCPOS.LINE_FEED; // Répétition pour référence
-        footerTicket += ESCPOS.LINE_FEED + ESCPOS.LINE_FEED; // Espacement pour QR (placeholder)
+        footerTicket += 'Merci pour votre confiance !' + ESCPOS.LINE_FEED;
+        footerTicket += 'N Commande: ' + numeroComande + ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.LINE_FEED + ESCPOS.LINE_FEED;
         footerTicket += ESCPOS.CUT_PAPER;
 
         await sendToPrinter(footerTicket);
         await new Promise(resolve => setTimeout(resolve, 300));
 
-        showToast('Impression réussie !');
+        showToast('Impression reussie !');
 
     } catch (error) {
         console.error('Erreur impression Bluetooth:', error);
