@@ -1,50 +1,35 @@
-const CACHE_NAME = 'firepoz-cache-v3'; // CHANGE le numéro à chaque mise à jour
-
+const CACHE_NAME = "firepoz-cache-v1";
 const urlsToCache = [
-  './index.html',
-  './achat.html',
-  './vente.html',
-  './page1.html',
-  './page2.html',
-'./map.html','./venteold.html',
-  './HISTO.html',
-  './PARAM.html',
-  './HELP.html',
-  './manifest.json',
-  './icon.png'
+  "/FIREPOZ/",
+  "/FIREPOZ/index.html",
+  "/FIREPOZ/icons/icon-192.png",
+  "/FIREPOZ/icons/icon-512.png",
+  "/FIREPOZ/manifest.json"
 ];
 
-// Installation et mise en cache
-self.addEventListener('install', event => {
-  console.log('[SW] Install');
-  self.skipWaiting(); // Active immédiatement la nouvelle version
+// Installer le service worker et mettre en cache
+self.addEventListener("install", event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
-      console.log('[SW] Mise en cache');
       return cache.addAll(urlsToCache);
     })
   );
 });
 
-// Activation et suppression des anciens caches
-self.addEventListener('activate', event => {
-  console.log('[SW] Activate');
+// Activer le service worker
+self.addEventListener("activate", event => {
   event.waitUntil(
-    caches.keys().then(cacheNames => {
+    caches.keys().then(keys => {
       return Promise.all(
-        cacheNames.map(name => {
-          if (name !== CACHE_NAME) {
-            console.log('[SW] Suppression ancien cache:', name);
-            return caches.delete(name);
-          }
-        })
+        keys.filter(key => key !== CACHE_NAME)
+            .map(key => caches.delete(key))
       );
-    }).then(() => self.clients.claim())
+    })
   );
 });
 
-// Gestion des fetch
-self.addEventListener('fetch', event => {
+// Intercepter les requêtes et servir depuis le cache si offline
+self.addEventListener("fetch", event => {
   event.respondWith(
     caches.match(event.request).then(response => {
       return response || fetch(event.request);
