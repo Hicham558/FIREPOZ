@@ -12,9 +12,6 @@
     .toast-out { animation: toastOut 0.5s both; }
     @keyframes toastIn { from { opacity:0; transform:translateY(40px);} to { opacity:1; transform:translateY(0);} }
     @keyframes toastOut { from { opacity:1; transform:translateY(0);} to { opacity:0; transform:translateY(40px);} }
-    .tab-button { @apply px-6 py-3 font-semibold transition-all; }
-    .tab-button.active { @apply bg-white text-indigo-600 border-b-2 border-indigo-600; }
-    .tab-button:not(.active) { @apply text-white hover:bg-indigo-700; }
   </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
@@ -33,19 +30,14 @@
       <h1 class="text-2xl font-bold">
         <i class="fas fa-database mr-2"></i>FirePoz Database
       </h1>
-      <button onclick="goHome()" class="bg-white text-indigo-600 px-4 py-2 rounded-md hover:bg-gray-200">
-        <i class="fas fa-home mr-2"></i>Accueil
-      </button>
-    </div>
-    
-    <!-- Tabs -->
-    <div class="container mx-auto px-4 flex space-x-2">
-      <button onclick="switchTab('local')" id="tabLocal" class="tab-button active">
-        <i class="fas fa-laptop mr-2"></i>Base Locale
-      </button>
-      <button onclick="switchTab('server')" id="tabServer" class="tab-button">
-        <i class="fas fa-cloud mr-2"></i>Synchronisation Serveur
-      </button>
+      <div class="flex space-x-2">
+        <button onclick="goToParams()" class="bg-white text-indigo-600 px-4 py-2 rounded-md hover:bg-gray-200">
+          <i class="fas fa-cog mr-2"></i>Paramètres
+        </button>
+        <button onclick="goHome()" class="bg-white text-indigo-600 px-4 py-2 rounded-md hover:bg-gray-200">
+          <i class="fas fa-home mr-2"></i>Accueil
+        </button>
+      </div>
     </div>
   </nav>
 
@@ -74,9 +66,10 @@
       </div>
     </div>
 
-    <!-- Onglet Base Locale -->
-    <div id="contentLocal" class="space-y-6">
+    <!-- Contenu Principal -->
+    <div class="space-y-6">
       
+      <!-- Gestion Base Locale -->
       <div class="bg-white rounded-lg shadow-md p-6">
         <h2 class="text-xl font-semibold mb-4 flex items-center">
           <i class="fas fa-tools mr-2 text-indigo-500"></i>
@@ -103,11 +96,7 @@
         </div>
       </div>
       
-    </div>
-
-    <!-- Onglet Serveur -->
-    <div id="contentServer" class="space-y-6 hidden">
-      
+      <!-- Synchronisation Serveur -->
       <div class="bg-white rounded-lg shadow-md p-6">
         <h2 class="text-xl font-semibold mb-4 flex items-center">
           <i class="fas fa-cloud-download-alt mr-2 text-indigo-500"></i>
@@ -131,7 +120,7 @@
           </button>
           
           <button onclick="switchToDefault()" class="bg-purple-600 text-white px-6 py-3 rounded-md hover:bg-purple-700 transition">
-            <i class="fas fa-laptop mr-2"></i>Activer Base Par Défaut
+            <i class="fas fa-mobile-alt mr-2"></i>Activer Base Par Défaut
           </button>
         </div>
         
@@ -157,7 +146,7 @@
     // ========== IndexedDB Storage Layer ==========
     const DB_NAME = "FirePozDB";
     const STORE_NAME = "databases";
-   let API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'https://hicham03041979.onrender.com';
+    let API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'https://hicham03041979.onrender.com';
     
     let dbConnection = null;
 
@@ -207,13 +196,6 @@
       });
     }
 
-    // Compatibilité noms localStorage
-    window.localStorage = {
-      async getItem(key) { return await idbGet(key); },
-      async setItem(key, value) { return await idbSet(key, value); },
-      async removeItem(key) { return await idbRemove(key); }
-    };
-
     // ========== UI Functions ==========
     function showToast(message, isError = false) {
       const toast = document.getElementById('toast');
@@ -239,17 +221,12 @@
       loading.style.display = show ? 'flex' : 'none';
     }
 
-    function switchTab(tab) {
-      document.getElementById('tabLocal').classList.toggle('active', tab === 'local');
-      document.getElementById('tabServer').classList.toggle('active', tab === 'server');
-      document.getElementById('contentLocal').classList.toggle('hidden', tab !== 'local');
-      document.getElementById('contentServer').classList.toggle('hidden', tab !== 'server');
-      
-      if (tab === 'server') updateServerStatus();
-    }
-
     function goHome() {
       window.location.href = "index.html";
+    }
+
+    function goToParams() {
+      window.location.href = "PARAM.html";
     }
 
     // ========== Database Functions ==========
@@ -316,7 +293,6 @@
       
       showLoading(true);
       try {
-        // SAUVEGARDER LA BASE ACTUELLE
         const currentName = await idbGet('gestion_db_active') || 'gestion';
         const currentDb = await idbGet('gestion_db');
         if (currentDb) {
@@ -354,7 +330,6 @@
       
       reader.onload = async function(e) {
         try {
-          // SAUVEGARDER LA BASE ACTUELLE
           const currentName = await idbGet('gestion_db_active') || 'gestion';
           const currentDb = await idbGet('gestion_db');
           if (currentDb) {
@@ -415,7 +390,6 @@
     async function switchToServer() {
       showLoading(true);
       try {
-        // Vérifier qu'une base serveur existe
         const serverDb = await idbGet('gestion_db_server');
         if (!serverDb) {
           showToast("⚠️ Aucune base serveur. Téléchargez-la d'abord!", true);
@@ -423,7 +397,6 @@
           return;
         }
         
-        // SAUVEGARDER LA BASE ACTUELLE AVANT DE BASCULER
         const currentName = await idbGet('gestion_db_active') || 'gestion';
         const currentDb = await idbGet('gestion_db');
         if (currentDb) {
@@ -431,11 +404,9 @@
           console.log(`💾 Base "${currentName}" sauvegardée`);
         }
         
-        // Activer la base serveur
         await idbSet('gestion_db', serverDb);
         await idbSet('gestion_db_active', 'serveur');
         
-        // Recharger la base en mémoire
         if (dbConnection) {
           try {
             dbConnection.close();
@@ -455,64 +426,55 @@
       }
     }
 
-async function syncFromServer() {
-  showLoading(true);
-  try {
-    const response = await fetch(`${API_BASE_URL}/export`);
-    if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`);
-    
-    const data = await response.json();
-    const base64Db = data.db;
-    
-    // SAUVEGARDER LA BASE ACTUELLE AVANT DE BASCULER
-    const currentName = await idbGet('gestion_db_active') || 'gestion';
-    const currentDb = await idbGet('gestion_db');
-    if (currentDb) {
-      await idbSet(`gestion_db_backup_${currentName}`, currentDb);
-      console.log(`💾 Base "${currentName}" sauvegardée`);
-    }
-    
-    // Sauvegarder la base serveur
-    await idbSet('gestion_db_server', base64Db);
-    
-    // Activer immédiatement la base serveur
-    await idbSet('gestion_db', base64Db);
-    await idbSet('gestion_db_active', 'serveur');
-    
-    // PASSER EN MODE LOCAL
-    await idbSet('apiBaseUrl', '/api');
-    localStorage.setItem('apiBaseUrl', '/api'); 
-    API_BASE_URL = '/api'; // ⚡ mise à jour en mémoire
-    
-    // Recharger la base en mémoire
-    if (dbConnection) {
+    async function syncFromServer() {
+      showLoading(true);
       try {
-        dbConnection.close();
-      } catch (e) {}
+        const response = await fetch(`${API_BASE_URL}/export`);
+        if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`);
+        
+        const data = await response.json();
+        const base64Db = data.db;
+        
+        const currentName = await idbGet('gestion_db_active') || 'gestion';
+        const currentDb = await idbGet('gestion_db');
+        if (currentDb) {
+          await idbSet(`gestion_db_backup_${currentName}`, currentDb);
+          console.log(`💾 Base "${currentName}" sauvegardée`);
+        }
+        
+        await idbSet('gestion_db_server', base64Db);
+        await idbSet('gestion_db', base64Db);
+        await idbSet('gestion_db_active', 'serveur');
+        
+        await idbSet('apiBaseUrl', '/api');
+        API_BASE_URL = '/api';
+        
+        if (dbConnection) {
+          try {
+            dbConnection.close();
+          } catch (e) {}
+        }
+        dbConnection = null;
+        await loadActiveDb();
+        await updateStats();
+        await updateServerStatus();
+        
+        if (API_BASE_URL === '/api') {
+          showToast("✅ Vous êtes maintenant en MODE LOCAL (/api)");
+        } else {
+          showToast("✅ Base serveur téléchargée et activée");
+        }
+      } catch (err) {
+        console.error("Erreur sync:", err);
+        showToast(`❌ Erreur serveur: ${err.message}`, true);
+      } finally {
+        showLoading(false);
+      }
     }
-    dbConnection = null;
-    await loadActiveDb();
-    await updateStats();
-    await updateServerStatus();
-    
-    // VÉRIFIER SI ON EST EN LOCAL
-    if (API_BASE_URL === '/api') {
-      showToast("✅ Vous êtes maintenant en MODE LOCAL (/api)");
-    } else {
-      showToast("✅ Base serveur téléchargée et activée");
-    }
-  } catch (err) {
-    console.error("Erreur sync:", err);
-    showToast(`❌ Erreur serveur: ${err.message}`, true);
-  } finally {
-    showLoading(false);
-  }
-}
 
     async function switchToDefault() {
       showLoading(true);
       try {
-        // SAUVEGARDER LA BASE ACTUELLE AVANT DE BASCULER
         const currentName = await idbGet('gestion_db_active') || 'gestion';
         const currentDb = await idbGet('gestion_db');
         if (currentDb && currentName !== 'gestion') {
@@ -520,10 +482,8 @@ async function syncFromServer() {
           console.log(`💾 Base "${currentName}" sauvegardée`);
         }
         
-        // RESTAURER LA BASE PAR DÉFAUT DEPUIS LE BACKUP
         let defaultDb = await idbGet('gestion_db_backup_gestion');
         
-        // Si pas de backup, charger depuis le fichier original
         if (!defaultDb) {
           console.log("📥 Pas de backup, chargement gestion.db original");
           const response = await fetch("gestion.db");
@@ -535,11 +495,9 @@ async function syncFromServer() {
           console.log("📦 Restauration base par défaut depuis backup");
         }
         
-        // Basculer vers la base par défaut
         await idbSet('gestion_db', defaultDb);
         await idbSet('gestion_db_active', 'gestion');
         
-        // Recharger la base en mémoire
         if (dbConnection) {
           try {
             dbConnection.close();
@@ -576,7 +534,7 @@ async function syncFromServer() {
       } else if (activeName === 'gestion') {
         status.innerHTML = `
           <div class="flex items-center">
-            <i class="fas fa-laptop text-purple-500 mr-2 text-xl"></i>
+            <i class="fas fa-mobile-alt text-purple-500 mr-2 text-xl"></i>
             <span class="font-semibold text-purple-700">Base PAR DÉFAUT actuellement active</span>
           </div>
           <p class="text-sm text-gray-600 mt-2">Vous travaillez sur la base locale par défaut (gestion.db).</p>
@@ -641,6 +599,7 @@ async function syncFromServer() {
         }
         
         await updateStats();
+        await updateServerStatus();
         console.log("✅ Application initialisée");
       } catch (e) {
         console.error("❌ Erreur init:", e);
@@ -650,7 +609,6 @@ async function syncFromServer() {
       }
     }
 
-    // Démarrage
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', init);
     } else {
