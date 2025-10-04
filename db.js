@@ -123,31 +123,42 @@ export async function getDb() {
 // ========== FONCTION PRINCIPALE DE SAUVEGARDE AMÉLIORÉE ==========
 export async function saveDbToStorage(database) {
   try {
+    console.log("🔵 DÉBUT SAUVEGARDE");
     const startTime = performance.now();
     const dbBinary = database.export();
-    const base64 = btoa(String.fromCharCode(...dbBinary));
+    console.log("🔵 Export fait:", dbBinary.length, "bytes");
+    
+    // Conversion par chunks OBLIGATOIRE pour grandes bases
+    const chunkSize = 50000;
+    let binary = '';
+    for (let i = 0; i < dbBinary.length; i += chunkSize) {
+      const chunk = dbBinary.subarray(i, i + chunkSize);
+      binary += String.fromCharCode.apply(null, chunk);
+    }
+    const base64 = btoa(binary);
+    console.log("🔵 Conversion base64 faite:", base64.length, "chars");
     
     const activeName = await idbGet("gestion_db_active") || "gestion";
+    console.log("🔵 Nom actif:", activeName);
     
-    // Sauvegarder dans IndexedDB (base active)
     await idbSet("gestion_db", base64);
+    console.log("🔵 Sauvegarde gestion_db OK");
     
-    // Sauvegarder dans le backup
     await idbSet(`gestion_db_backup_${activeName}`, base64);
+    console.log("🔵 Sauvegarde backup OK");
     
-    // SI BASE SERVEUR : mettre à jour aussi gestion_db_server
     if (activeName === "serveur") {
       await idbSet("gestion_db_server", base64);
-      console.log("Mise à jour gestion_db_server");
+      console.log("🔵 Sauvegarde gestion_db_server OK");
     }
     
     const endTime = performance.now();
     const duration = (endTime - startTime).toFixed(2);
     
-    console.log(`Base "${activeName}" sauvegardée: ${(base64.length / 1024).toFixed(2)} KB en ${duration}ms`);
+    console.log(`✅ SAUVEGARDE TERMINÉE: ${(base64.length / 1024).toFixed(2)} KB en ${duration}ms`);
     return true;
   } catch (error) {
-    console.error("Erreur sauvegarde:", error);
+    console.error("❌ ERREUR SAUVEGARDE:", error);
     return false;
   }
 }
