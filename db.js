@@ -84,39 +84,53 @@ async function initSQL() {
 }
 
 // ========== Database Management ==========
-export async function getDb() {
-  if (db) return db;
+let dbConnection = null;
 
-  const SQL = await initSQL();
+async function getDb() {
+  if (dbConnection) return dbConnection;
 
-  try {
-    // Charger depuis IndexedDB
-    const savedDb = await idbGet("gestion_db");
-    
-    if (savedDb) {
-      console.log("📦 Chargement base depuis IndexedDB");
-      const bytes = Uint8Array.from(atob(savedDb), c => c.charCodeAt(0));
-      db = new SQL.Database(bytes);
-      console.log("✅ Base chargée (", (savedDb.length / 1024).toFixed(2), "KB)");
-    } else {
-      // Charger gestion.db par défaut
-      console.log("📥 Chargement gestion.db initial");
-      const response = await fetch("./gestion.db");
-      if (!response.ok) throw new Error("Impossible de charger gestion.db");
-      
-      const arrayBuffer = await response.arrayBuffer();
-      db = new SQL.Database(new Uint8Array(arrayBuffer));
+  const SQL = await initSqlJs({ locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}` });
 
-      await saveDbToStorage(db);
-      await idbSet("gestion_db_active", "gestion");
-      console.log("💾 Base initiale sauvegardée");
-    }
-
-    return db;
-  } catch (error) {
-    console.error("❌ Erreur chargement DB:", error);
-    throw error;
+  // Charger la base depuis IndexedDB
+  const savedDb = await idbGet('gestion_db');
+  if (savedDb) {
+    const uInt8Array = Uint8Array.from(atob(savedDb), c => c.charCodeAt(0));
+    dbConnection = new SQL.Database(uInt8Array);
+  } else {
+    dbConnection = new SQL.Database();
   }
+
+  // ⚡️ Active auto-save directement
+  enableAutoSave(dbConnection);
+
+  return dbConnection;
+}
+
+function enableAutoSave(db) {
+  const originalRun = db.run;
+
+  db.run = function (...args) {
+    const result = originalRun.apply(db, args);
+    try {
+      const sql = args[0].trim().toUpperCase();
+      if (
+        sql.startsWith("INSERT") ||
+        sql.startsWith("UPDATE") ||
+        sql.startsWith("DELETE") ||
+        sql.startsWith("CREATE") ||
+        sql.startsWith("DROP")
+      ) {
+        saveDbToStorage(db).then(() => {
+          console.log("✅ Sauvegarde auto après:", sql.split(" ")[0]);
+        }).catch(err => {
+          console.error("❌ Erreur sauvegarde auto:", err);
+        });
+      }
+    } catch (e) {
+      console.error("⚠️ Erreur analyse SQL:", e);
+    }
+    return result;
+  };
 }
 
 // ========== FONCTION PRINCIPALE DE SAUVEGARDE AMÉLIORÉE ==========
