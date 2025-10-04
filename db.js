@@ -70,21 +70,6 @@ async function idbRemove(key) {
   }
 }
 
-// ========== Polyfill localStorage (noms compatibles) ==========
-const localStorage = {
-  async getItem(key) {
-    return await idbGet(key);
-  },
-  
-  async setItem(key, value) {
-    return await idbSet(key, value);
-  },
-  
-  async removeItem(key) {
-    return await idbRemove(key);
-  }
-};
-
 // ========== SQL.js Initialization ==========
 let SQL = null;
 async function initSQL() {
@@ -106,13 +91,13 @@ export async function getDb() {
 
   try {
     // Charger depuis IndexedDB
-    const savedDb = await localStorage.getItem("gestion_db");
+    const savedDb = await idbGet("gestion_db");
     
     if (savedDb) {
       console.log("📦 Chargement base depuis IndexedDB");
       const bytes = Uint8Array.from(atob(savedDb), c => c.charCodeAt(0));
       db = new SQL.Database(bytes);
-      console.log("✅ Base chargée");
+      console.log("✅ Base chargée (", (savedDb.length / 1024).toFixed(2), "KB)");
     } else {
       // Charger gestion.db par défaut
       console.log("📥 Chargement gestion.db initial");
@@ -123,6 +108,7 @@ export async function getDb() {
       db = new SQL.Database(new Uint8Array(arrayBuffer));
 
       await saveDbToStorage(db);
+      await idbSet("gestion_db_active", "gestion");
       console.log("💾 Base initiale sauvegardée");
     }
 
@@ -133,25 +119,41 @@ export async function getDb() {
   }
 }
 
+// FONCTION PRINCIPALE DE SAUVEGARDE
 export async function saveDbToStorage(database) {
   try {
     const dbBinary = database.export();
     const base64 = btoa(String.fromCharCode(...dbBinary));
     
-    await localStorage.setItem("gestion_db", base64);
-    console.log("💾 Base sauvegardée dans IndexedDB");
+    // Sauvegarder dans IndexedDB
+    await idbSet("gestion_db", base64);
+    
+    console.log("💾 Base sauvegardée:", (base64.length / 1024).toFixed(2), "KB");
+    return true;
   } catch (error) {
     console.error("❌ Erreur sauvegarde:", error);
+    return false;
   }
 }
 
-// Alias compatibilité
-export { saveDbToStorage as saveDbToLocalStorage };
+// ✅ ALIAS POUR COMPATIBILITÉ - UTILISE LA MÊME FONCTION
+export async function saveDbToLocalStorage(database) {
+  return await saveDbToStorage(database);
+}
 
 export async function setActiveDb(base64Data) {
   try {
     const SQL = await initSQL();
     const bytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+    
+    // Fermer l'ancienne connexion
+    if (db) {
+      try {
+        db.close();
+      } catch (e) {
+        console.warn("Impossible de fermer l'ancienne base");
+      }
+    }
     
     db = new SQL.Database(bytes);
     await saveDbToStorage(db);
@@ -196,10 +198,18 @@ export async function duplicateCurrentDb() {
 
 export async function resetDatabase() {
   try {
-    await localStorage.removeItem("gestion_db");
-    await localStorage.removeItem("gestion_db_active");
-    await localStorage.removeItem("gestion_db_server");
+    await idbRemove("gestion_db");
+    await idbRemove("gestion_db_active");
+    await idbRemove("gestion_db_server");
 
+    if (db) {
+      try {
+        db.close();
+      } catch (e) {
+        console.warn("Impossible de fermer la base");
+      }
+    }
+    
     db = null;
     await getDb();
     
@@ -247,7 +257,7 @@ export async function getDbInfo() {
 
 export async function getDbSize() {
   if (!db) {
-    const activeDbData = await localStorage.getItem("gestion_db");
+    const activeDbData = await idbGet("gestion_db");
     return activeDbData ? activeDbData.length : 0;
   }
   
@@ -291,6 +301,13 @@ export async function importDb(base64Data) {
     const testDb = new SQL.Database(bytes);
     testDb.close();
     
+    // Fermer l'ancienne
+    if (db) {
+      try {
+        db.close();
+      } catch (e) {}
+    }
+    
     // Activer la nouvelle base
     db = new SQL.Database(bytes);
     await saveDbToStorage(db);
@@ -309,4 +326,64 @@ export function isDbLoaded() {
 
 export function getCurrentDb() {
   return db;
+}
+
+// ========== Fonctions pour Switch Serveur/Local ==========
+export async function switchToServerDb() {
+  try {
+    const serverDb = await idbGet("gestion_db_server");
+    if (!serverDb) {
+      throw new Error("Aucune base serveur disponible. Téléchargez-la d'abord.");
+    }
+    
+    await idbSet("gestion_db", serverDb);
+    await idbSet("gestion_db_active", "serveur");
+    
+    // Recharger la base
+    if (db) {
+      try {
+        db.close();
+      } catch (e) {}
+    }
+    db = null;
+    await getDb();
+    
+    console.log("✅ Basculé vers base serveur");
+    return true;
+  } catch (error) {
+    console.error("❌ Erreur switch serveur:", error);
+    throw error;
+  }
+}
+
+export async function switchToDefaultDb() {
+  try {
+    const response = await fetch("./gestion.db");
+    if (!response.ok) throw new Error("Impossible de charger gestion.db");
+    
+    const arrayBuffer = await response.arrayBuffer();
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    
+    await idbSet("gestion_db", base64);
+    await idbSet("gestion_db_active", "gestion");
+    
+    // Recharger la base
+    if (db) {
+      try {
+        db.close();
+      } catch (e) {}
+    }
+    db = null;
+    await getDb();
+    
+    console.log("✅ Basculé vers base par défaut");
+    return true;
+  } catch (error) {
+    console.error("❌ Erreur switch défaut:", error);
+    throw error;
+  }
+}
+
+export async function getActiveDbName() {
+  return await idbGet("gestion_db_active") || "gestion";
 }
