@@ -705,8 +705,7 @@
                                 <button onclick="printBluetoothVente(${vente.numero_comande}, '${vente.nature}')" class="action-button bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition">
     <i class="fas fa-bluetooth mr-1"></i> 80mm
 </button>
-                                    <i class="fas fa-print"></i> Ticket
-                                </button>
+                                    
                                 <button onclick="annulerVente(${vente.numero_comande}, '${vente.nature}')" class="action-button bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
                                     <i class="fas fa-times"></i> Annuler
                                 </button>
@@ -737,9 +736,12 @@
                                 <button onclick="editSale(${vente.numero_comande}, '${vente.nature}')" class="action-button bg-yellow-600 text-white px-2 py-1 rounded-md hover:bg-yellow-700 transition">
                                     <i class="fas fa-edit"></i> Modifier
                                 </button>
-                                <button onclick="printTicket(${vente.numero_comande}, '${vente.nature}')" class="action-button bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition">
-                                    <i class="fas fa-print"></i> Ticket
-                                </button>
+                               <button onclick="printBluetoothVente(${vente.numero_comande}, '${vente.nature}')" class="action-button bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition" title="Ticket vente">
+    <i class="fas fa-bluetooth mr-1"></i> Ticket
+</button>
+<button onclick="printBluetoothBonLivraison(${vente.numero_comande}, '${vente.nature}')" class="action-button bg-green-600 text-white px-2 py-1 rounded-md hover:bg-green-700 transition" title="Bon de livraison">
+    <i class="fas fa-truck mr-1"></i> BL
+</button>
                                 <button onclick="annulerVente(${vente.numero_comande}, '${vente.nature}')" class="action-button bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
                                     <i class="fas fa-times"></i> Annuler
                                 </button>
@@ -1495,6 +1497,236 @@ async function printBluetoothAchat(numeroMouvement, nature) {
     }
 }
 
+       // Fonction d'impression Bluetooth pour les bons de livraison
+async function printBluetoothBonLivraison(numeroComande, nature) {
+    const vente = dailySalesCache.bons.find(v => v.numero_comande === numeroComande && v.nature === nature);
+    if (!vente) {
+        showToast('Bon de livraison non trouvé', true);
+        return;
+    }
+
+    if (!navigator.bluetooth) {
+        showToast('Bluetooth non supporté sur ce navigateur. Utilisez Chrome sur Android.', true);
+        return;
+    }
+
+    try {
+        if (!bluetoothCharacteristic) {
+            const connected = await connectBluetoothPrinter();
+            if (!connected) return;
+        }
+
+        showToast('Impression bon de livraison en cours...');
+
+        const settings = JSON.parse(localStorage.getItem('settings')) || {};
+        const companyName = removeAccents(settings.companyName || 'FirePoz');
+        const companyAddress = removeAccents(settings.companyAddress || 'Adresse non spécifiée');
+        const companyPhone = removeAccents(settings.companyPhone || 'Numéro non spécifié');
+
+        const clientText = removeAccents(vente.client_nom || 'Client non spécifié');
+        const utilisateurText = removeAccents(vente.utilisateur_nom || 'N/A');
+        const total = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
+
+        // Construire le bon de livraison
+        let ticket = ESCPOS.INIT;
+
+        // En-tête professionnel sans accents - BON DE LIVRAISON
+        ticket += ESCPOS.ALIGN_CENTER;
+        ticket += ESCPOS.SIZE_LARGE + ESCPOS.BOLD_ON;
+        ticket += 'BON DE LIVRAISON' + ESCPOS.LINE_FEED;
+        ticket += ESCPOS.SIZE_NORMAL + ESCPOS.BOLD_OFF;
+        ticket += companyName.toUpperCase() + ESCPOS.LINE_FEED;
+        ticket += companyAddress + ESCPOS.LINE_FEED;
+        ticket += 'Tel: ' + companyPhone + ESCPOS.LINE_FEED;
+        ticket += '========================================' + ESCPOS.LINE_FEED;
+
+        // Informations du bon de livraison
+        ticket += ESCPOS.ALIGN_LEFT;
+        ticket += ESCPOS.BOLD_ON + 'N° BL: ' + ESCPOS.BOLD_OFF + vente.numero_comande + ESCPOS.LINE_FEED;
+        ticket += ESCPOS.BOLD_ON + 'Date: ' + ESCPOS.BOLD_OFF + removeAccents(new Date(vente.date_comande).toLocaleString('fr-FR', { timeZone: 'CET' })) + ESCPOS.LINE_FEED;
+        ticket += ESCPOS.BOLD_ON + 'Client: ' + ESCPOS.BOLD_OFF + clientText + ESCPOS.LINE_FEED;
+        ticket += ESCPOS.BOLD_ON + 'Vendeur: ' + ESCPOS.BOLD_OFF + utilisateurText + ESCPOS.LINE_FEED;
+        ticket += '----------------------------------------' + ESCPOS.LINE_FEED;
+
+        // En-tête du tableau des articles
+        ticket += ESCPOS.BOLD_ON;
+        ticket += 'Articles livrés:' + ESCPOS.LINE_FEED;
+        ticket += 'Designation      Qte' + ESCPOS.LINE_FEED;
+        ticket += ESCPOS.BOLD_OFF;
+        ticket += '----------------------------------------' + ESCPOS.LINE_FEED;
+
+        // Envoyer l'en-tête séparément
+        await sendToPrinter(ticket);
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        // Articles numérotés - format simplifié pour bon de livraison
+        for (let i = 0; i < vente.lignes.length; i++) {
+            const ligne = vente.lignes[i];
+            const numero = (i + 1) + '.';
+            const designation = removeAccents((ligne.designation || 'Article').substring(0, 18)).padEnd(18);
+            const qte = parseFloat(ligne.quantite || 0).toFixed(2).padStart(6);
+
+            const articleTicket = numero.padEnd(4) + designation + ' ' + qte + ESCPOS.LINE_FEED;
+            await sendToPrinter(articleTicket);
+            await new Promise(resolve => setTimeout(resolve, 150));
+        }
+
+        // Ligne de séparation avant le total
+        await sendToPrinter('----------------------------------------' + ESCPOS.LINE_FEED);
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        // Section totale
+        let footerTicket = '';
+        footerTicket += ESCPOS.ALIGN_RIGHT;
+        footerTicket += ESCPOS.BOLD_ON + 'TOTAL: ' + total.toFixed(2) + ' DA' + ESCPOS.BOLD_OFF + ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.LINE_FEED;
+        
+        // Instructions de livraison
+        footerTicket += ESCPOS.ALIGN_LEFT;
+        footerTicket += '----------------------------------------' + ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.BOLD_ON + 'INSTRUCTIONS:' + ESCPOS.BOLD_OFF + ESCPOS.LINE_FEED;
+        footerTicket += '- Verifier les articles' + ESCPOS.LINE_FEED;
+        footerTicket += '- Signer pour reception' + ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.LINE_FEED;
+        
+        // Signature
+        footerTicket += 'Signature client:' + ESCPOS.LINE_FEED;
+        footerTicket += '............................' + ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.LINE_FEED;
+        
+        footerTicket += ESCPOS.ALIGN_CENTER;
+        footerTicket += 'Merci pour votre confiance !' + ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.LINE_FEED + ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.CUT_PAPER;
+
+        await sendToPrinter(footerTicket);
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        showToast('Bon de livraison imprimé avec succès !');
+
+    } catch (error) {
+        console.error('Erreur impression bon de livraison:', error);
+        showToast('Erreur impression : ' + error.message, true);
+        bluetoothDevice = null;
+        bluetoothCharacteristic = null;
+    }
+}
+
+// Fonction d'impression Bluetooth pour les bons de réception (achats)
+async function printBluetoothBonReception(numeroMouvement, nature) {
+    const reception = dailyPurchasesCache.receptions.find(r => r.numero_mouvement === numeroMouvement && r.nature === nature);
+    if (!reception) {
+        showToast('Bon de réception non trouvé', true);
+        return;
+    }
+
+    if (!navigator.bluetooth) {
+        showToast('Bluetooth non supporté sur ce navigateur. Utilisez Chrome sur Android.', true);
+        return;
+    }
+
+    try {
+        if (!bluetoothCharacteristic) {
+            const connected = await connectBluetoothPrinter();
+            if (!connected) return;
+        }
+
+        showToast('Impression bon de réception en cours...');
+
+        const settings = JSON.parse(localStorage.getItem('settings')) || {};
+        const companyName = removeAccents(settings.companyName || 'FirePoz');
+        const companyAddress = removeAccents(settings.companyAddress || 'Adresse non spécifiée');
+        const companyPhone = removeAccents(settings.companyPhone || 'Numéro non spécifié');
+
+        const fournisseurText = removeAccents(reception.fournisseur_nom || 'Fournisseur non spécifié');
+        const utilisateurText = removeAccents(reception.utilisateur_nom || 'N/A');
+        const total = reception.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.total_ligne || 0), 0);
+
+        // Construire le bon de réception
+        let ticket = ESCPOS.INIT;
+
+        // En-tête professionnel sans accents - BON DE RECEPTION
+        ticket += ESCPOS.ALIGN_CENTER;
+        ticket += ESCPOS.SIZE_LARGE + ESCPOS.BOLD_ON;
+        ticket += 'BON DE RECEPTION' + ESCPOS.LINE_FEED;
+        ticket += ESCPOS.SIZE_NORMAL + ESCPOS.BOLD_OFF;
+        ticket += companyName.toUpperCase() + ESCPOS.LINE_FEED;
+        ticket += companyAddress + ESCPOS.LINE_FEED;
+        ticket += 'Tel: ' + companyPhone + ESCPOS.LINE_FEED;
+        ticket += '========================================' + ESCPOS.LINE_FEED;
+
+        // Informations du bon de réception
+        ticket += ESCPOS.ALIGN_LEFT;
+        ticket += ESCPOS.BOLD_ON + 'N° BR: ' + ESCPOS.BOLD_OFF + reception.numero_mouvement + ESCPOS.LINE_FEED;
+        ticket += ESCPOS.BOLD_ON + 'Date: ' + ESCPOS.BOLD_OFF + removeAccents(new Date(reception.date_m).toLocaleString('fr-FR', { timeZone: 'CET' })) + ESCPOS.LINE_FEED;
+        ticket += ESCPOS.BOLD_ON + 'Fournisseur: ' + ESCPOS.BOLD_OFF + fournisseurText + ESCPOS.LINE_FEED;
+        ticket += ESCPOS.BOLD_ON + 'Réceptionné par: ' + ESCPOS.BOLD_OFF + utilisateurText + ESCPOS.LINE_FEED;
+        ticket += '----------------------------------------' + ESCPOS.LINE_FEED;
+
+        // En-tête du tableau des articles
+        ticket += ESCPOS.BOLD_ON;
+        ticket += 'Articles reçus:' + ESCPOS.LINE_FEED;
+        ticket += 'Designation      Qte    Prix' + ESCPOS.LINE_FEED;
+        ticket += ESCPOS.BOLD_OFF;
+        ticket += '----------------------------------------' + ESCPOS.LINE_FEED;
+
+        // Envoyer l'en-tête séparément
+        await sendToPrinter(ticket);
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        // Articles numérotés - format bon de réception
+        for (let i = 0; i < reception.lignes.length; i++) {
+            const ligne = reception.lignes[i];
+            const numero = (i + 1) + '.';
+            const designation = removeAccents((ligne.designation || 'Article').substring(0, 15)).padEnd(15);
+            const qte = parseFloat(ligne.qtea || 0).toFixed(2).padStart(5);
+            const prix = parseFloat(ligne.nprix || 0).toFixed(0).padStart(6);
+
+            const articleTicket = numero.padEnd(4) + designation + ' ' + qte + ' ' + prix + ESCPOS.LINE_FEED;
+            await sendToPrinter(articleTicket);
+            await new Promise(resolve => setTimeout(resolve, 150));
+        }
+
+        // Ligne de séparation avant le total
+        await sendToPrinter('----------------------------------------' + ESCPOS.LINE_FEED);
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        // Section totale
+        let footerTicket = '';
+        footerTicket += ESCPOS.ALIGN_RIGHT;
+        footerTicket += ESCPOS.BOLD_ON + 'TOTAL: ' + total.toFixed(2) + ' DA' + ESCPOS.BOLD_OFF + ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.LINE_FEED;
+        
+        // Instructions de réception
+        footerTicket += ESCPOS.ALIGN_LEFT;
+        footerTicket += '----------------------------------------' + ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.BOLD_ON + 'CONTROLE QUALITE:' + ESCPOS.BOLD_OFF + ESCPOS.LINE_FEED;
+        footerTicket += '- Articles conformes' + ESCPOS.LINE_FEED;
+        footerTicket += '- Quantités vérifiées' + ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.LINE_FEED;
+        
+        // Signature
+        footerTicket += 'Signature responsable:' + ESCPOS.LINE_FEED;
+        footerTicket += '............................' + ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.LINE_FEED;
+        
+        footerTicket += ESCPOS.ALIGN_CENTER;
+        footerTicket += 'Réception validée' + ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.LINE_FEED + ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.CUT_PAPER;
+
+        await sendToPrinter(footerTicket);
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        showToast('Bon de réception imprimé avec succès !');
+
+    } catch (error) {
+        console.error('Erreur impression bon de réception:', error);
+        showToast('Erreur impression : ' + error.message, true);
+        bluetoothDevice = null;
+        bluetoothCharacteristic = null;
+    }
+}
 // Fonction pour déconnecter l'imprimante
 function disconnectBluetoothPrinter() {
     if (bluetoothDevice && bluetoothDevice.gatt.connected) {
