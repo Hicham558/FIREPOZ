@@ -135,18 +135,19 @@ export async function saveDbToStorage(database) {
     // Sauvegarder dans le backup
     await idbSet(`gestion_db_backup_${activeName}`, base64);
     
-    // ⚡ CORRECTION : Si c'est la base serveur, mettre à jour aussi gestion_db_server
+    // SI BASE SERVEUR : mettre à jour aussi gestion_db_server
     if (activeName === "serveur") {
       await idbSet("gestion_db_server", base64);
+      console.log("Mise à jour gestion_db_server");
     }
     
     const endTime = performance.now();
     const duration = (endTime - startTime).toFixed(2);
     
-    console.log(`💾 Base "${activeName}" sauvegardée: ${(base64.length / 1024).toFixed(2)} KB en ${duration}ms`);
+    console.log(`Base "${activeName}" sauvegardée: ${(base64.length / 1024).toFixed(2)} KB en ${duration}ms`);
     return true;
   } catch (error) {
-    console.error("❌ Erreur sauvegarde:", error);
+    console.error("Erreur sauvegarde:", error);
     return false;
   }
 }
