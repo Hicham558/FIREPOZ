@@ -127,14 +127,18 @@ export async function saveDbToStorage(database) {
     const dbBinary = database.export();
     const base64 = btoa(String.fromCharCode(...dbBinary));
     
-    // Obtenir le nom de la base active
     const activeName = await idbGet("gestion_db_active") || "gestion";
     
     // Sauvegarder dans IndexedDB (base active)
     await idbSet("gestion_db", base64);
     
-    // IMPORTANT : Sauvegarder aussi dans le backup de cette base
+    // Sauvegarder dans le backup
     await idbSet(`gestion_db_backup_${activeName}`, base64);
+    
+    // ⚡ CORRECTION : Si c'est la base serveur, mettre à jour aussi gestion_db_server
+    if (activeName === "serveur") {
+      await idbSet("gestion_db_server", base64);
+    }
     
     const endTime = performance.now();
     const duration = (endTime - startTime).toFixed(2);
@@ -146,7 +150,6 @@ export async function saveDbToStorage(database) {
     return false;
   }
 }
-
 // ✅ ALIAS POUR COMPATIBILITÉ - UTILISE LA MÊME FONCTION
 export async function saveDbToLocalStorage(database) {
   return await saveDbToStorage(database);
