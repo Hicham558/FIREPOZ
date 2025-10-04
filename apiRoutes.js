@@ -155,7 +155,7 @@ export async function ajouterVersement(data) {
       idStmt.free();
 
       db.run('COMMIT');
-      saveDbToLocalStorage(db);
+      await saveDbToLocalStorage(db);
 
       console.log(`Versement ajouté: numero_mc=${numero_mc}, type=${type}, montant=${toCommaDecimal(montant_decimal)}, ancien_solde=${toCommaDecimal(current_solde)}, nouveau_solde=${new_solde_str}`);
 
@@ -553,7 +553,7 @@ export async function modifierVersement(data) {
       }
 
       db.run('COMMIT');
-      saveDbToLocalStorage(db);
+      await saveDbToLocalStorage(db);
 
       console.log(`Versement modifié: numero_mc=${numero_mc}, type=${real_type}, montant=${toCommaDecimal(montant_decimal)}, justificatif=${justificatif}`);
       
@@ -736,7 +736,7 @@ export async function annulerVersement(data) {
       }
 
       db.run('COMMIT');
-      saveDbToLocalStorage(db);
+      await saveDbToLocalStorage(db);
 
       console.log(`Versement annulé: numero_mc=${numero_mc}, type=${real_type}, montant=${toCommaDecimal(montant)}`);
       
@@ -904,7 +904,7 @@ export async function ajouterCodebarLie(data) {
     const { id } = idStmt.getAsObject();
     idStmt.free();
 
-    saveDbToLocalStorage(db);
+    await saveDbToLocalStorage(db);
     console.log('Code-barres lié ajouté avec succès:', { id, bar2: finalBarcode });
     
     return { 
@@ -952,7 +952,7 @@ export async function supprimerCodebarLie(data) {
       return { erreur: 'Échec de la suppression du code-barres lié', status: 500 };
     }
 
-    saveDbToLocalStorage(db);
+    await saveDbToLocalStorage(db);
     console.log('Code-barres lié supprimé avec succès:', { bar2 });
     
     return { 
@@ -1245,7 +1245,7 @@ export async function ajouterClient(data) {
     const { id } = idStmt.getAsObject();
     idStmt.free();
 
-    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
+    await saveDbToLocalStorage(db); // Sauvegarde LocalStorage
     console.log("Client ajouté : ID =", id, ", Référence =", reference);
     return { statut: "Client ajouté", id, reference, status: 201 };
   } catch (error) {
@@ -1284,7 +1284,7 @@ export async function ajouterFournisseur(data) {
     const { id } = idStmt.getAsObject();
     idStmt.free();
 
-    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
+    await saveDbToLocalStorage(db); // Sauvegarde LocalStorage
     console.log("Fournisseur ajouté : ID =", id, ", Référence =", reference);
     return { statut: "Fournisseur ajouté", id, reference, status: 201 };
   } catch (error) {
@@ -1320,7 +1320,7 @@ export async function ajouterUtilisateur(data) {
     const { id } = idStmt.getAsObject();
     idStmt.free();
 
-    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
+    await saveDbToLocalStorage(db); // Sauvegarde LocalStorage
     console.log("Utilisateur ajouté : ID =", id);
     return { statut: "Utilisateur ajouté", id, status: 201 };
   } catch (error) {
@@ -1517,7 +1517,7 @@ export async function ajouterItem(data) {
       }
 
       db.run('COMMIT');
-      saveDbToLocalStorage(db);
+      await saveDbToLocalStorage(db);
       
       console.log("✅ Produit ajouté avec succès:", { id, ref, bar: finalBar });
       return { 
@@ -1556,7 +1556,7 @@ export async function modifierClient(numero_clt, data) {
     const changes = db.getRowsModified();
     stmt.free();
 
-    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
+    await saveDbToLocalStorage(db); // Sauvegarde LocalStorage
     console.log("Client modifié : changements =", changes);
     return { statut: changes > 0 ? 'Client modifié' : 'Aucun client modifié', status: 200 };
   } catch (error) {
@@ -1583,7 +1583,7 @@ export async function modifierFournisseur(numero_fou, data) {
     const changes = db.getRowsModified();
     stmt.free();
 
-    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
+    await saveDbToLocalStorage(db); // Sauvegarde LocalStorage
     console.log("Fournisseur modifié : changements =", changes);
     return { statut: changes > 0 ? 'Fournisseur modifié' : 'Aucun fournisseur modifié', status: 200 };
   } catch (error) {
@@ -1628,7 +1628,7 @@ export async function modifierUtilisateur(numero_util, data) {
       return { erreur: "Utilisateur non trouvé", status: 404 };
     }
 
-    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
+    await saveDbToLocalStorage(db); // Sauvegarde LocalStorage
     console.log("Utilisateur modifié : changements =", changes);
     return { statut: "Utilisateur modifié", status: 200 };
   } catch (error) {
@@ -1692,7 +1692,7 @@ export async function modifierItem(numero_item, data) {
       return { erreur: "Produit non trouvé", status: 404 };
     }
 
-    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
+    await saveDbToLocalStorage(db); // Sauvegarde LocalStorage
     console.log("Produit modifié : changements =", changes);
     return { statut: "Produit modifié", numero_item, qte: qteFloat, status: 200 };
   } catch (error) {
@@ -1714,7 +1714,7 @@ export async function supprimerClient(numero_clt) {
       return { erreur: "Client non trouvé", status: 404 };
     }
 
-    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
+    await saveDbToLocalStorage(db); // Sauvegarde LocalStorage
     console.log("Client supprimé : changements =", changes);
     return { statut: "Client supprimé", status: 200 };
   } catch (error) {
@@ -1737,7 +1737,7 @@ export async function supprimerFournisseur(numero_fou) {
       return { erreur: "Fournisseur non trouvé", status: 404 };
     }
 
-    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
+    await saveDbToLocalStorage(db); // Sauvegarde LocalStorage
     console.log("Fournisseur supprimé : changements =", changes);
     return { statut: "Fournisseur supprimé", status: 200 };
   } catch (error) {
@@ -1760,7 +1760,7 @@ export async function supprimerUtilisateur(numero_util) {
       return { erreur: "Utilisateur non trouvé", status: 404 };
     }
 
-    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
+    await saveDbToLocalStorage(db); // Sauvegarde LocalStorage
     console.log("Utilisateur supprimé : changements =", changes);
     return { statut: "Utilisateur supprimé", status: 200 };
   } catch (error) {
@@ -1783,7 +1783,7 @@ export async function supprimerItem(numero_item) {
       return { erreur: "Produit non trouvé", status: 404 };
     }
 
-    saveDbToLocalStorage(db); // Sauvegarde LocalStorage
+    await saveDbToLocalStorage(db); // Sauvegarde LocalStorage
     console.log("Produit supprimé : changements =", changes);
     return { statut: "Produit supprimé", status: 200 };
   } catch (error) {
@@ -2135,7 +2135,7 @@ export async function ajouterCategorie(data) {
       idStmt.free();
 
       db.run('COMMIT');
-      saveDbToLocalStorage(db);
+      await saveDbToLocalStorage(db);
 
       // Vérifier après insertion
       console.log("Vérification du contenu de la table categorie après insertion...");
@@ -2211,7 +2211,7 @@ export async function modifierCategorie(numer_categorie, data) {
       }
 
       db.run('COMMIT');
-      saveDbToLocalStorage(db);
+      await saveDbToLocalStorage(db);
 
       // Vérifier après modification
       console.log("Vérification du contenu de la table categorie après modification...");
@@ -2281,7 +2281,7 @@ export async function supprimerCategorie(numer_categorie) {
       }
 
       db.run('COMMIT');
-      await saveDbToLocalStorage(db);
+      await await saveDbToLocalStorage(db);
 
       // Vérifier après suppression
       console.log('Vérification du contenu de la table categorie après suppression...');
@@ -2397,7 +2397,7 @@ export async function assignerCategorie(data) {
       stmtGetUpdated.free();
 
       db.run('COMMIT');
-      await saveDbToLocalStorage(db);
+      await await saveDbToLocalStorage(db);
 
       console.log(`Catégorie assignée: numero_item=${itemId}, numer_categorie=${catId}`);
       
@@ -2721,7 +2721,7 @@ export async function validerVente(data) {
       }
 
       db.run('COMMIT');
-      saveDbToLocalStorage(db);
+      await saveDbToLocalStorage(db);
 
       return {
         success: true,
@@ -2930,7 +2930,7 @@ export async function modifierVente(numero_comande, data) {
       }
 
       db.run('COMMIT');
-      saveDbToLocalStorage(db);
+      await saveDbToLocalStorage(db);
 
       return {
         success: true,
@@ -3013,7 +3013,7 @@ export async function getVente(numero_comande) {
     console.error("❌ Erreur récupération vente:", err);
     return { error: err.message || "Erreur inconnue", status: 500 };
   } finally {
-    await saveDbToLocalStorage(db);
+    await await saveDbToLocalStorage(db);
   }
 }
 export async function getReception(numero_mouvement) {
@@ -3087,7 +3087,7 @@ export async function getReception(numero_mouvement) {
     console.error("❌ Erreur récupération réception:", err);
     return { error: err.message || "Erreur inconnue", status: 500 };
   } finally {
-    await saveDbToLocalStorage(db);
+    await await saveDbToLocalStorage(db);
   }
 }
 export async function ventesJour(params = {}) {
@@ -3361,7 +3361,7 @@ export async function validerReception(data) {
       stmtUpdateFour.free();
 
       db.run("COMMIT");
-      saveDbToLocalStorage(db);
+      await saveDbToLocalStorage(db);
 
       return { success: true, numero_mouvement, new_solde: new_solde_str, status: 200 };
 
@@ -3640,7 +3640,7 @@ export async function modifierReception(numero_mouvement, data) {
       stmtUpdateMouv.free();
 
       db.run("COMMIT");
-      await saveDbToLocalStorage(db);
+      await await saveDbToLocalStorage(db);
 
       return {
         success: true,
@@ -4153,7 +4153,7 @@ export async function annulerVente(data) {
     }
 
     db.run("COMMIT");
-    await saveDbToLocalStorage(db);
+    await await saveDbToLocalStorage(db);
     console.log("✅ Vente annulée avec succès");
     return { statut: "Vente annulée", status: 200 };
 
@@ -4298,7 +4298,7 @@ export async function annulerReception(data) {
     }
 
     db.run("COMMIT");
-    await saveDbToLocalStorage(db);
+    await await saveDbToLocalStorage(db);
     console.log("✅ Réception annulée avec succès");
     return { statut: "Réception annulée", status: 200 };
 
