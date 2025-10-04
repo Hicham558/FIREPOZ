@@ -702,7 +702,9 @@
                                 <button onclick="editSale(${vente.numero_comande}, '${vente.nature}')" class="action-button bg-yellow-600 text-white px-2 py-1 rounded-md hover:bg-yellow-700 transition">
                                     <i class="fas fa-edit"></i> Modifier
                                 </button>
-                                <button onclick="printTicket(${vente.numero_comande}, '${vente.nature}')" class="action-button bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition">
+                                <button onclick="printBluetoothVente(${vente.numero_comande}, '${vente.nature}')" class="action-button bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition">
+    <i class="fas fa-bluetooth mr-1"></i> 80mm
+</button>
                                     <i class="fas fa-print"></i> Ticket
                                 </button>
                                 <button onclick="annulerVente(${vente.numero_comande}, '${vente.nature}')" class="action-button bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
@@ -815,7 +817,9 @@
                                 <button onclick="editPurchase(${reception.numero_mouvement}, '${reception.nature}')" class="action-button bg-yellow-600 text-white px-2 py-1 rounded-md hover:bg-yellow-700 transition">
                                     <i class="fas fa-edit"></i> Modifier
                                 </button>
-                                <button onclick="printPurchaseTicket(${reception.numero_mouvement}, '${reception.nature}')" class="action-button bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition">
+                              <button onclick="printBluetoothAchat(${reception.numero_mouvement}, '${reception.nature}')" class="action-button bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 transition">
+    <i class="fas fa-bluetooth mr-1"></i> 80mm
+</button>
                                     <i class="fas fa-print"></i> Ticket
                                 </button>
                                 <button onclick="annulerReception(${reception.numero_mouvement}, '${reception.nature}')" class="action-button bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700 transition">
@@ -1207,7 +1211,299 @@
 
             window.print();
         }
+// Variable globale pour stocker la connexion Bluetooth
+let bluetoothDevice = null;
+let bluetoothCharacteristic = null;
 
+// Fonction pour se connecter à l'imprimante Bluetooth
+async function connectBluetoothPrinter() {
+    try {
+        // Demander la sélection d'un périphérique Bluetooth
+        bluetoothDevice = await navigator.bluetooth.requestDevice({
+            filters: [
+                { services: ['000018f0-0000-1000-8000-00805f9b34fb'] }, // Service commun pour imprimantes
+            ],
+            optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
+        });
+
+        console.log('Connexion à l\'imprimante:', bluetoothDevice.name);
+        const server = await bluetoothDevice.gatt.connect();
+        
+        // Obtenir le service et la caractéristique
+        const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+        bluetoothCharacteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
+        
+        showToast('Imprimante connectée : ' + bluetoothDevice.name);
+        return true;
+    } catch (error) {
+        console.error('Erreur connexion Bluetooth:', error);
+        showToast('Erreur de connexion : ' + error.message, true);
+        return false;
+    }
+}
+
+// Fonction pour encoder du texte en ESC/POS
+function encodeESCPOS(text) {
+    const encoder = new TextEncoder();
+    return encoder.encode(text);
+}
+
+// Commandes ESC/POS
+const ESC = '\x1B';
+const GS = '\x1D';
+
+const ESCPOS = {
+    INIT: ESC + '@',                    // Initialiser l'imprimante
+    ALIGN_CENTER: ESC + 'a' + '1',      // Centrer le texte
+    ALIGN_LEFT: ESC + 'a' + '0',        // Aligner à gauche
+    ALIGN_RIGHT: ESC + 'a' + '2',       // Aligner à droite
+    BOLD_ON: ESC + 'E' + '1',           // Texte en gras
+    BOLD_OFF: ESC + 'E' + '0',          // Désactiver gras
+    SIZE_NORMAL: GS + '!' + '\x00',     // Taille normale
+    SIZE_DOUBLE: GS + '!' + '\x11',     // Taille double
+    SIZE_LARGE: GS + '!' + '\x22',      // Grande taille
+    UNDERLINE_ON: ESC + '-' + '1',      // Souligner
+    UNDERLINE_OFF: ESC + '-' + '0',     // Désactiver soulignement
+    LINE_FEED: '\n',                    // Saut de ligne
+    CUT_PAPER: GS + 'V' + '\x00',       // Couper le papier
+};
+
+// Fonction pour envoyer des données à l'imprimante
+async function sendToPrinter(data) {
+    if (!bluetoothCharacteristic) {
+        throw new Error('Imprimante non connectée');
+    }
+    
+    const encoded = encodeESCPOS(data);
+    const chunkSize = 512; // Taille des morceaux pour l'envoi
+    
+    for (let i = 0; i < encoded.length; i += chunkSize) {
+        const chunk = encoded.slice(i, i + chunkSize);
+        await bluetoothCharacteristic.writeValue(chunk);
+        await new Promise(resolve => setTimeout(resolve, 50)); // Délai entre envois
+    }
+}
+
+// Fonction pour supprimer les accents
+function removeAccents(str) {
+    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+// Fonction d'impression Bluetooth pour les ventes
+async function printBluetoothVente(numeroComande, nature) {
+    const vente = [...dailySalesCache.tickets, ...dailySalesCache.bons].find(v => v.numero_comande === numeroComande && v.nature === nature);
+    if (!vente) {
+        showToast('Vente non trouvée', true);
+        return;
+    }
+
+    if (!navigator.bluetooth) {
+        showToast('Bluetooth non supporté sur ce navigateur. Utilisez Chrome sur Android.', true);
+        return;
+    }
+
+    try {
+        if (!bluetoothCharacteristic) {
+            const connected = await connectBluetoothPrinter();
+            if (!connected) return;
+        }
+
+        showToast('Impression vente en cours...');
+
+        const settings = JSON.parse(localStorage.getItem('settings')) || {};
+        const companyName = removeAccents(settings.companyName || 'FirePoz');
+        const companyAddress = removeAccents(settings.companyAddress || 'Adresse non spécifiée');
+        const companyPhone = removeAccents(settings.companyPhone || 'Numéro non spécifié');
+
+        const clientText = removeAccents(vente.client_nom || 'Comptoir');
+        const utilisateurText = removeAccents(vente.utilisateur_nom || 'N/A');
+        const total = vente.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.prixt || 0), 0);
+
+        // Construire le ticket
+        let ticket = ESCPOS.INIT;
+
+        // En-tête professionnel sans accents
+        ticket += ESCPOS.ALIGN_CENTER;
+        ticket += ESCPOS.SIZE_LARGE + ESCPOS.BOLD_ON;
+        ticket += companyName.toUpperCase() + ESCPOS.LINE_FEED;
+        ticket += ESCPOS.SIZE_NORMAL + ESCPOS.BOLD_OFF;
+        ticket += companyAddress + ESCPOS.LINE_FEED;
+        ticket += 'Tel: ' + companyPhone + ESCPOS.LINE_FEED;
+        ticket += '----------------------------------------' + ESCPOS.LINE_FEED;
+
+        // Informations de la vente
+        ticket += ESCPOS.ALIGN_LEFT;
+        ticket += 'VENTE #' + vente.numero_comande + ESCPOS.LINE_FEED;
+        ticket += 'Date: ' + removeAccents(new Date(vente.date_comande).toLocaleString('fr-FR', { timeZone: 'CET' })) + ESCPOS.LINE_FEED;
+        ticket += 'Vendeur: ' + utilisateurText + ESCPOS.LINE_FEED;
+        ticket += 'Client: ' + clientText + ESCPOS.LINE_FEED;
+        ticket += '----------------------------------------' + ESCPOS.LINE_FEED;
+
+        // En-tête du tableau
+        ticket += ESCPOS.BOLD_ON;
+        ticket += 'Designation      PrixU  Qte  Total' + ESCPOS.LINE_FEED;
+        ticket += ESCPOS.BOLD_OFF;
+        ticket += '----------------------------------------' + ESCPOS.LINE_FEED;
+
+        // Envoyer l'en-tête séparément
+        await sendToPrinter(ticket);
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        // Articles numérotés
+        for (let i = 0; i < vente.lignes.length; i++) {
+            const ligne = vente.lignes[i];
+            const numero = (i + 1) + '.';
+            const designation = removeAccents((ligne.designation || 'Produit').substring(0, 13)).padEnd(13);
+            const prixU = (parseFloat(ligne.prixt) / parseFloat(ligne.quantite)).toFixed(0).padStart(6);
+            const qte = parseFloat(ligne.quantite || 0).toFixed(2).padStart(4);
+            const prixT = parseFloat(ligne.prixt || 0).toFixed(0).padStart(6);
+
+            const articleTicket = numero.padEnd(4) + designation + ' ' + 
+                                prixU + ' ' + qte + ' ' + ESCPOS.BOLD_ON + prixT + ESCPOS.BOLD_OFF + ESCPOS.LINE_FEED +
+                                '----------------------------------------' + ESCPOS.LINE_FEED;
+            await sendToPrinter(articleTicket);
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
+
+        // Pied de page
+        let footerTicket = '';
+        footerTicket += '----------------------------------------' + ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.ALIGN_CENTER;
+        footerTicket += ESCPOS.SIZE_DOUBLE + ESCPOS.BOLD_ON;
+        footerTicket += 'TOTAL: ' + total.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
+        footerTicket += 'Articles: ' + vente.lignes.length + ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.SIZE_NORMAL + ESCPOS.BOLD_OFF;
+        footerTicket += '----------------------------------------' + ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.ALIGN_CENTER;
+        footerTicket += 'Merci pour votre confiance !' + ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.LINE_FEED + ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.CUT_PAPER;
+
+        await sendToPrinter(footerTicket);
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        showToast('Impression vente réussie !');
+
+    } catch (error) {
+        console.error('Erreur impression Bluetooth:', error);
+        showToast('Erreur impression : ' + error.message, true);
+        bluetoothDevice = null;
+        bluetoothCharacteristic = null;
+    }
+}
+
+// Fonction d'impression Bluetooth pour les achats
+async function printBluetoothAchat(numeroMouvement, nature) {
+    const reception = dailyPurchasesCache.receptions.find(r => r.numero_mouvement === numeroMouvement && r.nature === nature);
+    if (!reception) {
+        showToast('Réception non trouvée', true);
+        return;
+    }
+
+    if (!navigator.bluetooth) {
+        showToast('Bluetooth non supporté sur ce navigateur. Utilisez Chrome sur Android.', true);
+        return;
+    }
+
+    try {
+        if (!bluetoothCharacteristic) {
+            const connected = await connectBluetoothPrinter();
+            if (!connected) return;
+        }
+
+        showToast('Impression achat en cours...');
+
+        const settings = JSON.parse(localStorage.getItem('settings')) || {};
+        const companyName = removeAccents(settings.companyName || 'FirePoz');
+        const companyAddress = removeAccents(settings.companyAddress || 'Adresse non spécifiée');
+        const companyPhone = removeAccents(settings.companyPhone || 'Numéro non spécifié');
+
+        const fournisseurText = removeAccents(reception.fournisseur_nom || 'N/A');
+        const utilisateurText = removeAccents(reception.utilisateur_nom || 'N/A');
+        const total = reception.lignes.reduce((sum, ligne) => sum + parseFloat(ligne.total_ligne || 0), 0);
+
+        // Construire le ticket
+        let ticket = ESCPOS.INIT;
+
+        // En-tête professionnel sans accents
+        ticket += ESCPOS.ALIGN_CENTER;
+        ticket += ESCPOS.SIZE_LARGE + ESCPOS.BOLD_ON;
+        ticket += companyName.toUpperCase() + ESCPOS.LINE_FEED;
+        ticket += ESCPOS.SIZE_NORMAL + ESCPOS.BOLD_OFF;
+        ticket += companyAddress + ESCPOS.LINE_FEED;
+        ticket += 'Tel: ' + companyPhone + ESCPOS.LINE_FEED;
+        ticket += '----------------------------------------' + ESCPOS.LINE_FEED;
+
+        // Informations de la réception
+        ticket += ESCPOS.ALIGN_LEFT;
+        ticket += 'RECEPTION #' + reception.numero_mouvement + ESCPOS.LINE_FEED;
+        ticket += 'Date: ' + removeAccents(new Date(reception.date_m).toLocaleString('fr-FR', { timeZone: 'CET' })) + ESCPOS.LINE_FEED;
+        ticket += 'Utilisateur: ' + utilisateurText + ESCPOS.LINE_FEED;
+        ticket += 'Fournisseur: ' + fournisseurText + ESCPOS.LINE_FEED;
+        ticket += '----------------------------------------' + ESCPOS.LINE_FEED;
+
+        // En-tête du tableau
+        ticket += ESCPOS.BOLD_ON;
+        ticket += 'Designation      PrixU  Qte  Total' + ESCPOS.LINE_FEED;
+        ticket += ESCPOS.BOLD_OFF;
+        ticket += '----------------------------------------' + ESCPOS.LINE_FEED;
+
+        // Envoyer l'en-tête séparément
+        await sendToPrinter(ticket);
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        // Articles numérotés
+        for (let i = 0; i < reception.lignes.length; i++) {
+            const ligne = reception.lignes[i];
+            const numero = (i + 1) + '.';
+            const designation = removeAccents((ligne.designation || 'Produit').substring(0, 13)).padEnd(13);
+            const prixU = parseFloat(ligne.nprix || 0).toFixed(0).padStart(6);
+            const qte = parseFloat(ligne.qtea || 0).toFixed(2).padStart(4);
+            const prixT = parseFloat(ligne.total_ligne || 0).toFixed(0).padStart(6);
+
+            const articleTicket = numero.padEnd(4) + designation + ' ' + 
+                                prixU + ' ' + qte + ' ' + ESCPOS.BOLD_ON + prixT + ESCPOS.BOLD_OFF + ESCPOS.LINE_FEED +
+                                '----------------------------------------' + ESCPOS.LINE_FEED;
+            await sendToPrinter(articleTicket);
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
+
+        // Pied de page
+        let footerTicket = '';
+        footerTicket += '----------------------------------------' + ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.ALIGN_CENTER;
+        footerTicket += ESCPOS.SIZE_DOUBLE + ESCPOS.BOLD_ON;
+        footerTicket += 'TOTAL: ' + total.toFixed(2) + ' DA' + ESCPOS.LINE_FEED;
+        footerTicket += 'Articles: ' + reception.lignes.length + ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.SIZE_NORMAL + ESCPOS.BOLD_OFF;
+        footerTicket += '----------------------------------------' + ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.ALIGN_CENTER;
+        footerTicket += 'Merci à notre fournisseur !' + ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.LINE_FEED + ESCPOS.LINE_FEED;
+        footerTicket += ESCPOS.CUT_PAPER;
+
+        await sendToPrinter(footerTicket);
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        showToast('Impression achat réussie !');
+
+    } catch (error) {
+        console.error('Erreur impression Bluetooth:', error);
+        showToast('Erreur impression : ' + error.message, true);
+        bluetoothDevice = null;
+        bluetoothCharacteristic = null;
+    }
+}
+
+// Fonction pour déconnecter l'imprimante
+function disconnectBluetoothPrinter() {
+    if (bluetoothDevice && bluetoothDevice.gatt.connected) {
+        bluetoothDevice.gatt.disconnect();
+        bluetoothDevice = null;
+        bluetoothCharacteristic = null;
+        showToast('Imprimante déconnectée');
+    }
+}
         function printA4() {
             const date = document.getElementById('dateFilter').value || new Date().toISOString().split('T')[0];
             const client = document.getElementById('clientFilter').value;
