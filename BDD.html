@@ -121,13 +121,17 @@
           </p>
         </div>
         
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <button onclick="syncFromServer()" class="bg-yellow-600 text-white px-6 py-3 rounded-md hover:bg-yellow-700 transition">
             <i class="fas fa-cloud-download-alt mr-2"></i>Télécharger Base Serveur
           </button>
           
+          <button onclick="switchToServer()" class="bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700 transition">
+            <i class="fas fa-cloud mr-2"></i>Activer Base Serveur
+          </button>
+          
           <button onclick="switchToDefault()" class="bg-purple-600 text-white px-6 py-3 rounded-md hover:bg-purple-700 transition">
-            <i class="fas fa-exchange-alt mr-2"></i>Basculer vers Base Par Défaut
+            <i class="fas fa-laptop mr-2"></i>Activer Base Par Défaut
           </button>
         </div>
         
@@ -392,6 +396,41 @@
       }
     }
 
+    async function switchToServer() {
+      showLoading(true);
+      try {
+        // Vérifier qu'une base serveur existe
+        const serverDb = await idbGet('gestion_db_server');
+        if (!serverDb) {
+          showToast("⚠️ Aucune base serveur. Téléchargez-la d'abord!", true);
+          showLoading(false);
+          return;
+        }
+        
+        // Activer la base serveur
+        await idbSet('gestion_db', serverDb);
+        await idbSet('gestion_db_active', 'serveur');
+        
+        // Recharger la base en mémoire
+        if (dbConnection) {
+          try {
+            dbConnection.close();
+          } catch (e) {}
+        }
+        dbConnection = null;
+        await loadActiveDb();
+        await updateStats();
+        await updateServerStatus();
+        
+        showToast("✅ Base serveur activée");
+      } catch (e) {
+        console.error("Erreur activation serveur:", e);
+        showToast("❌ Erreur activation base serveur", true);
+      } finally {
+        showLoading(false);
+      }
+    }
+
     async function syncFromServer() {
       showLoading(true);
       try {
@@ -401,15 +440,25 @@
         const data = await response.json();
         const base64Db = data.db;
         
+        // Sauvegarder la base serveur
         await idbSet('gestion_db_server', base64Db);
+        
+        // Activer immédiatement la base serveur
         await idbSet('gestion_db', base64Db);
         await idbSet('gestion_db_active', 'serveur');
         
+        // Recharger la base en mémoire
+        if (dbConnection) {
+          try {
+            dbConnection.close();
+          } catch (e) {}
+        }
+        dbConnection = null;
         await loadActiveDb();
         await updateStats();
-        updateServerStatus();
+        await updateServerStatus();
         
-        showToast("✅ Base serveur synchronisée");
+        showToast("✅ Base serveur téléchargée et activée");
       } catch (err) {
         console.error("Erreur sync:", err);
         showToast(`❌ Erreur serveur: ${err.message}`, true);
@@ -427,17 +476,25 @@
         const buffer = await response.arrayBuffer();
         const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
         
+        // Basculer vers la base par défaut
         await idbSet('gestion_db', base64);
         await idbSet('gestion_db_active', 'gestion');
         
+        // Recharger la base en mémoire
+        if (dbConnection) {
+          try {
+            dbConnection.close();
+          } catch (e) {}
+        }
+        dbConnection = null;
         await loadActiveDb();
         await updateStats();
-        updateServerStatus();
+        await updateServerStatus();
         
-        showToast("Basculé vers base par défaut");
+        showToast("✅ Basculé vers base par défaut");
       } catch (e) {
         console.error("Erreur switch:", e);
-        showToast("Erreur basculement", true);
+        showToast("❌ Erreur basculement", true);
       } finally {
         showLoading(false);
       }
