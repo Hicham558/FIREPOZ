@@ -119,16 +119,26 @@ export async function getDb() {
   }
 }
 
-// FONCTION PRINCIPALE DE SAUVEGARDE
+// ========== FONCTION PRINCIPALE DE SAUVEGARDE AMÉLIORÉE ==========
 export async function saveDbToStorage(database) {
   try {
+    const startTime = performance.now();
     const dbBinary = database.export();
     const base64 = btoa(String.fromCharCode(...dbBinary));
     
-    // Sauvegarder dans IndexedDB
+    // Obtenir le nom de la base active
+    const activeName = await idbGet("gestion_db_active") || "gestion";
+    
+    // Sauvegarder dans IndexedDB (base active)
     await idbSet("gestion_db", base64);
     
-    console.log("💾 Base sauvegardée:", (base64.length / 1024).toFixed(2), "KB");
+    // IMPORTANT : Sauvegarder aussi dans le backup de cette base
+    await idbSet(`gestion_db_backup_${activeName}`, base64);
+    
+    const endTime = performance.now();
+    const duration = (endTime - startTime).toFixed(2);
+    
+    console.log(`💾 Base "${activeName}" sauvegardée: ${(base64.length / 1024).toFixed(2)} KB en ${duration}ms`);
     return true;
   } catch (error) {
     console.error("❌ Erreur sauvegarde:", error);
@@ -201,6 +211,8 @@ export async function resetDatabase() {
     await idbRemove("gestion_db");
     await idbRemove("gestion_db_active");
     await idbRemove("gestion_db_server");
+    await idbRemove("gestion_db_backup_gestion");
+    await idbRemove("gestion_db_backup_serveur");
 
     if (db) {
       try {
@@ -336,6 +348,11 @@ export async function switchToServerDb() {
       throw new Error("Aucune base serveur disponible. Téléchargez-la d'abord.");
     }
     
+    // Sauvegarder la base actuelle avant de basculer
+    if (db) {
+      await saveDbToStorage(db);
+    }
+    
     await idbSet("gestion_db", serverDb);
     await idbSet("gestion_db_active", "serveur");
     
@@ -358,13 +375,24 @@ export async function switchToServerDb() {
 
 export async function switchToDefaultDb() {
   try {
-    const response = await fetch("./gestion.db");
-    if (!response.ok) throw new Error("Impossible de charger gestion.db");
+    // Sauvegarder la base actuelle avant de basculer
+    if (db) {
+      await saveDbToStorage(db);
+    }
     
-    const arrayBuffer = await response.arrayBuffer();
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    // Essayer de restaurer depuis le backup
+    let defaultDb = await idbGet('gestion_db_backup_gestion');
     
-    await idbSet("gestion_db", base64);
+    if (!defaultDb) {
+      // Si pas de backup, charger depuis le fichier
+      const response = await fetch("./gestion.db");
+      if (!response.ok) throw new Error("Impossible de charger gestion.db");
+      
+      const arrayBuffer = await response.arrayBuffer();
+      defaultDb = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    }
+    
+    await idbSet("gestion_db", defaultDb);
     await idbSet("gestion_db_active", "gestion");
     
     // Recharger la base
@@ -386,4 +414,34 @@ export async function switchToDefaultDb() {
 
 export async function getActiveDbName() {
   return await idbGet("gestion_db_active") || "gestion";
+}
+
+// ========== Fonction de nettoyage des anciens backups ==========
+export async function cleanOldBackups() {
+  try {
+    const idb = await openIndexedDB();
+    const tx = idb.transaction(STORE_NAME, "readonly");
+    const store = tx.objectStore(STORE_NAME);
+    const allKeys = await new Promise((resolve, reject) => {
+      const req = store.getAllKeys();
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    
+    // Supprimer les anciens backups sauf gestion et serveur
+    const backupsToKeep = ['gestion_db_backup_gestion', 'gestion_db_backup_serveur'];
+    const backupsToDelete = allKeys.filter(key => 
+      key.startsWith('gestion_db_backup_') && !backupsToKeep.includes(key)
+    );
+    
+    for (const key of backupsToDelete) {
+      await idbRemove(key);
+      console.log(`🗑️ Backup supprimé: ${key}`);
+    }
+    
+    return backupsToDelete.length;
+  } catch (error) {
+    console.error("❌ Erreur nettoyage backups:", error);
+    return 0;
+  }
 }
