@@ -157,7 +157,7 @@
     // ========== IndexedDB Storage Layer ==========
     const DB_NAME = "FirePozDB";
     const STORE_NAME = "databases";
-    const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'https://hicham03041979.onrender.com';
+    const API_BASE_URL = 'https://hicham03041979.onrender.com';
     
     let dbConnection = null;
 
@@ -316,6 +316,14 @@
       
       showLoading(true);
       try {
+        // SAUVEGARDER LA BASE ACTUELLE
+        const currentName = await idbGet('gestion_db_active') || 'gestion';
+        const currentDb = await idbGet('gestion_db');
+        if (currentDb) {
+          await idbSet(`gestion_db_backup_${currentName}`, currentDb);
+          console.log(`💾 Base "${currentName}" sauvegardée`);
+        }
+        
         const response = await fetch("gestion.db");
         if (!response.ok) throw new Error("Impossible de charger gestion.db");
         
@@ -346,6 +354,14 @@
       
       reader.onload = async function(e) {
         try {
+          // SAUVEGARDER LA BASE ACTUELLE
+          const currentName = await idbGet('gestion_db_active') || 'gestion';
+          const currentDb = await idbGet('gestion_db');
+          if (currentDb) {
+            await idbSet(`gestion_db_backup_${currentName}`, currentDb);
+            console.log(`💾 Base "${currentName}" sauvegardée`);
+          }
+          
           const bytes = new Uint8Array(e.target.result);
           const base64 = btoa(String.fromCharCode(...bytes));
           
@@ -407,6 +423,14 @@
           return;
         }
         
+        // SAUVEGARDER LA BASE ACTUELLE AVANT DE BASCULER
+        const currentName = await idbGet('gestion_db_active') || 'gestion';
+        const currentDb = await idbGet('gestion_db');
+        if (currentDb) {
+          await idbSet(`gestion_db_backup_${currentName}`, currentDb);
+          console.log(`💾 Base "${currentName}" sauvegardée`);
+        }
+        
         // Activer la base serveur
         await idbSet('gestion_db', serverDb);
         await idbSet('gestion_db_active', 'serveur');
@@ -440,6 +464,14 @@
         const data = await response.json();
         const base64Db = data.db;
         
+        // SAUVEGARDER LA BASE ACTUELLE AVANT DE BASCULER
+        const currentName = await idbGet('gestion_db_active') || 'gestion';
+        const currentDb = await idbGet('gestion_db');
+        if (currentDb) {
+          await idbSet(`gestion_db_backup_${currentName}`, currentDb);
+          console.log(`💾 Base "${currentName}" sauvegardée`);
+        }
+        
         // Sauvegarder la base serveur
         await idbSet('gestion_db_server', base64Db);
         
@@ -470,14 +502,31 @@
     async function switchToDefault() {
       showLoading(true);
       try {
-        const response = await fetch("gestion.db");
-        if (!response.ok) throw new Error("Impossible de charger gestion.db");
+        // SAUVEGARDER LA BASE ACTUELLE AVANT DE BASCULER
+        const currentName = await idbGet('gestion_db_active') || 'gestion';
+        const currentDb = await idbGet('gestion_db');
+        if (currentDb && currentName !== 'gestion') {
+          await idbSet(`gestion_db_backup_${currentName}`, currentDb);
+          console.log(`💾 Base "${currentName}" sauvegardée`);
+        }
         
-        const buffer = await response.arrayBuffer();
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+        // RESTAURER LA BASE PAR DÉFAUT DEPUIS LE BACKUP
+        let defaultDb = await idbGet('gestion_db_backup_gestion');
+        
+        // Si pas de backup, charger depuis le fichier original
+        if (!defaultDb) {
+          console.log("📥 Pas de backup, chargement gestion.db original");
+          const response = await fetch("gestion.db");
+          if (!response.ok) throw new Error("Impossible de charger gestion.db");
+          
+          const buffer = await response.arrayBuffer();
+          defaultDb = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+        } else {
+          console.log("📦 Restauration base par défaut depuis backup");
+        }
         
         // Basculer vers la base par défaut
-        await idbSet('gestion_db', base64);
+        await idbSet('gestion_db', defaultDb);
         await idbSet('gestion_db_active', 'gestion');
         
         // Recharger la base en mémoire
@@ -505,12 +554,48 @@
       const hasServer = await idbGet('gestion_db_server');
       
       const status = document.getElementById('serverStatus');
+      
       if (activeName === 'serveur') {
-        status.innerHTML = '<i class="fas fa-check-circle text-green-500 mr-2"></i>Vous utilisez actuellement la base serveur';
-      } else if (hasServer) {
-        status.innerHTML = '<i class="fas fa-info-circle text-blue-500 mr-2"></i>Base serveur disponible (cliquez pour basculer)';
+        status.innerHTML = `
+          <div class="flex items-center">
+            <i class="fas fa-check-circle text-green-500 mr-2 text-xl"></i>
+            <span class="font-semibold text-green-700">Base SERVEUR actuellement active</span>
+          </div>
+          <p class="text-sm text-gray-600 mt-2">Vous travaillez sur la base téléchargée depuis le serveur.</p>
+        `;
+      } else if (activeName === 'gestion') {
+        status.innerHTML = `
+          <div class="flex items-center">
+            <i class="fas fa-laptop text-purple-500 mr-2 text-xl"></i>
+            <span class="font-semibold text-purple-700">Base PAR DÉFAUT actuellement active</span>
+          </div>
+          <p class="text-sm text-gray-600 mt-2">Vous travaillez sur la base locale par défaut (gestion.db).</p>
+        `;
+        
+        if (hasServer) {
+          status.innerHTML += `
+            <p class="text-sm text-blue-600 mt-2">
+              <i class="fas fa-info-circle mr-1"></i>
+              Une base serveur est disponible. Utilisez "Activer Base Serveur" pour basculer.
+            </p>
+          `;
+        }
       } else {
-        status.innerHTML = '<i class="fas fa-download text-gray-500 mr-2"></i>Aucune base serveur (cliquez sur "Télécharger")';
+        status.innerHTML = `
+          <div class="flex items-center">
+            <i class="fas fa-database text-indigo-500 mr-2 text-xl"></i>
+            <span class="font-semibold text-indigo-700">Base "${activeName}" active</span>
+          </div>
+        `;
+      }
+      
+      if (!hasServer && activeName !== 'serveur') {
+        status.innerHTML += `
+          <p class="text-sm text-orange-600 mt-3">
+            <i class="fas fa-exclamation-triangle mr-1"></i>
+            Aucune base serveur téléchargée. Cliquez sur "Télécharger Base Serveur".
+          </p>
+        `;
       }
     }
 
