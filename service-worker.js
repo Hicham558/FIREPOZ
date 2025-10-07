@@ -4,11 +4,19 @@ const CACHE_NAME = 'firepoz-cache-v1';
 // Fichiers à mettre en cache pour offline
 const FILES_TO_CACHE = [
   './index.html',
+'./vente.html',
+'./venteold.html',
+'./BDD.html',
+'./PARAM.html',
+'./achat.html',
+'./page2.html',
+'./page1.html',
+'./histo.html',
+'./MAP.html',
   './manifest.json',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './style.css',   // si tu as un fichier CSS
-  './app.js'       // si tu as un fichier JS principal
+  './icon.png',
+  './apiRoutes.js',  
+  './sw1.js'       
 ];
 
 // Installer le service worker et mettre les fichiers en cache
