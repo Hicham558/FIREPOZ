@@ -31,6 +31,7 @@
       transform: rotate(180deg);
     }
 
+    /* Switch Button Styles */
     .switch-btn {
       display: flex;
       flex-direction: column;
@@ -80,19 +81,56 @@
       }
     }
 
-    .modal-fade-in {
-      animation: fadeIn 0.3s ease-out;
+    /* Modal Styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
     }
 
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-        transform: scale(0.95);
-      }
-      to {
-        opacity: 1;
-        transform: scale(1);
-      }
+    .modal-content {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      max-width: 500px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .database-list {
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      margin: 15px 0;
+    }
+
+    .database-item {
+      padding: 12px;
+      border-bottom: 1px solid #e5e7eb;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .database-item:hover {
+      background-color: #f9fafb;
+    }
+
+    .database-item:last-child {
+      border-bottom: none;
+    }
+
+    .database-item.selected {
+      background-color: #e0f2fe;
+      border-left: 4px solid #0284c7;
     }
   </style>
 </head>
@@ -212,7 +250,7 @@
               <i class="fas fa-plus-circle mr-2"></i>Créer Nouvelle Base
             </button>
             
-            <button onclick="showDatabaseList()" class="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition">
+            <button onclick="openDatabaseModal()" class="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition text-center cursor-pointer">
               <i class="fas fa-folder-open mr-2"></i>Ouvrir Base Existante
             </button>
             
@@ -252,33 +290,38 @@
 
   </div>
 
-  <!-- Modal Liste Bases -->
-  <div id="dbListModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col modal-fade-in">
-      <div class="px-6 py-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-t-lg flex justify-between items-center">
-        <h3 class="text-xl font-semibold flex items-center">
-          <i class="fas fa-database mr-3"></i>
-          Bases de Données Disponibles
+  <!-- Modal pour ouvrir une base existante -->
+  <div id="databaseModal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-semibold">
+          <i class="fas fa-folder-open mr-2 text-blue-500"></i>
+          Ouvrir une base existante
         </h3>
-        <button onclick="closeDbListModal()" class="text-white hover:text-gray-200 text-2xl">
+        <button onclick="closeDatabaseModal()" class="text-gray-500 hover:text-gray-700">
           <i class="fas fa-times"></i>
         </button>
       </div>
       
-      <div class="p-6 overflow-y-auto flex-1">
-        <div id="dbListContent" class="space-y-2">
-          <div class="text-center py-8 text-gray-500">
-            <i class="fas fa-spinner fa-spin text-3xl mb-3"></i>
-            <p>Chargement des bases de données...</p>
-          </div>
-        </div>
+      <div class="mb-4">
+        <p class="text-gray-600 text-sm">
+          Sélectionnez une base de données .db depuis le dossier de téléchargement :
+        </p>
       </div>
       
-      <div class="px-6 py-4 bg-gray-50 rounded-b-lg border-t">
-        <label class="w-full bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700 transition cursor-pointer flex items-center justify-center">
-          <i class="fas fa-file-upload mr-2"></i>Importer un fichier .db
-          <input type="file" id="uploadDbFromModal" accept=".db,.sqlite,.sqlite3" class="hidden" onchange="uploadDatabase(event)">
-        </label>
+      <div id="databaseList" class="database-list">
+        <!-- Les bases de données seront listées ici -->
+      </div>
+      
+      <div class="flex justify-end space-x-3 mt-4">
+        <button onclick="closeDatabaseModal()" class="px-4 py-2 text-gray-600 hover:text-gray-800">
+          Annuler
+        </button>
+        <button id="openDatabaseBtn" onclick="openSelectedDatabase()" 
+                class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                disabled>
+          <i class="fas fa-check mr-2"></i>Ouvrir
+        </button>
       </div>
     </div>
   </div>
@@ -298,6 +341,7 @@
     let API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'https://hicham03041979.onrender.com';
     
     let dbConnection = null;
+    let selectedDatabaseFile = null;
 
     function openIDB() {
       return new Promise((resolve, reject) => {
@@ -346,126 +390,110 @@
     }
 
     // ========== Modal Functions ==========
-    async function showDatabaseList() {
-      const modal = document.getElementById('dbListModal');
+    function openDatabaseModal() {
+      const modal = document.getElementById('databaseModal');
       modal.classList.remove('hidden');
-      modal.classList.add('flex');
-      
-      await loadDatabaseList();
+      loadDownloadedDatabases();
     }
 
-    function closeDbListModal() {
-      const modal = document.getElementById('dbListModal');
+    function closeDatabaseModal() {
+      const modal = document.getElementById('databaseModal');
       modal.classList.add('hidden');
-      modal.classList.remove('flex');
+      selectedDatabaseFile = null;
+      document.getElementById('openDatabaseBtn').disabled = true;
     }
 
-    async function loadDatabaseList() {
-      const content = document.getElementById('dbListContent');
-      
+    async function loadDownloadedDatabases() {
+      const databaseList = document.getElementById('databaseList');
+      databaseList.innerHTML = '<div class="p-4 text-center text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i>Chargement des bases...</div>';
+
       try {
-        const db = await openIDB();
-        const tx = db.transaction(STORE_NAME, "readonly");
-        const store = tx.objectStore(STORE_NAME);
-        const allKeys = await new Promise((resolve, reject) => {
-          const req = store.getAllKeys();
-          req.onsuccess = () => resolve(req.result);
-          req.onerror = () => reject(req.error);
-        });
-        
-        const dbKeys = allKeys.filter(key => 
-          key === 'gestion_db' || 
-          key === 'gestion_db_server' || 
-          key.startsWith('gestion_db_backup_')
-        );
-        
-        if (dbKeys.length === 0) {
-          content.innerHTML = `
-            <div class="text-center py-8 text-gray-500">
-              <i class="fas fa-database text-4xl mb-3"></i>
-              <p>Aucune base de données trouvée</p>
-              <p class="text-sm mt-2">Importez un fichier .db pour commencer</p>
+        // Dans un environnement web, nous ne pouvons pas accéder directement au système de fichiers
+        // Nous allons donc utiliser l'API File System Access si disponible, sinon afficher un message
+        if ('showOpenFilePicker' in window) {
+          // L'API File System Access est disponible
+          databaseList.innerHTML = `
+            <div class="p-4 text-center">
+              <p class="text-gray-600 mb-3">Utilisez le sélecteur de fichiers pour ouvrir une base :</p>
+              <button onclick="selectDatabaseFile()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                <i class="fas fa-folder-open mr-2"></i>Parcourir les fichiers
+              </button>
             </div>
           `;
-          return;
-        }
-        
-        const activeName = await idbGet('gestion_db_active') || 'gestion';
-        
-        let html = '';
-        
-        for (const key of dbKeys) {
-          let displayName = '';
-          let icon = 'fa-database';
-          let color = 'text-gray-600';
-          let isActive = false;
-          
-          if (key === 'gestion_db') {
-            displayName = activeName;
-            isActive = true;
-            color = 'text-green-600';
-            icon = 'fa-check-circle';
-          } else if (key === 'gestion_db_server') {
-            displayName = 'serveur (sauvegardé)';
-            color = 'text-blue-600';
-            icon = 'fa-cloud';
-            if (activeName === 'serveur') {
-              isActive = true;
-              color = 'text-green-600';
-              icon = 'fa-check-circle';
-            }
-          } else if (key.startsWith('gestion_db_backup_')) {
-            displayName = key.replace('gestion_db_backup_', '') + ' (backup)';
-            color = 'text-purple-600';
-            icon = 'fa-archive';
-          }
-          
-          const dbData = await idbGet(key);
-          const sizeKB = dbData ? (dbData.length / 1024).toFixed(2) : '0';
-          
-          html += `
-            <div class="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition ${isActive ? 'border-green-500 bg-green-50' : 'border-gray-200'}">
-              <div class="flex items-center flex-1">
-                <i class="fas ${icon} ${color} text-2xl mr-4"></i>
-                <div class="flex-1">
-                  <p class="font-semibold text-gray-800">${displayName}</p>
-                  <p class="text-sm text-gray-600">${sizeKB} KB</p>
-                </div>
-                ${isActive ? '<span class="bg-green-500 text-white text-xs px-2 py-1 rounded-full mr-3">Actif</span>' : ''}
-              </div>
-              <div class="flex space-x-2">
-                ${!isActive ? `
-                  <button onclick="loadDatabaseFromKey('${key}', '${displayName.replace(' (backup)', '').replace(' (sauvegardé)', '')}')" 
-                          class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition">
-                    <i class="fas fa-upload mr-1"></i>Charger
-                  </button>
-                ` : ''}
-                <button onclick="downloadDatabaseFromKey('${key}', '${displayName.replace(' (backup)', '').replace(' (sauvegardé)', '')}')" 
-                        class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition">
-                  <i class="fas fa-download mr-1"></i>
-                </button>
-              </div>
+        } else {
+          // Fallback pour les navigateurs qui ne supportent pas l'API File System Access
+          databaseList.innerHTML = `
+            <div class="p-4 text-center">
+              <p class="text-gray-600 mb-3">Votre navigateur ne permet pas d'accéder directement aux fichiers téléchargés.</p>
+              <p class="text-sm text-gray-500">Utilisez le bouton "Parcourir" ci-dessous pour sélectionner un fichier .db :</p>
+              <input type="file" id="fileInput" accept=".db,.sqlite,.sqlite3" class="mt-3" onchange="handleFileSelect(this.files[0])">
             </div>
           `;
         }
-        
-        content.innerHTML = html;
-        
-      } catch (e) {
-        console.error("Erreur chargement liste:", e);
-        content.innerHTML = `
-          <div class="text-center py-8 text-red-500">
-            <i class="fas fa-exclamation-triangle text-4xl mb-3"></i>
-            <p>Erreur lors du chargement des bases de données</p>
-          </div>
-        `;
+      } catch (error) {
+        console.error("Erreur chargement bases:", error);
+        databaseList.innerHTML = '<div class="p-4 text-center text-red-500">Erreur lors du chargement des bases</div>';
       }
     }
 
-    async function loadDatabaseFromKey(key, displayName) {
-      if (!confirm(`Charger la base "${displayName}" ?\n\nLa base actuelle sera sauvegardée.`)) return;
+    async function selectDatabaseFile() {
+      try {
+        const fileHandles = await window.showOpenFilePicker({
+          types: [{
+            description: 'Bases de données',
+            accept: {
+              'application/octet-stream': ['.db', '.sqlite', '.sqlite3']
+            }
+          }],
+          multiple: false
+        });
+
+        if (fileHandles.length > 0) {
+          const fileHandle = fileHandles[0];
+          const file = await fileHandle.getFile();
+          await handleFileSelect(file);
+        }
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          console.error("Erreur sélection fichier:", error);
+          showToast("Erreur lors de la sélection du fichier", true);
+        }
+      }
+    }
+
+    async function handleFileSelect(file) {
+      if (!file) return;
+
+      selectedDatabaseFile = file;
       
+      // Afficher le fichier sélectionné
+      const databaseList = document.getElementById('databaseList');
+      databaseList.innerHTML = `
+        <div class="database-item selected">
+          <div class="font-medium">${file.name}</div>
+          <div class="text-sm text-gray-500">${(file.size / 1024).toFixed(2)} KB</div>
+        </div>
+      `;
+      
+      document.getElementById('openDatabaseBtn').disabled = false;
+    }
+
+    function selectDatabase(file) {
+      selectedDatabaseFile = file;
+      
+      // Mettre à jour l'affichage
+      const items = document.querySelectorAll('.database-item');
+      items.forEach(item => item.classList.remove('selected'));
+      
+      document.getElementById('openDatabaseBtn').disabled = false;
+    }
+
+    async function openSelectedDatabase() {
+      if (!selectedDatabaseFile) return;
+
       showLoading(true);
+      closeDatabaseModal();
+
       try {
         const currentName = await idbGet('gestion_db_active') || 'gestion';
         const currentDb = await idbGet('gestion_db');
@@ -473,59 +501,24 @@
           await idbSet(`gestion_db_backup_${currentName}`, currentDb);
           console.log(`💾 Base "${currentName}" sauvegardée`);
         }
+
+        const arrayBuffer = await selectedDatabaseFile.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+        const base64 = btoa(String.fromCharCode(...bytes));
         
-        const newDb = await idbGet(key);
-        await idbSet('gestion_db', newDb);
-        await idbSet('gestion_db_active', displayName);
-        
-        if (dbConnection) {
-          try {
-            dbConnection.close();
-          } catch (e) {}
-        }
-        dbConnection = null;
+        const name = selectedDatabaseFile.name.replace(/\.(db|sqlite|sqlite3)$/i, '');
+        await idbSet('gestion_db', base64);
+        await idbSet('gestion_db_active', name);
         
         await loadActiveDb();
         await updateStats();
-        await updateServerStatus();
         
-        closeDbListModal();
-        showToast(`✅ Base "${displayName}" chargée`);
-      } catch (e) {
-        console.error("Erreur chargement base:", e);
-        showToast("❌ Erreur lors du chargement", true);
+        showToast(`Base "${name}" chargée avec succès`);
+      } catch (error) {
+        console.error("Erreur ouverture base:", error);
+        showToast("Erreur lors de l'ouverture de la base", true);
       } finally {
         showLoading(false);
-      }
-    }
-
-    async function downloadDatabaseFromKey(key, displayName) {
-      try {
-        const dbData = await idbGet(key);
-        if (!dbData) {
-          showToast("❌ Base non trouvée", true);
-          return;
-        }
-        
-        const bytes = Uint8Array.from(atob(dbData), c => c.charCodeAt(0));
-        const blob = new Blob([bytes], { type: 'application/octet-stream' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        
-        const now = new Date();
-        const dateStr = now.toISOString().slice(0, 10);
-        const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '-');
-        const folderName = `${displayName}_${dateStr}_${timeStr}`;
-        
-        a.href = url;
-        a.download = `${folderName}_gestion.db`;
-        a.click();
-        URL.revokeObjectURL(url);
-        
-        showToast(`✅ Base "${displayName}" téléchargée`);
-      } catch (e) {
-        console.error("Erreur téléchargement:", e);
-        showToast("❌ Erreur téléchargement", true);
       }
     }
 
@@ -617,13 +610,14 @@
         
         const name = await idbGet('gestion_db_active') || 'gestion';
         
+        // Créer le nom du dossier avec la date
         const now = new Date();
-        const dateStr = now.toISOString().slice(0, 10);
-        const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '-');
+        const dateStr = now.toISOString().slice(0, 10); // Format: YYYY-MM-DD
+        const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '-'); // Format: HH-MM-SS
         const folderName = `${name}_${dateStr}_${timeStr}`;
         
         a.href = url;
-        a.download = `${folderName}_gestion.db`;
+        a.download = `${folderName}/gestion.db`;  // Nom du dossier + fichier gestion.db
         a.click();
         URL.revokeObjectURL(url);
         
@@ -666,45 +660,6 @@
       } finally {
         showLoading(false);
       }
-    }
-
-     function uploadDatabase(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-      
-      showLoading(true);
-      const reader = new FileReader();
-      
-      reader.onload = async function(e) {
-        try {
-          const currentName = await idbGet('gestion_db_active') || 'gestion';
-          const currentDb = await idbGet('gestion_db');
-          if (currentDb) {
-            await idbSet(`gestion_db_backup_${currentName}`, currentDb);
-            console.log(`💾 Base "${currentName}" sauvegardée`);
-          }
-          
-          const bytes = new Uint8Array(e.target.result);
-          const base64 = btoa(String.fromCharCode(...bytes));
-          
-          const name = file.name.replace(/\.(db|sqlite|sqlite3)$/i, '');
-          await idbSet('gestion_db', base64);
-          await idbSet('gestion_db_active', name);
-          
-          await loadActiveDb();
-          await updateStats();
-          
-          showToast(`Base "${name}" chargée`);
-        } catch (error) {
-          console.error("Erreur import:", error);
-          showToast("Erreur import", true);
-        } finally {
-          showLoading(false);
-        }
-      };
-      
-      reader.readAsArrayBuffer(file);
-      event.target.value = '';
     }
 
     async function resetToDefault() {
@@ -775,66 +730,67 @@
       }
     }
 
- async function syncFromServer() {
-  showLoading(true);
-  try {
-    const userId = localStorage.getItem('userId');
-    if (!userId) {
-      showToast("⚠️ Veuillez vous connecter pour synchroniser la base serveur", true);
-      return;
-    }
-
-    const response = await fetch(`${API_BASE_URL}/export`, {
-      headers: {
-        'X-User-ID': userId
-      }
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`Erreur HTTP ${response.status}: ${errorData.error || response.statusText}`);
-    }
-    
-    const data = await response.json();
-    const base64Db = data.db;
-    
-    const currentName = await idbGet('gestion_db_active') || 'gestion';
-    const currentDb = await idbGet('gestion_db');
-    if (currentDb) {
-      await idbSet(`gestion_db_backup_${currentName}`, currentDb);
-      console.log(`💾 Base "${currentName}" sauvegardée`);
-    }
-    
-    await idbSet('gestion_db_server', base64Db);
-    await idbSet('gestion_db', base64Db);
-    await idbSet('gestion_db_active', 'serveur');
-    
-    await idbSet('apiBaseUrl', '/api');
-    API_BASE_URL = '/api';
-    localStorage.setItem('apiBaseUrl', '/api'); 
-
-    if (dbConnection) {
+    async function syncFromServer() {
+      showLoading(true);
       try {
-        dbConnection.close();
-      } catch (e) {}
+        const userId = localStorage.getItem('userId');
+        if (!userId) {
+          showToast("⚠️ Veuillez vous connecter pour synchroniser la base serveur", true);
+          return;
+        }
+
+        const response = await fetch(`${API_BASE_URL}/export`, {
+          headers: {
+            'X-User-ID': userId
+          }
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(`Erreur HTTP ${response.status}: ${errorData.error || response.statusText}`);
+        }
+        
+        const data = await response.json();
+        const base64Db = data.db;
+        
+        const currentName = await idbGet('gestion_db_active') || 'gestion';
+        const currentDb = await idbGet('gestion_db');
+        if (currentDb) {
+          await idbSet(`gestion_db_backup_${currentName}`, currentDb);
+          console.log(`💾 Base "${currentName}" sauvegardée`);
+        }
+        
+        await idbSet('gestion_db_server', base64Db);
+        await idbSet('gestion_db', base64Db);
+        await idbSet('gestion_db_active', 'serveur');
+        
+        await idbSet('apiBaseUrl', '/api');
+        API_BASE_URL = '/api';
+        localStorage.setItem('apiBaseUrl', '/api'); 
+
+        if (dbConnection) {
+          try {
+            dbConnection.close();
+          } catch (e) {}
+        }
+        dbConnection = null;
+        await loadActiveDb();
+        await updateStats();
+        await updateServerStatus();
+        
+        if (API_BASE_URL === '/api') {
+          showToast("✅ Vous êtes maintenant en MODE LOCAL (/api)");
+        } else {
+          showToast("✅ Base serveur téléchargée et activée");
+        }
+      } catch (err) {
+        console.error("Erreur sync:", err);
+        showToast(`❌ Erreur serveur: ${err.message}`, true);
+      } finally {
+        showLoading(false);
+      }
     }
-    dbConnection = null;
-    await loadActiveDb();
-    await updateStats();
-    await updateServerStatus();
-    
-    if (API_BASE_URL === '/api') {
-      showToast("✅ Vous êtes maintenant en MODE LOCAL (/api)");
-    } else {
-      showToast("✅ Base serveur téléchargée et activée");
-    }
-  } catch (err) {
-    console.error("Erreur sync:", err);
-    showToast(`❌ Erreur serveur: ${err.message}`, true);
-  } finally {
-    showLoading(false);
-  }
-}
+
     async function switchToDefault() {
       showLoading(true);
       try {
@@ -932,7 +888,7 @@
       }
     }
 
-     async function updateStats() {
+    async function updateStats() {
       const activeName = await idbGet('gestion_db_active') || 'Aucune';
       const dbData = await idbGet('gestion_db');
       
@@ -982,5 +938,3 @@
   </script>
 </body>
 </html>
-
-   
