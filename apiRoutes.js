@@ -975,6 +975,13 @@ export async function rechercherProduitCodebar(codebar) {
       return { erreur: "Code-barres requis", status: 400 };
     }
 
+    // Fonction pour convertir les nombres avec virgules
+    const parseDecimal = (value) => {
+      if (value === null || value === undefined) return 0;
+      const str = value.toString();
+      return parseFloat(str.replace(',', '.'));
+    };
+
     // Première recherche directe dans la table item
     let stmt = db.prepare(`
       SELECT numero_item, bar, designation, prix, prixba, qte
@@ -1002,9 +1009,9 @@ export async function rechercherProduitCodebar(codebar) {
           numero_item: produit.numero_item?.toString() || '',
           bar: produit.bar?.toString() || '',
           designation: produit.designation?.toString() || '',
-          prix: toCommaDecimal(toDotDecimal(produit.prix?.toString() || '0')),
-          prixba: toCommaDecimal(toDotDecimal(produit.prixba?.toString() || '0')),
-          qte: toCommaDecimal(produit.qte?.toString() || '0')
+          prix: parseDecimal(produit.prix).toFixed(2),
+          prixba: parseDecimal(produit.prixba).toFixed(2),
+          qte: parseDecimal(produit.qte).toFixed(2) // Ici était le problème !
         },
         status: 200
       };
@@ -1036,9 +1043,9 @@ export async function rechercherProduitCodebar(codebar) {
           numero_item: produit.numero_item?.toString() || '',
           bar: produit.bar?.toString() || '',
           designation: produit.designation?.toString() || '',
-          prix: toCommaDecimal(toDotDecimal(produit.prix?.toString() || '0')),
-          prixba: toCommaDecimal(toDotDecimal(produit.prixba?.toString() || '0')),
-          qte: toCommaDecimal(produit.qte?.toString() || '0')
+          prix: parseDecimal(produit.prix).toFixed(2),
+          prixba: parseDecimal(produit.prixba).toFixed(2),
+          qte: parseDecimal(produit.qte).toFixed(2) // Ici aussi !
         },
         status: 200
       };
@@ -1053,7 +1060,6 @@ export async function rechercherProduitCodebar(codebar) {
     return { erreur: error.message, status: 500 };
   }
 }
-
 export async function listeTables() {
   try {
     console.log("Exécution de listeTables...");
