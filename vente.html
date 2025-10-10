@@ -2198,147 +2198,67 @@ let lastScanTime = 0;
 const SCAN_COOLDOWN = 2000; // 2 secondes de cooldown entre scans
 
 async function startScanner() {
-    if (scannerRunning) return;
-    scannerRunning = true;
-
-    const scannerPreview = document.getElementById('scannerPreview');
-    const scannerOverlay = document.getElementById('scannerOverlay');
-    const scanIndicator = document.getElementById('scan-indicator');
-    const cameraLoading = document.getElementById('camera-loading');
-
-    let closeScannerButton = document.getElementById('closeScannerButton');
-    if (!closeScannerButton) {
-        closeScannerButton = document.createElement('button');
-        closeScannerButton.id = 'closeScannerButton';
-        closeScannerButton.innerHTML = '<i class="fas fa-times"></i> Fermer';
-        document.body.appendChild(closeScannerButton);
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        showToast('Utilisateur non connecté', true);
+        return;
     }
 
     try {
-        scannerStream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { ideal: 'environment' } }
-        });
-        scannerPreview.srcObject = scannerStream;
-        scannerPreview.style.display = 'block';
-        scannerOverlay.style.display = 'block';
-        cameraLoading.style.display = 'flex';
-        closeScannerButton.style.display = 'block';
-
-        scannerPreview.onloadedmetadata = () => {
-            cameraLoading.style.display = 'none';
-            scanIndicator.classList.add('scanning');
-        };
-
-        if (!('BarcodeDetector' in window)) {
-            throw new Error('API BarcodeDetector non supportée. Utilisez Chrome ou Edge sur Android.');
+        const barcode = await scanCode();
+        if (!barcode) {
+            showToast('Aucun code-barres détecté', true);
+            return;
         }
 
-        const barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
+        const response = await fetch(`${API_BASE_URL}/rechercher_produit_codebar?codebar=${encodeURIComponent(barcode)}`, {
+            headers: { 'X-User-ID': userId }
+        });
+        const result = await response.json();
+        console.log('🔍 Réponse API rechercher_produit_codebar:', result); // Log 1 : Vérifier la réponse de l’API
 
-        const scan = async () => {
-            if (!scannerRunning) return;
+        if (result.statut === 'trouvé') {
+            let produitData = result.produit || result; // S’assurer qu’on accède à l’objet produit
+            console.log('🔍 produitData extrait:', produitData); // Log 2 : Vérifier l’objet extrait
 
-            const canvas = document.createElement('canvas');
-            canvas.width = scannerPreview.videoWidth;
-            canvas.height = scannerPreview.videoHeight;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(scannerPreview, 0, 0, canvas.width, canvas.height);
+            const numeroItem = produitData.numero_item || produitData.NUMERO_ITEM || produitData.numero || '';
+            const bar = produitData.bar || produitData.BAR || produitData.codebar || '';
+            const prix = produitData.prix || produitData.PRIX || produitData.prix_vente || 0;
+            const prixba = produitData.prixba || produitData.PRIXBA || produitData.prix_achat || 0;
+            const qte = produitData.qte || produitData.QTE || produitData.quantite || 
+                        produitData.QUANTITE || produitData.stock || produitData.STOCK || 0;
+            const designation = produitData.designation || produitData.DESIGNATION || produitData.nom || 'Produit';
+            
+            // Convertir qte en nombre (gérer les chaînes avec virgule)
+            const qteFloat = parseFloat(String(qte).replace(',', '.'));
+            console.log('🔍 Données extraites:', { numeroItem, bar, prix, prixba, qte: qteFloat, designation }); // Log 3 : Vérifier les données extraites
 
-            try {
-                const barcodes = await barcodeDetector.detect(canvas);
-                if (barcodes.length > 0) {
-                    const currentTime = Date.now();
-                    if (currentTime - lastScanTime < SCAN_COOLDOWN) {
-                        requestAnimationFrame(scan);
-                        return;
-                    }
-                    lastScanTime = currentTime;
-
-                    const barcode = barcodes[0].rawValue;
-                    scanIndicator.classList.remove('scanning');
-                    scanIndicator.classList.add('detected');
-                    setTimeout(() => {
-                        scanIndicator.classList.remove('detected');
-                        scanIndicator.classList.add('scanning');
-                    }, 500);
-
-                    const flashOverlay = document.createElement('div');
-                    flashOverlay.className = 'flash-overlay';
-                    document.body.appendChild(flashOverlay);
-                    setTimeout(() => {
-                        flashOverlay.remove();
-                    }, 200);
-
-                    const userId = localStorage.getItem('userId');
-                    const response = await fetch(`${API_BASE_URL}/rechercher_produit_codebar?codebar=${encodeURIComponent(barcode)}`, {
-                        headers: { 'X-User-ID': userId }
-                    });
-
-                    if (!response.ok) {
-                        showToast('Produit non trouvé', true);
-                        requestAnimationFrame(scan);
-                        return;
-                    }
-
-                    const result = await response.json();
-
-                    if (result.statut === 'trouvé') {
-                        let produitData;
-                        
-                        if (result.produit) {
-                            produitData = result.produit;
-                        } else {
-                            produitData = result;
-                        }
-                        
-                        const numeroItem = produitData.numero_item || produitData.NUMERO_ITEM || produitData.numero;
-                        const bar = produitData.bar || produitData.BAR || produitData.codebar;
-                        const prix = produitData.prix || produitData.PRIX || produitData.prix_vente;
-                        const prixba = produitData.prixba || produitData.PRIXBA || produitData.prix_achat;
-                        const qte = produitData.qte || produitData.QTE || produitData.quantite || produitData.QUANTITE || produitData.stock;
-                        const designation = produitData.designation || produitData.DESIGNATION || produitData.nom;
-                        
-                        showScannedProductInfo(produitData);
-                        selectProduct(
-                            numeroItem,
-                            bar,
-                            prix,
-                            prixba,
-                            qte,
-                            designation
-                        );
-                        
-                        if ('vibrate' in navigator) {
-                            navigator.vibrate(200);
-                        }
-                        
-                        playBeep();
-                        showToast(`Produit ajouté : ${designation}`);
-                    } else {
-                        showToast('Produit non trouvé', true);
-                    }
-                }
-            } catch (err) {
-                showToast(`Erreur de détection : ${err.message}`, true);
+            showScannedProductInfo(produitData);
+            selectProduct(
+                numeroItem,
+                bar,
+                prix,
+                prixba,
+                qteFloat, // Passer la valeur convertie
+                designation
+            );
+            
+            if ('vibrate' in navigator) {
+                navigator.vibrate(200);
             }
-            if (scannerRunning) {
-                requestAnimationFrame(scan);
-            }
-        };
-
-        scannerPreview.play();
-        scan();
-
-        closeScannerButton.onclick = stopScanner;
-    } catch (err) {
-        showToast(`Impossible d'accéder à la caméra : ${err.message}`, true);
-        scannerRunning = false;
-        cameraLoading.style.display = 'none';
-        stopScanner();
+            
+            playBeep();
+            showToast(`Produit ajouté : ${designation}`);
+        } else {
+            showToast('Produit non trouvé', true);
+        }
+    } catch (error) {
+        console.error('❌ Erreur scan:', error);
+        showToast('Erreur lors du scan', true);
     }
 }
-
 function showScannedProductInfo(produit) {
+    console.log('🔍 Produit reçu:', produit);
     const infoDiv = document.getElementById('scannedProductInfo');
     const nameElement = infoDiv.querySelector('#scannedProductName');
     const priceElement = infoDiv.querySelector('#scannedProductPrice');
@@ -2347,19 +2267,17 @@ function showScannedProductInfo(produit) {
     const designation = produit.designation || produit.DESIGNATION || produit.nom || 'Produit';
     const prix = produit.prix || produit.PRIX || produit.prix_vente || 0;
     const quantite = produit.qte || produit.QTE || produit.quantite || 
-                    produit.QUANTITE || produit.stock_disponible || produit.STOCK || 0;
+                    produit.QUANTITE || produit.stock || produit.STOCK || 0;
+    
+    const quantiteFloat = parseFloat(String(quantite).replace(',', '.'));
     
     nameElement.textContent = designation;
-    priceElement.textContent = `${parseFloat(prix).toFixed(2)} DA`;
-    stockElement.textContent = `Stock : ${parseFloat(quantite).toFixed(2)} unités`;
+    priceElement.textContent = `${parseFloat(String(prix).replace(',', '.')).toFixed(2)} DA`;
+    stockElement.textContent = `Stock : ${isNaN(quantiteFloat) ? '0.00' : quantiteFloat.toFixed(2)} unités`;
     
     infoDiv.style.display = 'block';
-    
-    setTimeout(() => {
-        infoDiv.style.display = 'none';
-    }, 2000);
+    setTimeout(() => infoDiv.style.display = 'none', 2000);
 }
-
 function stopScanner() {
     scannerRunning = false;
 
