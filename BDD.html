@@ -538,7 +538,7 @@
         await loadActiveDb();
         await updateStats();
         await updateServerStatus();
-        
+        await updateSyncPanelVisibility();
         showToast("✅ Base serveur activée");
       } catch (e) {
         console.error("Erreur activation serveur:", e);
@@ -595,7 +595,7 @@
     await loadActiveDb();
     await updateStats();
     await updateServerStatus();
-    
+    await updateSyncPanelVisibility();
     if (API_BASE_URL === '/api') {
       showToast("✅ Vous êtes maintenant en MODE LOCAL (/api)");
     } else {
@@ -645,7 +645,7 @@
         await loadActiveDb();
         await updateStats();
         await updateServerStatus();
-        
+        await updateSyncPanelVisibility();
         showToast("✅ Basculé vers base par défaut");
       } catch (e) {
         console.error("Erreur switch:", e);
@@ -704,7 +704,47 @@
         `;
       }
     }
-
+async function updateSyncPanelVisibility() {
+  const syncPanelContainer = document.querySelector('#syncPanel').parentElement;
+  const storedApiUrl = localStorage.getItem('apiBaseUrl') || 'https://hicham03041979.onrender.com';
+  
+  if (storedApiUrl === '/api') {
+    // Désactiver le panneau
+    syncPanelContainer.style.opacity = '0.5';
+    syncPanelContainer.style.pointerEvents = 'none';
+    syncPanelContainer.style.cursor = 'not-allowed';
+    
+    // Ajouter un message d'information
+    let infoMsg = syncPanelContainer.querySelector('.api-local-info');
+    if (!infoMsg) {
+      infoMsg = document.createElement('div');
+      infoMsg.className = 'api-local-info px-6 pb-4';
+      infoMsg.innerHTML = `
+        <div class="p-3 bg-gray-100 border border-gray-300 rounded text-sm text-gray-600">
+          <i class="fas fa-info-circle mr-2"></i>
+          <strong>Panneau désactivé</strong> : Vous êtes en mode LOCAL. 
+          La synchronisation serveur n'est disponible qu'en mode Cloud.
+          <br>
+          <span class="text-xs mt-1 block">
+            💡 Changez l'URL de base dans les paramètres pour activer cette fonctionnalité.
+          </span>
+        </div>
+      `;
+      syncPanelContainer.appendChild(infoMsg);
+    }
+  } else {
+    // Activer le panneau
+    syncPanelContainer.style.opacity = '1';
+    syncPanelContainer.style.pointerEvents = 'auto';
+    syncPanelContainer.style.cursor = 'pointer';
+    
+    // Retirer le message si présent
+    const infoMsg = syncPanelContainer.querySelector('.api-local-info');
+    if (infoMsg) {
+      infoMsg.remove();
+    }
+  }
+}
      async function updateStats() {
       const activeName = await idbGet('gestion_db_active') || 'Aucune';
       const dbData = await idbGet('gestion_db');
@@ -738,6 +778,7 @@
         
         await updateStats();
         await updateServerStatus();
+        await updateSyncPanelVisibility();
         console.log("✅ Application initialisée");
       } catch (e) {
         console.error("❌ Erreur init:", e);
