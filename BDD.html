@@ -441,44 +441,80 @@
       }
     }
 
-    function uploadDatabase(event) {
-      const file = event.target.files[0];
-      if (!file) return;
+   function uploadDatabase(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  showLoading(true);
+  const reader = new FileReader();
+  
+  reader.onload = async function(e) {
+    try {
+      // Sauvegarder la base actuelle avant d'écraser
+      const currentName = await idbGet('gestion_db_active') || 'gestion';
+      const currentDb = await idbGet('gestion_db');
+      if (currentDb) {
+        await idbSet(`gestion_db_backup_${currentName}`, currentDb);
+        console.log(`💾 Base "${currentName}" sauvegardée en backup`);
+      }
       
-      showLoading(true);
-      const reader = new FileReader();
+      const bytes = new Uint8Array(e.target.result);
+      const base64 = btoa(String.fromCharCode(...bytes));
       
-      reader.onload = async function(e) {
-        try {
-          const currentName = await idbGet('gestion_db_active') || 'gestion';
-          const currentDb = await idbGet('gestion_db');
-          if (currentDb) {
-            await idbSet(`gestion_db_backup_${currentName}`, currentDb);
-            console.log(`💾 Base "${currentName}" sauvegardée`);
-          }
-          
-          const bytes = new Uint8Array(e.target.result);
-          const base64 = btoa(String.fromCharCode(...bytes));
-          
-          const name = file.name.replace(/\.(db|sqlite|sqlite3)$/i, '');
-          await idbSet('gestion_db', base64);
-          await idbSet('gestion_db_active', name);
-          
-          await loadActiveDb();
-          await updateStats();
-          
-          showToast(`Base "${name}" chargée`);
-        } catch (error) {
-          console.error("Erreur import:", error);
-          showToast("Erreur import", true);
-        } finally {
-          showLoading(false);
+      // Extraire le nom du fichier sans extension
+      const fileName = file.name.replace(/\.(db|sqlite|sqlite3)$/i, '');
+      
+      // Vérifier si c'est un fichier serveur téléchargé (format: serveur_date_heure ou nom_date_heure)
+      const isDownloadedBackup = /_(20\d{2}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})$/.test(fileName);
+      
+      if (isDownloadedBackup) {
+        // C'est une base téléchargée depuis le serveur ou une sauvegarde
+        // On l'importe en écrasant la base locale par défaut
+        
+        await idbSet('gestion_db', base64);
+        await idbSet('gestion_db_active', 'gestion'); // Forcer le nom à 'gestion'
+        
+        // Si le nom commence par "serveur", on la considère aussi comme base serveur
+        if (fileName.startsWith('serveur')) {
+          await idbSet('gestion_db_server', base64);
+          console.log('📥 Base serveur restaurée depuis le fichier');
         }
-      };
+        
+        await loadActiveDb();
+        await updateStats();
+        await updateServerStatus();
+        await updateSyncPanelVisibility();
+        
+        showToast(`✅ Base restaurée et définie comme base par défaut`);
+        console.log(`📦 Fichier "${fileName}" importé en écrasant la base locale`);
+        
+      } else {
+        // C'est un fichier .db normal (pas une sauvegarde datée)
+        // Comportement normal : créer une nouvelle base avec le nom du fichier
+        
+        await idbSet('gestion_db', base64);
+        await idbSet('gestion_db_active', fileName);
+        
+        await loadActiveDb();
+        await updateStats();
+        await updateServerStatus();
+        await updateSyncPanelVisibility();
+        
+        showToast(`✅ Base "${fileName}" chargée`);
+        console.log(`📂 Nouvelle base créée : "${fileName}"`);
+      }
       
-      reader.readAsArrayBuffer(file);
-      event.target.value = '';
+    } catch (error) {
+      console.error("Erreur import:", error);
+      showToast("❌ Erreur lors de l'import", true);
+    } finally {
+      showLoading(false);
     }
+  };
+  
+  reader.readAsArrayBuffer(file);
+  event.target.value = '';
+}
 
     async function resetToDefault() {
       if (!confirm("⚠️ Réinitialiser avec gestion.db par défaut ?\n\nCette action est irréversible.")) return;
