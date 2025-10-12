@@ -441,79 +441,122 @@
       }
     }
 
-   function uploadDatabase(event) {
+ // Variable globale pour stocker les données du fichier en attente
+let pendingFileData = null;
+
+function uploadDatabase(event) {
   const file = event.target.files[0];
   if (!file) return;
   
   showLoading(true);
   const reader = new FileReader();
   
+  reader.onerror = function() {
+    showToast("Erreur lors de la lecture du fichier", true);
+    showLoading(false);
+  };
+  
   reader.onload = async function(e) {
     try {
-      // Sauvegarder la base actuelle avant d'écraser
-      const currentName = await idbGet('gestion_db_active') || 'gestion';
-      const currentDb = await idbGet('gestion_db');
-      if (currentDb) {
-        await idbSet(`gestion_db_backup_${currentName}`, currentDb);
-        console.log(`💾 Base "${currentName}" sauvegardée en backup`);
-      }
-      
       const bytes = new Uint8Array(e.target.result);
       const base64 = btoa(String.fromCharCode(...bytes));
       
-      // Extraire le nom du fichier sans extension
-      const fileName = file.name.replace(/\.(db|sqlite|sqlite3)$/i, '');
+      // Stocker les données pour utilisation après confirmation
+      pendingFileData = {
+        fileName: file.name.replace(/\.(db|sqlite|sqlite3)$/i, ''),
+        base64: base64
+      };
       
-      // Vérifier si c'est un fichier serveur téléchargé (format: serveur_date_heure ou nom_date_heure)
-      const isDownloadedBackup = /_(20\d{2}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})$/.test(fileName);
+      // Afficher le modal
+      document.getElementById('importFileName').textContent = file.name;
+      document.getElementById('importModal').classList.remove('hidden');
       
-      if (isDownloadedBackup) {
-        // C'est une base téléchargée depuis le serveur ou une sauvegarde
-        // On l'importe en écrasant la base locale par défaut
-        
-        await idbSet('gestion_db', base64);
-        await idbSet('gestion_db_active', 'gestion'); // Forcer le nom à 'gestion'
-        
-        // Si le nom commence par "serveur", on la considère aussi comme base serveur
-        if (fileName.startsWith('serveur')) {
-          await idbSet('gestion_db_server', base64);
-          console.log('📥 Base serveur restaurée depuis le fichier');
-        }
-        
-        await loadActiveDb();
-        await updateStats();
-        await updateServerStatus();
-        await updateSyncPanelVisibility();
-        
-        showToast(`✅ Base restaurée et définie comme base par défaut`);
-        console.log(`📦 Fichier "${fileName}" importé en écrasant la base locale`);
-        
-      } else {
-        // C'est un fichier .db normal (pas une sauvegarde datée)
-        // Comportement normal : créer une nouvelle base avec le nom du fichier
-        
-        await idbSet('gestion_db', base64);
-        await idbSet('gestion_db_active', fileName);
-        
-        await loadActiveDb();
-        await updateStats();
-        await updateServerStatus();
-        await updateSyncPanelVisibility();
-        
-        showToast(`✅ Base "${fileName}" chargée`);
-        console.log(`📂 Nouvelle base créée : "${fileName}"`);
-      }
+      showLoading(false);
       
     } catch (error) {
-      console.error("Erreur import:", error);
-      showToast("❌ Erreur lors de l'import", true);
-    } finally {
+      showToast("Erreur lors de la lecture du fichier", true);
       showLoading(false);
     }
   };
   
   reader.readAsArrayBuffer(file);
   event.target.value = '';
+}
+
+async function confirmImport(type) {
+  if (!pendingFileData) {
+    showToast("Aucun fichier en attente", true);
+    return;
+  }
+  
+  // Fermer le modal
+  document.getElementById('importModal').classList.add('hidden');
+  showLoading(true);
+  
+  try {
+    // Sauvegarder la base actuelle
+    const currentName = await idbGet('gestion_db_active') || 'gestion';
+    const currentDb = await idbGet('gestion_db');
+    if (currentDb) {
+      await idbSet(`gestion_db_backup_${currentName}`, currentDb);
+      console.log(`💾 Base "${currentName}" sauvegardée`);
+    }
+    
+    if (type === 'default') {
+      // Importer comme base par défaut
+      await idbSet('gestion_db', pendingFileData.base64);
+      await idbSet('gestion_db_active', 'gestion');
+      
+      if (dbConnection) {
+        try { dbConnection.close(); } catch (e) {}
+      }
+      dbConnection = null;
+      
+      await loadActiveDb();
+      await updateStats();
+      await updateServerStatus();
+      await updateSyncPanelVisibility();
+      
+      showToast(`✅ Base importée comme base par défaut`);
+      
+    } else if (type === 'server') {
+      // Importer comme base serveur
+      await idbSet('gestion_db_server', pendingFileData.base64);
+      await idbSet('gestion_db', pendingFileData.base64);
+      await idbSet('gestion_db_active', 'serveur');
+      
+      // Passer en mode local
+      localStorage.setItem('apiBaseUrl', '/api');
+      API_BASE_URL = '/api';
+      
+      if (dbConnection) {
+        try { dbConnection.close(); } catch (e) {}
+      }
+      dbConnection = null;
+      
+      await loadActiveDb();
+      await updateStats();
+      await updateServerStatus();
+      await updateSyncPanelVisibility();
+      
+      showToast(`✅ Base importée comme base serveur (mode LOCAL activé)`);
+    }
+    
+    // Nettoyer
+    pendingFileData = null;
+    
+  } catch (error) {
+    console.error("Erreur import:", error);
+    showToast("Erreur lors de l'import", true);
+  } finally {
+    showLoading(false);
+  }
+}
+
+function cancelImport() {
+  document.getElementById('importModal').classList.add('hidden');
+  pendingFileData = null;
+  showToast("Import annulé");
 }
 
     async function resetToDefault() {
@@ -830,6 +873,46 @@ async function updateSyncPanelVisibility() {
       init();
     }
   </script>
+ <!-- Modal de confirmation d'import -->
+<div id="importModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+  <div class="bg-white rounded-lg shadow-2xl p-6 max-w-md w-full mx-4">
+    <h3 class="text-xl font-bold mb-4 text-gray-800 flex items-center">
+      <i class="fas fa-question-circle text-yellow-500 mr-2"></i>
+      Importer la base de données
+    </h3>
+    
+    <p class="text-gray-700 mb-6">
+      Fichier : <strong id="importFileName" class="text-indigo-600"></strong>
+    </p>
+    
+    <p class="text-gray-600 mb-6 text-sm">
+      Où souhaitez-vous importer cette base ?
+    </p>
+    
+    <div class="grid grid-cols-1 gap-3 mb-6">
+      <button onclick="confirmImport('default')" class="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition flex items-center justify-center shadow-md">
+        <i class="fas fa-mobile-alt mr-2"></i>
+        Base Par Défaut (écrase)
+      </button>
+      
+      <button onclick="confirmImport('server')" class="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition flex items-center justify-center shadow-md">
+        <i class="fas fa-cloud mr-2"></i>
+        Base Serveur (écrase)
+      </button>
+    </div>
+    
+    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+      <p class="text-xs text-yellow-800">
+        <i class="fas fa-exclamation-triangle mr-1"></i>
+        <strong>Attention :</strong> La base actuelle sera sauvegardée automatiquement avant l'écrasement.
+      </p>
+    </div>
+    
+    <button onclick="cancelImport()" class="w-full bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400 transition">
+      Annuler
+    </button>
+  </div>
+</div> 
 </body>
 </html>
 
