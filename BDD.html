@@ -448,23 +448,50 @@ function uploadDatabase(event) {
   const file = event.target.files[0];
   if (!file) return;
   
+  // Vérifier la taille du fichier
+  const maxSize = 50 * 1024 * 1024; // 50 MB
+  if (file.size > maxSize) {
+    showToast("❌ Fichier trop volumineux (max 50 MB)", true);
+    event.target.value = '';
+    return;
+  }
+  
   showLoading(true);
   const reader = new FileReader();
   
-  reader.onerror = function() {
-    showToast("Erreur lors de la lecture du fichier", true);
+  reader.onerror = function(e) {
+    console.error("Erreur FileReader:", e);
+    showToast("❌ Erreur lors de la lecture du fichier", true);
     showLoading(false);
   };
   
   reader.onload = async function(e) {
     try {
-      const bytes = new Uint8Array(e.target.result);
-      const base64 = btoa(String.fromCharCode(...bytes));
+      const arrayBuffer = e.target.result;
       
-      // Stocker les données pour utilisation après confirmation
+      if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+        throw new Error("Fichier vide ou invalide");
+      }
+      
+      const bytes = new Uint8Array(arrayBuffer);
+      
+      // Conversion optimisée pour gros fichiers
+      const CHUNK_SIZE = 32768; // 32 KB
+      let binary = '';
+      
+      for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+        const chunk = bytes.subarray(i, Math.min(i + CHUNK_SIZE, bytes.length));
+        binary += String.fromCharCode.apply(null, Array.from(chunk));
+      }
+      
+      const base64 = btoa(binary);
+      
+      // Stocker les données
       pendingFileData = {
         fileName: file.name.replace(/\.(db|sqlite|sqlite3)$/i, ''),
-        base64: base64
+        base64: base64,
+        originalName: file.name,
+        size: file.size
       };
       
       // Afficher le modal
@@ -474,8 +501,10 @@ function uploadDatabase(event) {
       showLoading(false);
       
     } catch (error) {
-      showToast("Erreur lors de la lecture du fichier", true);
+      console.error("Erreur détaillée:", error);
+      showToast(`❌ Erreur: ${error.message}`, true);
       showLoading(false);
+      pendingFileData = null;
     }
   };
   
