@@ -787,7 +787,7 @@ function playBeep() {
         document.getElementById('userDisplay').classList.remove('hidden');
         document.getElementById('loginLogoutButton').innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Déconnexion';
         document.getElementById('sellerSelect').disabled = true;
-
+chargerProduits().catch(err => console.error('Erreur pré-chargement:', err));
         // Charger les utilisateurs, clients et compteur produits
         await Promise.all([
             chargerUtilisateurs(),
@@ -1260,14 +1260,15 @@ async function loadSaleData(numeroComande) {
             }
         }
 
-       async function chargerProduits() {
+ 
+async function chargerProduits() {
     if (produitsLoaded) {
         console.log('Produits déjà chargés, mise à jour du tableau uniquement.');
         updateProductsTable();
         return;
     }
 
-    console.log('Chargement des produits...');
+    console.log('Chargement des produits en arrière-plan...');
     const userId = localStorage.getItem('userId');
     if (!userId) {
         showToast('Veuillez vous connecter pour voir les produits', true);
@@ -1278,30 +1279,113 @@ async function loadSaleData(numeroComande) {
         const response = await fetch(`${API_BASE_URL}/liste_produits`, {
             headers: { 'X-User-ID': userId }
         });
-        console.log('Réponse liste_produits:', response.status, response.statusText);
+        
         if (!response.ok) {
             const errorText = await response.text();
             console.error('Erreur texte liste_produits:', errorText);
-            showToast(`Erreur chargement produits: ${errorText}`, true);
             throw new Error(`Erreur ${response.status}: ${errorText}`);
         }
+        
         produitsCache = await response.json();
-        console.log('Produits reçus:', produitsCache);
-        produitsLoaded = true; // Marquer comme chargé
+        console.log(`✅ ${produitsCache.length} produits chargés en cache`);
+        produitsLoaded = true;
+        
+        // Créer un index pour recherche rapide par code-barres
+        window.produitsIndexBar = {};
+        window.produitsIndexNumero = {};
+        
+        produitsCache.forEach(p => {
+            const bar = (p.BAR || p.bar || '').toString();
+            const numero = (p.NUMERO_ITEM || p.numero_item || '').toString();
+            
+            if (bar) window.produitsIndexBar[bar] = p;
+            if (numero) window.produitsIndexNumero[numero] = p;
+        });
+        
+        console.log('✅ Index de recherche créé pour accès rapide');
         updateProductsTable();
+        
     } catch (error) {
-        document.getElementById('productsList').innerHTML = `
-            <tr>
-                <td colspan="5" class="text-center py-4 text-red-500">
-                    Erreur de chargement: ${error.message}
-                </td>
-            </tr>
-        `;
-        console.error('Erreur produits:', error);
+        console.error('❌ Erreur chargement produits:', error);
         showToast(`Erreur chargement produits: ${error.message}`, true);
     }
 }
 
+
+async function rechercherProduitOptimise(barcode) {
+    console.log('🔍 Recherche rapide:', barcode);
+    
+    // 1. Recherche dans le cache local (instantané)
+    if (window.produitsIndexBar && window.produitsIndexBar[barcode]) {
+        const produit = window.produitsIndexBar[barcode];
+        console.log('✅ Produit trouvé dans cache local');
+        return {
+            statut: 'trouvé',
+            produit: produit
+        };
+    }
+    
+    // 2. Si pas trouvé, recherche API (fallback)
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+        return { statut: 'non_trouvé' };
+    }
+    
+    try {
+        const response = await fetch(
+            `${API_BASE_URL}/rechercher_produit_codebar?codebar=${encodeURIComponent(barcode)}`,
+            { headers: { 'X-User-ID': userId } }
+        );
+        
+        if (!response.ok) {
+            return { statut: 'non_trouvé' };
+        }
+        
+        const result = await response.json();
+        
+        // Mettre à jour le cache si trouvé
+        if (result.statut === 'trouvé' && result.produit) {
+            const bar = (result.produit.bar || result.produit.BAR || '').toString();
+            if (bar && window.produitsIndexBar) {
+                window.produitsIndexBar[bar] = result.produit;
+            }
+        }
+        
+        return result;
+        
+    } catch (error) {
+        console.error('❌ Erreur API:', error);
+        return { statut: 'erreur', message: error.message };
+    }
+
+function showProductNotFoundModal(barcode) {
+    const modal = document.getElementById('productNotFoundModal');
+    const overlay = document.getElementById('productNotFoundOverlay');
+    const barcodeElement = document.getElementById('notFoundBarcode');
+    
+    if (!modal || !overlay || !barcodeElement) {
+        console.error('❌ Éléments du modal non trouvés');
+        showToast('❌ Produit non trouvé : ' + barcode, true);
+        return;
+    }
+    
+    barcodeElement.textContent = barcode;
+    modal.style.display = 'block';
+    overlay.style.display = 'block';
+    
+    // Fermeture automatique après 3 secondes
+    setTimeout(() => {
+        closeProductNotFoundModal();
+    }, 3000);
+}
+
+function closeProductNotFoundModal() {
+    const modal = document.getElementById('productNotFoundModal');
+    const overlay = document.getElementById('productNotFoundOverlay');
+    
+    if (modal) modal.style.display = 'none';
+    if (overlay) overlay.style.display = 'none';
+}
 function updateProductsTable() {
     const tbody = document.getElementById('productsList');
     const countElement = document.getElementById('productCount');
@@ -2250,66 +2334,81 @@ async function startScanner() {
                 ctx.drawImage(scannerPreview, 0, 0, canvas.width, canvas.height);
 
                 const barcodes = await barcodeDetector.detect(canvas);
-                if (barcodes.length > 0) {
-                    const currentTime = Date.now();
-                    if (currentTime - lastScanTime < SCAN_COOLDOWN) {
-                        requestAnimationFrame(scan);
-                        return;
-                    }
-                    lastScanTime = currentTime;
+             
+if (barcodes.length > 0) {
+    const currentTime = Date.now();
+    if (currentTime - lastScanTime < SCAN_COOLDOWN) {
+        requestAnimationFrame(scan);
+        return;
+    }
+    lastScanTime = currentTime;
 
-                    const barcode = barcodes[0].rawValue;
-                    console.log('✅ Code-barres détecté:', barcode);
+    const barcode = barcodes[0].rawValue;
+    console.log('✅ Code-barres détecté:', barcode);
 
-                    scanIndicator.classList.remove('scanning');
-                    scanIndicator.classList.add('detected');
-                    setTimeout(() => {
-                        scanIndicator.classList.remove('detected');
-                        scanIndicator.classList.add('scanning');
-                    }, 500);
+    scanIndicator.classList.remove('scanning');
+    scanIndicator.classList.add('detected');
+    setTimeout(() => {
+        scanIndicator.classList.remove('detected');
+        scanIndicator.classList.add('scanning');
+    }, 500);
 
-                    const flashOverlay = document.createElement('div');
-                    flashOverlay.className = 'flash-overlay';
-                    document.body.appendChild(flashOverlay);
-                    setTimeout(() => flashOverlay.remove(), 200);
+    const flashOverlay = document.createElement('div');
+    flashOverlay.className = 'flash-overlay';
+    document.body.appendChild(flashOverlay);
+    setTimeout(() => flashOverlay.remove(), 200);
 
-                    const userId = localStorage.getItem('userId');
-                    if (!userId) {
-                        showToast('Utilisateur non connecté', true);
-                        return;
-                    }
+    // ⚡ RECHERCHE OPTIMISÉE
+    const result = await rechercherProduitOptimise(barcode);
+    console.log('🔍 Résultat recherche:', result);
 
-                    const response = await fetch(`${API_BASE_URL}/rechercher_produit_codebar?codebar=${encodeURIComponent(barcode)}`, {
-                        headers: { 'X-User-ID': userId }
-                    });
-                    const result = await response.json();
-                    console.log('🔍 Réponse API:', result);
+    if (result.statut === 'trouvé') {
+        let produitData = result.produit;
 
-                    if (result.statut === 'trouvé') {
-                        let produitData = result.produit || result;
-                        console.log('🔍 produitData:', produitData);
+        const numeroItem = produitData.numero_item || produitData.NUMERO_ITEM || '';
+        const bar = produitData.bar || produitData.BAR || barcode;
+        const prix = produitData.prix || produitData.PRIX || 0;
+        const prixba = produitData.prixba || produitData.PRIXBA || 0;
+        const qte = produitData.qte || produitData.QTE || 0;
+        const designation = produitData.designation || produitData.DESIGNATION || 'Produit';
 
-                        const numeroItem = produitData.numero_item || produitData.NUMERO_ITEM || produitData.numero || '';
-                        const bar = produitData.bar || produitData.BAR || produitData.codebar || '';
-                        const prix = produitData.prix || produitData.PRIX || produitData.prix_vente || 0;
-                        const prixba = produitData.prixba || produitData.PRIXBA || produitData.prix_achat || 0;
-                        const qte = produitData.qte || produitData.QTE || produitData.quantite || 
-                                    produitData.QUANTITE || produitData.stock || produitData.STOCK || 0;
-                        const designation = produitData.designation || produitData.DESIGNATION || produitData.nom || 'Produit';
+        const qteFloat = parseFloat(String(qte).replace(',', '.'));
 
-                        const qteFloat = parseFloat(String(qte).replace(',', '.'));
-                        console.log('🔍 Données extraites:', { numeroItem, bar, prix, prixba, qte: qteFloat, designation });
+        showScannedProductInfo(produitData);
+        selectProduct(numeroItem, bar, prix, prixba, qteFloat, designation);
 
-                        showScannedProductInfo(produitData);
-                        selectProduct(numeroItem, bar, prix, prixba, qteFloat, designation);
-
-                        if ('vibrate' in navigator) navigator.vibrate(200);
-                        playBeep();
-                        showToast(`Produit ajouté : ${designation}`);
-                    } else {
-                        showToast('Produit non trouvé', true);
-                    }
-                }
+        if ('vibrate' in navigator) navigator.vibrate(200);
+        playBeep();
+        showToast(`✅ ${designation}`);
+        
+    } else {
+        // ⚠️ AFFICHER LE MODAL PRODUIT NON TROUVÉ
+        showProductNotFoundModal(barcode);
+        
+        if ('vibrate' in navigator) navigator.vibrate([100, 50, 100]);
+        
+        // Son d'erreur
+        try {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.setValueAtTime(400, audioContext.currentTime);
+            oscillator.type = 'sine';
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.3);
+        } catch (e) {
+            console.error('Erreur son:', e);
+        }
+    }
+}
             } catch (detectError) {
                 console.error('❌ Erreur détection:', detectError);
             }
@@ -2373,50 +2472,30 @@ function stopScanner() {
     }
 }
 
-       document.getElementById('productBar').addEventListener('change', async (event) => {
+       
+document.getElementById('productBar').addEventListener('change', async (event) => {
     const barcode = event.target.value.trim();
-    if (barcode) {
-        console.log('Recherche produit par code-barres:', barcode);
-        const userId = localStorage.getItem('userId');
-
-        try {
-            const response = await fetch(`${API_BASE_URL}/rechercher_produit_codebar?codebar=${encodeURIComponent(barcode)}`, {
-                headers: { 'X-User-ID': userId }
-            });
-            console.log('Réponse API:', response.status, response.statusText);
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Erreur API:', errorText);
-                showToast('Produit non trouvé', true);
-                event.target.value = '';
-                return;
-            }
-
-            const result = await response.json();
-            console.log('Résultat API:', result);
-
-            if (result.statut === 'trouvé') {
-                const { produit } = result;
-                selectProduct(
-                    produit.numero_item,
-                    produit.bar,
-                    produit.prix,
-                    produit.prixba,
-                    produit.qte,
-                    produit.designation
-                );
-                showToast(`Produit ajouté : ${produit.designation}`);
-                event.target.value = '';
-            } else {
-                showToast('Produit non trouvé', true);
-                event.target.value = '';
-            }
-        } catch (err) {
-            console.error('Erreur recherche code-barres:', err);
-            showToast(`Erreur : ${err.message}`, true);
-            event.target.value = '';
-        }
+    if (!barcode) return;
+    
+    console.log('🔍 Recherche manuelle:', barcode);
+    
+    const result = await rechercherProduitOptimise(barcode);
+    
+    if (result.statut === 'trouvé') {
+        const produit = result.produit;
+        selectProduct(
+            produit.numero_item || produit.NUMERO_ITEM,
+            produit.bar || produit.BAR,
+            produit.prix || produit.PRIX,
+            produit.prixba || produit.PRIXBA,
+            produit.qte || produit.QTE,
+            produit.designation || produit.DESIGNATION
+        );
+        showToast(`✅ ${produit.designation || produit.DESIGNATION}`);
+        event.target.value = '';
+    } else {
+          showProductNotFoundModal(barcode);
+        event.target.value = '';
     }
 });
         document.getElementById('searchProduct').addEventListener('input', (event) => {
@@ -2468,5 +2547,23 @@ function stopScanner() {
     <div class="product-price" id="scannedProductPrice"></div>
     <div class="product-stock" id="scannedProductStock"></div>
 </div> 
+
+<!-- Modal Produit Non Trouvé -->
+<div id="productNotFoundModal" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255, 255, 255, 0.98); padding: 30px; border-radius: 15px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3); z-index: 1003; text-align: center; min-width: 300px; animation: productPopIn 0.3s ease-out;">
+    <i class="fas fa-exclamation-triangle" style="font-size: 64px; color: #ef4444; margin-bottom: 20px;"></i>
+    <h2 style="font-size: 24px; color: #1f2937; margin-bottom: 15px; font-weight: bold;">Produit Non Trouvé</h2>
+    <p style="font-size: 18px; color: #6b7280; margin-bottom: 20px;">
+        Code-barres : <strong id="notFoundBarcode" style="color: #4f46e5;"></strong>
+    </p>
+    <p style="font-size: 14px; color: #9ca3af; margin-bottom: 25px;">
+        Ce produit n'existe pas dans la base de données
+    </p>
+    <button onclick="closeProductNotFoundModal()" style="background: #4f46e5; color: white; padding: 12px 30px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; transition: all 0.3s;">
+        <i class="fas fa-times" style="margin-right: 8px;"></i>Fermer
+    </button>
+</div>
+
+<div id="productNotFoundOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.5); z-index: 1002;" onclick="closeProductNotFoundModal()"></div>
+
 </body>
 </html>
