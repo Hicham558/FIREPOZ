@@ -80,6 +80,42 @@
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
       }
     }
+
+    /* Icon Button Styles (pour les nouveaux boutons) */
+    .icon-button {
+      width: 96px;
+      height: 96px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      border-radius: 50%;
+      transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    }
+
+    .icon-button:hover {
+      transform: scale(1.1) translateY(-4px);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    }
+
+    .label-animated {
+      opacity: 0;
+      transform: translateY(10px);
+      animation: slideUpLabel 0.5s ease-out forwards;
+      animation-delay: 0.3s;
+      text-align: center;
+      max-width: 80px;
+    }
+
+    @keyframes slideUpLabel {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
   </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
@@ -212,7 +248,7 @@
     </div>
 
     <!-- Panneau Synchronisation Serveur (Pliable) -->
-    <div class="bg-white rounded-lg shadow-md mb-4">
+    <div class="bg-white rounded-lg shadow-md mb-4" id="syncPanelContainer">
       <button onclick="toggleSection('syncPanel')" class="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition">
         <div class="flex items-center">
           <i class="fas fa-cloud-download-alt mr-3 text-yellow-500"></i>
@@ -237,6 +273,36 @@
       </div>
     </div>
 
+    <!-- Nouveau Panneau: Boutons SupaBase Cloud et Serveur PC -->
+    <div class="bg-white rounded-lg shadow-md mb-4">
+      <div class="px-6 py-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-t-lg">
+        <h2 class="text-xl font-semibold flex items-center">
+          <i class="fas fa-server mr-3"></i>
+          Sélection Source API
+        </h2>
+      </div>
+      
+      <div class="px-6 py-8">
+        <div class="flex flex-row justify-center items-start gap-6">
+          <!-- Bouton SupaBase Cloud -->
+          <div class="flex flex-col items-center">
+            <button type="button" onclick="resetApiUrl()" class="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 w-24 h-24 rounded-full hover:from-blue-700 hover:to-blue-800 transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-lg icon-button">
+              <i class="fas fa-cloud text-4xl"></i>
+            </button>
+            <span class="mt-2 text-sm font-medium text-gray-700 label-animated">SupaBase Cloud</span>
+          </div>
+          
+          <!-- Bouton Serveur PC -->
+          <div class="flex flex-col items-center">
+            <button type="button" onclick="resetToSecondaryApiUrl()" class="bg-gradient-to-r from-purple-600 to-purple-700 text-white p-4 w-24 h-24 rounded-full hover:from-purple-700 hover:to-purple-800 transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-lg icon-button">
+              <i class="fas fa-server text-4xl"></i>
+            </button>
+            <span class="mt-2 text-sm font-medium text-gray-700 label-animated">Serveur PC</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <!-- Toast -->
@@ -247,13 +313,56 @@
     </div>
   </div>
 
+  <!-- Modal de confirmation d'import -->
+  <div id="importModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg shadow-2xl p-6 max-w-md w-full mx-4">
+      <h3 class="text-xl font-bold mb-4 text-gray-800 flex items-center">
+        <i class="fas fa-question-circle text-yellow-500 mr-2"></i>
+        Importer la base de données
+      </h3>
+      
+      <p class="text-gray-700 mb-6">
+        Fichier : <strong id="importFileName" class="text-indigo-600"></strong>
+      </p>
+      
+      <p class="text-gray-600 mb-6 text-sm">
+        Où souhaitez-vous importer cette base ?
+      </p>
+      
+      <div class="grid grid-cols-1 gap-3 mb-6">
+        <button onclick="confirmImport('default')" class="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition flex items-center justify-center shadow-md">
+          <i class="fas fa-mobile-alt mr-2"></i>
+          Base Par Défaut (écrase)
+        </button>
+        
+        <button onclick="confirmImport('server')" class="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition flex items-center justify-center shadow-md">
+          <i class="fas fa-cloud mr-2"></i>
+          Base Serveur (écrase)
+        </button>
+      </div>
+      
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+        <p class="text-xs text-yellow-800">
+          <i class="fas fa-exclamation-triangle mr-1"></i>
+          <strong>Attention :</strong> La base actuelle sera sauvegardée automatiquement avant l'écrasement.
+        </p>
+      </div>
+      
+      <button onclick="cancelImport()" class="w-full bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400 transition">
+        Annuler
+      </button>
+    </div>
+  </div>
+
   <script>
-      // ========== IndexedDB Storage Layer ==========
+    // ========== IndexedDB Storage Layer ==========
     const DB_NAME = "FirePozDB";
     const STORE_NAME = "databases";
-    let API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'https://hicham03041979.onrender.com';
+    const DEFAULT_API_URL = 'https://hicham03041979.onrender.com';
+    let API_BASE_URL = localStorage.getItem('apiBaseUrl') || DEFAULT_API_URL;
     
     let dbConnection = null;
+    let pendingFileData = null;
 
     function openIDB() {
       return new Promise((resolve, reject) => {
@@ -374,38 +483,37 @@
       }
     }
 
-  async function downloadDatabase() {
-  const dbData = await idbGet('gestion_db');
-  if (!dbData) {
-    showToast("Aucune base active", true);
-    return;
-  }
+    async function downloadDatabase() {
+      const dbData = await idbGet('gestion_db');
+      if (!dbData) {
+        showToast("Aucune base active", true);
+        return;
+      }
 
-  try {
-    const bytes = Uint8Array.from(atob(dbData), c => c.charCodeAt(0));
-    const blob = new Blob([bytes], { type: 'application/octet-stream' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    
-    const name = await idbGet('gestion_db_active') || 'gestion';
-    
-    // Créer le nom du dossier avec la date
-    const now = new Date();
-    const dateStr = now.toISOString().slice(0, 10); // Format: YYYY-MM-DD
-    const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '-'); // Format: HH-MM-SS
-    const folderName = `${name}_${dateStr}_${timeStr}`;
-    
-    a.href = url;
-    a.download = `${folderName}/gestion.db`;  // Nom du dossier + fichier gestion.db
-    a.click();
-    URL.revokeObjectURL(url);
-    
-    showToast("Base téléchargée");
-  } catch (e) {
-    console.error("Erreur téléchargement:", e);
-    showToast("Erreur téléchargement", true);
-  }
-}
+      try {
+        const bytes = Uint8Array.from(atob(dbData), c => c.charCodeAt(0));
+        const blob = new Blob([bytes], { type: 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        
+        const name = await idbGet('gestion_db_active') || 'gestion';
+        
+        const now = new Date();
+        const dateStr = now.toISOString().slice(0, 10);
+        const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '-');
+        const folderName = `${name}_${dateStr}_${timeStr}`;
+        
+        a.href = url;
+        a.download = `${folderName}_gestion.db`;
+        a.click();
+        URL.revokeObjectURL(url);
+        
+        showToast("Base téléchargée");
+      } catch (e) {
+        console.error("Erreur téléchargement:", e);
+        showToast("Erreur téléchargement", true);
+      }
+    }
 
     async function createNewDatabase() {
       const name = prompt("Nom de la nouvelle base:");
@@ -441,154 +549,143 @@
       }
     }
 
-// Variable globale pour stocker les données du fichier en attente
-let pendingFileData = null;
-
-function uploadDatabase(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  
-  // Vérifier la taille du fichier
-  const maxSize = 50 * 1024 * 1024; // 50 MB
-  if (file.size > maxSize) {
-    showToast("❌ Fichier trop volumineux (max 50 MB)", true);
-    event.target.value = '';
-    return;
-  }
-  
-  showLoading(true);
-  const reader = new FileReader();
-  
-  reader.onerror = function(e) {
-    console.error("Erreur FileReader:", e);
-    showToast("❌ Erreur lors de la lecture du fichier", true);
-    showLoading(false);
-  };
-  
-  reader.onload = async function(e) {
-    try {
-      const arrayBuffer = e.target.result;
+    function uploadDatabase(event) {
+      const file = event.target.files[0];
+      if (!file) return;
       
-      if (!arrayBuffer || arrayBuffer.byteLength === 0) {
-        throw new Error("Fichier vide ou invalide");
+      const maxSize = 50 * 1024 * 1024;
+      if (file.size > maxSize) {
+        showToast("❌ Fichier trop volumineux (max 50 MB)", true);
+        event.target.value = '';
+        return;
       }
       
-      const bytes = new Uint8Array(arrayBuffer);
+      showLoading(true);
+      const reader = new FileReader();
       
-      // Conversion optimisée pour gros fichiers
-      const CHUNK_SIZE = 32768; // 32 KB
-      let binary = '';
-      
-      for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
-        const chunk = bytes.subarray(i, Math.min(i + CHUNK_SIZE, bytes.length));
-        binary += String.fromCharCode.apply(null, Array.from(chunk));
-      }
-      
-      const base64 = btoa(binary);
-      
-      // Stocker les données
-      pendingFileData = {
-        fileName: file.name.replace(/\.(db|sqlite|sqlite3)$/i, ''),
-        base64: base64,
-        originalName: file.name,
-        size: file.size
+      reader.onerror = function(e) {
+        console.error("Erreur FileReader:", e);
+        showToast("❌ Erreur lors de la lecture du fichier", true);
+        showLoading(false);
       };
       
-      // Afficher le modal
-      document.getElementById('importFileName').textContent = file.name;
-      document.getElementById('importModal').classList.remove('hidden');
+      reader.onload = async function(e) {
+        try {
+          const arrayBuffer = e.target.result;
+          
+          if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+            throw new Error("Fichier vide ou invalide");
+          }
+          
+          const bytes = new Uint8Array(arrayBuffer);
+          
+          const CHUNK_SIZE = 32768;
+          let binary = '';
+          
+          for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+            const chunk = bytes.subarray(i, Math.min(i + CHUNK_SIZE, bytes.length));
+            binary += String.fromCharCode.apply(null, Array.from(chunk));
+          }
+          
+          const base64 = btoa(binary);
+          
+          pendingFileData = {
+            fileName: file.name.replace(/\.(db|sqlite|sqlite3)$/i, ''),
+            base64: base64,
+            originalName: file.name,
+            size: file.size
+          };
+          
+          document.getElementById('importFileName').textContent = file.name;
+          document.getElementById('importModal').classList.remove('hidden');
+          
+          showLoading(false);
+          
+        } catch (error) {
+          console.error("Erreur détaillée:", error);
+          showToast(`❌ Erreur: ${error.message}`, true);
+          showLoading(false);
+          pendingFileData = null;
+        }
+      };
       
-      showLoading(false);
+      reader.readAsArrayBuffer(file);
+      event.target.value = '';
+    }
+
+    async function confirmImport(type) {
+      if (!pendingFileData) {
+        showToast("Aucun fichier en attente", true);
+        return;
+      }
       
-    } catch (error) {
-      console.error("Erreur détaillée:", error);
-      showToast(`❌ Erreur: ${error.message}`, true);
-      showLoading(false);
+      document.getElementById('importModal').classList.add('hidden');
+      showLoading(true);
+      
+      try {
+        const currentName = await idbGet('gestion_db_active') || 'gestion';
+        const currentDb = await idbGet('gestion_db');
+        if (currentDb) {
+          await idbSet(`gestion_db_backup_${currentName}`, currentDb);
+          console.log(`💾 Base "${currentName}" sauvegardée`);
+        }
+        
+        if (type === 'default') {
+          await idbSet('gestion_db', pendingFileData.base64);
+          await idbSet('gestion_db_active', 'gestion');
+          
+          if (dbConnection) {
+            try { dbConnection.close(); } catch (e) {}
+          }
+          dbConnection = null;
+          
+          await loadActiveDb();
+          await updateStats();
+          await updateServerStatus();
+          await updateSyncPanelVisibility();
+          await updateApiButtonsIndicator();
+          
+          showToast(`✅ Base importée comme base par défaut`);
+          
+        } else if (type === 'server') {
+          await idbSet('gestion_db_server', pendingFileData.base64);
+          await idbSet('gestion_db', pendingFileData.base64);
+          await idbSet('gestion_db_active', 'serveur');
+          
+          localStorage.setItem('apiBaseUrl', '/api');
+          API_BASE_URL = '/api';
+          
+          if (dbConnection) {
+            try { dbConnection.close(); } catch (e) {}
+          }
+          dbConnection = null;
+          
+          await loadActiveDb();
+          await updateStats();
+          await updateServerStatus();
+          await updateSyncPanelVisibility();
+          await updateApiButtonsIndicator();
+          
+          showToast(`✅ Base importée comme base serveur (mode LOCAL activé)`);
+        }
+        
+        pendingFileData = null;
+        
+      } catch (error) {
+        console.error("Erreur import:", error);
+        showToast("Erreur lors de l'import", true);
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    function cancelImport() {
+      document.getElementById('importModal').classList.add('hidden');
       pendingFileData = null;
+      showToast("Import annulé");
     }
-  };
-  
-  reader.readAsArrayBuffer(file);
-  event.target.value = '';
-}
 
-async function confirmImport(type) {
-  if (!pendingFileData) {
-    showToast("Aucun fichier en attente", true);
-    return;
-  }
-  
-  // Fermer le modal
-  document.getElementById('importModal').classList.add('hidden');
-  showLoading(true);
-  
-  try {
-    // Sauvegarder la base actuelle
-    const currentName = await idbGet('gestion_db_active') || 'gestion';
-    const currentDb = await idbGet('gestion_db');
-    if (currentDb) {
-      await idbSet(`gestion_db_backup_${currentName}`, currentDb);
-      console.log(`💾 Base "${currentName}" sauvegardée`);
-    }
-    
-    if (type === 'default') {
-      // Importer comme base par défaut
-      await idbSet('gestion_db', pendingFileData.base64);
-      await idbSet('gestion_db_active', 'gestion');
-      
-      if (dbConnection) {
-        try { dbConnection.close(); } catch (e) {}
-      }
-      dbConnection = null;
-      
-      await loadActiveDb();
-      await updateStats();
-      await updateServerStatus();
-      await updateSyncPanelVisibility();
-      
-      showToast(`✅ Base importée comme base par défaut`);
-      
-    } else if (type === 'server') {
-      // Importer comme base serveur
-      await idbSet('gestion_db_server', pendingFileData.base64);
-      await idbSet('gestion_db', pendingFileData.base64);
-      await idbSet('gestion_db_active', 'serveur');
-      
-      // Passer en mode local
-      localStorage.setItem('apiBaseUrl', '/api');
-      API_BASE_URL = '/api';
-      
-      if (dbConnection) {
-        try { dbConnection.close(); } catch (e) {}
-      }
-      dbConnection = null;
-      
-      await loadActiveDb();
-      await updateStats();
-      await updateServerStatus();
-      await updateSyncPanelVisibility();
-      
-      showToast(`✅ Base importée comme base serveur (mode LOCAL activé)`);
-    }
-    
-    // Nettoyer
-    pendingFileData = null;
-    
-  } catch (error) {
-    console.error("Erreur import:", error);
-    showToast("Erreur lors de l'import", true);
-  } finally {
-    showLoading(false);
-  }
-}
-
-function cancelImport() {
-  document.getElementById('importModal').classList.add('hidden');
-  pendingFileData = null;
-  showToast("Import annulé");
-}
-
-    async function resetToDefault() {
+      async function resetToDefault() {
       if (!confirm("⚠️ Réinitialiser avec gestion.db par défaut ?\n\nCette action est irréversible.")) return;
       
       showLoading(true);
