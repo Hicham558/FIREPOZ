@@ -7,7 +7,35 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer">
     <style>
-    /* Style pour les boutons d'icônes */
+  /* Animation pour le modal */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+#certModal > div {
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* Style pour les étapes numérotées */
+#certModal ol li {
+    transition: all 0.2s ease;
+}
+
+#certModal ol li:hover {
+    transform: translateX(5px);
+    background-color: rgba(79, 70, 229, 0.05);
+    padding-left: 8px;
+    border-radius: 8px;
+}
+
+  /* Style pour les boutons d'icônes */
 .icon-button {
     width: 96px; /* Taille ajustée pour correspondre à l'image */
     height: 96px; /* Égal à la largeur pour un cercle parfait */
@@ -521,7 +549,9 @@
                 toast.classList.add('hidden');
             }, 3000);
         }
-// Ouvrir l'URL de l'API dans le navigateur
+let pendingUrl = null;
+
+// Ouvrir l'URL de l'API dans le navigateur avec modal instructif
 function openApiUrlInBrowser() {
     if (!checkLoginStatus()) {
         console.log('Navigation annulée: utilisateur non connecté');
@@ -537,20 +567,59 @@ function openApiUrlInBrowser() {
     }
     
     try {
-        // Vérifier que l'URL est valide
         const url = new URL(apiUrl);
         
-        // Ouvrir dans un nouvel onglet
-        window.open(url.toString(), '_blank', 'noopener,noreferrer');
+        // Si c'est HTTPS avec une IP locale ou :5000, montrer le modal
+        if (url.protocol === 'https:' && 
+            (url.hostname.startsWith('192.168.') || 
+             url.hostname.startsWith('10.') || 
+             url.hostname.startsWith('172.') ||
+             url.hostname === 'localhost' ||
+             url.port === '5000')) {
+            pendingUrl = url.toString();
+            document.getElementById('certModal').classList.remove('hidden');
+        } else {
+            // Sinon ouvrir directement
+            window.open(url.toString(), '_blank', 'noopener,noreferrer');
+            showToast(`Ouverture de ${apiUrl}`);
+        }
         
-        showToast(`Ouverture de ${apiUrl} dans le navigateur`);
-        console.log('URL ouverte dans le navigateur:', apiUrl);
+        console.log('URL préparée:', apiUrl);
         
     } catch (error) {
-        showToast('URL invalide. Format attendu: https://exemple.com', true);
+        showToast('URL invalide. Format attendu: https://192.168.1.135:5000', true);
         console.error('URL invalide:', apiUrl, error);
     }
 }
+
+// Fermer le modal
+function closeModal() {
+    document.getElementById('certModal').classList.add('hidden');
+    pendingUrl = null;
+}
+
+// Confirmer et ouvrir l'URL
+function confirmOpenUrl() {
+    if (pendingUrl) {
+        window.open(pendingUrl, '_blank', 'noopener,noreferrer');
+        showToast('✅ Suivez les 4 étapes dans le nouvel onglet');
+        
+        // Message de rappel après 3 secondes
+        setTimeout(() => {
+            showToast('💡 Après avoir accepté le certificat, fermez l\'onglet', false);
+        }, 3000);
+        
+        closeModal();
+    }
+}
+
+// Fermer le modal en cliquant en dehors
+document.addEventListener('click', function(event) {
+    const modal = document.getElementById('certModal');
+    if (event.target === modal) {
+        closeModal();
+    }
+});
          function setOfflineMode() {
             if (!checkLoginStatus()) {
                 console.log('Mode hors ligne annulé: utilisateur non connecté');
@@ -1060,5 +1129,41 @@ function updateApiButtonsIndicator() {
         });
 
     </script>
+    <!-- Modal pour accepter le certificat -->
+<div id="certModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-2xl p-8 max-w-md mx-4 shadow-2xl animate-fade-in">
+        <div class="text-center">
+            <i class="fas fa-shield-alt text-6xl text-yellow-500 mb-4 animate-pulse"></i>
+            <h3 class="text-2xl font-bold mb-4 text-gray-800">Accepter le certificat</h3>
+            <p class="text-gray-600 mb-4">Pour connecter votre mobile au serveur local :</p>
+            <ol class="text-left text-sm text-gray-700 space-y-3 mb-6 bg-gray-50 p-4 rounded-lg">
+                <li class="flex items-start">
+                    <span class="bg-indigo-600 text-white rounded-full w-6 h-6 flex items-center justify-center mr-3 flex-shrink-0 font-bold">1</span>
+                    <span>Cliquez sur <strong>"Ouvrir"</strong> ci-dessous</span>
+                </li>
+                <li class="flex items-start">
+                    <span class="bg-indigo-600 text-white rounded-full w-6 h-6 flex items-center justify-center mr-3 flex-shrink-0 font-bold">2</span>
+                    <span>Dans la nouvelle page, cliquez sur <strong class="text-indigo-600">"Avancé"</strong> ou <strong class="text-indigo-600">"Advanced"</strong></span>
+                </li>
+                <li class="flex items-start">
+                    <span class="bg-indigo-600 text-white rounded-full w-6 h-6 flex items-center justify-center mr-3 flex-shrink-0 font-bold">3</span>
+                    <span>Puis sur <strong class="text-indigo-600">"Continuer vers le site"</strong> ou <strong class="text-indigo-600">"Proceed to..."</strong></span>
+                </li>
+                <li class="flex items-start">
+                    <span class="bg-green-600 text-white rounded-full w-6 h-6 flex items-center justify-center mr-3 flex-shrink-0 font-bold">✓</span>
+                    <span>Fermez l'onglet et utilisez l'application normalement</span>
+                </li>
+            </ol>
+            <div class="flex gap-3">
+                <button onclick="closeModal()" class="flex-1 bg-gray-500 text-white px-4 py-3 rounded-lg hover:bg-gray-600 transition-all duration-300 shadow-md hover:shadow-lg">
+                    <i class="fas fa-times mr-2"></i>Annuler
+                </button>
+                <button onclick="confirmOpenUrl()" class="flex-1 bg-indigo-600 text-white px-4 py-3 rounded-lg hover:bg-indigo-700 transition-all duration-300 shadow-md hover:shadow-lg">
+                    <i class="fas fa-external-link-alt mr-2"></i>Ouvrir
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
 </html>
