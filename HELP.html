@@ -1,18 +1,19 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-   
-   <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
-    <script type="module" src="sw1.js"></script>
- <meta charset="UTF-8">
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vérificateur de Prix</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body {
-            background-color: #f3f4f6;
-            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #e0e7ff, #a5b4fc);
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
         #scannerPreview {
             width: 100vw;
@@ -32,7 +33,7 @@
             left: 0;
             width: 100vw;
             height: 100vh;
-            background: rgba(0, 0, 0, 0.5);
+            background: rgba(0, 0, 0, 0.6);
             z-index: 999;
         }
         #scan-indicator {
@@ -40,20 +41,21 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 70%;
-            height: 50%;
-            border: 2px solid transparent;
-            border-radius: 8px;
-            transition: border-color 0.3s;
+            width: 80%;
+            height: 60%;
+            border: 3px solid transparent;
+            border-radius: 12px;
+            transition: border-color 0.3s ease;
             pointer-events: none;
             z-index: 1001;
         }
         .scanning {
-            border-color: rgba(0, 255, 0, 0.5);
-            animation: pulseIndicator 1.5s infinite ease-in-out;
+            border-color: rgba(34, 197, 94, 0.6);
+            animation: pulseIndicator 1.2s infinite ease-in-out;
         }
         .detected {
-            border-color: rgba(0, 255, 0, 1);
+            border-color: rgba(34, 197, 94, 1);
+            animation: detectedPulse 0.5s ease-out;
         }
         #camera-loading {
             display: none;
@@ -62,9 +64,9 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.8);
             color: white;
-            font-size: 1.2rem;
+            font-size: 1.5rem;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -73,47 +75,52 @@
         .closeScannerButton {
             z-index: 1003;
             position: fixed;
-            top: 16px;
-            right: 16px;
-            background-color: #ef4444;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(45deg, #ef4444, #f87171);
             color: white;
-            padding: 8px 16px;
-            border-radius: 4px;
-            font-size: 16px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 600;
             cursor: pointer;
-            transition: background-color 0.3s ease;
+            transition: transform 0.2s ease, background 0.3s ease;
         }
         .closeScannerButton:hover {
-            background-color: #dc2626;
+            background: linear-gradient(45deg, #dc2626, #e11d48);
+            transform: scale(1.05);
         }
         #scannedProductInfo {
             position: fixed;
             top: 50%;
             left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(255, 255, 255, 0.98);
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            transform: translate(-50%, -50%) scale(0.8);
+            background: white;
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
             z-index: 1003;
             display: none;
             text-align: center;
-            min-width: 300px;
-            animation: productPopIn 0.3s ease-out;
+            min-width: 320px;
+            max-width: 90%;
+            animation: productPopIn 0.4s ease-out forwards;
         }
         #productNotFoundModal {
             display: none;
             position: fixed;
             top: 50%;
             left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(255, 255, 255, 0.98);
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            transform: translate(-50%, -50%) scale(0.8);
+            background: white;
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
             z-index: 1003;
             text-align: center;
-            min-width: 300px;
+            min-width: 320px;
+            max-width: 90%;
+            animation: productPopIn 0.4s ease-out forwards;
         }
         #productNotFoundOverlay {
             display: none;
@@ -122,51 +129,72 @@
             left: 0;
             width: 100vw;
             height: 100vh;
-            background: rgba(0, 0, 0, 0.5);
+            background: rgba(0, 0, 0, 0.6);
             z-index: 1002;
+        }
+        .flash-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(255, 255, 255, 0.8);
+            z-index: 1001;
+            pointer-events: none;
+            animation: flashWhite 0.3s ease-out forwards;
         }
         #toast {
             position: fixed;
-            bottom: 20px;
-            right: 20px;
+            bottom: 30px;
+            right: 30px;
             z-index: 1004;
             display: none;
         }
         .toast-in {
-            animation: toastIn 0.5s both;
+            animation: toastIn 0.5s ease-out forwards;
         }
         .toast-out {
-            animation: toastOut 0.5s both;
+            animation: toastOut 0.5s ease-out forwards;
         }
         @keyframes pulseIndicator {
-            0% { border-color: rgba(0, 255, 0, 0.5); }
-            50% { border-color: rgba(0, 255, 0, 0.8); }
-            100% { border-color: rgba(0, 255, 0, 0.5); }
+            0% { border-color: rgba(34, 197, 94, 0.5); }
+            50% { border-color: rgba(34, 197, 94, 0.9); }
+            100% { border-color: rgba(34, 197, 94, 0.5); }
+        }
+        @keyframes detectedPulse {
+            0% { border-color: rgba(34, 197, 94, 0.6); transform: scale(1); }
+            50% { border-color: rgba(34, 197, 94, 1); transform: scale(1.05); }
+            100% { border-color: rgba(34, 197, 94, 1); transform: scale(1); }
         }
         @keyframes productPopIn {
-            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+            0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
             100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
         }
+        @keyframes flashWhite {
+            0% { opacity: 0.8; }
+            50% { opacity: 1; }
+            100% { opacity: 0; }
+        }
         @keyframes toastIn {
-            from { opacity: 0; transform: translateY(40px); }
+            from { opacity: 0; transform: translateY(50px); }
             to { opacity: 1; transform: translateY(0); }
         }
         @keyframes toastOut {
             from { opacity: 1; transform: translateY(0); }
-            to { opacity: 0; transform: translateY(40px); }
+            to { opacity: 0; transform: translateY(50px); }
         }
     </style>
 </head>
 <body>
     <div class="container mx-auto px-4 py-8">
-        <h1 class="text-3xl font-bold text-indigo-700 mb-6 text-center">
-            <i class="fas fa-barcode mr-2"></i> Vérificateur de Prix
+        <h1 class="text-4xl font-extrabold text-indigo-800 mb-8 text-center animate-pulse">
+            <i class="fas fa-barcode mr-3"></i> Vérificateur de Prix
         </h1>
-        <div class="bg-white rounded-lg shadow-md p-6 max-w-lg mx-auto">
+        <div class="bg-white rounded-2xl shadow-xl p-8 max-w-md mx-auto transform transition-all hover:scale-105">
             <div class="relative mb-4">
-                <input type="text" id="productBar" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Scanner ou entrer code-barres" required>
-                <button id="scanButton" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white px-3 py-1 rounded-md hover:bg-indigo-700 transition duration-300" onclick="startScanner()">
-                    <i class="fas fa-camera"></i> Scanner
+                <input type="text" id="productBar" class="w-full px-4 py-3 border-2 border-indigo-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-200 transition duration-300" placeholder="Scanner ou entrer code-barres" autofocus required>
+                <button id="scanButton" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition duration-300 flex items-center">
+                    <i class="fas fa-camera mr-2"></i> Scanner
                 </button>
             </div>
         </div>
@@ -176,43 +204,43 @@
     <div id="scannerOverlay">
         <div id="scan-indicator"></div>
         <div id="camera-loading">
-            <i class="fas fa-spinner fa-spin mr-2"></i>Chargement de la caméra...
+            <i class="fas fa-spinner fa-spin mr-3"></i>Chargement de la caméra...
         </div>
     </div>
 
     <div id="scannedProductInfo">
-        <h2 class="text-2xl font-bold text-indigo-600 mb-4">
+        <h2 class="text-3xl font-bold text-indigo-600 mb-4">
             <i class="fas fa-check-circle mr-2"></i> Produit Scanné
         </h2>
-        <div class="product-name text-3xl font-bold text-gray-800 mb-2" id="scannedProductName"></div>
-        <div class="product-price text-4xl font-bold text-green-600 mb-2" id="scannedProductPrice"></div>
-        <div class="product-stock text-lg text-gray-600" id="scannedProductStock"></div>
+        <div class="product-name text-4xl font-extrabold text-gray-800 mb-3" id="scannedProductName"></div>
+        <div class="product-price text-5xl font-bold text-green-600 mb-3" id="scannedProductPrice"></div>
+        <div class="product-stock text-xl text-gray-600" id="scannedProductStock"></div>
     </div>
 
     <div id="productNotFoundModal">
-        <i class="fas fa-exclamation-triangle text-6xl text-red-500 mb-4"></i>
-        <h2 class="text-2xl font-bold text-gray-800 mb-4">Produit Non Trouvé</h2>
-        <p class="text-lg text-gray-600 mb-2">Code-barres : <strong id="notFoundBarcode" class="text-indigo-600"></strong></p>
-        <p class="text-sm text-gray-500 mb-6">Ce produit n'existe pas dans la base de données</p>
-        <button onclick="closeProductNotFoundModal()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700">
+        <i class="fas fa-exclamation-triangle text-7xl text-red-500 mb-4"></i>
+        <h2 class="text-3xl font-bold text-gray-800 mb-4">Produit Non Trouvé</h2>
+        <p class="text-xl text-gray-600 mb-3">Code-barres : <strong id="notFoundBarcode" class="text-indigo-600"></strong></p>
+        <p class="text-base text-gray-500 mb-6">Ce produit n'existe pas dans la base de données</p>
+        <button onclick="closeProductNotFoundModal()" class="bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 transition duration-300">
             <i class="fas fa-times mr-2"></i>Fermer
         </button>
     </div>
     <div id="productNotFoundOverlay" onclick="closeProductNotFoundModal()"></div>
 
-    <div id="toast" class="fixed bottom-4 right-4 hidden">
-        <div class="flex items-center px-6 py-3 rounded-md shadow-lg">
-            <i id="toastIcon" class="mr-2"></i>
-            <span id="toastMessage"></span>
+    <div id="toast" class="fixed bottom-8 right-8 hidden">
+        <div class="flex items-center px-6 py-4 rounded-lg shadow-2xl bg-opacity-90">
+            <i id="toastIcon" class="mr-3 text-xl"></i>
+            <span id="toastMessage" class="text-lg"></span>
         </div>
     </div>
 
     <script>
-        const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'https://hicham03041979.onrender.com';
+        const API_BASE_URL = '/api'; // Modifié pour utiliser l'API locale avec l'intercepteur
         let scannerStream = null;
         let scannerRunning = false;
         let lastScanTime = 0;
-        const SCAN_COOLDOWN = 2000;
+        const SCAN_COOLDOWN = 1500; // Réduit pour une détection plus rapide
         let produitsCache = [];
         window.produitsIndexBar = {};
 
@@ -229,15 +257,15 @@
             if (!closeScannerButton) {
                 closeScannerButton = document.createElement('button');
                 closeScannerButton.id = 'closeScannerButton';
-                closeScannerButton.innerHTML = '<i class="fas fa-times"></i> Fermer';
+                closeScannerButton.innerHTML = '<i class="fas fa-times mr-2"></i>Fermer';
                 closeScannerButton.className = 'closeScannerButton';
                 document.body.appendChild(closeScannerButton);
             }
 
             try {
-                if (!('BarcodeDetector' in window)) throw new Error('API BarcodeDetector non supportée. Utilisez Chrome ou Edge sur Android.');
+                if (!('BarcodeDetector' in window)) throw new Error('API BarcodeDetector non supportée. Utilisez Chrome ou Edge.');
                 scannerStream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+                    video: { facingMode: 'user', width: { ideal: 1920 }, height: { ideal: 1080 } } // Caméra frontale, résolution augmentée
                 });
 
                 scannerPreview.srcObject = scannerStream;
@@ -261,8 +289,8 @@
                     if (!scannerRunning) return;
                     try {
                         const canvas = document.createElement('canvas');
-                        canvas.width = scannerPreview.videoWidth || 640;
-                        canvas.height = scannerPreview.videoHeight || 480;
+                        canvas.width = scannerPreview.videoWidth || 1280;
+                        canvas.height = scannerPreview.videoHeight || 720;
                         const ctx = canvas.getContext('2d');
                         ctx.drawImage(scannerPreview, 0, 0, canvas.width, canvas.height);
 
@@ -283,7 +311,7 @@
                             const flashOverlay = document.createElement('div');
                             flashOverlay.className = 'flash-overlay';
                             document.body.appendChild(flashOverlay);
-                            setTimeout(() => flashOverlay.remove(), 200);
+                            setTimeout(() => flashOverlay.remove(), 300);
 
                             const result = await rechercherProduitOptimise(barcode);
                             if (result.statut === 'trouvé') {
@@ -316,14 +344,14 @@
                 return { statut: 'trouvé', produit: window.produitsIndexBar[barcode] };
             }
 
-            const userId = localStorage.getItem('userId');
-            if (!userId) return { statut: 'non_trouvé' };
-
             try {
                 const response = await fetch(`${API_BASE_URL}/rechercher_produit_codebar?codebar=${encodeURIComponent(barcode)}`, {
-                    headers: { 'X-User-ID': userId }
+                    headers: { 'X-User-ID': localStorage.getItem('userId') || 'default' }
                 });
-                if (!response.ok) return { statut: 'non_trouvé' };
+                if (!response.ok) {
+                    console.error('Erreur API:', response.status, response.statusText);
+                    return { statut: 'non_trouvé' };
+                }
                 const result = await response.json();
                 if (result.statut === 'trouvé' && result.produit) {
                     const bar = (result.produit.bar || result.produit.BAR || '').toString();
@@ -334,6 +362,7 @@
                 }
                 return result;
             } catch (error) {
+                console.error('Erreur fetch:', error);
                 return { statut: 'erreur', message: error.message };
             }
         }
@@ -354,7 +383,8 @@
             stockElement.textContent = `Stock : ${isNaN(quantiteFloat) ? '0.00' : quantiteFloat.toFixed(2)} unités`;
 
             infoDiv.style.display = 'block';
-            setTimeout(() => infoDiv.style.display = 'none', 3000);
+            setTimeout(() => infoDiv.style.display = 'none', 4000);
+            document.getElementById('productBar').focus();
         }
 
         function showProductNotFoundModal(barcode) {
@@ -365,7 +395,10 @@
             barcodeElement.textContent = barcode;
             modal.style.display = 'block';
             overlay.style.display = 'block';
-            setTimeout(() => closeProductNotFoundModal(), 3000);
+            setTimeout(() => {
+                closeProductNotFoundModal();
+                document.getElementById('productBar').focus();
+            }, 4000);
         }
 
         function closeProductNotFoundModal() {
@@ -391,6 +424,7 @@
             scanIndicator.classList.remove('scanning', 'detected');
             cameraLoading.style.display = 'none';
             if (closeScannerButton) closeScannerButton.style.display = 'none';
+            document.getElementById('productBar').focus();
         }
 
         function showToast(message, isError = false) {
@@ -399,9 +433,9 @@
             const toastIcon = document.getElementById('toastIcon');
 
             toast.className = isError
-                ? 'fixed bottom-4 right-4 flex items-center bg-red-500 text-white px-6 py-3 rounded-md shadow-lg toast-in'
-                : 'fixed bottom-4 right-4 flex items-center bg-green-500 text-white px-6 py-3 rounded-md shadow-lg toast-in';
-            toastIcon.className = isError ? 'fas fa-exclamation-circle mr-2' : 'fas fa-check-circle mr-2';
+                ? 'fixed bottom-8 right-8 flex items-center bg-red-500 text-white px-6 py-4 rounded-lg shadow-2xl bg-opacity-90 toast-in'
+                : 'fixed bottom-8 right-8 flex items-center bg-green-500 text-white px-6 py-4 rounded-lg shadow-2xl bg-opacity-90 toast-in';
+            toastIcon.className = isError ? 'fas fa-exclamation-circle mr-3 text-xl' : 'fas fa-check-circle mr-3 text-xl';
             toastMessage.textContent = message;
             toast.style.display = 'block';
             setTimeout(() => {
@@ -419,7 +453,7 @@
             gainNode.connect(audioContext.destination);
             oscillator.frequency.setValueAtTime(1200, audioContext.currentTime);
             oscillator.type = 'sine';
-            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.setValueAtTime(0.4, audioContext.currentTime);
             gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
             oscillator.start(audioContext.currentTime);
             oscillator.stop(audioContext.currentTime + 0.15);
@@ -433,12 +467,18 @@
             gainNode.connect(audioContext.destination);
             oscillator.frequency.setValueAtTime(400, audioContext.currentTime);
             oscillator.type = 'sine';
-            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.setValueAtTime(0.4, audioContext.currentTime);
             gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
             oscillator.start(audioContext.currentTime);
             oscillator.stop(audioContext.currentTime + 0.3);
         }
 
+        // Autofocus au chargement
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('productBar').focus();
+        });
+
+        // Saisie manuelle
         document.getElementById('productBar').addEventListener('change', async (event) => {
             const barcode = event.target.value.trim();
             if (!barcode) return;
@@ -451,6 +491,9 @@
             }
             event.target.value = '';
         });
+
+        // Lancer le scanner au clic sur le bouton
+        document.getElementById('scanButton').addEventListener('click', startScanner);
     </script>
 </body>
 </html>
