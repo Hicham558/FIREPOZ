@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-     <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
-    <script type="module" src="sw1.js"></script> 
- <meta charset="UTF-8">
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vérificateur de Prix</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+    <script type="module" src="sw1.js"></script>
     <style>
         body {
             background: linear-gradient(135deg, #e0e7ff, #a5b4fc);
@@ -194,7 +194,7 @@
         </h1>
         <div class="bg-white rounded-2xl shadow-xl p-8 max-w-md mx-auto transform transition-all hover:scale-105">
             <div class="relative mb-4">
-                <input type="text" id="productBar" class="w-full px-4 py-3 border-2 border-indigo-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-200 transition duration-300" placeholder="Scanner ou entrer code-barres" autofocus required>
+                <input type="text" id="productBar" class="w-full px-4 py-3 border-2 border-indigo-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-200 transition duration-300" placeholder="Entrez les derniers chiffres du code-barres" autofocus required>
                 <button id="scanButton" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition duration-300 flex items-center">
                     <i class="fas fa-camera mr-2"></i> Scanner
                 </button>
@@ -223,7 +223,7 @@
         <i class="fas fa-exclamation-triangle text-7xl text-red-500 mb-4"></i>
         <h2 class="text-3xl font-bold text-gray-800 mb-4">Produit Non Trouvé</h2>
         <p class="text-xl text-gray-600 mb-3">Code-barres : <strong id="notFoundBarcode" class="text-indigo-600"></strong></p>
-        <p class="text-base text-gray-500 mb-6">Ce produit n'existe pas dans la base de données</p>
+        <p class="text-base text-gray-500 mb-6">Aucun produit ne correspond à ces chiffres.</p>
         <button onclick="closeProductNotFoundModal()" class="bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 transition duration-300">
             <i class="fas fa-times mr-2"></i>Fermer
         </button>
@@ -238,11 +238,11 @@
     </div>
 
     <script>
-        const API_BASE_URL = '/api'; // Modifié pour utiliser l'API locale avec l'intercepteur
+        const API_BASE_URL = '/api';
         let scannerStream = null;
         let scannerRunning = false;
         let lastScanTime = 0;
-        const SCAN_COOLDOWN = 1500; // Réduit pour une détection plus rapide
+        const SCAN_COOLDOWN = 1500;
         let produitsCache = [];
         window.produitsIndexBar = {};
 
@@ -267,7 +267,7 @@
             try {
                 if (!('BarcodeDetector' in window)) throw new Error('API BarcodeDetector non supportée. Utilisez Chrome ou Edge.');
                 scannerStream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'user', width: { ideal: 1920 }, height: { ideal: 1080 } } // Caméra frontale, résolution augmentée
+                    video: { facingMode: 'user', width: { ideal: 1920 }, height: { ideal: 1080 } }
                 });
 
                 scannerPreview.srcObject = scannerStream;
@@ -315,8 +315,8 @@
                             document.body.appendChild(flashOverlay);
                             setTimeout(() => flashOverlay.remove(), 300);
 
-                            const result = await rechercherProduitOptimise(barcode);
-                            if (result.statut === 'trouvé') {
+                            const result = await rechercherProduitOptimise(barcode.slice(-5)); // Utiliser les 5 derniers chiffres
+                            if (result.statut === 'trouvé' && result.produit) {
                                 showScannedProductInfo(result.produit);
                                 navigator.vibrate?.(200);
                                 playBeep();
@@ -342,8 +342,13 @@
 
         async function rechercherProduitOptimise(barcode) {
             if (!barcode) return { statut: 'erreur', message: 'Code-barres vide' };
-            if (window.produitsIndexBar?.[barcode]) {
-                return { statut: 'trouvé', produit: window.produitsIndexBar[barcode] };
+
+            // Vérifier le cache pour les codes-barres se terminant par les chiffres saisis
+            const cachedProduits = Object.values(window.produitsIndexBar || {}).filter(p => 
+                (p.bar || p.BAR || '').toString().endsWith(barcode)
+            );
+            if (cachedProduits.length > 0) {
+                return { statut: 'trouvé', produit: cachedProduits[0] }; // Retourner le premier produit correspondant
             }
 
             try {
@@ -361,8 +366,9 @@
                     if (!produitsCache.some(p => p.NUMERO_ITEM === result.produit.numero_item)) {
                         produitsCache.push(result.produit);
                     }
+                    return result;
                 }
-                return result;
+                return { statut: 'non_trouvé' };
             } catch (error) {
                 console.error('Erreur fetch:', error);
                 return { statut: 'erreur', message: error.message };
@@ -485,7 +491,7 @@
             const barcode = event.target.value.trim();
             if (!barcode) return;
             const result = await rechercherProduitOptimise(barcode);
-            if (result.statut === 'trouvé') {
+            if (result.statut === 'trouvé' && result.produit) {
                 showScannedProductInfo(result.produit);
                 showToast(`✅ ${result.produit.designation || result.produit.DESIGNATION}`);
             } else {
