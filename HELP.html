@@ -3,598 +3,534 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vérificateur de Prix</title>
+    <title>Vérificateur de Prix - Supérette</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        @keyframes fadeIn {
+        body {
+            background: linear-gradient(135deg, #6b7280, #1f2937);
+            color: #fff;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+
+        /* Conteneur principal */
+        .container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        /* Animation pour l'entrée des éléments */
+        @keyframes fadeInUp {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
         }
 
-        @keyframes priceReveal {
-            0% { transform: scale(0) rotate(-180deg); opacity: 0; }
-            60% { transform: scale(1.2) rotate(10deg); opacity: 1; }
-            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        @keyframes pulseGlow {
+            0% { box-shadow: 0 0 10px rgba(59, 130, 246, 0.5); }
+            50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.8); }
+            100% { box-shadow: 0 0 10px rgba(59, 130, 246, 0.5); }
         }
 
-        @keyframes sparkle {
-            0%, 100% { opacity: 0; transform: scale(0); }
-            50% { opacity: 1; transform: scale(1); }
+        @keyframes productPopIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
         }
 
-        @keyframes scanLine {
-            0% { top: 0; }
-            50% { top: 100%; }
-            100% { top: 0; }
+        /* Scanner vidéo */
+        #scannerPreview {
+            width: 100%;
+            max-width: 640px;
+            height: 480px;
+            border-radius: 16px;
+            object-fit: cover;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            animation: pulseGlow 2s infinite ease-in-out;
         }
 
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-        }
-
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-        }
-
-        .container {
-            max-width: 100%;
-            margin: 0 auto;
-            padding: 20px;
-            animation: fadeIn 0.8s ease-out;
-        }
-
-        .header {
-            text-align: center;
-            color: white;
-            margin-bottom: 30px;
-        }
-
-        .header h1 {
-            font-size: 2.5rem;
-            font-weight: bold;
-            margin: 0;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-        }
-
-        .camera-container {
+        /* Overlay pour la caméra */
+        #scannerOverlay {
             position: fixed;
             top: 0;
             left: 0;
             width: 100vw;
             height: 100vh;
-            background: #000;
-            z-index: 1000;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 999;
             display: none;
         }
 
-        .camera-container.active {
-            display: block;
-        }
-
-        #videoPreview {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .scan-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-        }
-
-        .scan-frame {
+        /* Indicateur de scan */
+        #scan-indicator {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 70%;
-            height: 50%;
-            border: 3px solid transparent;
-            border-radius: 15px;
-            transition: all 0.3s ease;
-        }
-
-        .scan-frame.scanning {
-            border-color: rgba(34, 197, 94, 0.6);
-            box-shadow: 0 0 30px rgba(34, 197, 94, 0.4);
-            animation: pulse 2s infinite;
-        }
-
-        .scan-frame.detected {
-            border-color: rgba(34, 197, 94, 1);
-            box-shadow: 0 0 40px rgba(34, 197, 94, 0.8);
-        }
-
-        .scan-line {
-            position: absolute;
-            left: 0;
-            width: 100%;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, #22c55e, transparent);
-            animation: scanLine 2s linear infinite;
-            opacity: 0;
-        }
-
-        .scan-frame.scanning .scan-line {
-            opacity: 1;
-        }
-
-        .corner {
-            position: absolute;
-            width: 30px;
-            height: 30px;
-            border: 3px solid #22c55e;
-        }
-
-        .corner.top-left { top: -3px; left: -3px; border-right: none; border-bottom: none; }
-        .corner.top-right { top: -3px; right: -3px; border-left: none; border-bottom: none; }
-        .corner.bottom-left { bottom: -3px; left: -3px; border-right: none; border-top: none; }
-        .corner.bottom-right { bottom: -3px; right: -3px; border-left: none; border-top: none; }
-
-        .btn-scan {
-            display: block;
-            width: 200px;
-            margin: 0 auto 20px;
-            padding: 18px 40px;
-            font-size: 1.3rem;
-            font-weight: bold;
-            color: white;
-            background: linear-gradient(135deg, #22c55e, #16a34a);
-            border: none;
-            border-radius: 50px;
-            cursor: pointer;
-            box-shadow: 0 10px 30px rgba(34, 197, 94, 0.4);
-        }
-
-        .btn-close {
-            position: fixed;
-            top: 20px;
-            right: 20px;
+            width: 80%;
+            height: 60%;
+            border: 3px solid rgba(59, 130, 246, 0.7);
+            border-radius: 12px;
+            transition: border-color 0.3s;
+            pointer-events: none;
             z-index: 1001;
-            background: rgba(239, 68, 68, 0.9);
-            color: white;
-            border: none;
-            padding: 15px 25px;
-            border-radius: 50px;
-            font-size: 1.1rem;
-            font-weight: bold;
-            cursor: pointer;
         }
 
-        .product-card {
-            background: white;
-            border-radius: 20px;
-            padding: 30px;
-            margin: 20px auto;
-            max-width: 500px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            transform: scale(0);
-            opacity: 0;
+        .scanning {
+            border-color: rgba(59, 130, 246, 1);
+            animation: pulseIndicator 1.5s infinite ease-in-out;
         }
 
-        .product-card.show {
-            transform: scale(1);
-            opacity: 1;
-            animation: priceReveal 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        .detected {
+            border-color: #10b981;
+            animation: none;
         }
 
-        .product-name {
-            font-size: 1.8rem;
-            font-weight: bold;
-            color: #1f2937;
-            margin-bottom: 20px;
-            text-align: center;
+        @keyframes pulseIndicator {
+            0% { border-color: rgba(59, 130, 246, 0.5); }
+            50% { border-color: rgba(59, 130, 246, 1); }
+            100% { border-color: rgba(59, 130, 246, 0.5); }
         }
 
-        .product-price {
-            font-size: 3.5rem;
-            font-weight: bold;
-            color: #22c55e;
-            text-align: center;
-            margin: 30px 0;
-        }
-
-        .product-stock {
-            text-align: center;
-            font-size: 1.1rem;
-            color: #6b7280;
-            margin-top: 15px;
-        }
-
-        .sparkles {
-            position: fixed;
+        /* Chargement caméra */
+        #camera-loading {
+            display: none;
+            position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            pointer-events: none;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             z-index: 1002;
         }
 
-        .sparkle {
-            position: absolute;
-            width: 10px;
-            height: 10px;
-            background: #fbbf24;
-            border-radius: 50%;
-            animation: sparkle 1s ease-out forwards;
+        /* Bouton de fermeture */
+        .closeScannerButton {
+            z-index: 1003;
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            background: #ef4444;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: transform 0.3s ease, background-color 0.3s ease;
         }
 
-        .manual-input {
-            max-width: 500px;
-            margin: 20px auto;
-            padding: 20px;
-            background: rgba(255,255,255,0.9);
-            border-radius: 15px;
+        .closeScannerButton:hover {
+            background: #dc2626;
+            transform: scale(1.05);
         }
 
-        .manual-input input {
-            width: 100%;
-            padding: 15px;
-            font-size: 1.1rem;
-            border: 2px solid #d1d5db;
-            border-radius: 10px;
+        /* Info produit scanné */
+        #scannedProductInfo {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            z-index: 1003;
+            display: none;
+            text-align: center;
+            min-width: 300px;
+            animation: productPopIn 0.3s ease-out;
+            color: #1f2937;
         }
 
-        .debug-info {
+        #scannedProductInfo h2 {
+            font-size: 1.8rem;
+            color: #3b82f6;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        #scannedProductInfo .product-name {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #1f2937;
+            margin: 15px 0;
+        }
+
+        #scannedProductInfo .product-price {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #10b981;
+            margin: 20px 0;
+        }
+
+        #scannedProductInfo .product-stock {
+            font-size: 1.2rem;
+            color: #6b7280;
+            margin-top: 10px;
+        }
+
+        /* Modal produit non trouvé */
+        #productNotFoundModal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            z-index: 1003;
+            text-align: center;
+            min-width: 300px;
+            animation: productPopIn 0.3s ease-out;
+            display: none;
+        }
+
+        #productNotFoundModal h2 {
+            font-size: 1.8rem;
+            color: #ef4444;
+            margin-bottom: 15px;
+        }
+
+        /* Toast notifications */
+        #toast {
             position: fixed;
             bottom: 20px;
-            left: 20px;
-            background: rgba(0,0,0,0.8);
-            color: white;
-            padding: 15px;
-            border-radius: 10px;
-            font-family: monospace;
-            font-size: 12px;
-            max-width: 300px;
-            z-index: 2000;
+            right: 20px;
+            display: none;
+            z-index: 1004;
+        }
+
+        .toast-in {
+            animation: toastIn 0.5s ease-out forwards;
+        }
+
+        .toast-out {
+            animation: toastOut 0.5s ease-out forwards;
+        }
+
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateY(40px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes toastOut {
+            from { opacity: 1; transform: translateY(0); }
+            to { opacity: 0; transform: translateY(40px); }
+        }
+
+        /* Animation flash pour détection */
+        .flash-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(255, 255, 255, 0.7);
+            z-index: 1001;
+            pointer-events: none;
+            animation: flashWhite 0.2s ease-out forwards;
+        }
+
+        @keyframes flashWhite {
+            0% { opacity: 0.7; }
+            50% { opacity: 0.9; }
+            100% { opacity: 0; }
+        }
+
+        /* Responsive design */
+        @media screen and (max-width: 768px) {
+            #scannerPreview {
+                width: 100%;
+                height: 60vh;
+            }
+
+            #scan-indicator {
+                width: 90%;
+                height: 70%;
+            }
+
+            #scannedProductInfo {
+                min-width: 90%;
+                padding: 20px;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1><i class="fas fa-barcode"></i> Vérificateur de Prix</h1>
-            <p>Scannez un produit pour voir son prix</p>
-        </div>
-
-        <button class="btn-scan" id="scanButton" onclick="toggleScanner()">
-            <i class="fas fa-camera"></i> Démarrer
-        </button>
-
-        <div class="manual-input">
-            <input type="text" id="manualBarcode" placeholder="Code-barres manuel" />
-        </div>
-
-        <div class="product-card" id="productCard">
-            <div class="product-name" id="productName"></div>
-            <div class="product-price" id="productPrice"></div>
-            <div class="product-stock" id="productStock"></div>
-        </div>
-    </div>
-
-    <div class="camera-container" id="cameraContainer">
-        <video id="videoPreview" autoplay playsinline></video>
-        <button class="btn-close" onclick="stopScanner()">
-            <i class="fas fa-times"></i> Fermer
-        </button>
-        <div class="scan-overlay">
-            <div class="scan-frame" id="scanFrame">
-                <div class="scan-line"></div>
-                <div class="corner top-left"></div>
-                <div class="corner top-right"></div>
-                <div class="corner bottom-left"></div>
-                <div class="corner bottom-right"></div>
+        <h1 class="text-4xl font-bold mb-8 text-center animate-fadeInUp">
+            <i class="fas fa-barcode mr-2 text-blue-400"></i> Vérificateur de Prix
+        </h1>
+        <video id="scannerPreview" autoplay playsinline></video>
+        <div id="scannerOverlay">
+            <div id="scan-indicator" role="region" aria-live="polite"></div>
+            <div id="camera-loading">
+                <i class="fas fa-spinner fa-spin mr-2"></i>Chargement de la caméra...
             </div>
         </div>
-    </div>
-
-    <div class="sparkles" id="sparkles"></div>
-    
-    <div class="debug-info" id="debugInfo">
-        Status: Prêt<br>
-        Cache: 0 produits<br>
-        Dernier scan: -
+        <div id="scannedProductInfo">
+            <h2><i class="fas fa-check-circle"></i> Produit Scanné</h2>
+            <div class="product-name" id="scannedProductName"></div>
+            <div class="product-price" id="scannedProductPrice"></div>
+            <div class="product-stock" id="scannedProductStock"></div>
+        </div>
+        <div id="productNotFoundModal">
+            <i class="fas fa-exclamation-triangle text-5xl text-red-500 mb-4"></i>
+            <h2>Produit Non Trouvé</h2>
+            <p>Code-barres : <strong id="notFoundBarcode"></strong></p>
+            <p class="text-gray-500">Ce produit n'existe pas dans la base de données.</p>
+            <button onclick="closeProductNotFoundModal()" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition">
+                <i class="fas fa-times mr-2"></i>Fermer
+            </button>
+        </div>
+        <div id="productNotFoundOverlay" onclick="closeProductNotFoundModal()"></div>
+        <div id="toast" class="flex items-center px-6 py-3 rounded-lg shadow-lg">
+            <i id="toastIcon" class="mr-2"></i>
+            <span id="toastMessage"></span>
+        </div>
     </div>
 
     <script>
-        const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'https://hicham03041979.onrender.com';
-        let videoStream = null;
-        let scanning = false;
+        const API_BASE_URL = 'https://your-api-endpoint.com'; // Remplacez par votre endpoint API
+        let scannerStream = null;
+        let scannerRunning = false;
         let lastScanTime = 0;
         const SCAN_COOLDOWN = 2000;
 
-        // Cache EXACTEMENT comme dans votre HTML
-        let produitsCache = [];
-        window.produitsIndexBar = {};
-        window.produitsIndexNumero = {};
+        async function startScanner() {
+            if (scannerRunning) return;
+            scannerRunning = true;
 
-        function updateDebug(status, cache, scan) {
-            const debug = document.getElementById('debugInfo');
-            debug.innerHTML = `Status: ${status}<br>Cache: ${cache} produits<br>Dernier: ${scan}`;
-        }
+            const scannerPreview = document.getElementById('scannerPreview');
+            const scannerOverlay = document.getElementById('scannerOverlay');
+            const scanIndicator = document.getElementById('scan-indicator');
+            const cameraLoading = document.getElementById('camera-loading');
 
-        // Chargement des produits EXACTEMENT comme votre HTML
-        async function chargerProduits() {
-            console.log('📦 Chargement des produits...');
-            updateDebug('Chargement...', 0, '-');
-            
-            const userId = localStorage.getItem('userId');
-            
+            let closeScannerButton = document.getElementById('closeScannerButton');
+            if (!closeScannerButton) {
+                closeScannerButton = document.createElement('button');
+                closeScannerButton.id = 'closeScannerButton';
+                closeScannerButton.innerHTML = '<i class="fas fa-times"></i> Fermer';
+                closeScannerButton.className = 'closeScannerButton';
+                document.body.appendChild(closeScannerButton);
+                closeScannerButton.onclick = stopScanner;
+            }
+
             try {
-                const response = await fetch(`${API_BASE_URL}/liste_produits`, {
-                    headers: userId ? { 'X-User-ID': userId } : {}
-                });
-                
-                if (!response.ok) {
-                    console.error('❌ Erreur:', response.status);
-                    updateDebug('Erreur API', 0, '-');
-                    return;
+                if (!('BarcodeDetector' in window)) {
+                    throw new Error('API BarcodeDetector non supportée.');
                 }
-                
-                produitsCache = await response.json();
-                console.log(`✅ ${produitsCache.length} produits chargés`);
-                
-                // Créer index EXACTEMENT comme votre code
-                produitsCache.forEach(p => {
-                    const bar = (p.BAR || p.bar || '').toString();
-                    const numero = (p.NUMERO_ITEM || p.numero_item || '').toString();
-                    
-                    if (bar) window.produitsIndexBar[bar] = p;
-                    if (numero) window.produitsIndexNumero[numero] = p;
+
+                scannerStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { ideal: 'user' }, width: { ideal: 1280 }, height: { ideal: 720 } }
                 });
-                
-                console.log('✅ Index créé:', Object.keys(window.produitsIndexBar).length, 'codes-barres');
-                updateDebug('Prêt', produitsCache.length, '-');
-                
-            } catch (error) {
-                console.error('❌ Erreur:', error);
-                updateDebug('Erreur réseau', 0, '-');
-            }
-        }
 
-        // Recherche EXACTEMENT comme votre HTML
-        async function rechercherProduitOptimise(barcode) {
-            console.log('🔍 Recherche:', barcode);
-            updateDebug('Recherche...', produitsCache.length, barcode);
+                scannerPreview.srcObject = scannerStream;
+                scannerPreview.style.display = 'block';
+                scannerOverlay.style.display = 'block';
+                cameraLoading.style.display = 'flex';
+                closeScannerButton.style.display = 'block';
 
-            if (!barcode) {
-                return { statut: 'erreur', message: 'Code vide' };
-            }
-
-            // 1. Cache local d'abord
-            if (window.produitsIndexBar && window.produitsIndexBar[barcode]) {
-                console.log('✅ Trouvé dans cache');
-                updateDebug('Trouvé (cache)', produitsCache.length, barcode);
-                return {
-                    statut: 'trouvé',
-                    produit: window.produitsIndexBar[barcode]
+                scannerPreview.onloadedmetadata = () => {
+                    cameraLoading.style.display = 'none';
+                    scanIndicator.classList.add('scanning');
+                    scannerPreview.play().catch(err => {
+                        showToast('Erreur lecture caméra', true);
+                        stopScanner();
+                    });
                 };
-            }
 
-            // 2. API si pas en cache
-            const userId = localStorage.getItem('userId');
+                const barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
 
-            try {
-                const url = `${API_BASE_URL}/rechercher_produit_codebar?codebar=${encodeURIComponent(barcode)}`;
-                console.log('🌐 API:', url);
-                
-                const response = await fetch(url, {
-                    headers: userId ? { 'X-User-ID': userId } : {}
-                });
+                const scan = async () => {
+                    if (!scannerRunning) return;
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = scannerPreview.videoWidth || 640;
+                        canvas.height = scannerPreview.videoHeight || 480;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(scannerPreview, 0, 0, canvas.width, canvas.height);
 
-                console.log('📡 Réponse:', response.status);
+                        const barcodes = await barcodeDetector.detect(canvas);
+                        if (barcodes.length > 0) {
+                            const currentTime = Date.now();
+                            if (currentTime - lastScanTime < SCAN_COOLDOWN) {
+                                requestAnimationFrame(scan);
+                                return;
+                            }
+                            lastScanTime = currentTime;
 
-                if (!response.ok) {
-                    updateDebug('Non trouvé', produitsCache.length, barcode);
-                    return { statut: 'non_trouvé' };
-                }
+                            const barcode = barcodes[0].rawValue;
+                            scanIndicator.classList.remove('scanning');
+                            scanIndicator.classList.add('detected');
+                            setTimeout(() => {
+                                scanIndicator.classList.remove('detected');
+                                scanIndicator.classList.add('scanning');
+                            }, 500);
 
-                const result = await response.json();
-                console.log('📦 Résultat:', result);
+                            const flashOverlay = document.createElement('div');
+                            flashOverlay.className = 'flash-overlay';
+                            document.body.appendChild(flashOverlay);
+                            setTimeout(() => flashOverlay.remove(), 200);
 
-                if (result.statut === 'trouvé' && result.produit) {
-                    // Mettre en cache
-                    const bar = (result.produit.bar || result.produit.BAR || '').toString();
-                    if (bar && window.produitsIndexBar) {
-                        window.produitsIndexBar[bar] = result.produit;
+                            const result = await fetchProduct(barcode);
+                            if (result.statut === 'trouvé') {
+                                showScannedProductInfo(result.produit);
+                                if ('vibrate' in navigator) navigator.vibrate(200);
+                                playBeep();
+                            } else {
+                                showProductNotFoundModal(barcode);
+                                if ('vibrate' in navigator) navigator.vibrate([100, 50, 100]);
+                                playErrorSound();
+                            }
+                        }
+                    } catch (err) {
+                        console.error('Erreur détection:', err);
                     }
-                    if (!produitsCache.some(p => (p.NUMERO_ITEM || p.numero_item) === (result.produit.numero_item || result.produit.NUMERO_ITEM))) {
-                        produitsCache.push(result.produit);
-                    }
-                    
-                    updateDebug('Trouvé (API)', produitsCache.length, barcode);
-                    return result;
-                }
+                    if (scannerRunning) requestAnimationFrame(scan);
+                };
 
-                updateDebug('Non trouvé', produitsCache.length, barcode);
-                return { statut: 'non_trouvé' };
-
+                scan();
             } catch (error) {
-                console.error('❌ Erreur API:', error);
-                updateDebug('Erreur', produitsCache.length, barcode);
-                return { statut: 'erreur', message: error.message };
-            }
-        }
-
-        async function toggleScanner() {
-            if (!scanning) {
-                await startScanner();
-            } else {
+                showToast(`Erreur scanner : ${error.message}`, true);
                 stopScanner();
             }
         }
 
-        async function startScanner() {
+        async function fetchProduct(barcode) {
             try {
-                if (!('BarcodeDetector' in window)) {
-                    alert('BarcodeDetector non supporté');
-                    return;
+                const response = await fetch(`${API_BASE_URL}/rechercher_produit_codebar?codebar=${encodeURIComponent(barcode)}`);
+                if (!response.ok) {
+                    return { statut: 'non_trouvé' };
                 }
-
-                videoStream = await navigator.mediaDevices.getUserMedia({
-                    video: { 
-                        facingMode: { ideal: 'environment' },
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
-                    }
-                });
-
-                const video = document.getElementById('videoPreview');
-                video.srcObject = videoStream;
-                document.getElementById('cameraContainer').classList.add('active');
-                scanning = true;
-                document.getElementById('scanButton').innerHTML = '<i class="fas fa-stop"></i> Arrêter';
-
-                video.onloadedmetadata = () => {
-                    video.play();
-                    document.getElementById('scanFrame').classList.add('scanning');
-                    detectBarcode();
-                };
-
+                return await response.json();
             } catch (error) {
-                alert('Erreur caméra: ' + error.message);
+                return { statut: 'erreur', message: error.message };
             }
         }
 
-        function stopScanner() {
-            if (videoStream) {
-                videoStream.getTracks().forEach(track => track.stop());
-                videoStream = null;
-            }
+        function showScannedProductInfo(produit) {
+            const infoDiv = document.getElementById('scannedProductInfo');
+            const nameElement = infoDiv.querySelector('#scannedProductName');
+            const priceElement = infoDiv.querySelector('#scannedProductPrice');
+            const stockElement = infoDiv.querySelector('#scannedProductStock');
 
-            document.getElementById('cameraContainer').classList.remove('active');
-            scanning = false;
-            document.getElementById('scanButton').innerHTML = '<i class="fas fa-camera"></i> Démarrer';
-            document.getElementById('scanFrame').classList.remove('scanning', 'detected');
+            const designation = produit.designation || produit.DESIGNATION || 'Produit';
+            const prix = produit.prix || produit.PRIX || 0;
+            const quantite = produit.qte || produit.QTE || 0;
+
+            nameElement.textContent = designation;
+            priceElement.textContent = `${parseFloat(prix).toFixed(2)} DA`;
+            stockElement.textContent = `Stock : ${parseFloat(quantite).toFixed(2)} unités`;
+
+            infoDiv.style.display = 'block';
+            setTimeout(() => infoDiv.style.display = 'none', 3000);
         }
 
-        async function detectBarcode() {
-            if (!scanning) return;
+        function showProductNotFoundModal(barcode) {
+            const modal = document.getElementById('productNotFoundModal');
+            const overlay = document.getElementById('productNotFoundOverlay');
+            const barcodeElement = document.getElementById('notFoundBarcode');
 
-            const video = document.getElementById('videoPreview');
-            const detector = new BarcodeDetector({ 
-                formats: ['ean_13', 'code_128', 'upc_a', 'upc_e', 'ean_8'] 
-            });
+            barcodeElement.textContent = barcode;
+            modal.style.display = 'block';
+            overlay.style.display = 'block';
 
-            try {
-                const canvas = document.createElement('canvas');
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(video, 0, 0);
-
-                const codes = await detector.detect(canvas);
-                
-                if (codes.length > 0) {
-                    const now = Date.now();
-                    if (now - lastScanTime < SCAN_COOLDOWN) {
-                        requestAnimationFrame(detectBarcode);
-                        return;
-                    }
-                    lastScanTime = now;
-
-                    const barcode = codes[0].rawValue;
-                    console.log('📷 Détecté:', barcode);
-                    
-                    document.getElementById('scanFrame').classList.add('detected');
-                    if ('vibrate' in navigator) navigator.vibrate(200);
-                    playBeep();
-
-                    setTimeout(() => {
-                        document.getElementById('scanFrame').classList.remove('detected');
-                    }, 500);
-
-                    await searchProduct(barcode);
-                }
-            } catch (error) {
-                console.error('❌ Détection:', error);
-            }
-
-            if (scanning) {
-                requestAnimationFrame(detectBarcode);
-            }
+            setTimeout(() => closeProductNotFoundModal(), 3000);
         }
 
-        async function searchProduct(barcode) {
-            const result = await rechercherProduitOptimise(barcode);
-
-            if (result.statut === 'trouvé' && result.produit) {
-                const p = result.produit;
-                
-                // Extraire EXACTEMENT comme votre HTML
-                const designation = p.designation || p.DESIGNATION || 'Produit';
-                const prix = p.prix || p.PRIX || 0;
-                const qte = p.qte || p.QTE || 0;
-
-                console.log('✅ Affichage:', designation, prix, qte);
-                displayProduct(designation, prix, qte);
-            } else {
-                alert('❌ Produit non trouvé: ' + barcode);
-            }
+        function closeProductNotFoundModal() {
+            const modal = document.getElementById('productNotFoundModal');
+            const overlay = document.getElementById('productNotFoundOverlay');
+            modal.style.display = 'none';
+            overlay.style.display = 'none';
         }
 
-        function displayProduct(designation, prix, qte) {
-            const card = document.getElementById('productCard');
-            
-            document.getElementById('productName').textContent = designation;
-            document.getElementById('productPrice').textContent = parseFloat(prix).toFixed(2) + ' DA';
-            document.getElementById('productStock').innerHTML = `<i class="fas fa-box"></i> Stock: ${parseFloat(qte).toFixed(2)}`;
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
 
-            card.classList.add('show');
-            createSparkles();
+            toast.className = `flex items-center px-6 py-3 rounded-lg shadow-lg ${isError ? 'bg-red-500' : 'bg-green-500'} text-white toast-in`;
+            toastIcon.className = `fas ${isError ? 'fa-exclamation-circle' : 'fa-check-circle'} mr-2`;
+            toastMessage.textContent = message;
+            toast.style.display = 'flex';
 
-            setTimeout(() => card.classList.remove('show'), 5000);
+            setTimeout(() => {
+                toast.classList.remove('toast-in');
+                toast.classList.add('toast-out');
+                setTimeout(() => toast.style.display = 'none', 500);
+            }, 3000);
         }
 
         function playBeep() {
-            try {
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.frequency.value = 1200;
-                gain.gain.setValueAtTime(0.3, ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
-                osc.start();
-                osc.stop(ctx.currentTime + 0.15);
-            } catch (e) {}
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            oscillator.frequency.setValueAtTime(1200, audioContext.currentTime);
+            oscillator.type = 'sine';
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
+
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.15);
         }
 
-        function createSparkles() {
-            const container = document.getElementById('sparkles');
-            container.innerHTML = '';
-            for (let i = 0; i < 15; i++) {
-                const s = document.createElement('div');
-                s.className = 'sparkle';
-                s.style.left = Math.random() * 100 + '%';
-                s.style.top = Math.random() * 100 + '%';
-                container.appendChild(s);
-            }
-            setTimeout(() => container.innerHTML = '', 1500);
+        function playErrorSound() {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            oscillator.frequency.setValueAtTime(400, audioContext.currentTime);
+            oscillator.type = 'sine';
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.3);
         }
 
-        document.getElementById('manualBarcode').addEventListener('change', async (e) => {
-            const barcode = e.target.value.trim();
-            if (barcode) {
-                await searchProduct(barcode);
-                e.target.value = '';
+        function stopScanner() {
+            scannerRunning = false;
+
+            const scannerPreview = document.getElementById('scannerPreview');
+            const scannerOverlay = document.getElementById('scannerOverlay');
+            const scanIndicator = document.getElementById('scan-indicator');
+            const cameraLoading = document.getElementById('camera-loading');
+            const closeScannerButton = document.getElementById('closeScannerButton');
+
+            if (scannerStream) {
+                scannerStream.getTracks().forEach(track => track.stop());
+                scannerStream = null;
             }
+
+            scannerPreview.style.display = 'none';
+            scannerOverlay.style.display = 'none';
+            scanIndicator.classList.remove('scanning', 'detected');
+            cameraLoading.style.display = 'none';
+            if (closeScannerButton) {
+                closeScannerButton.style.display = 'none';
+            }
+        }
+
+        // Démarrer le scanner automatiquement au chargement
+        document.addEventListener('DOMContentLoaded', () => {
+            startScanner();
         });
-
-        // Charger au démarrage
-        window.addEventListener('DOMContentLoaded', chargerProduits);
     </script>
 </body>
 </html>
