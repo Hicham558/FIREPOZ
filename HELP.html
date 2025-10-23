@@ -7,7 +7,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
-    <script type="module" src="sw1.js"></script>
     <style>
         body {
             background: linear-gradient(135deg, #e0e7ff, #a5b4fc);
@@ -51,9 +50,8 @@
             pointer-events: none;
             z-index: 1001;
             overflow: hidden;
+            will-change: transform, border-color;
         }
-        
-        /* Animation de balayage laser */
         .scan-line {
             position: absolute;
             width: 100%;
@@ -69,45 +67,32 @@
             top: 0;
             left: 0;
             opacity: 0;
+            will-change: top, opacity;
         }
-        
         .scanning .scan-line {
             opacity: 1;
-            animation: scanAnimation 2s linear infinite;
+            animation: scanAnimation 1.5s linear infinite;
         }
-        
         @keyframes scanAnimation {
-            0% {
-                top: 0%;
-                opacity: 0;
-            }
-            10% {
-                opacity: 1;
-            }
-            90% {
-                opacity: 1;
-            }
-            100% {
-                top: 100%;
-                opacity: 0;
-            }
+            0% { top: 0%; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
         }
-        
         .scanning {
             border-color: rgba(34, 197, 94, 0.6);
-            animation: pulseIndicator 1.2s infinite ease-in-out;
+            animation: pulseIndicator 1s ease-in-out infinite;
         }
         .detected {
             border-color: rgba(34, 197, 94, 1);
-            animation: detectedPulse 0.5s ease-out;
+            animation: detectedPulse 0.4s ease-out;
         }
-        
-        /* Coins animés du cadre de scan */
         .scan-corner {
             position: absolute;
             width: 40px;
             height: 40px;
             border: 4px solid rgba(34, 197, 94, 0.9);
+            will-change: transform, border-color;
         }
         .scan-corner.top-left {
             top: -2px;
@@ -137,22 +122,40 @@
             border-top: none;
             border-bottom-right-radius: 12px;
         }
-        
         .scanning .scan-corner {
-            animation: cornerPulse 1.2s infinite ease-in-out;
+            animation: cornerPulse 1s ease-in-out infinite;
         }
-        
         @keyframes cornerPulse {
-            0%, 100% {
-                border-color: rgba(34, 197, 94, 0.6);
-                transform: scale(1);
-            }
-            50% {
-                border-color: rgba(34, 197, 94, 1);
-                transform: scale(1.1);
-            }
+            0%, 100% { border-color: rgba(34, 197, 94, 0.6); transform: scale(1); }
+            50% { border-color: rgba(34, 197, 94, 1); transform: scale(1.1); }
         }
-        
+        #futuristic-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: rgba(34, 197, 94, 0.9);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.2rem;
+            z-index: 1002;
+        }
+        #clock-display {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px 16px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
+        }
+        #last-product-info {
+            position: absolute;
+            top: 60px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 16px;
+            border-radius: 8px;
+            color: rgba(34, 197, 94, 0.9);
+            font-family: 'Orbitron', sans-serif;
+            max-width: 200px;
+            box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
+        }
         #camera-loading {
             display: none;
             position: absolute;
@@ -284,7 +287,26 @@
             from { opacity: 1; transform: translateY(0); }
             to { opacity: 0; transform: translateY(50px); }
         }
+        /* Animation futuriste */
+        .futuristic-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(0deg, rgba(34, 197, 94, 0.1) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(34, 197, 94, 0.1) 1px, transparent 1px);
+            background-size: 20px 20px;
+            opacity: 0.5;
+            animation: gridPulse 4s ease-in-out infinite;
+        }
+        @keyframes gridPulse {
+            0% { opacity: 0.3; }
+            50% { opacity: 0.5; }
+            100% { opacity: 0.3; }
+        }
     </style>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="container mx-auto px-4 py-8">
@@ -315,10 +337,20 @@
     <div id="scannerOverlay">
         <div id="scan-indicator">
             <div class="scan-line"></div>
+            <div class="futuristic-grid"></div>
             <div class="scan-corner top-left"></div>
             <div class="scan-corner top-right"></div>
             <div class="scan-corner bottom-left"></div>
             <div class="scan-corner bottom-right"></div>
+        </div>
+        <div id="futuristic-overlay">
+            <div id="clock-display">00:00:00</div>
+            <div id="last-product-info">
+                <p class="text-sm">Dernier produit scanné :</p>
+                <p id="last-product-name" class="text-sm font-bold">Aucun produit</p>
+                <p id="last-product-price" class="text-sm">Prix : -</p>
+                <p id="last-product-stock" class="text-sm">Stock : -</p>
+            </div>
         </div>
         <div id="camera-loading">
             <i class="fas fa-spinner fa-spin mr-3"></i>Chargement de la caméra...
@@ -360,15 +392,23 @@
         const SCAN_COOLDOWN = 1500;
         let produitsCache = [];
         window.produitsIndexBar = {};
-        let currentFacingMode = 'environment'; // Caméra arrière par défaut
+        let currentFacingMode = 'environment';
         let isTorchOn = false;
         let currentTrack = null;
+        let lastProduct = null;
+
+        function updateClock() {
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            document.getElementById('clock-display').textContent = `${hours}:${minutes}:${seconds}`;
+        }
 
         async function startScanner() {
             if (scannerRunning) return;
             scannerRunning = true;
 
-            // Cacher et désactiver le champ de saisie pour éviter le clavier
             const productBarInput = document.getElementById('productBar');
             productBarInput.blur();
             productBarInput.style.display = 'none';
@@ -389,19 +429,17 @@
 
             try {
                 if (!('BarcodeDetector' in window)) throw new Error('API BarcodeDetector non supportée. Utilisez Chrome ou Edge.');
-                
-                // Configuration avec autofocus activé
+
                 scannerStream = await navigator.mediaDevices.getUserMedia({
                     video: { 
                         facingMode: currentFacingMode, 
-                        width: { ideal: 1920 }, 
-                        height: { ideal: 1080 },
-                        focusMode: 'continuous' // Autofocus continu
+                        width: { ideal: 1280 }, 
+                        height: { ideal: 720 },
+                        focusMode: 'continuous'
                     }
                 });
                 currentTrack = scannerStream.getVideoTracks()[0];
 
-                // Appliquer les contraintes d'autofocus si supporté
                 try {
                     const capabilities = currentTrack.getCapabilities();
                     if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
@@ -419,6 +457,9 @@
                 cameraLoading.style.display = 'flex';
                 closeScannerButton.style.display = 'block';
 
+                setInterval(updateClock, 1000);
+                updateClock();
+
                 scannerPreview.onloadedmetadata = () => {
                     cameraLoading.style.display = 'none';
                     scanIndicator.classList.add('scanning');
@@ -430,13 +471,22 @@
 
                 const barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'upc_a', 'upc_e'] });
 
-                const scan = async () => {
+                let lastFrameTime = 0;
+                const FRAME_INTERVAL = 100; // Limite à ~10 FPS
+
+                const scan = async (timestamp) => {
                     if (!scannerRunning) return;
+                    if (timestamp - lastFrameTime < FRAME_INTERVAL) {
+                        requestAnimationFrame(scan);
+                        return;
+                    }
+                    lastFrameTime = timestamp;
+
                     try {
                         const canvas = document.createElement('canvas');
-                        canvas.width = scannerPreview.videoWidth || 1280;
-                        canvas.height = scannerPreview.videoHeight || 720;
-                        const ctx = canvas.getContext('2d');
+                        canvas.width = 640; // Réduction de la résolution
+                        canvas.height = 360;
+                        const ctx = canvas.getContext('2d', { willReadFrequently: true });
                         ctx.drawImage(scannerPreview, 0, 0, canvas.width, canvas.height);
 
                         const barcodes = await barcodeDetector.detect(canvas);
@@ -454,7 +504,7 @@
                             setTimeout(() => {
                                 scanIndicator.classList.remove('detected');
                                 scanIndicator.classList.add('scanning');
-                            }, 500);
+                            }, 400);
 
                             const flashOverlay = document.createElement('div');
                             flashOverlay.className = 'flash-overlay';
@@ -463,6 +513,8 @@
 
                             const result = await rechercherProduitOptimise(barcode);
                             if (result.statut === 'trouvé' && result.produit) {
+                                lastProduct = result.produit;
+                                updateLastProductInfo();
                                 showScannedProductInfo(result.produit);
                                 navigator.vibrate?.(200);
                                 playBeep();
@@ -478,11 +530,32 @@
                     }
                     if (scannerRunning) requestAnimationFrame(scan);
                 };
-                scan();
+                requestAnimationFrame(scan);
                 closeScannerButton.onclick = stopScanner;
             } catch (error) {
                 showToast(`Erreur scanner : ${error.message}`, true);
                 stopScanner();
+            }
+        }
+
+        function updateLastProductInfo() {
+            const nameElement = document.getElementById('last-product-name');
+            const priceElement = document.getElementById('last-product-price');
+            const stockElement = document.getElementById('last-product-stock');
+
+            if (lastProduct) {
+                const designation = lastProduct.designation || lastProduct.DESIGNATION || 'Produit';
+                const prix = lastProduct.prix || lastProduct.PRIX || 0;
+                const quantite = lastProduct.qte || lastProduct.QTE || 0;
+                const quantiteFloat = parseFloat(String(quantite).replace(',', '.'));
+
+                nameElement.textContent = designation;
+                priceElement.textContent = `Prix : ${parseFloat(String(prix).replace(',', '.')).toFixed(2)} DA`;
+                stockElement.textContent = `Stock : ${isNaN(quantiteFloat) ? '0.00' : quantiteFloat.toFixed(2)} unités`;
+            } else {
+                nameElement.textContent = 'Aucun produit';
+                priceElement.textContent = 'Prix : -';
+                stockElement.textContent = 'Stock : -';
             }
         }
 
@@ -612,7 +685,6 @@
             cameraLoading.style.display = 'none';
             if (closeScannerButton) closeScannerButton.style.display = 'none';
             
-            // Réafficher et réactiver le champ de saisie
             productBarInput.style.display = 'block';
             setTimeout(() => productBarInput.focus(), 100);
         }
@@ -663,17 +735,18 @@
             oscillator.stop(audioContext.currentTime + 0.3);
         }
 
-        // Autofocus au chargement
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('productBar').focus();
+            updateLastProductInfo();
         });
 
-        // Saisie manuelle
         document.getElementById('productBar').addEventListener('change', async (event) => {
             const barcode = event.target.value.trim();
             if (!barcode) return;
             const result = await rechercherProduitOptimise(barcode);
             if (result.statut === 'trouvé' && result.produit) {
+                lastProduct = result.produit;
+                updateLastProductInfo();
                 showScannedProductInfo(result.produit);
                 showToast(`✅ ${result.produit.designation || result.produit.DESIGNATION}`);
             } else {
@@ -682,13 +755,8 @@
             event.target.value = '';
         });
 
-        // Lancer le scanner
         document.getElementById('scanButton').addEventListener('click', startScanner);
-
-        // Basculer entre caméra frontale et arrière
         document.getElementById('toggleCameraButton').addEventListener('click', toggleCamera);
-
-        // Activer/désactiver la torche
         document.getElementById('toggleTorchButton').addEventListener('click', toggleTorch);
     </script>
 </body>
