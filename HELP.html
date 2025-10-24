@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
     <script type="module" src="sw1.js"></script>
-    <!-- ZXing fallback -->
     <script src="https://unpkg.com/@zxing/library@0.20.0/dist/index.min.js"></script>
     <style>
         body {
@@ -20,7 +19,6 @@
             align-items: center;
         }
 
-        /* Aperçu caméra */
         #scannerPreview {
             width: 100vw;
             height: 100vh;
@@ -45,8 +43,9 @@
             box-shadow: 0 0 30px rgba(0, 0, 0, 0.6);
         }
 
+        /* CORRECTION CENTRAGE + MIRRORING */
         #scannerPreview.front-mirrored {
-            transform: scaleX(-1);
+            transform: translate(-50%, -50%) scaleX(-1);
         }
 
         #scannerOverlay {
@@ -100,7 +99,6 @@
             100% { top: 100%; opacity: 0; }
         }
 
-        /* Tracker vert */
         #barcode-tracker {
             position: fixed;
             border: 3px solid rgba(34, 197, 94, 0.9);
@@ -304,22 +302,22 @@
 <body>
     <div class="container mx-auto px-4 py-8">
         <h1 class="text-4xl font-extrabold text-indigo-800 mb-8 text-center animate-pulse">
-            <i class="fas fa-barcode mr-3"></i> Vérificateur de Prix EAN-13
+            Vérificateur de Prix EAN-13
         </h1>
         <div class="bg-white rounded-2xl shadow-xl p-8 max-w-md mx-auto transform transition-all hover:scale-105">
             <div class="flex flex-col gap-4">
                 <div class="relative">
                     <input type="text" id="productBar" class="w-full px-4 py-3 border-2 border-indigo-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-200 transition duration-300" placeholder="Scanner ou entrer code-barres" autofocus required>
                     <button id="scanButton" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition duration-300 flex items-center">
-                        <i class="fas fa-camera mr-2"></i> Scanner
+                        Scanner
                     </button>
                 </div>
                 <div class="flex gap-4 justify-center">
                     <button id="toggleCameraButton" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition duration-300 flex items-center">
-                        <i class="fas fa-sync-alt mr-2"></i> Caméra arrière
+                        Caméra arrière
                     </button>
                     <button id="toggleTorchButton" class="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition duration-300 flex items-center">
-                        <i class="fas fa-lightbulb mr-2"></i> Torche
+                        Torche
                     </button>
                 </div>
             </div>
@@ -338,18 +336,17 @@
             <div class="scan-corner bottom-right"></div>
         </div>
         <div id="scan-instructions">
-            <i class="fas fa-barcode mb-2"></i><br>
             Placez le code-barres au centre de la zone
         </div>
         <div id="scan-title">Scan ici</div>
         <div id="camera-loading">
-            <i class="fas fa-spinner fa-spin mr-3"></i>Chargement de la caméra...
+            Chargement de la caméra...
         </div>
     </div>
 
     <div id="scannedProductInfo">
         <h2 class="text-3xl font-bold text-indigo-600 mb-4">
-            <i class="fas fa-check-circle mr-2"></i> Produit Scanné
+            Produit Scanné
         </h2>
         <div class="product-name text-4xl font-extrabold text-gray-800 mb-3" id="scannedProductName"></div>
         <div class="product-price text-5xl font-bold text-green-600 mb-3" id="scannedProductPrice"></div>
@@ -357,12 +354,11 @@
     </div>
 
     <div id="productNotFoundModal">
-        <i class="fas fa-exclamation-triangle text-7xl text-red-500 mb-4"></i>
         <h2 class="text-3xl font-bold text-gray-800 mb-4">Produit Non Trouvé</h2>
         <p class="text-xl text-gray-600 mb-3">Code-barres : <strong id="notFoundBarcode" class="text-indigo-600"></strong></p>
         <p class="text-base text-gray-500 mb-6">Ce produit n'existe pas dans la base de données.</p>
         <button onclick="closeProductNotFoundModal()" class="bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 transition duration-300">
-            <i class="fas fa-times mr-2"></i>Fermer
+            Fermer
         </button>
     </div>
     <div id="productNotFoundOverlay" onclick="closeProductNotFoundModal()"></div>
@@ -380,27 +376,23 @@
         let scannerRunning = false;
         let lastScanTime = 0;
         const SCAN_COOLDOWN = 600;
-        let produitsCache = [];
         window.produitsIndexBar = {};
         let currentFacingMode = 'environment';
-        let isTorchOn = false;
         let currentTrack = null;
         let scanCanvas = null;
         let scanContext = null;
         let consecutiveDetections = 0;
         let barcodeDetector = null;
         let zxingReader = null;
+        let currentZoom = 1;
 
-        // Init detectors
         async function initDetector() {
             if ('BarcodeDetector' in window) {
                 barcodeDetector = new BarcodeDetector({
                     formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39']
                 });
-                console.log('Native BarcodeDetector activé');
             } else {
                 zxingReader = new ZXing.BrowserMultiFormatReader();
-                console.log('ZXing fallback activé');
             }
         }
 
@@ -408,6 +400,7 @@
             if (scannerRunning) return;
             scannerRunning = true;
             consecutiveDetections = 0;
+            currentZoom = 1;
 
             const productBarInput = document.getElementById('productBar');
             productBarInput.blur();
@@ -423,7 +416,7 @@
             if (!closeScannerButton) {
                 closeScannerButton = document.createElement('button');
                 closeScannerButton.id = 'closeScannerButton';
-                closeScannerButton.innerHTML = '<i class="fas fa-times mr-2"></i>Fermer';
+                closeScannerButton.innerHTML = 'Fermer';
                 closeScannerButton.className = 'closeScannerButton';
                 closeScannerButton.onclick = stopScanner;
                 document.body.appendChild(closeScannerButton);
@@ -442,11 +435,8 @@
                 scannerStream = await navigator.mediaDevices.getUserMedia(constraints);
                 currentTrack = scannerStream.getVideoTracks()[0];
 
-                if (currentFacingMode === 'user') {
-                    scannerPreview.classList.add('front-mirrored');
-                } else {
-                    scannerPreview.classList.remove('front-mirrored');
-                }
+                // CENTRAGE + MIRRORING
+                scannerPreview.classList.toggle('front-mirrored', currentFacingMode === 'user');
 
                 scannerPreview.srcObject = scannerStream;
                 scannerPreview.style.display = 'block';
@@ -464,12 +454,17 @@
                 };
             } catch (error) {
                 showToast(`Erreur caméra : ${error.message}`, true);
-                if (currentFacingMode === 'user') {
-                    currentFacingMode = 'environment';
-                    setTimeout(startScanner, 500);
-                } else {
-                    stopScanner();
-                }
+                stopScanner();
+            }
+        }
+
+        async function applyZoom(zoomLevel) {
+            if (!currentTrack || !currentTrack.getCapabilities().zoom) return;
+            try {
+                await currentTrack.applyConstraints({ advanced: [{ zoom: zoomLevel }] });
+                currentZoom = zoomLevel;
+            } catch (e) {
+                console.warn('Zoom non supporté', e);
             }
         }
 
@@ -500,7 +495,6 @@
             const rect = video.getBoundingClientRect();
             const sx = rect.width / w, sy = rect.height / h;
             const mirrored = currentFacingMode === 'user';
-
             const tracker = document.getElementById('barcode-tracker');
 
             if (barcodes.length > 0) {
@@ -508,6 +502,15 @@
                 const b = barcodes[0];
                 const box = b.boundingBox;
 
+                // ZOOM SI CODE TROP PETIT
+                const codeWidthRatio = box.width / w;
+                if (codeWidthRatio < 0.2 && currentZoom < 2) {
+                    applyZoom(2);
+                } else if (codeWidthRatio > 0.3 && currentZoom > 1) {
+                    applyZoom(1);
+                }
+
+                // TRACKER ALIGNÉ (mirroring compensé)
                 const left = mirrored
                     ? rect.left + rect.width - (box.x * sx) - (box.width * sx)
                     : rect.left + (box.x * sx);
@@ -529,6 +532,7 @@
             } else {
                 consecutiveDetections = 0;
                 tracker.classList.remove('active');
+                if (currentZoom > 1) applyZoom(1);
             }
             requestAnimationFrame(scanLoop);
         }
@@ -555,26 +559,23 @@
             if (scannerRunning) {
                 stopScanner();
                 currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
-                document.getElementById('toggleCameraButton').innerHTML = `<i class="fas fa-sync-alt mr-2"></i> Caméra ${currentFacingMode === 'user' ? 'frontale' : 'arrière'}`;
-                isTorchOn = false;
-                document.getElementById('toggleTorchButton').innerHTML = '<i class="fas fa-lightbulb mr-2"></i> Torche';
+                document.getElementById('toggleCameraButton').innerHTML = `Caméra ${currentFacingMode === 'user' ? 'frontale' : 'arrière'}`;
                 setTimeout(startScanner, 100);
             } else {
                 currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
-                document.getElementById('toggleCameraButton').innerHTML = `<i class="fas fa-sync-alt mr-2"></i> Caméra ${currentFacingMode === 'user' ? 'frontale' : 'arrière'}`;
+                document.getElementById('toggleCameraButton').innerHTML = `Caméra ${currentFacingMode === 'user' ? 'frontale' : 'arrière'}`;
             }
         }
 
         async function toggleTorch() {
-            if (!scannerRunning || !currentTrack) return showToast('Démarrez le scanner', true);
+            if (!currentTrack) return showToast('Démarrez le scanner', true);
             const caps = currentTrack.getCapabilities();
             if (!caps.torch) return showToast('Torche non supportée', true);
-            isTorchOn = !isTorchOn;
-            await currentTrack.applyConstraints({ advanced: [{ torch: isTorchOn }] });
-            document.getElementById('toggleTorchButton').innerHTML = `<i class="fas fa-lightbulb mr-2"></i> Torche ${isTorchOn ? 'ON' : 'OFF'}`;
+            const isOn = !currentTrack.getSettings().torch;
+            await currentTrack.applyConstraints({ advanced: [{ torch: isOn }] });
+            document.getElementById('toggleTorchButton').innerHTML = `Torche ${isOn ? 'ON' : 'OFF'}`;
         }
 
-        // === Fonctions inchangées (recherche, UI, sons, etc.) ===
         async function rechercherProduitOptimise(barcode) {
             if (!barcode) return { statut: 'erreur' };
             if (window.produitsIndexBar?.[barcode]) return { statut: 'trouvé', produit: window.produitsIndexBar[barcode] };
@@ -619,7 +620,6 @@
 
         function stopScanner() {
             scannerRunning = false;
-            consecutiveDetections = 0;
             if (scannerStream) scannerStream.getTracks().forEach(t => t.stop());
             const video = document.getElementById('scannerPreview');
             video.classList.remove('minimized', 'front-mirrored');
